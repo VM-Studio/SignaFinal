@@ -1,26 +1,89 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* SIGNA — negro, blanco y gris. Color solo para estado, siempre con texto. */
+@theme {
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+
+  --color-negro: #0a0a0a;
+  --color-carbon: #1c1c1c;
+  --color-tinta: #171717;
+  --color-fondo: #f3f3f1;
+  --color-papel: #ffffff;
+  --color-linea: #dededa;
+  --color-linea-fuerte: #c4c4bf;
+  --color-suave: #6b6b66;
+  --color-apagado: #9a9a94;
+
+  --color-ok: #1f7a4d;
+  --color-ok-fondo: #e7f2ec;
+  --color-aviso: #b7791f;
+  --color-aviso-fondo: #fbf1e1;
+  --color-critico: #b42318;
+  --color-critico-fondo: #fbe9e7;
+
+  --radius-caja: 10px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-fondo text-tinta antialiased;
+    font-feature-settings: "tnum" 1;
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-negro);
+    outline-offset: 2px;
+  }
+  input,
+  select,
+  textarea {
+    font-size: 16px; /* evita el zoom de iOS */
+  }
+  /* Sin animaciones salvo el splash */
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ───────── Splash ───────── */
+html.splash-visto #splash {
+  display: none;
+}
+#splash .splash-barra > span {
+  animation: splash-carga var(--splash-ms, 2500ms) linear forwards !important;
+}
+#splash.saliendo {
+  opacity: 0;
+  transition: opacity 280ms ease !important;
+}
+@keyframes splash-carga {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* Leaflet: marcadores propios sin fondo por defecto */
+.leaflet-div-icon.marcador {
+  background: transparent;
+  border: 0;
+}
+.leaflet-container {
+  font-family: var(--font-archivo), system-ui, sans-serif;
+}
+
+/* Áreas seguras de iPhone */
+.pb-segura {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.pt-segura {
+  padding-top: env(safe-area-inset-top);
 }

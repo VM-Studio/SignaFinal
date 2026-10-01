@@ -1,36 +1,29 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SignaFinal · SIGNA Logística
 
-## Getting Started
+App interna de Signa Desarrollos: cola única de pedidos de viaje, flota, viajes con costo por obra, mapa en vivo (Cusat), depósito de maquinaria y herramientas, y alertas. Ver `CLAUDE.md` para el contexto completo.
 
-First, run the development server:
+## Stack
+Next.js 15 (App Router) · React 19 · TypeScript · Tailwind v4 · PostgreSQL + Prisma 6 · Zod · JWT (jose) + bcryptjs · Leaflet/OSM · PWA.
 
+## Correr en local
 ```bash
+cp .env.example .env   # completar DATABASE_URL, DIRECT_URL, AUTH_SECRET, CRON_SECRET, SEED_PASSWORD
+npm install
+npm run db:migrate     # aplica migraciones (incluye reglas de negocio en SQL)
+npm run db:seed        # carga inicial (solo si la base está vacía)
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Usuarios de la carga inicial (contraseña = `SEED_PASSWORD`):
+`direccion`, `leandro`, `daniela`, `cesar`, `vicky`, `lolo`, `claudio`, `cristian`, `david`, `deposito`, `administracion`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Base de datos
+- Reglas garantizadas por Postgres (`prisma/migrations/*_reglas_de_negocio`): un solo viaje en curso por chofer y por vehículo, km de llegada ≥ salida, herramienta unitaria en un solo lugar, stock no negativo, auditoría inmodificable.
+- Montos en `Decimal`. Envíos sin señal idempotentes por `clientId`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Integraciones
+- `lib/lebane/`: interfaz + mock (obras, proveedores, órdenes de compra).
+- `lib/cusat/`: interfaz + mock que simula movimiento.
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Deploy
+Vercel + Neon Postgres. `vercel-build` corre `prisma migrate deploy` antes del build. Cron diario `/api/cron/alertas`.

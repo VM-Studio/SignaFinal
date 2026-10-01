@@ -1,0 +1,514 @@
+// SIGNA · Logística — modelo de datos
+// Reglas que Prisma no puede expresar (índices únicos parciales, CHECKs)
+// viven en la migración SQL "reglas_de_negocio".
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────────── Personas ───────────────────────────────
+
+enum Rol {
+  DIRECCION
+  RESPONSABLE_OBRA
+  CAPATAZ
+  CHOFER
+  DEPOSITO
+  ADMINISTRACION
+}
+
+model Usuario {
+  id             String    @id @default(cuid())
+  nombre         String
+  usuario        String    @unique // con lo que entra: "claudio"
+  passwordHash   String
+  rol            Rol
+  telefono       String?
+  licenciaVence  DateTime? @db.Date // solo choferes
+  activo         Boolean   @default(true)
+  creadoEn       DateTime  @default(now())
+  actualizadoEn  DateTime  @updatedAt
+
+  obras                 Obra[]                 @relation("ResponsablesObra")
+  vehiculosAsignados    Vehiculo[]             @relation("VehiculoAsignado")
+  pedidosSolicitados    PedidoViaje[]          @relation("PedidoSolicitante")
+  pedidosTomados        PedidoViaje[]          @relation("PedidoChofer")
+  viajes                Viaje[]
+  cargasCombustible     CargaCombustible[]
+  itemsEnPoder          Item[]                 @relation("ItemTenedor")
+  movimientosRegistrados MovimientoItem[]      @relation("MovimientoRegistro")
+  movimientosRecibidos  MovimientoItem[]       @relation("MovimientoReceptor")
+  solicitudesHerramienta SolicitudHerramienta[] @relation("SolicitudSolicitante")
+  solicitudesResueltas  SolicitudHerramienta[] @relation("SolicitudResolutor")
+  mantenimientos        Mantenimiento[]
+  auditoria             Auditoria[]
+
+  @@index([rol, activo])
+}
+
+// ─────────────────────────── Datos de Lebane ────────────────────────────
+// Copia de solo lectura. Se sincroniza desde lib/lebane. Nunca se edita acá.
+
+model Obra {
+  id             String   @id @default(cuid())
+  idLebane       String   @unique
+  nombre         String
+  direccion      String
+  localidad      String?
+  lat            Float?
+  lng            Float?
+  activa         Boolean  @default(true)
+  sincronizadaEn DateTime @default(now())
+
+  responsables   Usuario[]              @relation("ResponsablesObra")
+  pedidos        PedidoViaje[]
+  viajes         Viaje[]
+  ordenesCompra  OrdenCompra[]
+  itemsEnObra    Item[]
+  stock          StockItem[]
+  movDesde       MovimientoItem[]       @relation("MovimientoDesde")
+  movHacia       MovimientoItem[]       @relation("MovimientoHacia")
+  solicitudes    SolicitudHerramienta[]
+
+  @@index([activa])
+}
+
+model Proveedor {
+  id             String   @id @default(cuid())
+  idLebane       String   @unique
+  nombre         String
+  rubro          String?
+  direccion      String
+  localidad      String?
+  lat            Float?
+  lng            Float?
+  telefono       String?
+  activo         Boolean  @default(true)
+  sincronizadoEn DateTime @default(now())
+
+  ordenesCompra  OrdenCompra[]
+  pedidos        PedidoViaje[]
+
+  @@index([activo])
+}
+
+model OrdenCompra {
+  id             String    @id @default(cuid())
+  idLebane       String    @unique
+  numero         String
+  fecha          DateTime  @db.Date
+  descripcion    String
+  pesoEstimadoKg Int?
+  abierta        Boolean   @default(true)
+  proveedorId    String
+  obraId         String
+  sincronizadaEn DateTime  @default(now())
+
+  proveedor      Proveedor     @relation(fields: [proveedorId], references: [id])
+  obra           Obra          @relation(fields: [obraId], references: [id])
+  pedidos        PedidoViaje[]
+
+  @@index([obraId, abierta])
+  @@index([proveedorId])
+}
+
+// ─────────────────────────────── Lugares ────────────────────────────────
+
+enum TipoLugar {
+  COCHERA  // donde se guardan los camiones (Martínez)
+  DEPOSITO // donde están maquinaria y herramientas
+}
+
+model Lugar {
+  id        String    @id @default(cuid())
+  nombre    String
+  tipo      TipoLugar
+  direccion String
+  lat       Float?
+  lng       Float?
+  activo    Boolean   @default(true)
+
+  vehiculos Vehiculo[]
+}
+
+// ──────────────────────────────── Flota ─────────────────────────────────
+
+enum TipoVehiculo {
+  CAMION
+  CAMIONETA
+  AUTO
+}
+
+model Vehiculo {
+  id              String       @id @default(cuid())
+  nombre          String       // "Camión 5 tn"
+  tipo            TipoVehiculo
+  patente         String       @unique
+  marca           String?
+  modelo          String?
+  anio            Int?
+  capacidadKg     Int          @default(0)
+  costoKm         Decimal      @db.Decimal(12, 2)
+  kmActual        Int          @default(0)
+  seguroCompania  String?
+  seguroPoliza    String?
+  seguroVence     DateTime?    @db.Date
+  vtvVence        DateTime?    @db.Date
+  idCusat         String?      @unique
+  notas           String?
+  activo          Boolean      @default(true)
+  // false = no entra en la cola de pedidos (camionetas personales, las del interior).
+  // Si está asignado a un chofer, solo ese chofer lo usa para pedidos.
+  disponibleParaPedidos Boolean @default(true)
+  asignadoAId     String?
+  lugarId         String?
+  creadoEn        DateTime     @default(now())
+  actualizadoEn   DateTime     @updatedAt
+
+  asignadoA       Usuario?           @relation("VehiculoAsignado", fields: [asignadoAId], references: [id])
+  lugar           Lugar?             @relation(fields: [lugarId], references: [id])
+  pedidos         PedidoViaje[]
+  viajes          Viaje[]
+  cargas          CargaCombustible[]
+  mantenimientos  Mantenimiento[]
+
+  @@index([activo, disponibleParaPedidos, tipo])
+  @@index([asignadoAId])
+}
+
+enum TipoMantenimiento {
+  SERVICE
+  CUBIERTAS
+  FRENOS
+  REPARACION
+  OTRO
+}
+
+model Mantenimiento {
+  id             String            @id @default(cuid())
+  vehiculoId     String
+  tipo           TipoMantenimiento
+  descripcion    String
+  fecha          DateTime          @db.Date
+  km             Int?
+  costo          Decimal           @default(0) @db.Decimal(12, 2)
+  taller         String?
+  proximoKm      Int?
+  proximaFecha   DateTime?         @db.Date
+  registradoPorId String
+  creadoEn       DateTime          @default(now())
+
+  vehiculo       Vehiculo @relation(fields: [vehiculoId], references: [id])
+  registradoPor  Usuario  @relation(fields: [registradoPorId], references: [id])
+
+  @@index([vehiculoId, fecha])
+}
+
+model CargaCombustible {
+  id          String   @id @default(cuid())
+  clientId    String?  @unique // para envíos sin señal
+  vehiculoId  String
+  choferId    String
+  fecha       DateTime @default(now())
+  litros      Decimal  @db.Decimal(10, 2)
+  monto       Decimal  @db.Decimal(12, 2)
+  km          Int?
+  creadoEn    DateTime @default(now())
+
+  vehiculo    Vehiculo @relation(fields: [vehiculoId], references: [id])
+  chofer      Usuario  @relation(fields: [choferId], references: [id])
+
+  @@index([vehiculoId, fecha])
+  @@index([choferId, fecha])
+}
+
+// ──────────────────────────── Pedidos y viajes ──────────────────────────
+
+enum EstadoPedido {
+  PENDIENTE
+  TOMADO
+  EN_VIAJE
+  ENTREGADO
+  CANCELADO
+}
+
+enum TipoCarga {
+  MATERIALES
+  MAQUINARIA
+  HERRAMIENTAS
+  OTRO
+}
+
+enum VehiculoRequerido {
+  CUALQUIERA
+  CAMION
+  CAMIONETA
+  AUTO
+}
+
+enum Prioridad {
+  NORMAL
+  URGENTE
+}
+
+model PedidoViaje {
+  id                String            @id @default(cuid())
+  numero            Int               @unique @default(autoincrement())
+  clientId          String?           @unique // idempotencia sin señal
+  estado            EstadoPedido      @default(PENDIENTE)
+  prioridad         Prioridad         @default(NORMAL)
+  tipoCarga         TipoCarga
+  vehiculoRequerido VehiculoRequerido @default(CUALQUIERA)
+  descripcion       String
+  pesoKg            Int?
+  observaciones     String?
+  necesarioPara     DateTime?         @db.Date
+
+  solicitanteId     String
+  obraId            String
+  proveedorId       String?
+  ordenCompraId     String?
+  // Origen cuando no es un proveedor (ej.: "Depósito", "Obra Darwin")
+  origenTexto       String?
+
+  choferId          String?
+  vehiculoId        String?
+  tomadoEn          DateTime?
+  canceladoEn       DateTime?
+  canceladoPorId    String?
+  motivoCancelacion String?
+  creadoEn          DateTime          @default(now())
+  actualizadoEn     DateTime          @updatedAt
+
+  solicitante       Usuario      @relation("PedidoSolicitante", fields: [solicitanteId], references: [id])
+  chofer            Usuario?     @relation("PedidoChofer", fields: [choferId], references: [id])
+  obra              Obra         @relation(fields: [obraId], references: [id])
+  proveedor         Proveedor?   @relation(fields: [proveedorId], references: [id])
+  ordenCompra       OrdenCompra? @relation(fields: [ordenCompraId], references: [id])
+  vehiculo          Vehiculo?    @relation(fields: [vehiculoId], references: [id])
+  viaje             Viaje?
+
+  @@index([estado, prioridad, creadoEn])
+  @@index([obraId, estado])
+  @@index([choferId, estado])
+  @@index([solicitanteId])
+}
+
+enum EstadoViaje {
+  EN_VIAJE
+  FINALIZADO
+}
+
+model Viaje {
+  id               String      @id @default(cuid())
+  pedidoId         String      @unique
+  choferId         String
+  vehiculoId       String
+  obraId           String      // obra a la que se imputa el costo
+  estado           EstadoViaje @default(EN_VIAJE)
+  kmSalida         Int
+  kmLlegada        Int?
+  kmRecorridos     Int?
+  peajes           Decimal     @default(0) @db.Decimal(12, 2)
+  costoKmAplicado  Decimal     @db.Decimal(12, 2)
+  costo            Decimal?    @db.Decimal(12, 2)
+  salidaEn         DateTime
+  llegadaEn        DateTime?
+  observaciones    String?
+  clientIdInicio   String?     @unique
+  clientIdFin      String?     @unique
+  creadoEn         DateTime    @default(now())
+
+  pedido           PedidoViaje @relation(fields: [pedidoId], references: [id])
+  chofer           Usuario     @relation(fields: [choferId], references: [id])
+  vehiculo         Vehiculo    @relation(fields: [vehiculoId], references: [id])
+  obra             Obra        @relation(fields: [obraId], references: [id])
+
+  @@index([obraId, llegadaEn])
+  @@index([vehiculoId, salidaEn])
+  @@index([choferId, salidaEn])
+}
+
+// ─────────────────────── Depósito: maquinaria y herramientas ────────────
+
+enum TipoControl {
+  UNITARIA  // una máquina con número de serie: está en un solo lugar
+  CANTIDAD  // palas, baldes, puntales: stock por ubicación
+}
+
+enum CategoriaItem {
+  MAQUINARIA
+  HERRAMIENTA
+  SOBRANTE
+}
+
+enum EstadoItem {
+  OPERATIVO
+  EN_REPARACION
+  FUERA_DE_SERVICIO
+}
+
+model Item {
+  id           String        @id @default(cuid())
+  codigo       String        @unique // lo que lleva el QR
+  nombre       String
+  categoria    CategoriaItem
+  control      TipoControl
+  marca        String?
+  modelo       String?
+  numeroSerie  String?
+  unidad       String?       // "unidades", "m", "kg"
+  estado       EstadoItem    @default(OPERATIVO)
+  notas        String?
+  activo       Boolean       @default(true)
+  // Solo UNITARIA: null = en el depósito.
+  obraId       String?
+  tenedorId    String?
+  ubicadoDesde DateTime      @default(now())
+  creadoEn     DateTime      @default(now())
+  actualizadoEn DateTime     @updatedAt
+
+  obra         Obra?   @relation(fields: [obraId], references: [id])
+  tenedor      Usuario? @relation("ItemTenedor", fields: [tenedorId], references: [id])
+  stock        StockItem[]
+  movimientos  MovimientoItem[]
+  solicitudes  SolicitudHerramienta[]
+
+  @@index([categoria, activo])
+  @@index([obraId])
+}
+
+// Solo CANTIDAD. obraId null = depósito. Unicidad (item, ubicación) por índice SQL.
+model StockItem {
+  id       String @id @default(cuid())
+  itemId   String
+  obraId   String?
+  cantidad Int    @default(0)
+
+  item     Item  @relation(fields: [itemId], references: [id])
+  obra     Obra? @relation(fields: [obraId], references: [id])
+
+  @@index([obraId])
+}
+
+enum TipoMovimiento {
+  ALTA
+  ENTREGA       // depósito → obra
+  DEVOLUCION    // obra → depósito
+  TRANSFERENCIA // obra → obra
+  AJUSTE
+}
+
+model MovimientoItem {
+  id              String         @id @default(cuid())
+  itemId          String
+  tipo            TipoMovimiento
+  cantidad        Int            @default(1)
+  desdeObraId     String?        // null = depósito
+  haciaObraId     String?        // null = depósito
+  recibidoPorId   String?
+  registradoPorId String
+  solicitudId     String?
+  observaciones   String?
+  fecha           DateTime       @default(now())
+
+  item            Item     @relation(fields: [itemId], references: [id])
+  desdeObra       Obra?    @relation("MovimientoDesde", fields: [desdeObraId], references: [id])
+  haciaObra       Obra?    @relation("MovimientoHacia", fields: [haciaObraId], references: [id])
+  recibidoPor     Usuario? @relation("MovimientoReceptor", fields: [recibidoPorId], references: [id])
+  registradoPor   Usuario  @relation("MovimientoRegistro", fields: [registradoPorId], references: [id])
+  solicitud       SolicitudHerramienta? @relation(fields: [solicitudId], references: [id])
+
+  @@index([itemId, fecha])
+  @@index([fecha])
+}
+
+enum TipoSolicitud {
+  PEDIDO     // la obra pide una herramienta
+  DEVOLUCION // la obra avisa que la devuelve
+}
+
+enum EstadoSolicitud {
+  PENDIENTE
+  COMPLETADA
+  RECHAZADA
+  CANCELADA
+}
+
+model SolicitudHerramienta {
+  id             String          @id @default(cuid())
+  tipo           TipoSolicitud
+  estado         EstadoSolicitud @default(PENDIENTE)
+  itemId         String
+  cantidad       Int             @default(1)
+  obraId         String
+  solicitanteId  String
+  resueltaPorId  String?
+  observaciones  String?
+  motivoRechazo  String?
+  creadaEn       DateTime        @default(now())
+  resueltaEn     DateTime?
+
+  item           Item     @relation(fields: [itemId], references: [id])
+  obra           Obra     @relation(fields: [obraId], references: [id])
+  solicitante    Usuario  @relation("SolicitudSolicitante", fields: [solicitanteId], references: [id])
+  resueltaPor    Usuario? @relation("SolicitudResolutor", fields: [resueltaPorId], references: [id])
+  movimientos    MovimientoItem[]
+
+  @@index([estado, creadaEn])
+  @@index([obraId, estado])
+}
+
+// ─────────────────────────────── Alertas ────────────────────────────────
+
+enum Severidad {
+  AVISO
+  CRITICO
+}
+
+enum AreaAlerta {
+  FLOTA
+  PEDIDOS
+  DEPOSITO
+  PERSONAS
+}
+
+model Alerta {
+  id          String     @id @default(cuid())
+  clave       String     @unique // regla:entidad — nunca se duplica
+  regla       String
+  area        AreaAlerta
+  severidad   Severidad
+  titulo      String
+  detalle     String
+  href        String?
+  activa      Boolean    @default(true)
+  creadaEn    DateTime   @default(now())
+  actualizadaEn DateTime @updatedAt
+  resueltaEn  DateTime?
+
+  @@index([activa, severidad])
+}
+
+// ─────────────────────────────── Auditoría ──────────────────────────────
+
+model Auditoria {
+  id        String   @id @default(cuid())
+  usuarioId String?
+  accion    String
+  entidad   String
+  entidadId String
+  detalle   Json?
+  fecha     DateTime @default(now())
+
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  @@index([entidad, entidadId])
+  @@index([fecha])
+}
