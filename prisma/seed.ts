@@ -1,290 +1,460 @@
 /**
- * Carga inicial de SIGNA · Logística.
- * - Personas, flota, lugares y depósito reales de la empresa.
- * - Obras, proveedores y órdenes de compra desde Lebane (mock por ahora).
- * - Una cola de pedidos, viajes y movimientos de ejemplo para arrancar a usar.
+ * Carga inicial de SIGNA · Logística con los datos reales de la empresa.
+ * Lo que no sabemos se inventó verosímil y está marcado con "// confirmar".
  *
- * Solo corre si la base está vacía. Para recargar: npm run db:reset
+ * Borra y recarga todo: usar solo en desarrollo / demo.
  */
-import { PrismaClient, Prisma, type Rol } from "@prisma/client";
+import {
+  PrismaClient,
+  Prisma,
+  type Rol,
+  type TipoPedido,
+  type OrigenTipo,
+} from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { sincronizarLebane } from "../lib/lebane/sincronizar";
-import { evaluarAlertas } from "../lib/alertas";
 
 const db = new PrismaClient();
+const D = (n: number | string) => new Prisma.Decimal(n);
 
-const DIA = 24 * 60 * 60 * 1000;
-const HORA = 60 * 60 * 1000;
-const enDias = (n: number) => new Date(Date.now() + n * DIA);
-const haceHoras = (n: number) => new Date(Date.now() - n * HORA);
+const DIA = 86_400_000;
+const HORA = 3_600_000;
+const ahora = new Date();
+const haceDias = (n: number, hora = 10) => {
+  const d = new Date(ahora.getTime() - n * DIA);
+  d.setHours(hora, 0, 0, 0);
+  return d;
+};
+const enDias = (n: number) => new Date(ahora.getTime() + n * DIA);
+const haceHoras = (n: number) => new Date(ahora.getTime() - n * HORA);
+
+// Generador pseudoaleatorio con semilla: el seed da siempre lo mismo.
+let semilla = 20261001;
+const azar = () => ((semilla = (semilla * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
+const entre = (a: number, b: number) => Math.floor(a + azar() * (b - a + 1));
+
+async function limpiar() {
+  // Orden inverso a las dependencias.
+  await db.$executeRawUnsafe(`ALTER TABLE "Auditoria" DISABLE TRIGGER USER`).catch(() => {});
+  await db.auditoria.deleteMany();
+  await db.$executeRawUnsafe(`ALTER TABLE "Auditoria" ENABLE TRIGGER USER`).catch(() => {});
+  await db.alerta.deleteMany();
+  await db.materialSobrante.deleteMany();
+  await db.movimientoHerramienta.deleteMany();
+  await db.existenciaHerramienta.deleteMany();
+  await db.herramienta.deleteMany();
+  await db.categoriaHerramienta.deleteMany();
+  await db.posicionVehiculo.deleteMany();
+  await db.viaje.deleteMany();
+  await db.pedidoViaje.deleteMany();
+  await db.incidenteVehiculo.deleteMany();
+  await db.mantenimientoVehiculo.deleteMany();
+  await db.cargaCombustible.deleteMany();
+  await db.documentoVehiculo.deleteMany();
+  await db.usuario.updateMany({ data: { vehiculoAsignadoId: null } });
+  await db.vehiculo.deleteMany();
+  await db.obra.deleteMany();
+  await db.proveedor.deleteMany();
+  await db.ubicacion.deleteMany();
+  await db.usuario.deleteMany();
+}
 
 async function main() {
-  if ((await db.usuario.count()) > 0) {
-    console.log("La base ya tiene datos. No se cargó nada. (npm run db:reset para empezar de cero)");
-    return;
-  }
+  await limpiar();
+  const passwordHash = await bcrypt.hash("signa2026", 10);
 
-  const clave = process.env.SEED_PASSWORD;
-  if (!clave || clave.length < 8) throw new Error("Configurá SEED_PASSWORD (mínimo 8 caracteres).");
-  const passwordHash = await bcrypt.hash(clave, 10);
+  // ─────────────────────────── Usuarios ───────────────────────────
+  const usuario = (nombre: string, email: string, rol: Rol, extra: Partial<Prisma.UsuarioCreateInput> = {}) =>
+    db.usuario.create({ data: { nombre, email: `${email}@signa.demo`, rol, passwordHash, ...extra } });
 
-  // ── Obras, proveedores, órdenes de compra (Lebane)
-  const resumen = await sincronizarLebane();
-  console.log(`Lebane (${resumen.origen}): ${resumen.obras} obras, ${resumen.proveedores} proveedores, ${resumen.ordenes} OC`);
-  const obras = Object.fromEntries((await db.obra.findMany()).map((o) => [o.nombre, o]));
-  const prov = Object.fromEntries((await db.proveedor.findMany()).map((p) => [p.nombre, p]));
-  const oc = Object.fromEntries((await db.ordenCompra.findMany()).map((o) => [o.numero, o]));
+  const dueno = await usuario("Dirección", "direccion", "DIRECCION"); // confirmar nombre del dueño
+  const leandro = await usuario("Leandro", "leandro", "RESPONSABLE_OBRA", { telefono: "11 5000-1001" }); // confirmar teléfonos
+  const daniela = await usuario("Daniela", "daniela", "RESPONSABLE_OBRA", { telefono: "11 5000-1002" });
+  const cesar = await usuario("César", "cesar", "RESPONSABLE_OBRA", { telefono: "11 5000-1003" });
+  const vicky = await usuario("Vicky", "vicky", "RESPONSABLE_OBRA", { telefono: "11 5000-1004" });
+  const lolo = await usuario("Lolo", "lolo", "CAPATAZ", { telefono: "11 5000-1005" });
+  const claudio = await usuario("Claudio", "claudio", "CHOFER", { telefono: "11 5000-1006", licenciaCategoria: "C2", licenciaVencimiento: enDias(410) }); // confirmar licencia
+  const cristian = await usuario("Cristian", "cristian", "CHOFER", { telefono: "11 5000-1007", licenciaCategoria: "C2", licenciaVencimiento: enDias(220) }); // confirmar licencia
+  const david = await usuario("David", "david", "CHOFER", { telefono: "11 5000-1008", licenciaCategoria: "B1", licenciaVencimiento: enDias(95) }); // confirmar licencia
+  const deposito = await usuario("Encargado de depósito", "deposito", "DEPOSITO"); // confirmar nombre
+  await usuario("Administración", "administracion", "ADMINISTRACION"); // confirmar nombre
 
-  // ── Personas
-  const persona = (nombre: string, usuario: string, rol: Rol, extra: Partial<Prisma.UsuarioCreateInput> = {}) =>
-    db.usuario.create({ data: { nombre, usuario, rol, passwordHash, ...extra } });
-
-  await persona("Dirección", "direccion", "DIRECCION");
-  const leandro = await persona("Leandro", "leandro", "RESPONSABLE_OBRA", {
-    obras: { connect: ["Libertador 14500", "Alvear", "Fondo de la Legua"].map((n) => ({ id: obras[n].id })) },
+  // ────────────────────────── Ubicaciones ──────────────────────────
+  const base = await db.ubicacion.create({
+    data: { nombre: "Base de camiones Martínez", tipo: "BASE_VEHICULOS", direccion: "Av. Fondo de la Legua 300, Martínez", latitud: -34.4931, longitud: -58.5251 }, // confirmar dirección
   });
-  const daniela = await persona("Daniela", "daniela", "RESPONSABLE_OBRA", {
-    obras: { connect: ["Darwin", "Pinares II"].map((n) => ({ id: obras[n].id })) },
-  });
-  const cesar = await persona("César", "cesar", "RESPONSABLE_OBRA", {
-    obras: { connect: Object.values(obras).map((o) => ({ id: o.id })) },
-  });
-  const vicky = await persona("Vicky", "vicky", "RESPONSABLE_OBRA", {
-    obras: { connect: [{ id: obras["Laura Thomas"].id }] },
-  });
-  const lolo = await persona("Lolo", "lolo", "CAPATAZ");
-  const claudio = await persona("Claudio", "claudio", "CHOFER", { licenciaVence: enDias(420), telefono: "11 5555-0101" });
-  const cristian = await persona("Cristian", "cristian", "CHOFER", { licenciaVence: enDias(190), telefono: "11 5555-0102" });
-  const david = await persona("David", "david", "CHOFER", { licenciaVence: enDias(18), telefono: "11 5555-0103" });
-  const deposito = await persona("Encargado de depósito", "deposito", "DEPOSITO");
-  await persona("Administración", "administracion", "ADMINISTRACION");
-
-  // ── Lugares
-  const cochera = await db.lugar.create({
-    data: { nombre: "Cochera Martínez", tipo: "COCHERA", direccion: "Martínez (junto a la casa de Claudio)", lat: -34.4935, lng: -58.5062 },
-  });
-  await db.lugar.create({
-    data: { nombre: "Depósito Signa", tipo: "DEPOSITO", direccion: "Munro", lat: -34.5288, lng: -58.5251 },
+  const depo = await db.ubicacion.create({
+    data: { nombre: "Depósito", tipo: "DEPOSITO", direccion: "Av. Bernardo Ader 1600, Munro", latitud: -34.5286, longitud: -58.5266 }, // confirmar dirección
   });
 
-  // ── Flota
+  // ──────────────────────────── Obras ────────────────────────────
+  const obra = (codigo: string, nombre: string, direccion: string, localidad: string, latitud: number, longitud: number, responsableId: string) =>
+    db.obra.create({ data: { codigo, nombre, direccion, localidad, latitud, longitud, responsableId, idLebane: `LB-${codigo}` } });
+
+  // Direcciones y coordenadas verosímiles: confirmar todas con Lebane.
+  const darwin = await obra("OB-01", "Darwin", "Darwin 1154", "Villa Crespo, CABA", -34.5925, -58.4376, daniela.id); // confirmar
+  const pinares = await obra("OB-02", "Pinares II", "Av. de los Lagos 7008", "Nordelta, Tigre", -34.4092, -58.6461, daniela.id); // confirmar
+  const chubut = await obra("OB-03", "Chubut", "Chubut 1621", "Olivos", -34.5081, -58.4952, cesar.id); // confirmar
+  const gaspar = await obra("OB-04", "Gaspar Campos", "Gaspar Campos 1950", "Vicente López", -34.5226, -58.4876, cesar.id); // confirmar
+  const laura = await obra("OB-05", "Laura Thomas", "Laura Thomas 2450", "San Isidro", -34.4733, -58.5307, vicky.id); // confirmar
+  const cabildo = await obra("OB-06", "Cabildo", "Av. Cabildo 3900", "Núñez, CABA", -34.5462, -58.4693, leandro.id); // confirmar
+  const alvear = await obra("OB-07", "Alvear", "Alvear 2210", "Martínez", -34.4951, -58.5154, leandro.id); // confirmar
+  const parana = await obra("OB-08", "Paraná", "Paraná 3700", "Olivos", -34.5115, -58.5122, leandro.id); // confirmar
+  const obras = [darwin, pinares, chubut, gaspar, laura, cabildo, alvear, parana];
+
+  // ────────────────────────── Proveedores ──────────────────────────
+  const proveedor = (nombre: string, direccion: string, localidad: string, latitud: number, longitud: number, telefono: string) =>
+    db.proveedor.create({ data: { nombre, direccion, localidad, latitud, longitud, telefono } });
+
+  // Corralones y ferreterías de zona norte: confirmar nombres y direcciones con Lebane.
+  const ceibo = await proveedor("Corralón El Ceibo", "Av. Fondo de la Legua 1850", "San Isidro", -34.5019, -58.5463, "11 4743-2200"); // confirmar
+  const hierros = await proveedor("Hierros Martínez", "Av. Santa Fe 2900", "Martínez", -34.4921, -58.5101, "11 4792-8811"); // confirmar
+  const munro = await proveedor("Corralón Munro", "Av. Mitre 2600", "Munro", -34.5302, -58.5199, "11 4756-3030"); // confirmar
+  const boulogne = await proveedor("Materiales Boulogne", "Av. Avelino Rolón 1500", "Boulogne", -34.4985, -58.5712, "11 4737-5050"); // confirmar
+  const ferreNorte = await proveedor("Ferretería Industrial Norte", "Av. Maipú 2100", "Olivos", -34.5138, -58.4915, "11 4799-1414"); // confirmar
+  const tigre = await proveedor("Corralón Panamericana", "Colectora Panamericana 2400", "Don Torcuato", -34.4859, -58.6218, "11 4748-9000"); // confirmar
+  const proveedores = [ceibo, hierros, munro, boulogne, ferreNorte, tigre];
+
+  // ──────────────────────────── Flota ────────────────────────────
   type V = Prisma.VehiculoUncheckedCreateInput;
   const vehiculo = (v: V) => db.vehiculo.create({ data: v });
-  const camion5 = await vehiculo({
-    nombre: "Camión 5 tn", tipo: "CAMION", patente: "AB 123 CD", marca: "Mercedes-Benz", modelo: "Atego 1419", anio: 2017,
-    capacidadKg: 5000, costoKm: new Prisma.Decimal(980), kmActual: 189_400, lugarId: cochera.id, idCusat: "CUS-1001",
-    seguroCompania: "Federación Patronal", seguroPoliza: "FP-778812", seguroVence: enDias(140), vtvVence: enDias(95),
-  });
-  const camion4 = await vehiculo({
-    nombre: "Camión 4 tn", tipo: "CAMION", patente: "AC 456 EF", marca: "Ford", modelo: "Cargo 1723", anio: 2015,
-    capacidadKg: 4000, costoKm: new Prisma.Decimal(910), kmActual: 241_050, lugarId: cochera.id, idCusat: "CUS-1002",
-    seguroCompania: "Federación Patronal", seguroPoliza: "FP-778813", seguroVence: enDias(60), vtvVence: enDias(200),
-  });
-  const camion3 = await vehiculo({
-    nombre: "Camión 3 tn", tipo: "CAMION", patente: "AD 789 GH", marca: "Iveco", modelo: "Tector 170E22", anio: 2019,
-    capacidadKg: 3000, costoKm: new Prisma.Decimal(840), kmActual: 112_300, lugarId: cochera.id, idCusat: "CUS-1003",
-    seguroCompania: "La Segunda", seguroPoliza: "LS-55120", seguroVence: enDias(220), vtvVence: enDias(12),
-  });
-  const camionetaClaudio = await vehiculo({
-    nombre: "Camioneta Claudio", tipo: "CAMIONETA", patente: "AE 111 AA", marca: "Toyota", modelo: "Hilux", anio: 2020,
-    capacidadKg: 1000, costoKm: new Prisma.Decimal(420), kmActual: 98_200, asignadoAId: claudio.id, idCusat: "CUS-2001",
-    seguroCompania: "La Segunda", seguroPoliza: "LS-55121", seguroVence: enDias(180), vtvVence: enDias(150),
-  });
-  const camionetaCristian = await vehiculo({
-    nombre: "Camioneta Cristian", tipo: "CAMIONETA", patente: "AE 222 BB", marca: "Ford", modelo: "Ranger", anio: 2021,
-    capacidadKg: 1000, costoKm: new Prisma.Decimal(430), kmActual: 76_540, asignadoAId: cristian.id, idCusat: "CUS-2002",
-    seguroCompania: "La Segunda", seguroPoliza: "LS-55122", seguroVence: enDias(175), vtvVence: enDias(260),
-  });
-  await vehiculo({
-    nombre: "Camioneta Leandro", tipo: "CAMIONETA", patente: "AE 333 CC", marca: "Volkswagen", modelo: "Amarok", anio: 2022,
-    capacidadKg: 1000, costoKm: new Prisma.Decimal(450), kmActual: 54_100, asignadoAId: leandro.id, disponibleParaPedidos: false,
-    idCusat: "CUS-2003", seguroCompania: "Sancor", seguroPoliza: "SC-9001", seguroVence: enDias(300), vtvVence: enDias(310),
-  });
-  await vehiculo({
-    nombre: "Camioneta Lolo", tipo: "CAMIONETA", patente: "AE 444 DD", marca: "Toyota", modelo: "Hilux", anio: 2018,
-    capacidadKg: 1000, costoKm: new Prisma.Decimal(410), kmActual: 151_800, asignadoAId: lolo.id, disponibleParaPedidos: false,
-    idCusat: "CUS-2004", seguroCompania: "Sancor", seguroPoliza: "SC-9002", seguroVence: enDias(25), vtvVence: enDias(80),
-  });
-  await vehiculo({
-    nombre: "Camioneta Interior 1", tipo: "CAMIONETA", patente: "AE 555 EE", marca: "Chevrolet", modelo: "S10", anio: 2016,
-    capacidadKg: 1000, costoKm: new Prisma.Decimal(400), kmActual: 203_400, disponibleParaPedidos: false,
-    notas: "Asignada a obras del interior.", seguroCompania: "Sancor", seguroPoliza: "SC-9003", seguroVence: enDias(-4), vtvVence: enDias(40),
-  });
-  await vehiculo({
-    nombre: "Camioneta Interior 2", tipo: "CAMIONETA", patente: "AE 666 FF", marca: "Nissan", modelo: "Frontier", anio: 2019,
-    capacidadKg: 1000, costoKm: new Prisma.Decimal(415), kmActual: 133_900, disponibleParaPedidos: false,
-    notas: "Asignada a obras del interior.", seguroCompania: "Sancor", seguroPoliza: "SC-9004", seguroVence: enDias(90), vtvVence: enDias(170),
-  });
-  const autoDavid = await vehiculo({
-    nombre: "Auto David", tipo: "AUTO", patente: "AF 777 GG", marca: "Fiat", modelo: "Cronos", anio: 2021,
-    capacidadKg: 300, costoKm: new Prisma.Decimal(210), kmActual: 64_250, asignadoAId: david.id, idCusat: "CUS-3001",
-    seguroCompania: "Rivadavia", seguroPoliza: "RV-3321", seguroVence: enDias(120), vtvVence: enDias(130),
-  });
-  await vehiculo({
-    nombre: "Auto Oficina", tipo: "AUTO", patente: "AF 888 HH", marca: "Volkswagen", modelo: "Gol Trend", anio: 2017,
-    capacidadKg: 300, costoKm: new Prisma.Decimal(190), kmActual: 118_700,
-    seguroCompania: "Rivadavia", seguroPoliza: "RV-3322", seguroVence: enDias(210), vtvVence: null,
-  });
 
-  // ── Mantenimiento
-  await db.mantenimiento.createMany({
-    data: [
-      { vehiculoId: camion5.id, tipo: "SERVICE", descripcion: "Service completo: aceite, filtros, correas", fecha: enDias(-75), km: 180_100, costo: new Prisma.Decimal(385_000), taller: "Taller Mecánico Ruta 202", proximoKm: 190_000, registradoPorId: deposito.id },
-      { vehiculoId: camion4.id, tipo: "CUBIERTAS", descripcion: "Cambio de 2 cubiertas traseras", fecha: enDias(-30), km: 240_200, costo: new Prisma.Decimal(620_000), taller: "Gomería Panamericana", registradoPorId: deposito.id },
-      { vehiculoId: camion3.id, tipo: "SERVICE", descripcion: "Service 110.000", fecha: enDias(-20), km: 110_000, costo: new Prisma.Decimal(290_000), taller: "Iveco Oficial Norte", proximoKm: 120_000, proximaFecha: enDias(160), registradoPorId: deposito.id },
-      { vehiculoId: camionetaClaudio.id, tipo: "FRENOS", descripcion: "Pastillas y discos delanteros", fecha: enDias(-12), km: 97_800, costo: new Prisma.Decimal(210_000), taller: "Frenos Martínez", registradoPorId: deposito.id },
-    ],
-  });
+  const camion5 = await vehiculo({ nombre: "Camión 5 tn", patente: "AB 123 CD", tipo: "CAMION", marca: "Mercedes-Benz", modelo: "Atego 1419", anio: 2017, capacidadCargaKg: 5000, kmActual: 189_400, costoKm: D(980), baseId: base.id, idCusat: "CUS-1001", entraEnCola: true }); // confirmar datos
+  const camion4 = await vehiculo({ nombre: "Camión 4 tn", patente: "AC 456 EF", tipo: "CAMION", marca: "Ford", modelo: "Cargo 1723", anio: 2015, capacidadCargaKg: 4000, kmActual: 241_050, costoKm: D(910), baseId: base.id, idCusat: "CUS-1002", entraEnCola: true, estado: "EN_VIAJE" }); // confirmar datos
+  const camion3 = await vehiculo({ nombre: "Camión 3 tn", patente: "AH 012 KL", tipo: "CAMION", marca: "Iveco", modelo: "Tector 170E22", anio: 2025, capacidadCargaKg: 3000, kmActual: 4_300, costoKm: D(840), baseId: base.id, idCusat: "CUS-1003", entraEnCola: true }); // nuevo; confirmar datos
 
-  // ── Pedidos y viajes
-  let n = 0;
-  const pedido = (d: Omit<Prisma.PedidoViajeUncheckedCreateInput, "numero">) => db.pedidoViaje.create({ data: { ...d, numero: ++n } });
+  const camioneta = (nombre: string, patente: string, marca: string, modelo: string, anio: number, km: number, asignadoAId: string | null, idCusat: string | null) =>
+    vehiculo({ nombre, patente, tipo: "CAMIONETA", marca, modelo, anio, capacidadCargaKg: 1000, kmActual: km, costoKm: D(430), asignadoAId, idCusat, entraEnCola: false }); // confirmar datos
 
-  // Entregados (historial con costos imputados)
-  const historial: { obra: string; prov: string; oc?: string; desc: string; peso: number; chofer: string; veh: { id: string; kmActual: number; costoKm: Prisma.Decimal }; km: number; peajes: number; dias: number; solicitante: string }[] = [
-    { obra: "Darwin", prov: "Corralón El Ceibo", oc: "OC 3001", desc: "Cemento y cal (1ª entrega)", peso: 3400, chofer: claudio.id, veh: camion5, km: 38, peajes: 2400, dias: 9, solicitante: daniela.id },
-    { obra: "Chubut", prov: "Hierros Martínez", desc: "Hierro del 12", peso: 1800, chofer: cristian.id, veh: camion4, km: 14, peajes: 0, dias: 8, solicitante: cesar.id },
-    { obra: "Laura Thomas", prov: "Eléctrica Libertador", desc: "Tableros y térmicas", peso: 90, chofer: david.id, veh: autoDavid, km: 11, peajes: 0, dias: 7, solicitante: vicky.id },
-    { obra: "Pinares II", prov: "Maderera Boulogne", desc: "Fenólicos", peso: 1600, chofer: claudio.id, veh: camion3, km: 52, peajes: 3800, dias: 6, solicitante: daniela.id },
-    { obra: "Gaspar Campos", prov: "Sanitarios Norte", desc: "Inodoros y vanitorys", peso: 420, chofer: cristian.id, veh: camionetaCristian, km: 9, peajes: 0, dias: 5, solicitante: cesar.id },
-    { obra: "Libertador 14500", prov: "Corralón El Ceibo", desc: "Arena y piedra", peso: 4800, chofer: claudio.id, veh: camion5, km: 21, peajes: 0, dias: 4, solicitante: leandro.id },
-    { obra: "Alvear", prov: "Hierros Martínez", desc: "Malla sima", peso: 900, chofer: cristian.id, veh: camionetaCristian, km: 6, peajes: 0, dias: 3, solicitante: leandro.id },
-    { obra: "Fondo de la Legua", prov: "Andamios del Norte", desc: "Retiro de andamios alquilados", peso: 2100, chofer: claudio.id, veh: camion4, km: 17, peajes: 0, dias: 2, solicitante: lolo.id },
-    { obra: "Darwin", prov: "Pinturerías Rex Tigre", desc: "Látex y enduido", peso: 250, chofer: david.id, veh: autoDavid, km: 44, peajes: 2400, dias: 1, solicitante: daniela.id },
-  ];
-  for (const h of historial) {
-    const salida = new Date(Date.now() - h.dias * DIA - 5 * HORA);
-    const llegada = new Date(salida.getTime() + 2 * HORA);
-    const p = await pedido({
-      estado: "ENTREGADO", tipoCarga: "MATERIALES", descripcion: h.desc, pesoKg: h.peso, solicitanteId: h.solicitante,
-      obraId: obras[h.obra].id, proveedorId: prov[h.prov].id, ordenCompraId: h.oc ? oc[h.oc].id : null,
-      choferId: h.chofer, vehiculoId: h.veh.id, tomadoEn: new Date(salida.getTime() - HORA), creadoEn: new Date(salida.getTime() - 4 * HORA),
+  const ctaLeandro = await camioneta("Camioneta Leandro", "AE 333 CC", "Volkswagen", "Amarok", 2022, 54_100, leandro.id, "CUS-2003");
+  const ctaLolo = await camioneta("Camioneta Lolo", "AE 444 DD", "Toyota", "Hilux", 2018, 151_800, lolo.id, "CUS-2004");
+  const ctaClaudio = await camioneta("Camioneta Claudio", "AE 111 AA", "Toyota", "Hilux", 2020, 98_200, claudio.id, "CUS-2001");
+  const ctaCristian = await camioneta("Camioneta Cristian", "AE 222 BB", "Ford", "Ranger", 2021, 76_540, cristian.id, "CUS-2002");
+  const interior1 = await camioneta("Interior 1", "AD 555 EE", "Chevrolet", "S10", 2016, 203_400, null, null);
+  const interior2 = await camioneta("Interior 2", "AD 666 FF", "Nissan", "Frontier", 2019, 133_900, null, null);
+  const autoDavid = await vehiculo({ nombre: "Auto David", patente: "AF 777 GG", tipo: "AUTO", marca: "Fiat", modelo: "Cronos", anio: 2021, capacidadCargaKg: 300, kmActual: 64_250, costoKm: D(210), asignadoAId: david.id, baseId: base.id, idCusat: "CUS-3001", entraEnCola: true }); // confirmar datos
+
+  // La camioneta propia de cada uno.
+  for (const [u, v] of [[leandro, ctaLeandro], [lolo, ctaLolo], [claudio, ctaClaudio], [cristian, ctaCristian], [david, autoDavid]] as const) {
+    await db.usuario.update({ where: { id: u.id }, data: { vehiculoAsignadoId: v.id } });
+  }
+
+  const flota = [camion5, camion4, camion3, ctaLeandro, ctaLolo, ctaClaudio, ctaCristian, interior1, interior2, autoDavid];
+
+  // Documentación: seguro y VTV de todos. Una VTV vence en 5 días y un seguro venció ayer.
+  for (const v of flota) {
+    const seguro = v.id === interior1.id ? enDias(-1) : enDias(entre(40, 300));
+    const vtv = v.id === camion4.id ? enDias(5) : enDias(entre(30, 340));
+    await db.documentoVehiculo.createMany({
+      data: [
+        { vehiculoId: v.id, tipo: "SEGURO", vencimiento: seguro, notas: "Póliza a confirmar" }, // confirmar
+        { vehiculoId: v.id, tipo: "VTV", vencimiento: v.anio >= 2024 ? enDias(700) : vtv },
+        { vehiculoId: v.id, tipo: "CEDULA", vencimiento: null },
+        ...(v.tipo === "CAMION" ? [{ vehiculoId: v.id, tipo: "RUTA" as const, vencimiento: enDias(entre(60, 200)) }] : []),
+      ],
     });
-    const kmSalida = h.veh.kmActual - h.km * (h.dias + 1);
+  }
+
+  // ───────────────────────── Pedidos y viajes ─────────────────────────
+  let numero = 0;
+  type P = Omit<Prisma.PedidoViajeUncheckedCreateInput, "numero">;
+  const pedido = (p: P) => db.pedidoViaje.create({ data: { ...p, numero: ++numero } });
+  const costo = (km: number, costoKm: Prisma.Decimal, peajes: number) => costoKm.mul(km).add(peajes);
+
+  const desdeProveedor = (p: { id: string }) => ({ origenTipo: "PROVEEDOR" as OrigenTipo, origenId: p.id, proveedorId: p.id, tipo: "RETIRO_PROVEEDOR" as TipoPedido });
+
+  // 20 viajes finalizados en los últimos 30 días (los 3 últimos fueron ayer).
+  const historia: { dias: number; obra: typeof darwin; prov: typeof ceibo; v: typeof camion5; chofer: typeof claudio; km: number; peajes: number; desc: string; peso: number; sol: typeof daniela }[] = [];
+  const choferVehiculo = [
+    [claudio, camion5], [cristian, camion4], [claudio, camion3], [david, autoDavid], [cristian, camion5], [claudio, camion4],
+  ] as const;
+  const descripciones = [
+    ["Cemento y cal", 3200], ["Hierro del 8 y del 10", 2400], ["Ladrillos huecos 18", 4500], ["Arena y piedra", 4800],
+    ["Caños y accesorios sanitarios", 180], ["Cable y cajas eléctricas", 120], ["Fenólicos y tirantes", 2600], ["Malla sima", 1500],
+    ["Durlock y perfiles", 900], ["Membrana y pintura", 350],
+  ] as const;
+  for (let i = 0; i < 20; i++) {
+    const [chofer, v] = choferVehiculo[i % choferVehiculo.length];
+    const [desc, peso] = descripciones[i % descripciones.length];
+    const o = obras[i % obras.length];
+    const kmViaje = entre(8, 55);
+    historia.push({
+      dias: i < 3 ? 1 : 30 - i,
+      obra: o,
+      prov: proveedores[i % proveedores.length],
+      v,
+      chofer,
+      km: kmViaje,
+      peajes: kmViaje > 35 ? 2400 : 0,
+      desc,
+      peso: Math.min(peso, v.capacidadCargaKg),
+      sol: (await db.usuario.findUniqueOrThrow({ where: { id: o.responsableId } })),
+    });
+  }
+  for (const h of historia) {
+    const salida = haceDias(h.dias, 8 + (h.km % 5));
+    const llegada = new Date(salida.getTime() + (1 + h.km / 30) * HORA);
+    const p = await pedido({
+      ...desdeProveedor(h.prov), solicitanteId: h.sol.id, obraId: h.obra.id, descripcion: h.desc, pesoKg: h.peso,
+      necesitaCamion: h.v.tipo === "CAMION", paraCuando: salida, estado: "ENTREGADO", tomadoPorId: h.chofer.id,
+      tomadoEn: new Date(salida.getTime() - HORA), creadoEn: new Date(salida.getTime() - 5 * HORA),
+      ordenCompraLebane: `OC ${2900 + numero}`, // confirmar
+    });
+    const kmSalida = h.v.kmActual - h.km * (h.dias + 2) - 30;
     await db.viaje.create({
       data: {
-        pedidoId: p.id, choferId: h.chofer, vehiculoId: h.veh.id, obraId: obras[h.obra].id, estado: "FINALIZADO",
-        kmSalida, kmLlegada: kmSalida + h.km, kmRecorridos: h.km, peajes: new Prisma.Decimal(h.peajes),
-        costoKmAplicado: h.veh.costoKm, costo: h.veh.costoKm.mul(h.km).add(h.peajes), salidaEn: salida, llegadaEn: llegada,
+        pedidoId: p.id, vehiculoId: h.v.id, choferId: h.chofer.id, salidaReal: salida, llegadaReal: llegada,
+        kmSalida, kmLlegada: kmSalida + h.km, peajes: D(h.peajes), costoCalculado: costo(h.km, h.v.costoKm, h.peajes), estado: "FINALIZADO",
       },
     });
   }
 
-  // En viaje: Cristian con el Camión 4 tn
+  // La historia del problema: el mismo hierro para Darwin pedido dos veces el mismo día.
+  const hoy9 = new Date(ahora);
+  hoy9.setHours(9, 0, 0, 0);
+  await pedido({
+    ...desdeProveedor(hierros), solicitanteId: lolo.id, obraId: darwin.id, descripcion: "Hierro del 10, 40 barras", pesoKg: 1800,
+    necesitaCamion: true, paraCuando: enDias(1), creadoEn: new Date(hoy9.getTime()), ordenCompraLebane: "OC 3120",
+  });
+  await pedido({
+    ...desdeProveedor(hierros), solicitanteId: daniela.id, obraId: darwin.id, descripcion: "Hierro del 10 para losa (40 barras)", pesoKg: 1800,
+    necesitaCamion: true, paraCuando: enDias(1), creadoEn: new Date(hoy9.getTime() + 2.5 * HORA), ordenCompraLebane: "OC 3120",
+    // Mismo pedido que el de Lolo: es exactamente lo que la cola única evita.
+  });
+
+  // Urgente sin tomar.
+  await pedido({
+    ...desdeProveedor(ferreNorte), solicitanteId: cesar.id, obraId: gaspar.id, descripcion: "Caños PPF 20 y 25 + accesorios. Plomeros parados.",
+    pesoKg: 180, paraCuando: ahora, prioridad: "URGENTE", creadoEn: haceHoras(3),
+  });
+
+  // Tres tomados por Claudio (viaje programado).
+  const tomados = [
+    { prov: ceibo, obra: alvear, sol: leandro, desc: "Ladrillos huecos 18 x 3000 u.", peso: 4500, v: camion5 },
+    { prov: boulogne, obra: pinares, sol: daniela, desc: "Fenólicos y tirantes para encofrado", peso: 2600, v: camion3 },
+    { prov: munro, obra: cabildo, sol: leandro, desc: "Cal y plasticor", peso: 1200, v: camion5 },
+  ];
+  for (const [i, t] of tomados.entries()) {
+    const p = await pedido({
+      ...desdeProveedor(t.prov), solicitanteId: t.sol.id, obraId: t.obra.id, descripcion: t.desc, pesoKg: t.peso, necesitaCamion: t.peso > 1000,
+      paraCuando: enDias(i === 0 ? 0 : 1), estado: "TOMADO", tomadoPorId: claudio.id, tomadoEn: haceHoras(2 - i * 0.5), creadoEn: haceHoras(6 - i),
+    });
+    await db.viaje.create({ data: { pedidoId: p.id, vehiculoId: t.v.id, choferId: claudio.id, estado: "PROGRAMADO" } });
+  }
+
+  // En viaje: Cristian con el Camión 4 tn, de Hierros Martínez a Chubut.
   const enViaje = await pedido({
-    estado: "EN_VIAJE", tipoCarga: "MATERIALES", descripcion: "Hierro del 8 y del 10, 60 barras", pesoKg: 2400,
-    solicitanteId: cesar.id, obraId: obras["Chubut"].id, proveedorId: prov["Hierros Martínez"].id, ordenCompraId: oc["OC 3002"].id,
-    choferId: cristian.id, vehiculoId: camion4.id, tomadoEn: haceHoras(2), creadoEn: haceHoras(5),
+    ...desdeProveedor(hierros), solicitanteId: cesar.id, obraId: chubut.id, descripcion: "Hierro del 8 y del 12, 60 barras", pesoKg: 2400,
+    necesitaCamion: true, paraCuando: ahora, estado: "EN_VIAJE", tomadoPorId: cristian.id, tomadoEn: haceHoras(2), creadoEn: haceHoras(5),
+    ordenCompraLebane: "OC 3118",
   });
-  await db.viaje.create({
-    data: {
-      pedidoId: enViaje.id, choferId: cristian.id, vehiculoId: camion4.id, obraId: obras["Chubut"].id,
-      kmSalida: camion4.kmActual, costoKmAplicado: camion4.costoKm, salidaEn: haceHoras(1),
-    },
-  });
-
-  // Tomado: Claudio
-  await pedido({
-    estado: "TOMADO", tipoCarga: "MATERIALES", descripcion: "Ladrillos huecos 18 x 3000 u.", pesoKg: 4500, prioridad: "NORMAL",
-    vehiculoRequerido: "CAMION", solicitanteId: leandro.id, obraId: obras["Libertador 14500"].id, proveedorId: prov["Corralón El Ceibo"].id,
-    ordenCompraId: oc["OC 3006"].id, choferId: claudio.id, tomadoEn: haceHoras(1), creadoEn: haceHoras(3),
-  });
-
-  // Pendientes: la cola
-  await pedido({
-    tipoCarga: "MATERIALES", descripcion: "Caños PPF 20 y 25 + accesorios", pesoKg: 180, prioridad: "URGENTE",
-    solicitanteId: cesar.id, obraId: obras["Gaspar Campos"].id, proveedorId: prov["Sanitarios Norte"].id, ordenCompraId: oc["OC 3003"].id,
-    observaciones: "Los plomeros están parados esperando.", creadoEn: haceHoras(3),
-  });
-  await pedido({
-    tipoCarga: "MATERIALES", descripcion: "Tirantes y fenólicos para encofrado", pesoKg: 3200, vehiculoRequerido: "CAMION",
-    solicitanteId: daniela.id, obraId: obras["Pinares II"].id, proveedorId: prov["Maderera Boulogne"].id, ordenCompraId: oc["OC 3005"].id,
-    necesarioPara: enDias(1), creadoEn: haceHoras(2),
-  });
-  await pedido({
-    tipoCarga: "MAQUINARIA", descripcion: "Llevar hormigonera 350 l del depósito", pesoKg: 450, vehiculoRequerido: "CAMIONETA",
-    solicitanteId: vicky.id, obraId: obras["Laura Thomas"].id, origenTexto: "Depósito Signa", creadoEn: haceHoras(1),
-  });
-  await pedido({
-    tipoCarga: "MATERIALES", descripcion: "Cable 2,5 mm x 10 rollos + cajas", pesoKg: 120, vehiculoRequerido: "AUTO",
-    solicitanteId: vicky.id, obraId: obras["Laura Thomas"].id, proveedorId: prov["Eléctrica Libertador"].id, ordenCompraId: oc["OC 3004"].id,
-    creadoEn: haceHoras(0.5),
-  });
-
-  // Cancelado
-  await pedido({
-    estado: "CANCELADO", tipoCarga: "MATERIALES", descripcion: "Látex exterior (lo trae el proveedor)", pesoKg: 300,
-    solicitanteId: daniela.id, obraId: obras["Pinares II"].id, proveedorId: prov["Pinturerías Rex Tigre"].id,
-    canceladoEn: haceHoras(20), canceladoPorId: daniela.id, motivoCancelacion: "El proveedor hace el envío.", creadoEn: haceHoras(26),
+  const viajeEnCurso = await db.viaje.create({
+    data: { pedidoId: enViaje.id, vehiculoId: camion4.id, choferId: cristian.id, salidaReal: haceHoras(1), kmSalida: camion4.kmActual, estado: "EN_CURSO" },
   });
 
   await db.$executeRaw`SELECT setval(pg_get_serial_sequence('"PedidoViaje"', 'numero'), (SELECT MAX("numero") FROM "PedidoViaje"))`;
 
-  // ── Combustible
-  const cargas: [string, string, number, number, number, number][] = [
-    [camion5.id, claudio.id, 120, 162_000, camion5.kmActual - 300, 6],
-    [camion4.id, cristian.id, 110, 148_500, camion4.kmActual - 180, 4],
-    [camionetaClaudio.id, claudio.id, 60, 72_000, camionetaClaudio.kmActual - 90, 3],
-    [camionetaCristian.id, cristian.id, 55, 66_000, camionetaCristian.kmActual - 40, 2],
-    [autoDavid.id, david.id, 38, 41_800, autoDavid.kmActual - 60, 1],
-  ];
-  for (const [vehiculoId, choferId, litros, monto, km, dias] of cargas) {
-    await db.cargaCombustible.create({
-      data: { vehiculoId, choferId, litros: new Prisma.Decimal(litros), monto: new Prisma.Decimal(monto), km, fecha: enDias(-dias) },
-    });
-  }
-
-  // ── Depósito: maquinaria y herramientas
-  const unitaria = (codigo: string, nombre: string, categoria: "MAQUINARIA" | "HERRAMIENTA", extra: Partial<Prisma.ItemUncheckedCreateInput> = {}) =>
-    db.item.create({ data: { codigo, nombre, categoria, control: "UNITARIA", ...extra } });
-
-  const hormigonera1 = await unitaria("MQ-0001", "Hormigonera 350 l (1)", "MAQUINARIA", { marca: "Czerweny", modelo: "350", numeroSerie: "CZ-350-88121", obraId: obras["Darwin"].id, tenedorId: daniela.id, ubicadoDesde: enDias(-70) });
-  await unitaria("MQ-0002", "Hormigonera 350 l (2)", "MAQUINARIA", { marca: "Czerweny", modelo: "350", numeroSerie: "CZ-350-90433" });
-  const vibrador = await unitaria("MQ-0003", "Vibrador de hormigón", "MAQUINARIA", { marca: "Wacker", modelo: "M2500", obraId: obras["Chubut"].id, tenedorId: cesar.id, ubicadoDesde: enDias(-12) });
-  await unitaria("MQ-0004", "Generador 5 kVA", "MAQUINARIA", { marca: "Gamma", modelo: "GE-5500" });
-  await unitaria("MQ-0005", "Martillo demoledor", "MAQUINARIA", { marca: "Bosch", modelo: "GSH 11 VC", obraId: obras["Libertador 14500"].id, tenedorId: leandro.id, ubicadoDesde: enDias(-5) });
-  await unitaria("MQ-0006", "Placa compactadora", "MAQUINARIA", { marca: "Honda", modelo: "GX160" });
-  await unitaria("MQ-0007", "Cortadora de pavimento", "MAQUINARIA", { marca: "Husqvarna", modelo: "FS 400", estado: "EN_REPARACION", notas: "Cambio de disco y correa" });
-  await unitaria("HE-0001", "Amoladora 9\"", "HERRAMIENTA", { marca: "DeWalt", modelo: "DWE4579" });
-  await unitaria("HE-0002", "Amoladora 9\" (2)", "HERRAMIENTA", { marca: "DeWalt", modelo: "DWE4579", obraId: obras["Gaspar Campos"].id, tenedorId: cesar.id, ubicadoDesde: enDias(-3) });
-  await unitaria("HE-0003", "Taladro percutor", "HERRAMIENTA", { marca: "Makita", modelo: "HP2070" });
-  await unitaria("HE-0004", "Nivel láser", "HERRAMIENTA", { marca: "Bosch", modelo: "GLL 3-80" });
-
-  const porCantidad = async (codigo: string, nombre: string, categoria: "HERRAMIENTA" | "SOBRANTE", unidad: string, stock: [string | null, number][]) => {
-    const item = await db.item.create({ data: { codigo, nombre, categoria, control: "CANTIDAD", unidad } });
-    for (const [obra, cantidad] of stock) {
-      await db.stockItem.create({ data: { itemId: item.id, obraId: obra ? obras[obra].id : null, cantidad } });
+  // ─────────────────────── Combustible y services ───────────────────────
+  const cargadores = new Map([[camion5.id, claudio.id], [camion4.id, cristian.id], [camion3.id, claudio.id], [autoDavid.id, david.id], [ctaClaudio.id, claudio.id], [ctaCristian.id, cristian.id], [ctaLeandro.id, leandro.id], [ctaLolo.id, lolo.id]]);
+  for (const [vehiculoId, usuarioId] of cargadores) {
+    const v = flota.find((x) => x.id === vehiculoId)!;
+    for (let k = 0; k < 3; k++) {
+      const litros = v.tipo === "CAMION" ? entre(90, 140) : v.tipo === "AUTO" ? entre(30, 45) : entre(50, 75);
+      await db.cargaCombustible.create({
+        data: {
+          vehiculoId, usuarioId, fecha: haceDias(3 + k * 9, 7), litros: D(litros), monto: D(litros * (v.tipo === "AUTO" ? 1150 : 1290)), // confirmar precio
+          km: v.kmActual - (k + 1) * entre(200, 600), obraId: v.asignadoAId ? obras.find((o) => o.responsableId === v.asignadoAId)?.id ?? null : null,
+        },
+      });
     }
-    return item;
-  };
-  const palas = await porCantidad("CA-0001", "Palas", "HERRAMIENTA", "unidades", [[null, 18], ["Darwin", 6], ["Chubut", 4]]);
-  await porCantidad("CA-0002", "Baldes", "HERRAMIENTA", "unidades", [[null, 35], ["Darwin", 10], ["Pinares II", 8]]);
-  await porCantidad("CA-0003", "Puntales metálicos", "HERRAMIENTA", "unidades", [[null, 140], ["Chubut", 80], ["Libertador 14500", 60]]);
-  await porCantidad("CA-0004", "Carretillas", "HERRAMIENTA", "unidades", [[null, 6], ["Gaspar Campos", 2], ["Alvear", 2]]);
-  await porCantidad("CA-0005", "Cuerpos de andamio", "HERRAMIENTA", "unidades", [[null, 40], ["Fondo de la Legua", 24]]);
-  await porCantidad("SO-0001", "Cable 2,5 mm (sobrante)", "SOBRANTE", "m", [[null, 320]]);
-  await porCantidad("SO-0002", "Caño PPF 20 (sobrante)", "SOBRANTE", "unidades", [[null, 25]]);
-
-  // Movimientos que explican dónde está cada cosa
-  await db.movimientoItem.createMany({
+  }
+  await db.mantenimientoVehiculo.createMany({
     data: [
-      { itemId: hormigonera1.id, tipo: "ENTREGA", haciaObraId: obras["Darwin"].id, recibidoPorId: daniela.id, registradoPorId: deposito.id, fecha: enDias(-70) },
-      { itemId: vibrador.id, tipo: "ENTREGA", haciaObraId: obras["Chubut"].id, recibidoPorId: cesar.id, registradoPorId: deposito.id, fecha: enDias(-12) },
-      { itemId: palas.id, tipo: "ENTREGA", cantidad: 6, haciaObraId: obras["Darwin"].id, recibidoPorId: daniela.id, registradoPorId: deposito.id, fecha: enDias(-20) },
+      { vehiculoId: camion5.id, tipo: "SERVICE", fecha: haceDias(75), km: 180_100, descripcion: "Service completo: aceite, filtros y correas", taller: "Taller Ruta 202", costo: D(385_000), proximoKm: 190_000 }, // confirmar
+      { vehiculoId: camion4.id, tipo: "SERVICE", fecha: haceDias(20), km: 240_200, descripcion: "Service 240.000 y cambio de pastillas", taller: "Ford Camiones Norte", costo: D(420_000), proximoKm: 250_000, proximaFecha: enDias(160) }, // confirmar
     ],
   });
 
-  // Solicitudes de obra
-  const hormigonera2 = await db.item.findUniqueOrThrow({ where: { codigo: "MQ-0002" } });
-  await db.solicitudHerramienta.create({
-    data: { tipo: "PEDIDO", itemId: hormigonera2.id, obraId: obras["Laura Thomas"].id, solicitanteId: vicky.id, observaciones: "Para el hormigonado del viernes", creadaEn: haceHoras(5) },
-  });
-  await db.solicitudHerramienta.create({
-    data: { tipo: "DEVOLUCION", itemId: palas.id, cantidad: 4, obraId: obras["Chubut"].id, solicitanteId: cesar.id, creadaEn: haceHoras(30) },
+  // ───────────────────── Depósito: herramientas y máquinas ─────────────────────
+  const cat = async (nombre: string) => db.categoriaHerramienta.create({ data: { nombre } });
+  const catMaq = await cat("Maquinaria");
+  const catElec = await cat("Herramientas eléctricas");
+  const catMano = await cat("Herramientas de mano");
+  const catMed = await cat("Medición");
+  const catAndamio = await cat("Andamios y apuntalamiento");
+  const catSeg = await cat("Seguridad");
+
+  let codigo = 0;
+  const sig = () => `SIG-${String(++codigo).padStart(4, "0")}`;
+  const obraDe = (o: typeof darwin) => ({ obraId: o.id, responsableId: o.responsableId });
+
+  type H = { nombre: string; categoriaId: string; esMaquina?: boolean; marca?: string; modelo?: string; valor: number; en?: typeof darwin; dias?: number; estado?: "EN_REPARACION"; condicion?: "BUENA" | "REGULAR" | "MALA"; cadaDias?: number; devolucion?: Date };
+  const unitarias: H[] = [
+    // 10 máquinas grandes
+    { nombre: "Hormigonera 350 l", categoriaId: catMaq.id, esMaquina: true, marca: "Czerweny", modelo: "350", valor: 1_450_000, en: darwin, dias: 40, cadaDias: 90 },
+    { nombre: "Martillo demoledor 11 kg", categoriaId: catMaq.id, esMaquina: true, marca: "Bosch", modelo: "GSH 11 VC", valor: 1_800_000, en: cabildo, dias: 12, devolucion: enDias(-9) },
+    { nombre: "Generador 5,5 kVA", categoriaId: catMaq.id, esMaquina: true, marca: "Gamma", modelo: "GE-5500", valor: 1_200_000, cadaDias: 60 },
+    { nombre: "Vibrador de hormigón", categoriaId: catMaq.id, esMaquina: true, marca: "Wacker", modelo: "M2500", valor: 900_000, en: chubut, dias: 6 },
+    { nombre: "Cortadora de ladrillos", categoriaId: catMaq.id, esMaquina: true, marca: "Norton", modelo: "Clipper CM42", valor: 1_100_000, en: gaspar, dias: 15 },
+    { nombre: "Placa compactadora", categoriaId: catMaq.id, esMaquina: true, marca: "Honda", modelo: "GX160", valor: 1_350_000, estado: "EN_REPARACION", condicion: "MALA" },
+    { nombre: "Andamio tubular motorizado", categoriaId: catMaq.id, esMaquina: true, marca: "Andamios Norte", modelo: "AT-6", valor: 2_100_000, en: pinares, dias: 25 },
+    { nombre: "Elevador de materiales", categoriaId: catMaq.id, esMaquina: true, marca: "Montacargas SR", modelo: "ME-300", valor: 3_200_000, en: laura, dias: 30, cadaDias: 30 },
+    { nombre: "Soldadora inverter", categoriaId: catMaq.id, esMaquina: true, marca: "Lusqtoff", modelo: "LQ-250", valor: 480_000 },
+    { nombre: "Hidrolavadora industrial", categoriaId: catMaq.id, esMaquina: true, marca: "Kärcher", modelo: "HD 6/15", valor: 1_050_000, en: alvear, dias: 4 },
+  ];
+  // 40 herramientas chicas
+  const chicas: [string, string, string, number][] = [
+    ["Amoladora 9\"", "DeWalt", catElec.id, 210_000], ["Amoladora 9\"", "DeWalt", catElec.id, 210_000], ["Amoladora 4½\"", "Bosch", catElec.id, 120_000],
+    ["Amoladora 4½\"", "Bosch", catElec.id, 120_000], ["Amoladora 4½\"", "Makita", catElec.id, 125_000], ["Taladro percutor", "Makita", catElec.id, 160_000],
+    ["Taladro percutor", "Bosch", catElec.id, 150_000], ["Rotomartillo SDS Plus", "Bosch", catElec.id, 280_000], ["Rotomartillo SDS Plus", "DeWalt", catElec.id, 290_000],
+    ["Atornillador inalámbrico", "Makita", catElec.id, 190_000], ["Atornillador inalámbrico", "Makita", catElec.id, 190_000], ["Sierra circular 7¼\"", "Skil", catElec.id, 170_000],
+    ["Sierra caladora", "Bosch", catElec.id, 140_000], ["Ingletadora", "DeWalt", catElec.id, 520_000], ["Pistola de calor", "Black+Decker", catElec.id, 60_000],
+    ["Mezcladora de pintura", "Lusqtoff", catElec.id, 110_000], ["Aspiradora de obra", "Kärcher", catElec.id, 230_000], ["Extensión 25 m", "Kalop", catElec.id, 35_000],
+    ["Extensión 25 m", "Kalop", catElec.id, 35_000], ["Reflector LED 200 W", "Interelec", catElec.id, 45_000], ["Nivel láser", "Bosch", catMed.id, 380_000],
+    ["Nivel láser", "Stanley", catMed.id, 260_000], ["Nivel óptico con trípode", "Topcon", catMed.id, 650_000], ["Medidor láser 50 m", "Bosch", catMed.id, 95_000],
+    ["Cinta métrica 50 m", "Stanley", catMed.id, 28_000], ["Detector de metales y cables", "Bosch", catMed.id, 140_000], ["Escalera tijera 8 escalones", "Escalumex", catAndamio.id, 120_000],
+    ["Escalera extensible 2x12", "Escalumex", catAndamio.id, 210_000], ["Tenaza armador", "Bahco", catMano.id, 18_000], ["Cortahierro 36\"", "Bahco", catMano.id, 75_000],
+    ["Dobladora de hierro", "Bremen", catMano.id, 95_000], ["Maza 5 kg", "Truper", catMano.id, 22_000], ["Llave Stillson 24\"", "Ridgid", catMano.id, 70_000],
+    ["Terraja para caños", "Ridgid", catMano.id, 260_000], ["Cortadora de cerámicos 90 cm", "Rubi", catMano.id, 180_000], ["Termofusora", "IPS", catElec.id, 85_000],
+    ["Arnés de seguridad", "Steelpro", catSeg.id, 65_000], ["Arnés de seguridad", "Steelpro", catSeg.id, 65_000], ["Línea de vida 15 m", "Steelpro", catSeg.id, 90_000],
+    ["Matafuego 5 kg", "Georgia", catSeg.id, 55_000],
+  ];
+  const destinosChicas = [darwin, chubut, gaspar, laura, alvear, cabildo, parana, pinares];
+  for (const [i, [nombre, marca, categoriaId, valor]] of chicas.entries()) {
+    const enObra = i % 3 !== 0; // dos de cada tres están en obra
+    unitarias.push({ nombre, marca, categoriaId, valor, en: enObra ? destinosChicas[i % destinosChicas.length] : undefined, dias: entre(1, 35), estado: i === 13 ? "EN_REPARACION" : undefined, condicion: i % 7 === 0 ? "REGULAR" : "BUENA" });
+  }
+
+  for (const h of unitarias) {
+    const enObra = h.en && h.estado !== "EN_REPARACION";
+    const desde = haceDias(h.dias ?? 1, 8);
+    const herramienta = await db.herramienta.create({
+      data: {
+        codigo: sig(), nombre: h.nombre, categoriaId: h.categoriaId, esMaquina: !!h.esMaquina, tipoControl: "UNITARIA",
+        marca: h.marca, modelo: h.modelo, nroSerie: h.esMaquina ? `SN-${entre(100000, 999999)}` : null, // confirmar números de serie
+        estado: h.estado ?? (enObra ? "EN_OBRA" : "DISPONIBLE"), condicion: h.condicion ?? "BUENA",
+        ...(enObra ? obraDe(h.en!) : { ubicacionId: depo.id }),
+        devolucionPrevista: enObra ? h.devolucion ?? enDias(entre(3, 40)) : null,
+        valorCompra: D(h.valor), // confirmar valores
+        mantenimientoCadaDias: h.cadaDias ?? null, proximoMantenimiento: h.cadaDias ? enDias(entre(5, h.cadaDias)) : null,
+      },
+    });
+    // Movimientos coherentes con dónde está hoy.
+    if (enObra) {
+      await db.movimientoHerramienta.create({
+        data: { herramientaId: herramienta.id, tipo: "ENTREGA", desdeUbicacionId: depo.id, haciaObraId: h.en!.id, condicion: herramienta.condicion, registradoPorId: deposito.id, recibidoPorId: h.en!.responsableId, fecha: desde },
+      });
+    }
+    if (h.estado === "EN_REPARACION") {
+      await db.movimientoHerramienta.create({
+        data: { herramientaId: herramienta.id, tipo: "A_REPARACION", desdeUbicacionId: depo.id, condicion: "MALA", registradoPorId: deposito.id, fecha: haceDias(5), observaciones: "Enviada al servicio técnico" },
+      });
+    }
+  }
+
+  // 5 por cantidad: stock en el depósito y en obras.
+  const porCantidad: [string, number, [typeof darwin | null, number][]][] = [
+    ["Palas", 25_000, [[null, 18], [darwin, 6], [chubut, 4], [gaspar, 3]]],
+    ["Baldes de obra", 6_000, [[null, 35], [darwin, 10], [pinares, 8], [laura, 6]]],
+    ["Puntales metálicos", 32_000, [[null, 140], [chubut, 80], [cabildo, 60]]],
+    ["Caballetes", 40_000, [[null, 12], [alvear, 4], [parana, 4]]],
+    ["Carretillas", 95_000, [[null, 6], [gaspar, 2], [alvear, 2], [darwin, 2]]],
+  ];
+  for (const [nombre, valor, stock] of porCantidad) {
+    const h = await db.herramienta.create({
+      data: { codigo: sig(), nombre, categoriaId: nombre === "Puntales metálicos" || nombre === "Caballetes" ? catAndamio.id : catMano.id, tipoControl: "CANTIDAD", estado: "DISPONIBLE", valorCompra: D(valor) }, // valor unitario; confirmar
+    });
+    for (const [o, cantidad] of stock) {
+      await db.existenciaHerramienta.create({ data: { herramientaId: h.id, ubicacionId: o ? null : depo.id, obraId: o?.id ?? null, cantidad } });
+      if (o) {
+        await db.movimientoHerramienta.create({
+          data: { herramientaId: h.id, tipo: "ENTREGA", cantidad, desdeUbicacionId: depo.id, haciaObraId: o.id, registradoPorId: deposito.id, recibidoPorId: o.responsableId, fecha: haceDias(entre(5, 40)) },
+        });
+      }
+    }
+  }
+
+  // Sobrantes que quedan en el depósito.
+  await db.materialSobrante.createMany({
+    data: [
+      { descripcion: "Cable unipolar 2,5 mm", categoria: "ELECTRICO", cantidad: D(320), unidad: "m", obraOrigenId: laura.id, fecha: haceDias(20) },
+      { descripcion: "Cable unipolar 4 mm", categoria: "ELECTRICO", cantidad: D(140), unidad: "m", obraOrigenId: chubut.id, fecha: haceDias(35) },
+      { descripcion: "Caja rectangular 5x10", categoria: "ELECTRICO", cantidad: D(48), unidad: "u", obraOrigenId: darwin.id, fecha: haceDias(12) },
+      { descripcion: "Térmicas 2x20 A", categoria: "ELECTRICO", cantidad: D(9), unidad: "u", obraOrigenId: gaspar.id, fecha: haceDias(8) },
+      { descripcion: "Caño PPF 20 mm", categoria: "SANITARIO", cantidad: D(25), unidad: "barras", obraOrigenId: gaspar.id, fecha: haceDias(15) },
+      { descripcion: "Codos PPF 25 mm", categoria: "SANITARIO", cantidad: D(60), unidad: "u", obraOrigenId: pinares.id, fecha: haceDias(22) },
+      { descripcion: "Caño PVC 110 mm", categoria: "SANITARIO", cantidad: D(7), unidad: "barras", obraOrigenId: alvear.id, fecha: haceDias(30) },
+      { descripcion: "Llaves de paso ½\"", categoria: "SANITARIO", cantidad: D(14), unidad: "u", obraOrigenId: cabildo.id, fecha: haceDias(5) },
+    ],
   });
 
-  const { activas } = await evaluarAlertas();
-  console.log(`Listo. ${await db.usuario.count()} personas, ${await db.vehiculo.count()} vehículos, ${await db.pedidoViaje.count()} pedidos, ${await db.item.count()} ítems, ${activas} alertas activas.`);
+  // ──────────────────── Posiciones (mock de Cusat) ────────────────────
+  // En viaje: en ruta entre el proveedor y la obra. Disponible: en su base.
+  for (const v of flota) {
+    let lat: number, lng: number, velocidad = 0, encendido = false;
+    if (v.id === camion4.id) {
+      const f = 0.55; // un poco más de la mitad del camino
+      lat = hierros.latitud + (chubut.latitud - hierros.latitud) * f;
+      lng = hierros.longitud + (chubut.longitud - hierros.longitud) * f;
+      velocidad = 38;
+      encendido = true;
+    } else if (v.baseId) {
+      lat = base.latitud + (azar() - 0.5) * 0.0008;
+      lng = base.longitud + (azar() - 0.5) * 0.0008;
+    } else if (v.asignadoAId) {
+      // Camionetas propias: donde está su dueño, en una de sus obras.
+      const o = obras.find((x) => x.responsableId === v.asignadoAId) ?? (v.asignadoAId === lolo.id ? darwin : null);
+      lat = (o?.latitud ?? base.latitud) + 0.0004;
+      lng = (o?.longitud ?? base.longitud) + 0.0004;
+    } else {
+      // Interior: obras del interior de la provincia. // confirmar
+      lat = v.id === interior1.id ? -34.5703 : -33.3302;
+      lng = v.id === interior1.id ? -59.105 : -60.2138;
+    }
+    await db.posicionVehiculo.create({
+      data: { vehiculoId: v.id, latitud: lat, longitud: lng, velocidad, rumbo: velocidad ? 135 : 0, motorEncendido: encendido, fecha: v.id === camion4.id ? new Date() : haceHoras(entre(1, 12)) },
+    });
+  }
+
+  // ─────────────────────────── Alertas ───────────────────────────
+  const herramientaVencida = await db.herramienta.findFirstOrThrow({ where: { devolucionPrevista: { lt: ahora } }, include: { obra: true } });
+  await db.alerta.createMany({
+    data: [
+      { claveUnica: `SEGURO_VENCIDO:${interior1.id}`, regla: "SEGURO_VENCIDO", severidad: "CRITICA", titulo: "Interior 1: seguro vencido", detalle: "Venció ayer. No se puede usar.", entidadTipo: "Vehiculo", entidadId: interior1.id, enlace: `/flota/${interior1.id}` },
+      { claveUnica: `VTV_POR_VENCER:${camion4.id}`, regla: "VTV_POR_VENCER", severidad: "AVISO", titulo: "Camión 4 tn: VTV vence en 5 días", detalle: "Sacar turno.", entidadTipo: "Vehiculo", entidadId: camion4.id, enlace: `/flota/${camion4.id}` },
+      { claveUnica: `DEVOLUCION_VENCIDA:${herramientaVencida.id}`, regla: "DEVOLUCION_VENCIDA", severidad: "AVISO", titulo: `${herramientaVencida.nombre}: devolución vencida hace 9 días`, detalle: `Sigue en Obra ${herramientaVencida.obra?.nombre}.`, entidadTipo: "Herramienta", entidadId: herramientaVencida.id, enlace: `/deposito/${herramientaVencida.id}` },
+      { claveUnica: `PEDIDO_DUPLICADO:${darwin.id}`, regla: "PEDIDO_DUPLICADO", severidad: "AVISO", titulo: "Posible pedido duplicado para Obra Darwin", detalle: "Lolo y Daniela pidieron el mismo hierro hoy.", entidadTipo: "Obra", entidadId: darwin.id, enlace: `/pedidos` },
+    ],
+  });
+
+  await db.auditoria.create({ data: { usuarioId: dueno.id, accion: "seed", entidad: "Sistema", entidadId: "seed", despues: { viajeEnCurso: viajeEnCurso.id } } });
+
+  // ─────────────────────────── Resumen ───────────────────────────
+  const conteo = {
+    Usuario: await db.usuario.count(),
+    Ubicacion: await db.ubicacion.count(),
+    Obra: await db.obra.count(),
+    Proveedor: await db.proveedor.count(),
+    Vehiculo: await db.vehiculo.count(),
+    DocumentoVehiculo: await db.documentoVehiculo.count(),
+    CargaCombustible: await db.cargaCombustible.count(),
+    MantenimientoVehiculo: await db.mantenimientoVehiculo.count(),
+    IncidenteVehiculo: await db.incidenteVehiculo.count(),
+    PedidoViaje: await db.pedidoViaje.count(),
+    Viaje: await db.viaje.count(),
+    PosicionVehiculo: await db.posicionVehiculo.count(),
+    CategoriaHerramienta: await db.categoriaHerramienta.count(),
+    Herramienta: await db.herramienta.count(),
+    ExistenciaHerramienta: await db.existenciaHerramienta.count(),
+    MovimientoHerramienta: await db.movimientoHerramienta.count(),
+    MaterialSobrante: await db.materialSobrante.count(),
+    Alerta: await db.alerta.count(),
+    Auditoria: await db.auditoria.count(),
+  };
+  console.table(conteo);
+  const porEstado = await db.pedidoViaje.groupBy({ by: ["estado"], _count: { _all: true } });
+  console.log("Pedidos por estado:", Object.fromEntries(porEstado.map((p) => [p.estado, p._count._all])));
+  const viajes = await db.viaje.groupBy({ by: ["estado"], _count: { _all: true } });
+  console.log("Viajes por estado:", Object.fromEntries(viajes.map((v) => [v.estado, v._count._all])));
 }
 
 main()
