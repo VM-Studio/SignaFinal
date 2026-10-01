@@ -57,9 +57,10 @@ export function MensajeError({ children }: { children?: ReactNode }) {
 }
 
 /** Buscador: un formulario GET, funciona sin JavaScript y deja la búsqueda en la URL. */
-export function Buscador({ accion, valor, placeholder = "Buscar…", nombre = "q" }: { accion: string; valor?: string; placeholder?: string; nombre?: string }) {
+export function Buscador({ accion, valor, placeholder = "Buscar…", nombre = "q", ocultos = {} }: { accion: string; valor?: string; placeholder?: string; nombre?: string; ocultos?: Record<string, string | undefined> }) {
   return (
     <form action={accion} role="search" className="relative">
+      {Object.entries(ocultos).map(([k, v]) => (v ? <input key={k} type="hidden" name={k} value={v} /> : null))}
       <Search aria-hidden className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-suave" />
       <input type="search" name={nombre} defaultValue={valor} placeholder={placeholder} aria-label={placeholder} className={`${control} pl-11`} />
     </form>

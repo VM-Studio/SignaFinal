@@ -1,10 +1,61 @@
+import Link from "next/link";
 import type { Metadata } from "next";
+import { PackageCheck, ScanLine } from "lucide-react";
 import { exigirPermiso } from "@/lib/auth/sesion";
-import { PaginaVacia } from "@/components/layout/pagina-vacia";
+import { movimientosDeHoy, paraEntregar } from "@/lib/herramientas/consultas";
+import { MOVIMIENTO } from "@/lib/herramientas/presentacion";
+import { textoEstado, textoParaCuando } from "@/lib/pedidos/presentacion";
+import { BotonLink } from "@/components/ui/boton";
+import { FilaLista, Insignia, Lista, Subtitulo, Titulo, Vacio } from "@/components/ui/basicos";
+import { hora } from "@/lib/formato";
 
 export const metadata: Metadata = { title: "Entregas" };
 
-export default async function Pagina() {
+export default async function PaginaEntregas() {
   await exigirPermiso("herramientas.mover");
-  return <PaginaVacia titulo="Entregas" icono="entregas" texto="Entregas y devoluciones entre el depósito y las obras." />;
+  const [pendientes, hoy] = await Promise.all([paraEntregar(), movimientosDeHoy()]);
+  return (
+    <div className="mx-auto max-w-3xl">
+      <Titulo siempre detalle="Lo que pidieron las obras y lo que se movió hoy." accion={<BotonLink href="/herramientas/escanear" icono={<ScanLine className="size-5" />}>Escanear</BotonLink>}>Entregas</Titulo>
+      <Subtitulo>Para entregar</Subtitulo>
+      {pendientes.length === 0 ? (
+        <Vacio icono={<PackageCheck className="size-8" />} titulo="Nada pedido por ahora">Cuando una obra pida una máquina o herramienta, aparece acá.</Vacio>
+      ) : (
+        <Lista>
+          {pendientes.map((p) => {
+            const e = textoEstado({ estado: p.estado, chofer: p.tomadoPor?.nombre });
+            return (
+              <FilaLista
+                key={p.id}
+                href={`/herramientas/${p.herramienta!.id}?accion=entregar`}
+                titulo={`${p.herramienta!.nombre} → Obra ${p.obra.nombre}`}
+                detalle={`${p.herramienta!.codigo} · para ${textoParaCuando(p.paraCuando, p.franja)} · pidió ${p.solicitante.nombre}`}
+                derecha={<div className="flex flex-col items-end gap-1"><Insignia tono={e.tono}>{p.estado === "PENDIENTE" ? "Sin chofer" : e.texto}</Insignia>{p.prioridad === "URGENTE" && <Insignia tono="critico">Urgente</Insignia>}</div>}
+              />
+            );
+          })}
+        </Lista>
+      )}
+      <Subtitulo>Movimientos de hoy</Subtitulo>
+      {hoy.length === 0 ? (
+        <Vacio titulo="Todavía no se movió nada hoy" />
+      ) : (
+        <Lista>
+          {hoy.map((m) => (
+            <li key={m.id}>
+              <Link href={`/herramientas/${m.herramienta.id}`} className="flex min-h-16 items-center gap-3 px-4 py-3 hover:bg-fondo">
+                <span className="w-12 shrink-0 font-bold tabular-nums">{hora(m.fecha)}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-semibold">{m.herramienta.nombre}{m.cantidad > 1 ? ` × ${m.cantidad}` : ""}</span>
+                  <span className="block truncate text-sm text-suave">
+                    {MOVIMIENTO[m.tipo]}{m.haciaObra ? ` a Obra ${m.haciaObra.nombre}` : m.desdeObra ? ` desde Obra ${m.desdeObra.nombre}` : ""}{m.recibidoPor ? ` · ${m.recibidoPor.nombre}` : ""}
+                  </span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </Lista>
+      )}
+    </div>
+  );
 }

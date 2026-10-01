@@ -1,5 +1,8 @@
 import { Prisma } from "@prisma/client";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
+
+// Mensajes genéricos de validación en español (los propios de cada campo ya lo están).
+z.config(z.locales.es());
 
 export type Resultado<T = null> = { ok: true; datos: T } | { ok: false; error: string };
 

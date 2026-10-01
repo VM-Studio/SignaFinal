@@ -4,7 +4,7 @@ import { puede, type Permiso } from "./permisos";
 export type Icono =
   | "inicio" | "pedidos" | "pedir" | "viajes" | "combustible" | "flota" | "mantenimiento" | "herramientas"
   | "escanear" | "entregas" | "sobrantes" | "mapa" | "alertas" | "obras" | "proveedores" | "usuarios" | "cuenta" | "mas"
-  | "agenda" | "costos";
+  | "agenda" | "costos" | "etiquetas";
 
 export type Seccion = { href: string; titulo: string; icono: Icono; permiso?: Permiso };
 
@@ -21,7 +21,8 @@ export const SECCIONES = {
   costos: { href: "/costos", titulo: "Costos", icono: "costos", permiso: "costos.ver" },
   mantenimiento: { href: "/mantenimiento", titulo: "Mantenimiento", icono: "mantenimiento", permiso: "mantenimiento.ver" },
   herramientas: { href: "/herramientas", titulo: "Herramientas", icono: "herramientas", permiso: "herramientas.ver" },
-  escanear: { href: "/escanear", titulo: "Escanear", icono: "escanear", permiso: "herramientas.mover" },
+  escanear: { href: "/herramientas/escanear", titulo: "Escanear", icono: "escanear", permiso: "herramientas.mover" },
+  etiquetas: { href: "/herramientas/etiquetas", titulo: "Etiquetas QR", icono: "etiquetas", permiso: "herramientas.editar" },
   entregas: { href: "/entregas", titulo: "Entregas", icono: "entregas", permiso: "herramientas.mover" },
   sobrantes: { href: "/sobrantes", titulo: "Sobrantes", icono: "sobrantes", permiso: "sobrantes.ver" },
   mapa: { href: "/mapa", titulo: "Mapa", icono: "mapa", permiso: "mapa.ver" },
@@ -73,7 +74,7 @@ export function gruposEscritorio(rol: Rol): Grupo[] {
     { titulo: null, claves: ["inicio"] },
     { titulo: "Pedidos y viajes", claves: ["cola", "pedir", rol === "CHOFER" ? "misViajes" : "viajes"] },
     { titulo: "Flota", claves: ["flota", "agenda", "combustible", "mantenimiento"] },
-    { titulo: "Depósito", claves: ["herramientas", "escanear", "entregas", "sobrantes"] },
+    { titulo: "Depósito", claves: ["herramientas", "escanear", "entregas", "sobrantes", "etiquetas"] },
     { titulo: "Mapa", claves: ["mapa"] },
     { titulo: "Alertas", claves: ["alertas"] },
     { titulo: "Costos", claves: ["costos"] },

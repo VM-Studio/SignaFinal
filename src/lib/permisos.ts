@@ -35,9 +35,12 @@ export const PERMISOS = {
   // Depósito
   "herramientas.ver": TODOS,
   "herramientas.solicitar": ["DIRECCION", ...OBRA],
-  "herramientas.mover": ["DEPOSITO"], // entregar, recibir, transferir, escanear
-  "herramientas.editar": ["DEPOSITO", ...GESTION],
+  "herramientas.mover": ["DEPOSITO"], // entregar, transferir, reparación, extravío, escanear
+  "herramientas.devolver": ["DEPOSITO", ...OBRA], // responsable: solo lo que está en sus obras
+  "herramientas.editar": ["DEPOSITO", ...GESTION], // alta, edición, baja, etiquetas, CSV
+  "herramientas.mantenimiento": ["DEPOSITO", ...GESTION],
   "sobrantes.ver": ["DEPOSITO", ...GESTION, ...OBRA],
+  "sobrantes.editar": ["DEPOSITO", ...GESTION],
 
   // Mapa, alertas, costos
   "mapa.ver": [...GESTION, ...OBRA],

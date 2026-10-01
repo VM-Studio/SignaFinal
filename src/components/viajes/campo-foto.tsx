@@ -29,7 +29,7 @@ export function CampoFoto({ etiqueta, valor, onCambio }: { etiqueta: string; val
       <span className="text-sm font-semibold">{etiqueta}</span>
       {valor ? (
         <div className="relative w-fit">
-          {valor.startsWith("data:image") ? (
+          {!valor.startsWith("data:application/pdf") ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={valor} alt="Vista previa" className="h-32 rounded-[var(--radius-caja)] border border-linea object-cover" />
           ) : (

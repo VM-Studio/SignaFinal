@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Download, ListOrdered, PlusCircle, ScanLine } from "lucide-react";
-import { exigirSesion } from "@/lib/auth/sesion";
+import { exigirSesion, type UsuarioSesion } from "@/lib/auth/sesion";
 import { devolucionesVencidas, misPedidos, pedidosPendientes, resumenDireccion, vencimientosProximos } from "@/lib/datos/inicio";
 import { misViajes } from "@/lib/viajes/consultas";
+import { deMisObras, enReparacion, paraEntregar } from "@/lib/herramientas/consultas";
 import { costosPorObra, costosPorVehiculo, periodo } from "@/lib/costos/consultas";
 import { datosMapa } from "@/lib/mapa/consultas";
 import { TarjetaViaje } from "@/components/viajes/tarjeta-viaje";
@@ -27,7 +28,7 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<{
       )}
       <h1 className="mb-4 text-2xl font-bold lg:text-3xl">Hola, {u.nombre}</h1>
       {u.rol === "CHOFER" && <InicioChofer />}
-      {(u.rol === "RESPONSABLE_OBRA" || u.rol === "CAPATAZ") && <InicioObra />}
+      {(u.rol === "RESPONSABLE_OBRA" || u.rol === "CAPATAZ") && <InicioObra u={u} />}
       {u.rol === "DEPOSITO" && <InicioDeposito />}
       {u.rol === "DIRECCION" && <InicioDireccion />}
       {u.rol === "ADMINISTRACION" && <InicioAdministracion />}
@@ -74,34 +75,70 @@ async function InicioChofer() {
 
 // ───────────────────── Responsable de obra / Capataz ─────────────────────
 
-async function InicioObra() {
-  const pedidos = await misPedidos();
+async function InicioObra({ u }: { u: UsuarioSesion }) {
+  const [pedidos, obra] = await Promise.all([misPedidos(), deMisObras(u)]);
+  const vencidas = obra.unitarias.filter((h) => h.vencida).length;
   return (
-    <div className="lg:max-w-2xl">
-      <BotonLink href="/pedidos/nuevo" ancho tamano="grande" icono={<PlusCircle className="size-6" />} className="min-h-[88px] text-xl">
-        Pedir un viaje
-      </BotonLink>
-      <Subtitulo>Mis pedidos</Subtitulo>
-      {pedidos.length === 0 ? (
-        <Vacio titulo="No tenés pedidos en curso">Lo que pidas aparece acá con su estado.</Vacio>
-      ) : (
-        <Lista>
-          {pedidos.map((p) => (
-            <FilaLista
-              key={p.id}
-              href={`/pedidos/${p.id}`}
-              titulo={`Obra ${p.obra.nombre}`}
-              detalle={`${p.descripcion} · para ${cuando(p.paraCuando)}`}
-              derecha={
-                <div className="flex flex-col items-end gap-1">
-                  <Insignia tono={ESTADO_PEDIDO[p.estado].tono}>{textoEstadoPedido(p.estado, p.tomadoPor?.nombre)}</Insignia>
-                  {p.prioridad === "URGENTE" && p.estado === "PENDIENTE" && <Insignia tono="critico">Urgente</Insignia>}
-                </div>
-              }
-            />
-          ))}
-        </Lista>
-      )}
+    <div className="grid gap-x-8 lg:grid-cols-2 [&>section]:min-w-0">
+      <section>
+        <BotonLink href="/pedidos/nuevo" ancho tamano="grande" icono={<PlusCircle className="size-6" />} className="min-h-[88px] text-xl">
+          Pedir un viaje
+        </BotonLink>
+        <Subtitulo>Mis pedidos</Subtitulo>
+        {pedidos.length === 0 ? (
+          <Vacio titulo="No tenés pedidos en curso">Lo que pidas aparece acá con su estado.</Vacio>
+        ) : (
+          <Lista>
+            {pedidos.map((p) => (
+              <FilaLista
+                key={p.id}
+                href={`/pedidos/${p.id}`}
+                titulo={`Obra ${p.obra.nombre}`}
+                detalle={`${p.descripcion} · para ${cuando(p.paraCuando)}`}
+                derecha={
+                  <div className="flex flex-col items-end gap-1">
+                    <Insignia tono={ESTADO_PEDIDO[p.estado].tono}>{textoEstadoPedido(p.estado, p.tomadoPor?.nombre)}</Insignia>
+                    {p.prioridad === "URGENTE" && p.estado === "PENDIENTE" && <Insignia tono="critico">Urgente</Insignia>}
+                  </div>
+                }
+              />
+            ))}
+          </Lista>
+        )}
+      </section>
+      <section>
+        <Subtitulo accion={<Link href="/herramientas" className="text-sm font-semibold underline">Pedir una herramienta</Link>}>
+          Herramientas en {u.rol === "RESPONSABLE_OBRA" ? "tus obras" : "obra"}{vencidas ? ` · ${vencidas} vencida${vencidas === 1 ? "" : "s"}` : ""}
+        </Subtitulo>
+        {obra.unitarias.length + obra.porCantidad.length === 0 ? (
+          <Vacio titulo="No hay herramientas del depósito en tus obras" />
+        ) : (
+          <Lista>
+            {obra.unitarias.map((h) => (
+              <FilaLista
+                key={h.id}
+                href={`/herramientas/${h.id}`}
+                titulo={h.nombre}
+                detalle={`Obra ${h.obra?.nombre}${h.responsable ? ` · la tiene ${h.responsable.nombre}` : ""}${h.devolucionPrevista ? ` · vuelve ${fecha(h.devolucionPrevista)}` : ""}`}
+                derecha={h.vencida ? <Insignia tono="critico">Vencida</Insignia> : undefined}
+              />
+            ))}
+            {obra.porCantidad.map((e) => (
+              <FilaLista key={e.id} href={`/herramientas/${e.herramienta.id}`} titulo={`${e.cantidad} ${e.herramienta.nombre.toLowerCase()}`} detalle={`Obra ${e.obra?.nombre}`} />
+            ))}
+          </Lista>
+        )}
+        {obra.salen.length > 0 && (
+          <>
+            <Subtitulo>Se llevan de tus obras</Subtitulo>
+            <Lista>
+              {obra.salen.map((p) => (
+                <FilaLista key={p.id} href={`/pedidos/${p.id}`} titulo={`${p.herramienta?.nombre} → Obra ${p.obra.nombre}`} detalle={`La pidió ${p.solicitante.nombre} · ${textoEstadoPedido(p.estado)}`} />
+              ))}
+            </Lista>
+          </>
+        )}
+      </section>
     </div>
   );
 }
@@ -109,28 +146,44 @@ async function InicioObra() {
 // ───────────────────────────── Depósito ─────────────────────────────
 
 async function InicioDeposito() {
-  const vencidas = await devolucionesVencidas();
+  const [pedidas, vencidas, reparacion] = await Promise.all([paraEntregar(), devolucionesVencidas(), enReparacion()]);
   return (
-    <div className="lg:max-w-2xl">
-      <BotonLink href="/escanear" ancho tamano="grande" icono={<ScanLine className="size-7" />} className="min-h-[104px] text-xl">
-        Escanear herramienta
-      </BotonLink>
-      <Subtitulo>Devoluciones vencidas</Subtitulo>
-      {vencidas.length === 0 ? (
-        <Vacio titulo="Ninguna vencida">Todo lo que está en obra está dentro de la fecha de devolución.</Vacio>
-      ) : (
-        <Lista>
-          {vencidas.map((h) => (
-            <FilaLista
-              key={h.id}
-              href={`/herramientas?ver=${h.codigo}`}
-              titulo={h.nombre}
-              detalle={`Obra ${h.obra?.nombre}${h.responsable ? ` · la tiene ${h.responsable.nombre}` : ""}`}
-              derecha={<Insignia tono="critico">{vencimiento(h.devolucionPrevista!).texto}</Insignia>}
-            />
-          ))}
-        </Lista>
-      )}
+    <div className="grid gap-x-8 lg:grid-cols-2 [&>section]:min-w-0">
+      <section>
+        <BotonLink href="/herramientas/escanear" ancho tamano="grande" icono={<ScanLine className="size-7" />} className="min-h-[104px] text-xl">
+          Escanear herramienta
+        </BotonLink>
+        <Subtitulo accion={<Link href="/entregas" className="text-sm font-semibold underline">Ver todo</Link>}>Para entregar</Subtitulo>
+        {pedidas.length === 0 ? (
+          <Vacio titulo="Nada pedido por ahora" />
+        ) : (
+          <Lista>
+            {pedidas.slice(0, 6).map((p) => (
+              <FilaLista key={p.id} href={`/herramientas/${p.herramienta!.id}?accion=entregar`} titulo={`${p.herramienta!.nombre} → Obra ${p.obra.nombre}`} detalle={`para ${cuando(p.paraCuando)} · ${p.tomadoPor ? `la lleva ${p.tomadoPor.nombre}` : "sin chofer todavía"}`} derecha={p.prioridad === "URGENTE" ? <Insignia tono="critico">Urgente</Insignia> : undefined} />
+            ))}
+          </Lista>
+        )}
+      </section>
+      <section>
+        <Subtitulo>Devoluciones vencidas</Subtitulo>
+        {vencidas.length === 0 ? (
+          <Vacio titulo="Ninguna vencida">Todo lo que está en obra está dentro de la fecha de devolución.</Vacio>
+        ) : (
+          <Lista>
+            {vencidas.map((h) => (
+              <FilaLista key={h.id} href={`/herramientas/${h.id}`} titulo={h.nombre} detalle={`Obra ${h.obra?.nombre}${h.responsable ? ` · la tiene ${h.responsable.nombre}` : ""}`} derecha={<Insignia tono="critico">{vencimiento(h.devolucionPrevista!).texto.replace("Vencido", "Debía volver")}</Insignia>} />
+            ))}
+          </Lista>
+        )}
+        {reparacion.length > 0 && (
+          <>
+            <Subtitulo>En reparación</Subtitulo>
+            <Lista>
+              {reparacion.map((h) => <FilaLista key={h.id} href={`/herramientas/${h.id}?accion=volvio`} titulo={h.nombre} detalle={`${h.codigo} · desde ${fecha(h.actualizadoEn)}`} derecha={<Insignia tono="aviso">En el taller</Insignia>} />)}
+            </Lista>
+          </>
+        )}
+      </section>
     </div>
   );
 }
@@ -177,7 +230,7 @@ async function InicioAdministracion() {
         <Cifra etiqueta="Combustible (mes)" valor={plata(comb)} />
         <Cifra etiqueta="Mantenimiento (mes)" valor={plata(mant)} />
       </div>
-      <div className="grid gap-x-6 lg:grid-cols-2">
+      <div className="grid gap-x-6 lg:grid-cols-2 [&>section]:min-w-0">
         <section>
           <Subtitulo>Vencimientos próximos</Subtitulo>
           {docs.length === 0 ? (

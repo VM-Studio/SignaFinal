@@ -5,6 +5,9 @@ import { documentosVigentes } from "@/lib/flota/consultas";
 
 /** Cada query verifica su permiso: no alcanza con esconder el botón. */
 
+// Lo terminado se sigue mostrando dos días (por fecha real de entrega o cancelación).
+const DIAS_RECIENTES = 2 * 86_400_000;
+
 export async function pedidosPendientes() {
   await exigirPermiso("pedidos.ver");
   return db.pedidoViaje.count({ where: { estado: "PENDIENTE" } });
@@ -13,7 +16,7 @@ export async function pedidosPendientes() {
 export async function misPedidos() {
   const u = await exigirPermiso("pedidos.crear");
   return db.pedidoViaje.findMany({
-    where: { solicitanteId: u.id, OR: [{ estado: { in: ["PENDIENTE", "TOMADO", "EN_VIAJE"] } }, { actualizadoEn: { gte: new Date(Date.now() - 3 * 86_400_000) } }] },
+    where: { solicitanteId: u.id, ...{ OR: [{ estado: { in: ["PENDIENTE", "TOMADO", "EN_VIAJE"] } }, { estado: "ENTREGADO", viaje: { llegadaReal: { gte: new Date(Date.now() - DIAS_RECIENTES) } } }, { estado: "CANCELADO", canceladoEn: { gte: new Date(Date.now() - DIAS_RECIENTES) } }] } },
     orderBy: [{ creadoEn: "desc" }],
     take: 15,
     select: { id: true, numero: true, estado: true, descripcion: true, paraCuando: true, prioridad: true, obra: { select: { nombre: true } }, tomadoPor: { select: { nombre: true } } },

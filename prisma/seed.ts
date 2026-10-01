@@ -38,6 +38,7 @@ async function limpiar() {
   await db.auditoria.deleteMany();
   await db.$executeRawUnsafe(`ALTER TABLE "Auditoria" ENABLE TRIGGER USER`).catch(() => {});
   await db.alerta.deleteMany();
+  await db.mantenimientoHerramienta.deleteMany();
   await db.materialSobrante.deleteMany();
   await db.movimientoHerramienta.deleteMany();
   await db.existenciaHerramienta.deleteMany();
@@ -310,6 +311,7 @@ async function main() {
     { nombre: "Elevador de materiales", categoriaId: catMaq.id, esMaquina: true, marca: "Montacargas SR", modelo: "ME-300", valor: 3_200_000, en: laura, dias: 30, cadaDias: 30 },
     { nombre: "Soldadora inverter", categoriaId: catMaq.id, esMaquina: true, marca: "Lusqtoff", modelo: "LQ-250", valor: 480_000 },
     { nombre: "Hidrolavadora industrial", categoriaId: catMaq.id, esMaquina: true, marca: "Kärcher", modelo: "HD 6/15", valor: 1_050_000, en: alvear, dias: 4 },
+    { nombre: "Hormigonera 130 l", categoriaId: catMaq.id, esMaquina: true, marca: "Czerweny", modelo: "130", valor: 980_000, cadaDias: 90 }, // en el depósito
   ];
   // 40 herramientas chicas
   const chicas: [string, string, string, number][] = [
@@ -359,6 +361,13 @@ async function main() {
         data: { herramientaId: herramienta.id, tipo: "A_REPARACION", desdeUbicacionId: depo.id, condicion: "MALA", registradoPorId: deposito.id, fecha: haceDias(5), observaciones: "Enviada al servicio técnico" },
       });
     }
+  }
+
+  // Mantenimiento de maquinaria
+  for (const [nombre, dias, desc, costo] of [["Hormigonera 350 l", 50, "Cambio de rodamientos del tambor", 85_000], ["Generador 5,5 kVA", 20, "Service: aceite, bujía y filtro de aire", 42_000], ["Hormigonera 130 l", 35, "Engrase y correa nueva", 28_000]] as const) {
+    const h = await db.herramienta.findFirstOrThrow({ where: { nombre } });
+    await db.mantenimientoHerramienta.create({ data: { herramientaId: h.id, fecha: haceDias(dias, 12), descripcion: desc, taller: "Servicio técnico Munro", costo: D(costo), registradoPorId: deposito.id } }); // confirmar
+    if (h.mantenimientoCadaDias) await db.herramienta.update({ where: { id: h.id }, data: { proximoMantenimiento: enDias(h.mantenimientoCadaDias - dias) } });
   }
 
   // 5 por cantidad: stock en el depósito y en obras.
@@ -457,6 +466,7 @@ async function main() {
     ExistenciaHerramienta: await db.existenciaHerramienta.count(),
     MovimientoHerramienta: await db.movimientoHerramienta.count(),
     MaterialSobrante: await db.materialSobrante.count(),
+    MantenimientoHerramienta: await db.mantenimientoHerramienta.count(),
     Alerta: await db.alerta.count(),
     Auditoria: await db.auditoria.count(),
   };

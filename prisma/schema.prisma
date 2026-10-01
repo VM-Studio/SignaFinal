@@ -38,18 +38,19 @@ model Usuario {
   creadoEn            DateTime  @default(now())
   actualizadoEn       DateTime  @updatedAt
 
-  vehiculoAsignado       Vehiculo?               @relation("VehiculoPropio", fields: [vehiculoAsignadoId], references: [id])
-  vehiculosACargo        Vehiculo[]              @relation("VehiculoAsignadoA")
-  obrasACargo            Obra[]
-  pedidosSolicitados     PedidoViaje[]           @relation("PedidoSolicitante")
-  pedidosTomados         PedidoViaje[]           @relation("PedidoTomadoPor")
-  viajes                 Viaje[]
-  cargasCombustible      CargaCombustible[]
-  incidentes             IncidenteVehiculo[]
-  herramientasACargo     Herramienta[]
-  movimientosRegistrados MovimientoHerramienta[] @relation("MovimientoRegistradoPor")
-  movimientosRecibidos   MovimientoHerramienta[] @relation("MovimientoRecibidoPor")
-  auditoria              Auditoria[]
+  vehiculoAsignado          Vehiculo?                  @relation("VehiculoPropio", fields: [vehiculoAsignadoId], references: [id])
+  vehiculosACargo           Vehiculo[]                 @relation("VehiculoAsignadoA")
+  obrasACargo               Obra[]
+  pedidosSolicitados        PedidoViaje[]              @relation("PedidoSolicitante")
+  pedidosTomados            PedidoViaje[]              @relation("PedidoTomadoPor")
+  viajes                    Viaje[]
+  cargasCombustible         CargaCombustible[]
+  incidentes                IncidenteVehiculo[]
+  herramientasACargo        Herramienta[]
+  movimientosRegistrados    MovimientoHerramienta[]    @relation("MovimientoRegistradoPor")
+  movimientosRecibidos      MovimientoHerramienta[]    @relation("MovimientoRecibidoPor")
+  mantenimientosHerramienta MantenimientoHerramienta[] @relation("MantenimientoHerramientaRegistro")
+  auditoria                 Auditoria[]
 
   @@index([rol, activo])
 }
@@ -318,6 +319,8 @@ model PedidoViaje {
   // Id de Ubicacion (BASE/DEPOSITO), Proveedor u Obra según origenTipo
   origenId          String
   proveedorId       String?
+  // Si el viaje lleva una máquina o herramienta del depósito: herramientas y viajes quedan unidos.
+  herramientaId     String?
   ordenCompraLebane String?
   descripcion       String
   pesoKg            Int?
@@ -334,16 +337,18 @@ model PedidoViaje {
   creadoEn          DateTime     @default(now())
   actualizadoEn     DateTime     @updatedAt
 
-  solicitante Usuario    @relation("PedidoSolicitante", fields: [solicitanteId], references: [id])
-  obra        Obra       @relation(fields: [obraId], references: [id])
-  proveedor   Proveedor? @relation(fields: [proveedorId], references: [id])
-  tomadoPor   Usuario?   @relation("PedidoTomadoPor", fields: [tomadoPorId], references: [id])
+  solicitante Usuario      @relation("PedidoSolicitante", fields: [solicitanteId], references: [id])
+  obra        Obra         @relation(fields: [obraId], references: [id])
+  proveedor   Proveedor?   @relation(fields: [proveedorId], references: [id])
+  herramienta Herramienta? @relation(fields: [herramientaId], references: [id])
+  tomadoPor   Usuario?     @relation("PedidoTomadoPor", fields: [tomadoPorId], references: [id])
   viaje       Viaje?
 
   @@index([estado, prioridad, paraCuando])
   @@index([obraId, estado])
   @@index([tomadoPorId, estado])
   @@index([solicitanteId])
+  @@index([herramientaId, estado])
 }
 
 enum EstadoViaje {
@@ -359,7 +364,7 @@ model Viaje {
   vehiculoId     String
   choferId       String
   salidaEstimada DateTime?
-  ordenRuta      Int?        // orden en la ruta del día del chofer
+  ordenRuta      Int? // orden en la ruta del día del chofer
   salidaReal     DateTime?
   llegadaReal    DateTime?
   kmSalida       Int?
@@ -451,12 +456,14 @@ model Herramienta {
   creadoEn              DateTime          @default(now())
   actualizadoEn         DateTime          @updatedAt
 
-  categoria   CategoriaHerramienta    @relation(fields: [categoriaId], references: [id])
-  ubicacion   Ubicacion?              @relation(fields: [ubicacionId], references: [id])
-  obra        Obra?                   @relation(fields: [obraId], references: [id])
-  responsable Usuario?                @relation(fields: [responsableId], references: [id])
-  existencias ExistenciaHerramienta[]
-  movimientos MovimientoHerramienta[]
+  categoria      CategoriaHerramienta       @relation(fields: [categoriaId], references: [id])
+  ubicacion      Ubicacion?                 @relation(fields: [ubicacionId], references: [id])
+  obra           Obra?                      @relation(fields: [obraId], references: [id])
+  responsable    Usuario?                   @relation(fields: [responsableId], references: [id])
+  existencias    ExistenciaHerramienta[]
+  movimientos    MovimientoHerramienta[]
+  pedidos        PedidoViaje[]
+  mantenimientos MantenimientoHerramienta[]
 
   @@index([estado, activo])
   @@index([obraId])
@@ -519,6 +526,22 @@ model MovimientoHerramienta {
   @@index([fecha])
 }
 
+model MantenimientoHerramienta {
+  id              String   @id @default(cuid())
+  herramientaId   String
+  fecha           DateTime @db.Date
+  descripcion     String
+  taller          String?
+  costo           Decimal  @default(0) @db.Decimal(12, 2)
+  registradoPorId String
+  creadoEn        DateTime @default(now())
+
+  herramienta   Herramienta @relation(fields: [herramientaId], references: [id])
+  registradoPor Usuario     @relation("MantenimientoHerramientaRegistro", fields: [registradoPorId], references: [id])
+
+  @@index([herramientaId, fecha])
+}
+
 enum CategoriaSobrante {
   ELECTRICO
   SANITARIO
@@ -533,10 +556,13 @@ model MaterialSobrante {
   unidad       String
   obraOrigenId String?
   fecha        DateTime          @default(now())
+  // Nada se borra: cuando se usa o se descarta, queda la baja con motivo.
+  bajaEn       DateTime?
+  motivoBaja   String?
 
   obraOrigen Obra? @relation(fields: [obraOrigenId], references: [id])
 
-  @@index([categoria])
+  @@index([categoria, bajaEn])
 }
 
 // ═════════════════════════ ALERTAS Y AUDITORÍA ═════════════════════════
@@ -592,7 +618,7 @@ model Auditoria {
 
 model Archivo {
   id          String   @id @default(cuid())
-  tipo        String   // image/jpeg, application/pdf
+  tipo        String // image/jpeg, application/pdf
   nombre      String?
   datos       Bytes
   tamano      Int

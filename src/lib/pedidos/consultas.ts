@@ -66,7 +66,7 @@ export const FILTROS = {
 } as const;
 export type Filtro = keyof typeof FILTROS;
 
-function whereFiltro(filtro: Filtro, u: UsuarioSesion): Prisma.PedidoViajeWhereInput {
+function whereFiltro(filtro: Filtro, u: UsuarioSesion, misObras: string[] = []): Prisma.PedidoViajeWhereInput {
   switch (filtro) {
     case "pendientes":
       return { estado: "PENDIENTE" };
@@ -76,8 +76,9 @@ function whereFiltro(filtro: Filtro, u: UsuarioSesion): Prisma.PedidoViajeWhereI
       return { estado: "ENTREGADO", viaje: { llegadaReal: { gte: inicioDelDia() } } };
     case "mios":
       return {
-        OR: [{ solicitanteId: u.id }, { tomadoPorId: u.id }],
-        AND: [{ OR: [{ estado: { in: ["PENDIENTE", "TOMADO", "EN_VIAJE"] } }, { actualizadoEn: { gte: new Date(Date.now() - 2 * 86_400_000) } }] }],
+        // Lo que pedí, lo que tomé y lo que se lleva una herramienta de mis obras.
+        OR: [{ solicitanteId: u.id }, { tomadoPorId: u.id }, ...(misObras.length ? [{ origenTipo: "OBRA" as const, origenId: { in: misObras }, herramientaId: { not: null } }] : [])],
+        AND: [{ OR: [{ estado: { in: ["PENDIENTE", "TOMADO", "EN_VIAJE"] } }, { estado: "ENTREGADO", viaje: { llegadaReal: { gte: new Date(Date.now() - 2 * 86_400_000) } } }, { estado: "CANCELADO", canceladoEn: { gte: new Date(Date.now() - 2 * 86_400_000) } }] }],
       };
   }
 }
@@ -85,11 +86,12 @@ function whereFiltro(filtro: Filtro, u: UsuarioSesion): Prisma.PedidoViajeWhereI
 /** La cola única: urgentes primero, después por fecha pedida. La ven todos los roles. */
 export async function cola(filtro: Filtro) {
   const u = await exigirPermiso("pedidos.ver");
+  const misObras = u.rol === "RESPONSABLE_OBRA" ? (await db.obra.findMany({ where: { responsableId: u.id }, select: { id: true } })).map((o) => o.id) : [];
   const orden: Prisma.PedidoViajeOrderByWithRelationInput[] =
     filtro === "entregados-hoy" ? [{ viaje: { llegadaReal: "desc" } }] : [{ prioridad: "desc" }, { paraCuando: "asc" }, { creadoEn: "asc" }];
   const [filas, conteos] = await Promise.all([
-    db.pedidoViaje.findMany({ where: whereFiltro(filtro, u), select: seleccion, orderBy: orden, take: 200 }),
-    Promise.all((Object.keys(FILTROS) as Filtro[]).map(async (f) => [f, await db.pedidoViaje.count({ where: whereFiltro(f, u) })] as const)),
+    db.pedidoViaje.findMany({ where: whereFiltro(filtro, u, misObras), select: seleccion, orderBy: orden, take: 200 }),
+    Promise.all((Object.keys(FILTROS) as Filtro[]).map(async (f) => [f, await db.pedidoViaje.count({ where: whereFiltro(f, u, misObras) })] as const)),
   ]);
   return { pedidos: await aplanar(filas), conteos: Object.fromEntries(conteos) as Record<Filtro, number> };
 }

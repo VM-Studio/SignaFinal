@@ -9,6 +9,7 @@ import { ejecutar, ErrorNegocio, type Resultado } from "@/lib/resultado";
 import { auditar, validarChoferYVehiculo } from "@/lib/pedidos/reglas";
 import { guardarArchivo } from "@/lib/archivos";
 import { km as fmtKm } from "@/lib/formato";
+import { alLlegarElViaje } from "@/lib/herramientas/servicio";
 
 const refrescar = () => revalidatePath("/", "layout");
 const vacio = (v: unknown) => (v === "" || v === null ? undefined : v);
@@ -117,6 +118,10 @@ export async function finalizarViaje(entrada: DatosFin): Promise<Resultado<Resul
         },
       });
       await tx.pedidoViaje.update({ where: { id: d.pedidoId }, data: { estado: "ENTREGADO" } });
+      // Si el viaje llevaba una máquina o herramienta y nadie registró la entrega, queda en la obra.
+      if (viaje.pedido.herramientaId) {
+        await alLlegarElViaje(tx, { usuarioId: yo.id, viajeId: viaje.id, herramientaId: viaje.pedido.herramientaId, obraId: viaje.pedido.obraId, recibidoPorId: viaje.pedido.obra.responsableId });
+      }
       await tx.vehiculo.update({
         where: { id: viaje.vehiculoId },
         data: { kmActual: Math.max(viaje.vehiculo.kmActual, d.kmLlegada), ...(viaje.vehiculo.estado === "EN_VIAJE" ? { estado: "DISPONIBLE" } : {}) },
