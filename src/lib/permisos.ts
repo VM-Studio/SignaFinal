@@ -16,6 +16,7 @@ export const PERMISOS = {
   "pedidos.cancelarPropios": ["DIRECCION", ...OBRA],
   "pedidos.cancelarCualquiera": ["DIRECCION", "CAPATAZ"],
   "pedidos.tomar": ["CHOFER"],
+  "pedidos.reasignar": ["DIRECCION"],
   "viajes.verPropios": ["CHOFER"],
   "viajes.verTodos": [...GESTION, "CAPATAZ"],
   "viajes.ejecutar": ["CHOFER"],

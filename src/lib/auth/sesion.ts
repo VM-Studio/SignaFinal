@@ -25,10 +25,14 @@ export const obtenerSesion = cache(async (): Promise<UsuarioSesion | null> => {
   return { id: u.id, nombre: u.nombre, email: u.email, rol: u.rol };
 });
 
-/** Para páginas, queries y acciones: sin sesión, al login. */
+/**
+ * Para páginas, queries y acciones: sin sesión, al login.
+ * "?salir=1" hace que el middleware borre la cookie: si el token es válido pero el
+ * usuario fue desactivado, sin esto quedaría rebotando entre /login e /inicio.
+ */
 export async function exigirSesion(): Promise<UsuarioSesion> {
   const u = await obtenerSesion();
-  if (!u) redirect("/login");
+  if (!u) redirect("/login?salir=1");
   return u;
 }
 

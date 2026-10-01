@@ -33,7 +33,7 @@ export function Hoja({ abierta, onCerrar, titulo, children }: { abierta: boolean
           role="dialog"
           aria-modal="true"
           aria-label={titulo}
-          className="pb-segura relative flex max-h-[92dvh] w-full flex-col rounded-t-2xl bg-fondo lg:h-full lg:max-h-none lg:w-[440px] lg:rounded-none lg:border-l lg:border-linea"
+          className="pb-segura relative flex max-h-[92dvh] w-full flex-col text-left rounded-t-2xl bg-fondo lg:h-full lg:max-h-none lg:w-[440px] lg:rounded-none lg:border-l lg:border-linea"
         >
           <div aria-hidden className="mx-auto mt-2 h-1.5 w-10 rounded-full bg-black/20 lg:hidden" />
           <header className="flex shrink-0 items-center justify-between gap-3 border-b border-linea px-4 py-1 lg:py-3">

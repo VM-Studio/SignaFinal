@@ -238,7 +238,9 @@ async function main() {
       ...desdeProveedor(t.prov), solicitanteId: t.sol.id, obraId: t.obra.id, descripcion: t.desc, pesoKg: t.peso, necesitaCamion: t.peso > 1000,
       paraCuando: enDias(i === 0 ? 0 : 1), estado: "TOMADO", tomadoPorId: claudio.id, tomadoEn: haceHoras(2 - i * 0.5), creadoEn: haceHoras(6 - i),
     });
-    await db.viaje.create({ data: { pedidoId: p.id, vehiculoId: t.v.id, choferId: claudio.id, estado: "PROGRAMADO" } });
+    const sale = new Date(ahora);
+    sale.setHours(8 + i * 2, 30, 0, 0);
+    await db.viaje.create({ data: { pedidoId: p.id, vehiculoId: t.v.id, choferId: claudio.id, estado: "PROGRAMADO", salidaEstimada: sale, ordenRuta: i + 1 } });
   }
 
   // En viaje: Cristian con el Camión 4 tn, de Hierros Martínez a Chubut.

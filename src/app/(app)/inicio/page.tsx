@@ -82,7 +82,7 @@ async function InicioObra() {
           {pedidos.map((p) => (
             <FilaLista
               key={p.id}
-              href={`/pedidos?ver=${p.id}`}
+              href={`/pedidos/${p.id}`}
               titulo={`Obra ${p.obra.nombre}`}
               detalle={`${p.descripcion} · para ${cuando(p.paraCuando)}`}
               derecha={

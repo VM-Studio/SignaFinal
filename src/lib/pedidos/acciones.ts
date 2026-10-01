@@ -1,0 +1,367 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import type { Prisma } from "@prisma/client";
+import { db } from "@/lib/db";
+import { exigirPermiso, exigirSesion } from "@/lib/auth/sesion";
+import { puede } from "@/lib/permisos";
+import { aFecha, diaISO, hora, km as fmtKm } from "@/lib/formato";
+import { ejecutar, ErrorNegocio, type Resultado } from "@/lib/resultado";
+import {
+  auditar, buscarDuplicado, choferesQueLoVen, licenciaVigente, necesitaCamion, aptitud, vehiculoParaPedido, type Duplicado,
+} from "./reglas";
+import { FRANJA } from "./presentacion";
+
+const refrescar = () => revalidatePath("/", "layout");
+const vacio = (v: unknown) => (v === "" || v === null ? undefined : v);
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+// ═══════════════════════════════ Pedir ═══════════════════════════════
+
+const esquemaPedido = z
+  .object({
+    tipo: z.enum(["RETIRO_PROVEEDOR", "TRASLADO_MAQUINARIA", "TRASLADO_HERRAMIENTAS", "LLEVAR_A_OBRA", "RETIRO_ESCOMBROS", "TRASLADO_PERSONAS"], { error: "Elegí qué hay que hacer." }),
+    obraId: z.string().min(1, "Elegí la obra."),
+    origenTipo: z.enum(["BASE", "PROVEEDOR", "DEPOSITO", "OBRA"], { error: "Elegí desde dónde." }),
+    origenId: z.string().min(1, "Elegí desde dónde."),
+    ordenCompraLebane: z.preprocess(vacio, z.string().trim().max(40).optional()),
+    descripcion: z.string().trim().min(3, "Contá qué hay que llevar.").max(240),
+    pesoKg: z.preprocess(vacio, z.coerce.number().int().positive().max(30_000).optional()),
+    cantidadPersonas: z.preprocess(vacio, z.coerce.number().int().min(1).max(30).optional()),
+    dia: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Elegí el día."),
+    franja: z.enum(["MANANA", "TARDE", "HORA_EXACTA"]),
+    hora: z.preprocess(vacio, z.string().regex(HHMM, "Revisá la hora.").optional()),
+    prioridad: z.enum(["NORMAL", "URGENTE"]),
+    forzar: z.boolean().default(false), // "No, es otro pedido"
+  })
+  .superRefine((d, ctx) => {
+    if (d.tipo === "RETIRO_PROVEEDOR" && d.origenTipo !== "PROVEEDOR") ctx.addIssue({ code: "custom", message: "Elegí el proveedor." });
+    if (d.tipo === "TRASLADO_PERSONAS" && !d.cantidadPersonas) ctx.addIssue({ code: "custom", message: "¿Cuántas personas?" });
+    if (d.franja === "HORA_EXACTA" && !d.hora) ctx.addIssue({ code: "custom", message: "Poné la hora." });
+    if (d.origenTipo === "OBRA" && d.origenId === d.obraId && d.tipo !== "RETIRO_ESCOMBROS") {
+      ctx.addIssue({ code: "custom", message: "El origen y el destino son la misma obra." });
+    }
+  });
+
+export type DatosPedido = z.input<typeof esquemaPedido>;
+
+export type RespuestaPedido =
+  | { estado: "creado"; id: string; numero: number; choferes: string[] }
+  | { estado: "duplicado"; existente: Duplicado };
+
+export async function crearPedido(entrada: DatosPedido): Promise<Resultado<RespuestaPedido>> {
+  return ejecutar(async () => {
+    const yo = await exigirPermiso("pedidos.crear");
+    const d = esquemaPedido.parse(entrada);
+
+    const obra = await db.obra.findUnique({ where: { id: d.obraId }, select: { id: true, nombre: true, estado: true, responsableId: true } });
+    if (!obra || obra.estado !== "ACTIVA") throw new ErrorNegocio("Esa obra no está activa.");
+    if (yo.rol === "RESPONSABLE_OBRA" && obra.responsableId !== yo.id) throw new ErrorNegocio(`No sos responsable de Obra ${obra.nombre}.`);
+
+    // El origen tiene que existir y ser del tipo que dice.
+    const origenOk =
+      d.origenTipo === "PROVEEDOR"
+        ? await db.proveedor.count({ where: { id: d.origenId } })
+        : d.origenTipo === "OBRA"
+          ? await db.obra.count({ where: { id: d.origenId, estado: "ACTIVA" } })
+          : await db.ubicacion.count({ where: { id: d.origenId, tipo: d.origenTipo === "BASE" ? "BASE_VEHICULOS" : "DEPOSITO" } });
+    if (!origenOk) throw new ErrorNegocio("El lugar de origen no existe.");
+
+    // Peso: tiene que haber un vehículo de la cola que lo pueda llevar.
+    if (d.pesoKg) {
+      const max = (await db.vehiculo.aggregate({ where: { activo: true, entraEnCola: true }, _max: { capacidadCargaKg: true } }))._max.capacidadCargaKg ?? 0;
+      if (d.pesoKg > max) throw new ErrorNegocio(`Ningún vehículo carga más de ${max.toLocaleString("es-AR")} kg. Partilo en dos pedidos.`);
+    }
+
+    // Para cuándo, en hora argentina. Nunca en el pasado.
+    const horaElegida = d.franja === "HORA_EXACTA" ? d.hora! : FRANJA[d.franja].hora;
+    const paraCuando = aFecha(d.dia, horaElegida);
+    if (d.dia < diaISO()) throw new ErrorNegocio("El día ya pasó. Elegí hoy o una fecha futura.");
+
+    const proveedorId = d.origenTipo === "PROVEEDOR" ? d.origenId : null;
+
+    // Lo que más valor tiene: no duplicar pedidos.
+    if (!d.forzar) {
+      const existente = await buscarDuplicado({ obraId: d.obraId, tipo: d.tipo, proveedorId, descripcion: d.descripcion });
+      if (existente) return { estado: "duplicado", existente } as const;
+    }
+
+    const camion = necesitaCamion(d.tipo, d.pesoKg);
+    const pedido = await db.$transaction(async (tx) => {
+      const p = await tx.pedidoViaje.create({
+        data: {
+          solicitanteId: yo.id,
+          obraId: d.obraId,
+          tipo: d.tipo,
+          origenTipo: d.origenTipo,
+          origenId: d.origenId,
+          proveedorId,
+          ordenCompraLebane: d.ordenCompraLebane ?? null,
+          descripcion: d.descripcion,
+          pesoKg: d.pesoKg ?? null,
+          cantidadPersonas: d.tipo === "TRASLADO_PERSONAS" ? d.cantidadPersonas ?? null : null,
+          necesitaCamion: camion,
+          paraCuando,
+          franja: d.franja,
+          prioridad: d.prioridad,
+        },
+        select: { id: true, numero: true },
+      });
+      await auditar(tx, { usuarioId: yo.id, accion: d.forzar ? "pedido.crear.noEraDuplicado" : "pedido.crear", entidadId: p.id, despues: { estado: "PENDIENTE", tipo: d.tipo, obra: obra.nombre } });
+      return p;
+    });
+
+    refrescar();
+    return { estado: "creado", id: pedido.id, numero: pedido.numero, choferes: await choferesQueLoVen(camion) } as const;
+  });
+}
+
+/** "Deshacer" justo después de pedir: queda cancelado (nada se borra). */
+export async function deshacerPedido(pedidoId: string): Promise<Resultado> {
+  return ejecutar(async () => {
+    const yo = await exigirPermiso("pedidos.crear");
+    const r = await db.pedidoViaje.updateMany({
+      where: { id: pedidoId, solicitanteId: yo.id, estado: "PENDIENTE", creadoEn: { gte: new Date(Date.now() - 2 * 60_000) } },
+      data: { estado: "CANCELADO", motivoCancelacion: "Se deshizo al pedirlo", canceladoEn: new Date() },
+    });
+    if (!r.count) throw new ErrorNegocio("Ya no se puede deshacer.");
+    await auditar(db, { usuarioId: yo.id, accion: "pedido.deshacer", entidadId: pedidoId, antes: { estado: "PENDIENTE" }, despues: { estado: "CANCELADO" } });
+    refrescar();
+    return null;
+  });
+}
+
+// ═══════════════════════════════ Tomar ═══════════════════════════════
+
+const esquemaTomar = z.object({
+  pedidoId: z.string().min(1),
+  vehiculoId: z.string().min(1, "Elegí el vehículo."),
+  salida: z.string().regex(HHMM, "Poné la hora de salida."),
+});
+
+export type DatosTomar = z.input<typeof esquemaTomar>;
+
+/** Día en que sale: el del pedido, o hoy si el pedido era para antes. */
+function salidaPara(paraCuando: Date, hhmm: string) {
+  const diaPedido = diaISO(paraCuando);
+  const hoy = diaISO();
+  return aFecha(diaPedido < hoy ? hoy : diaPedido, hhmm);
+}
+
+async function validarChoferYVehiculo(tx: Prisma.TransactionClient, choferId: string, vehiculoId: string, pedido: { pesoKg: number | null; necesitaCamion: boolean }) {
+  const chofer = await tx.usuario.findUniqueOrThrow({ where: { id: choferId }, select: { nombre: true, rol: true, activo: true, licenciaVencimiento: true } });
+  if (chofer.rol !== "CHOFER" || !chofer.activo) throw new ErrorNegocio(`${chofer.nombre} no es un chofer activo.`);
+  if (!licenciaVigente(chofer)) throw new ErrorNegocio(`La licencia de ${chofer.nombre} está vencida o sin cargar. No puede tomar viajes.`);
+  const v = await vehiculoParaPedido(vehiculoId, tx);
+  if (!v) throw new ErrorNegocio("No existe ese vehículo.");
+  if (!v.entraEnCola && v.asignadoAId !== choferId) throw new ErrorNegocio(`${v.nombre} no se usa para pedidos.`);
+  const a = aptitud(v, pedido);
+  if (!a.apto) throw new ErrorNegocio(`No se puede usar ${v.nombre}: ${a.motivo?.toLowerCase()}.`);
+  return { chofer, vehiculo: v };
+}
+
+async function siguienteEnRuta(tx: Prisma.TransactionClient, choferId: string) {
+  const max = await tx.viaje.aggregate({ where: { choferId, estado: "PROGRAMADO" }, _max: { ordenRuta: true } });
+  return (max._max.ordenRuta ?? 0) + 1;
+}
+
+export async function tomarPedido(entrada: DatosTomar): Promise<Resultado<{ numero: number; vehiculo: string; salida: string }>> {
+  return ejecutar(async () => {
+    const yo = await exigirPermiso("pedidos.tomar");
+    const d = esquemaTomar.parse(entrada);
+
+    const r = await db.$transaction(async (tx) => {
+      const pedido = await tx.pedidoViaje.findUnique({ where: { id: d.pedidoId } });
+      if (!pedido) throw new ErrorNegocio("No existe ese pedido.");
+      const { vehiculo } = await validarChoferYVehiculo(tx, yo.id, d.vehiculoId, pedido);
+
+      // Cerrojo: solo uno lo toma. El segundo ve quién se le adelantó.
+      const tomado = await tx.pedidoViaje.updateMany({
+        where: { id: d.pedidoId, estado: "PENDIENTE" },
+        data: { estado: "TOMADO", tomadoPorId: yo.id, tomadoEn: new Date() },
+      });
+      if (!tomado.count) {
+        const actual = await tx.pedidoViaje.findUniqueOrThrow({ where: { id: d.pedidoId }, select: { estado: true, tomadoPorId: true, tomadoPor: { select: { nombre: true } } } });
+        if (actual.tomadoPorId === yo.id) throw new ErrorNegocio("Ya lo tenés tomado vos.");
+        if (actual.estado === "CANCELADO") throw new ErrorNegocio("Este pedido fue cancelado.");
+        throw new ErrorNegocio(`Ya lo tomó ${actual.tomadoPor?.nombre ?? "otro chofer"}.`);
+      }
+
+      const salidaEstimada = salidaPara(pedido.paraCuando, d.salida);
+      const viaje = { vehiculoId: vehiculo.id, choferId: yo.id, estado: "PROGRAMADO" as const, salidaEstimada, ordenRuta: await siguienteEnRuta(tx, yo.id) };
+      await tx.viaje.upsert({ where: { pedidoId: pedido.id }, create: { pedidoId: pedido.id, ...viaje }, update: viaje });
+      await auditar(tx, {
+        usuarioId: yo.id, accion: "pedido.tomar", entidadId: pedido.id,
+        antes: { estado: "PENDIENTE" }, despues: { estado: "TOMADO", chofer: yo.nombre, vehiculo: vehiculo.nombre, salida: salidaEstimada.toISOString() },
+      });
+      return { numero: pedido.numero, vehiculo: vehiculo.nombre, salida: hora(salidaEstimada) };
+    });
+
+    refrescar();
+    return r;
+  });
+}
+
+/** Soltar: vuelve a la cola. El viaje programado queda registrado como cancelado. */
+export async function soltarPedido(pedidoId: string): Promise<Resultado<{ vehiculoId: string; salida: string } | null>> {
+  return ejecutar(async () => {
+    const yo = await exigirPermiso("pedidos.tomar");
+    const r = await db.$transaction(async (tx) => {
+      const soltado = await tx.pedidoViaje.updateMany({
+        where: { id: pedidoId, estado: "TOMADO", tomadoPorId: yo.id },
+        data: { estado: "PENDIENTE", tomadoPorId: null, tomadoEn: null },
+      });
+      if (!soltado.count) throw new ErrorNegocio("Ya no se puede soltar: el viaje empezó o el pedido cambió.");
+      const viaje = await tx.viaje.findUnique({ where: { pedidoId } });
+      if (viaje) await tx.viaje.update({ where: { pedidoId }, data: { estado: "CANCELADO", ordenRuta: null } });
+      await auditar(tx, { usuarioId: yo.id, accion: "pedido.soltar", entidadId: pedidoId, antes: { estado: "TOMADO", chofer: yo.nombre }, despues: { estado: "PENDIENTE" } });
+      // Para poder deshacer: con qué vehículo y a qué hora iba a salir.
+      return viaje ? { vehiculoId: viaje.vehiculoId, salida: viaje.salidaEstimada ? hora(viaje.salidaEstimada) : "08:00" } : null;
+    });
+    refrescar();
+    return r;
+  });
+}
+
+// ═══════════════════════════ Cancelar ═══════════════════════════
+
+export async function cancelarPedido(pedidoId: string, motivo: string): Promise<Resultado> {
+  return ejecutar(async () => {
+    const yo = await exigirSesion();
+    const m = motivo.trim();
+    if (m.length < 3) throw new ErrorNegocio("Contá por qué se cancela.");
+    const pedido = await db.pedidoViaje.findUnique({ where: { id: pedidoId }, select: { estado: true, solicitanteId: true, tomadoPor: { select: { nombre: true } } } });
+    if (!pedido) throw new ErrorNegocio("No existe ese pedido.");
+
+    const cualquiera = puede(yo.rol, "pedidos.cancelarCualquiera");
+    const propio = pedido.solicitanteId === yo.id && puede(yo.rol, "pedidos.cancelarPropios");
+    if (!cualquiera && !propio) throw new ErrorNegocio("Solo quien lo pidió puede cancelarlo.");
+    const estados = cualquiera ? (["PENDIENTE", "TOMADO"] as const) : (["PENDIENTE"] as const);
+    if (!(estados as readonly string[]).includes(pedido.estado)) {
+      throw new ErrorNegocio(pedido.estado === "TOMADO" ? `Ya lo tomó ${pedido.tomadoPor?.nombre}. Hablá con él para cancelarlo.` : "Este pedido ya no se puede cancelar.");
+    }
+
+    await db.$transaction(async (tx) => {
+      const r = await tx.pedidoViaje.updateMany({
+        where: { id: pedidoId, estado: { in: [...estados] } },
+        data: { estado: "CANCELADO", motivoCancelacion: m, canceladoEn: new Date() },
+      });
+      if (!r.count) throw new ErrorNegocio("El pedido cambió mientras lo cancelabas.");
+      await tx.viaje.updateMany({ where: { pedidoId, estado: "PROGRAMADO" }, data: { estado: "CANCELADO", ordenRuta: null } });
+      await auditar(tx, { usuarioId: yo.id, accion: "pedido.cancelar", entidadId: pedidoId, antes: { estado: pedido.estado }, despues: { estado: "CANCELADO", motivo: m } });
+    });
+    refrescar();
+    return null;
+  });
+}
+
+/** Deshacer una cancelación (10 segundos en pantalla; 2 minutos de margen en el servidor). */
+export async function deshacerCancelacion(pedidoId: string): Promise<Resultado> {
+  return ejecutar(async () => {
+    const yo = await exigirSesion();
+    const ultima = await db.auditoria.findFirst({ where: { entidad: "PedidoViaje", entidadId: pedidoId, accion: "pedido.cancelar" }, orderBy: { fecha: "desc" } });
+    const p = await db.pedidoViaje.findUnique({ where: { id: pedidoId }, select: { estado: true, canceladoEn: true, tomadoPorId: true } });
+    if (!p || p.estado !== "CANCELADO" || !ultima || ultima.usuarioId !== yo.id || !p.canceladoEn || Date.now() - p.canceladoEn.getTime() > 120_000) {
+      throw new ErrorNegocio("Ya no se puede deshacer.");
+    }
+    const vuelveA = (ultima.antes as { estado?: string } | null)?.estado === "TOMADO" && p.tomadoPorId ? "TOMADO" : "PENDIENTE";
+    await db.$transaction(async (tx) => {
+      await tx.pedidoViaje.update({
+        where: { id: pedidoId },
+        data: { estado: vuelveA, motivoCancelacion: null, canceladoEn: null, ...(vuelveA === "PENDIENTE" ? { tomadoPorId: null, tomadoEn: null } : {}) },
+      });
+      if (vuelveA === "TOMADO") await tx.viaje.updateMany({ where: { pedidoId, estado: "CANCELADO" }, data: { estado: "PROGRAMADO" } });
+      await auditar(tx, { usuarioId: yo.id, accion: "pedido.deshacerCancelacion", entidadId: pedidoId, antes: { estado: "CANCELADO" }, despues: { estado: vuelveA } });
+    });
+    refrescar();
+    return null;
+  });
+}
+
+// ═══════════════════════════ Iniciar viaje ═══════════════════════════
+
+export async function iniciarViaje(pedidoId: string, kmSalida: number): Promise<Resultado<{ vehiculo: string }>> {
+  return ejecutar(async () => {
+    const yo = await exigirPermiso("viajes.ejecutar");
+    if (!Number.isInteger(kmSalida) || kmSalida < 0) throw new ErrorNegocio("Poné los km del tablero.");
+
+    const r = await db.$transaction(async (tx) => {
+      const viaje = await tx.viaje.findUnique({ where: { pedidoId }, include: { pedido: true } });
+      if (!viaje || viaje.pedido.tomadoPorId !== yo.id || viaje.pedido.estado !== "TOMADO" || viaje.estado !== "PROGRAMADO") {
+        throw new ErrorNegocio("Este viaje no está listo para salir.");
+      }
+      const enCurso = await tx.viaje.findFirst({ where: { estado: "EN_CURSO", OR: [{ choferId: yo.id }, { vehiculoId: viaje.vehiculoId }] }, select: { choferId: true } });
+      if (enCurso) throw new ErrorNegocio(enCurso.choferId === yo.id ? "Ya tenés un viaje en curso. Terminalo antes de salir de nuevo." : "Ese vehículo está en otro viaje.");
+
+      const { vehiculo } = await validarChoferYVehiculo(tx, yo.id, viaje.vehiculoId, viaje.pedido);
+      if (kmSalida < vehiculo.kmActual) throw new ErrorNegocio(`${vehiculo.nombre} tiene registrados ${fmtKm(vehiculo.kmActual)}. Los km de salida no pueden ser menos.`);
+
+      await tx.viaje.update({ where: { id: viaje.id }, data: { estado: "EN_CURSO", salidaReal: new Date(), kmSalida } });
+      await tx.pedidoViaje.update({ where: { id: pedidoId }, data: { estado: "EN_VIAJE" } });
+      await tx.vehiculo.update({ where: { id: vehiculo.id }, data: { estado: "EN_VIAJE", kmActual: kmSalida } });
+      await auditar(tx, { usuarioId: yo.id, accion: "viaje.iniciar", entidadId: pedidoId, antes: { estado: "TOMADO" }, despues: { estado: "EN_VIAJE", kmSalida, vehiculo: vehiculo.nombre } });
+      return { vehiculo: vehiculo.nombre };
+    });
+    refrescar();
+    return r;
+  });
+}
+
+// ═══════════════════════════ Reasignar (dirección) ═══════════════════════════
+
+const esquemaReasignar = esquemaTomar.extend({ choferId: z.string().min(1, "Elegí el chofer.") });
+export type DatosReasignar = z.input<typeof esquemaReasignar>;
+
+export async function reasignarPedido(entrada: DatosReasignar): Promise<Resultado<{ chofer: string }>> {
+  return ejecutar(async () => {
+    const yo = await exigirPermiso("pedidos.reasignar");
+    const d = esquemaReasignar.parse(entrada);
+    const r = await db.$transaction(async (tx) => {
+      const pedido = await tx.pedidoViaje.findUnique({ where: { id: d.pedidoId }, include: { tomadoPor: { select: { nombre: true } } } });
+      if (!pedido || !["PENDIENTE", "TOMADO"].includes(pedido.estado)) throw new ErrorNegocio("Solo se reasignan pedidos pendientes o tomados.");
+      const { chofer, vehiculo } = await validarChoferYVehiculo(tx, d.choferId, d.vehiculoId, pedido);
+
+      const cambio = await tx.pedidoViaje.updateMany({
+        where: { id: pedido.id, estado: pedido.estado, tomadoPorId: pedido.tomadoPorId },
+        data: { estado: "TOMADO", tomadoPorId: d.choferId, tomadoEn: new Date() },
+      });
+      if (!cambio.count) throw new ErrorNegocio("El pedido cambió mientras lo reasignabas. Probá de nuevo.");
+      const salidaEstimada = salidaPara(pedido.paraCuando, d.salida);
+      const viaje = { vehiculoId: vehiculo.id, choferId: d.choferId, estado: "PROGRAMADO" as const, salidaEstimada, ordenRuta: await siguienteEnRuta(tx, d.choferId) };
+      await tx.viaje.upsert({ where: { pedidoId: pedido.id }, create: { pedidoId: pedido.id, ...viaje }, update: viaje });
+      await auditar(tx, {
+        usuarioId: yo.id, accion: "pedido.reasignar", entidadId: pedido.id,
+        antes: { estado: pedido.estado, chofer: pedido.tomadoPor?.nombre ?? null }, despues: { estado: "TOMADO", chofer: chofer.nombre, vehiculo: vehiculo.nombre },
+      });
+      return { chofer: chofer.nombre };
+    });
+    refrescar();
+    return r;
+  });
+}
+
+// ═══════════════════════════ Ruta del día ═══════════════════════════
+
+/** Sube o baja un viaje programado en la ruta del chofer. */
+export async function moverEnRuta(viajeId: string, sentido: "arriba" | "abajo"): Promise<Resultado> {
+  return ejecutar(async () => {
+    const yo = await exigirPermiso("pedidos.tomar");
+    await db.$transaction(async (tx) => {
+      const ruta = await tx.viaje.findMany({
+        where: { choferId: yo.id, estado: "PROGRAMADO" },
+        orderBy: [{ ordenRuta: { sort: "asc", nulls: "last" } }, { salidaEstimada: "asc" }],
+        select: { id: true },
+      });
+      const i = ruta.findIndex((v) => v.id === viajeId);
+      if (i < 0) throw new ErrorNegocio("Ese viaje no está en tu ruta.");
+      const j = sentido === "arriba" ? i - 1 : i + 1;
+      if (j < 0 || j >= ruta.length) return;
+      [ruta[i], ruta[j]] = [ruta[j], ruta[i]];
+      for (const [k, v] of ruta.entries()) await tx.viaje.update({ where: { id: v.id }, data: { ordenRuta: k + 1 } });
+    });
+    refrescar();
+    return null;
+  });
+}
+

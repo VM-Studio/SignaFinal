@@ -12,6 +12,12 @@ export async function middleware(req: NextRequest) {
     if (pathname !== "/" && pathname !== "/inicio") url.searchParams.set("volver", pathname + search);
     return NextResponse.redirect(url);
   }
+  if (esLogin && req.nextUrl.searchParams.has("salir")) {
+    // Sesión que ya no sirve (usuario desactivado): se borra la cookie y se muestra el login.
+    const r = NextResponse.redirect(new URL("/login", req.url));
+    r.cookies.delete(COOKIE_SESION);
+    return r;
+  }
   if (sesion && esLogin) return NextResponse.redirect(new URL("/inicio", req.url));
   return NextResponse.next();
 }

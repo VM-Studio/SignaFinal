@@ -1,10 +1,20 @@
 import type { Metadata } from "next";
-import { exigirPermiso } from "@/lib/auth/sesion";
-import { PaginaVacia } from "@/components/layout/pagina-vacia";
+import { datosFormulario } from "@/lib/pedidos/consultas";
+import { FormularioPedido } from "@/components/pedidos/formulario-pedido";
+import { Vacio } from "@/components/ui/basicos";
 
 export const metadata: Metadata = { title: "Pedir un viaje" };
 
-export default async function Pagina() {
-  await exigirPermiso("pedidos.crear");
-  return <PaginaVacia titulo="Pedir un viaje" icono="pedir" texto="Acá vas a pedir un viaje en pasos cortos, eligiendo todo de listas." />;
+export default async function PaginaPedir() {
+  const datos = await datosFormulario(); // verifica pedidos.crear
+  return (
+    <div className="mx-auto max-w-xl">
+      <h1 className="sr-only">Pedir un viaje</h1>
+      {datos.obras.length === 0 ? (
+        <Vacio titulo="No tenés obras a cargo">Pedile a la oficina que te asigne tus obras para poder pedir viajes.</Vacio>
+      ) : (
+        <FormularioPedido datos={datos} />
+      )}
+    </div>
+  );
 }

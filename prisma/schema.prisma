@@ -293,6 +293,12 @@ enum Prioridad {
   URGENTE
 }
 
+enum Franja {
+  MANANA
+  TARDE
+  HORA_EXACTA
+}
+
 enum EstadoPedido {
   PENDIENTE
   TOMADO
@@ -317,11 +323,13 @@ model PedidoViaje {
   cantidadPersonas  Int?
   necesitaCamion    Boolean      @default(false)
   paraCuando        DateTime
+  franja            Franja       @default(MANANA)
   prioridad         Prioridad    @default(NORMAL)
   estado            EstadoPedido @default(PENDIENTE)
   tomadoPorId       String?
   tomadoEn          DateTime?
   motivoCancelacion String?
+  canceladoEn       DateTime?
   creadoEn          DateTime     @default(now())
   actualizadoEn     DateTime     @updatedAt
 
@@ -341,6 +349,7 @@ enum EstadoViaje {
   PROGRAMADO
   EN_CURSO
   FINALIZADO
+  CANCELADO // el chofer soltó el pedido o se canceló antes de salir
 }
 
 model Viaje {
@@ -348,6 +357,8 @@ model Viaje {
   pedidoId       String      @unique
   vehiculoId     String
   choferId       String
+  salidaEstimada DateTime?
+  ordenRuta      Int?        // orden en la ruta del día del chofer
   salidaReal     DateTime?
   llegadaReal    DateTime?
   kmSalida       Int?
