@@ -6,11 +6,9 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { exigirPermiso, exigirSesion } from "@/lib/auth/sesion";
 import { puede } from "@/lib/permisos";
-import { aFecha, diaISO, hora, km as fmtKm } from "@/lib/formato";
+import { aFecha, diaISO, hora } from "@/lib/formato";
 import { ejecutar, ErrorNegocio, type Resultado } from "@/lib/resultado";
-import {
-  auditar, buscarDuplicado, choferesQueLoVen, licenciaVigente, necesitaCamion, aptitud, vehiculoParaPedido, type Duplicado,
-} from "./reglas";
+import { auditar, buscarDuplicado, choferesQueLoVen, necesitaCamion, validarChoferYVehiculo, type Duplicado } from "./reglas";
 import { FRANJA } from "./presentacion";
 
 const refrescar = () => revalidatePath("/", "layout");
@@ -149,18 +147,6 @@ function salidaPara(paraCuando: Date, hhmm: string) {
   return aFecha(diaPedido < hoy ? hoy : diaPedido, hhmm);
 }
 
-async function validarChoferYVehiculo(tx: Prisma.TransactionClient, choferId: string, vehiculoId: string, pedido: { pesoKg: number | null; necesitaCamion: boolean }) {
-  const chofer = await tx.usuario.findUniqueOrThrow({ where: { id: choferId }, select: { nombre: true, rol: true, activo: true, licenciaVencimiento: true } });
-  if (chofer.rol !== "CHOFER" || !chofer.activo) throw new ErrorNegocio(`${chofer.nombre} no es un chofer activo.`);
-  if (!licenciaVigente(chofer)) throw new ErrorNegocio(`La licencia de ${chofer.nombre} está vencida o sin cargar. No puede tomar viajes.`);
-  const v = await vehiculoParaPedido(vehiculoId, tx);
-  if (!v) throw new ErrorNegocio("No existe ese vehículo.");
-  if (!v.entraEnCola && v.asignadoAId !== choferId) throw new ErrorNegocio(`${v.nombre} no se usa para pedidos.`);
-  const a = aptitud(v, pedido);
-  if (!a.apto) throw new ErrorNegocio(`No se puede usar ${v.nombre}: ${a.motivo?.toLowerCase()}.`);
-  return { chofer, vehiculo: v };
-}
-
 async function siguienteEnRuta(tx: Prisma.TransactionClient, choferId: string) {
   const max = await tx.viaje.aggregate({ where: { choferId, estado: "PROGRAMADO" }, _max: { ordenRuta: true } });
   return (max._max.ordenRuta ?? 0) + 1;
@@ -276,35 +262,6 @@ export async function deshacerCancelacion(pedidoId: string): Promise<Resultado> 
     });
     refrescar();
     return null;
-  });
-}
-
-// ═══════════════════════════ Iniciar viaje ═══════════════════════════
-
-export async function iniciarViaje(pedidoId: string, kmSalida: number): Promise<Resultado<{ vehiculo: string }>> {
-  return ejecutar(async () => {
-    const yo = await exigirPermiso("viajes.ejecutar");
-    if (!Number.isInteger(kmSalida) || kmSalida < 0) throw new ErrorNegocio("Poné los km del tablero.");
-
-    const r = await db.$transaction(async (tx) => {
-      const viaje = await tx.viaje.findUnique({ where: { pedidoId }, include: { pedido: true } });
-      if (!viaje || viaje.pedido.tomadoPorId !== yo.id || viaje.pedido.estado !== "TOMADO" || viaje.estado !== "PROGRAMADO") {
-        throw new ErrorNegocio("Este viaje no está listo para salir.");
-      }
-      const enCurso = await tx.viaje.findFirst({ where: { estado: "EN_CURSO", OR: [{ choferId: yo.id }, { vehiculoId: viaje.vehiculoId }] }, select: { choferId: true } });
-      if (enCurso) throw new ErrorNegocio(enCurso.choferId === yo.id ? "Ya tenés un viaje en curso. Terminalo antes de salir de nuevo." : "Ese vehículo está en otro viaje.");
-
-      const { vehiculo } = await validarChoferYVehiculo(tx, yo.id, viaje.vehiculoId, viaje.pedido);
-      if (kmSalida < vehiculo.kmActual) throw new ErrorNegocio(`${vehiculo.nombre} tiene registrados ${fmtKm(vehiculo.kmActual)}. Los km de salida no pueden ser menos.`);
-
-      await tx.viaje.update({ where: { id: viaje.id }, data: { estado: "EN_CURSO", salidaReal: new Date(), kmSalida } });
-      await tx.pedidoViaje.update({ where: { id: pedidoId }, data: { estado: "EN_VIAJE" } });
-      await tx.vehiculo.update({ where: { id: vehiculo.id }, data: { estado: "EN_VIAJE", kmActual: kmSalida } });
-      await auditar(tx, { usuarioId: yo.id, accion: "viaje.iniciar", entidadId: pedidoId, antes: { estado: "TOMADO" }, despues: { estado: "EN_VIAJE", kmSalida, vehiculo: vehiculo.nombre } });
-      return { vehiculo: vehiculo.nombre };
-    });
-    refrescar();
-    return r;
   });
 }
 

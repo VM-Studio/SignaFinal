@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Archivo } from "next/font/google";
 import { Splash, scriptSplash } from "@/components/splash/splash";
+import { RegistrarSW } from "@/components/layout/registrar-sw";
 import "./globals.css";
 
 const archivo = Archivo({ subsets: ["latin"], variable: "--font-archivo", display: "swap" });
@@ -31,6 +32,7 @@ export default function LayoutRaiz({ children }: Readonly<{ children: React.Reac
       <body className="min-h-dvh font-sans">
         <Splash />
         {children}
+        <RegistrarSW />
       </body>
     </html>
   );

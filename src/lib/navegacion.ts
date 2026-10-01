@@ -3,7 +3,8 @@ import { puede, type Permiso } from "./permisos";
 
 export type Icono =
   | "inicio" | "pedidos" | "pedir" | "viajes" | "combustible" | "flota" | "mantenimiento" | "herramientas"
-  | "escanear" | "entregas" | "sobrantes" | "mapa" | "alertas" | "obras" | "proveedores" | "usuarios" | "cuenta" | "mas";
+  | "escanear" | "entregas" | "sobrantes" | "mapa" | "alertas" | "obras" | "proveedores" | "usuarios" | "cuenta" | "mas"
+  | "agenda" | "costos";
 
 export type Seccion = { href: string; titulo: string; icono: Icono; permiso?: Permiso };
 
@@ -15,7 +16,9 @@ export const SECCIONES = {
   misViajes: { href: "/viajes", titulo: "Mis viajes", icono: "viajes", permiso: "viajes.verPropios" },
   viajes: { href: "/viajes", titulo: "Viajes", icono: "viajes", permiso: "viajes.verTodos" },
   flota: { href: "/flota", titulo: "Flota", icono: "flota", permiso: "flota.ver" },
+  agenda: { href: "/flota/agenda", titulo: "Agenda", icono: "agenda", permiso: "flota.agenda" },
   combustible: { href: "/combustible", titulo: "Combustible", icono: "combustible", permiso: "combustible.ver" },
+  costos: { href: "/costos", titulo: "Costos", icono: "costos", permiso: "costos.ver" },
   mantenimiento: { href: "/mantenimiento", titulo: "Mantenimiento", icono: "mantenimiento", permiso: "mantenimiento.ver" },
   herramientas: { href: "/herramientas", titulo: "Herramientas", icono: "herramientas", permiso: "herramientas.ver" },
   escanear: { href: "/escanear", titulo: "Escanear", icono: "escanear", permiso: "herramientas.mover" },
@@ -69,10 +72,11 @@ export function gruposEscritorio(rol: Rol): Grupo[] {
   const grupos: { titulo: string | null; claves: Clave[] }[] = [
     { titulo: null, claves: ["inicio"] },
     { titulo: "Pedidos y viajes", claves: ["cola", "pedir", rol === "CHOFER" ? "misViajes" : "viajes"] },
-    { titulo: "Flota", claves: ["flota", "combustible", "mantenimiento"] },
+    { titulo: "Flota", claves: ["flota", "agenda", "combustible", "mantenimiento"] },
     { titulo: "Depósito", claves: ["herramientas", "escanear", "entregas", "sobrantes"] },
     { titulo: "Mapa", claves: ["mapa"] },
     { titulo: "Alertas", claves: ["alertas"] },
+    { titulo: "Costos", claves: ["costos"] },
     { titulo: "Configuración", claves: ["obras", "proveedores", "usuarios", "cuenta"] },
   ];
   return grupos

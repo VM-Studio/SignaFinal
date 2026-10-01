@@ -11,7 +11,8 @@ import { Insignia, Subtitulo, Tarjeta } from "@/components/ui/basicos";
 import { EstadoPedido } from "@/components/pedidos/fila-pedido";
 import { IconoTipo } from "@/components/pedidos/iconos";
 import { BotonReasignar, BotonTomar } from "@/components/pedidos/tomar";
-import { BotonCancelar, BotonSoltar, IniciarViaje } from "@/components/pedidos/acciones-detalle";
+import { BotonCancelar, BotonSoltar } from "@/components/pedidos/acciones-detalle";
+import { BotonIniciar } from "@/components/viajes/acciones-viaje";
 import { cuando, hora, km, peso, plata } from "@/lib/formato";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -73,7 +74,7 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
       {esChofer && p.estado === "PENDIENTE" && vehiculos && <BotonTomar pedidoId={p.id} numero={p.numero} vehiculos={vehiculos} ancho tamano="grande" />}
       {esMio && p.estado === "TOMADO" && p.viaje && (
         <>
-          <IniciarViaje pedidoId={p.id} vehiculo={p.viaje.vehiculo.nombre} kmActual={vehiculoActual?.kmActual ?? 0} />
+          <BotonIniciar pedidoId={p.id} numero={p.numero} vehiculo={p.viaje.vehiculo.nombre} kmActual={vehiculoActual?.kmActual ?? 0} />
           <BotonSoltar pedidoId={p.id} numero={p.numero} />
         </>
       )}

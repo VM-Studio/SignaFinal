@@ -213,6 +213,7 @@ model CargaCombustible {
   km             Int
   comprobanteUrl String?
   obraId         String?
+  clientId       String?  @unique // idempotencia sin señal
 
   vehiculo Vehiculo @relation(fields: [vehiculoId], references: [id])
   usuario  Usuario  @relation(fields: [usuarioId], references: [id])
@@ -365,7 +366,11 @@ model Viaje {
   kmLlegada      Int?
   peajes         Decimal     @default(0) @db.Decimal(12, 2)
   costoCalculado Decimal?    @db.Decimal(12, 2)
+  remitoUrl      String?
   observaciones  String?
+  // Idempotencia de los envíos hechos sin señal.
+  clientIdInicio String?     @unique
+  clientIdFin    String?     @unique
   estado         EstadoViaje @default(PROGRAMADO)
 
   pedido      PedidoViaje             @relation(fields: [pedidoId], references: [id])
@@ -579,4 +584,18 @@ model Auditoria {
 
   @@index([entidad, entidadId])
   @@index([fecha])
+}
+
+// ═══════════════════════════════ ARCHIVOS ═══════════════════════════════
+// Fotos de remitos, tickets y documentación. Se guardan comprimidas en la base
+// y se sirven con sesión en /api/archivos/[id].
+
+model Archivo {
+  id          String   @id @default(cuid())
+  tipo        String   // image/jpeg, application/pdf
+  nombre      String?
+  datos       Bytes
+  tamano      Int
+  subidoPorId String?
+  creadoEn    DateTime @default(now())
 }

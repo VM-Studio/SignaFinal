@@ -2,15 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Play, Undo2, XCircle } from "lucide-react";
+import { Undo2, XCircle } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
 import { Hoja } from "@/components/ui/hoja";
 import { Opciones } from "@/components/ui/opciones";
-import { Campo, Entrada, MensajeError } from "@/components/ui/campos";
+import { Entrada, MensajeError } from "@/components/ui/campos";
 import { useAviso } from "@/components/ui/avisos";
-import { cancelarPedido, deshacerCancelacion, iniciarViaje, soltarPedido, tomarPedido } from "@/lib/pedidos/acciones";
+import { cancelarPedido, deshacerCancelacion, soltarPedido, tomarPedido } from "@/lib/pedidos/acciones";
 import { MOTIVOS_CANCELACION } from "@/lib/pedidos/presentacion";
-import { km } from "@/lib/formato";
 
 /** Cancelar con motivo (elegido de una lista; "Otro" se escribe). Deshacer 10 s. */
 export function BotonCancelar({ pedidoId }: { pedidoId: string }) {
@@ -93,41 +92,5 @@ export function BotonSoltar({ pedidoId, numero }: { pedidoId: string; numero: nu
     >
       Soltar pedido
     </Boton>
-  );
-}
-
-/** Iniciar el viaje: km del tablero y salir. */
-export function IniciarViaje({ pedidoId, vehiculo, kmActual }: { pedidoId: string; vehiculo: string; kmActual: number }) {
-  const [abierta, setAbierta] = useState(false);
-  const [kmSalida, setKmSalida] = useState("");
-  const [error, setError] = useState<string>();
-  const [enviando, setEnviando] = useState(false);
-  const aviso = useAviso();
-  const router = useRouter();
-
-  async function salir() {
-    setEnviando(true);
-    setError(undefined);
-    const r = await iniciarViaje(pedidoId, Number(kmSalida));
-    setEnviando(false);
-    if (!r.ok) return setError(r.error);
-    setAbierta(false);
-    aviso({ mensaje: `Buen viaje. Saliste con ${r.datos.vehiculo}.` });
-    router.refresh();
-  }
-
-  return (
-    <>
-      <Boton ancho tamano="grande" icono={<Play className="size-5" />} onClick={() => setAbierta(true)}>Iniciar viaje</Boton>
-      <Hoja abierta={abierta} onCerrar={() => setAbierta(false)} titulo={`Salir con ${vehiculo}`}>
-        <div className="flex flex-col gap-4">
-          <Campo etiqueta="Km del tablero ahora" htmlFor="km-salida" ayuda={`Último registrado: ${km(kmActual)}`}>
-            <Entrada id="km-salida" inputMode="numeric" pattern="[0-9]*" value={kmSalida} onChange={(e) => setKmSalida(e.target.value.replace(/\D/g, ""))} placeholder={String(kmActual)} className="text-2xl font-bold tabular-nums" autoFocus />
-          </Campo>
-          <MensajeError>{error}</MensajeError>
-          <Boton ancho tamano="grande" disabled={!kmSalida} cargando={enviando} onClick={salir} icono={<Play className="size-5" />}>Salir ahora</Boton>
-        </div>
-      </Hoja>
-    </>
   );
 }

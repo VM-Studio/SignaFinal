@@ -1,10 +1,16 @@
 import type { Metadata } from "next";
-import { exigirPermiso } from "@/lib/auth/sesion";
-import { PaginaVacia } from "@/components/layout/pagina-vacia";
+import { datosMapa } from "@/lib/mapa/consultas";
+import { Titulo } from "@/components/ui/basicos";
+import { Mapa } from "@/components/mapa/mapa";
 
 export const metadata: Metadata = { title: "Mapa" };
 
-export default async function Pagina() {
-  await exigirPermiso("mapa.ver");
-  return <PaginaVacia titulo="Mapa" icono="mapa" texto="El mapa en vivo con el rastreo satelital de Cusat." />;
+export default async function PaginaMapa() {
+  const d = await datosMapa(); // verifica mapa.ver
+  return (
+    <div>
+      <Titulo detalle="Última posición de cada vehículo.">Mapa</Titulo>
+      <Mapa vehiculos={d.vehiculos} lugares={d.lugares} alto="h-[62dvh] lg:h-[calc(100dvh-10rem)]" />
+    </div>
+  );
 }

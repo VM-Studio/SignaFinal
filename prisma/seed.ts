@@ -276,6 +276,14 @@ async function main() {
     ],
   });
 
+  // Incidentes
+  await db.incidenteVehiculo.createMany({
+    data: [
+      { vehiculoId: camion5.id, usuarioId: claudio.id, tipo: "MULTA", fecha: haceDias(12), descripcion: "Exceso de velocidad en Panamericana", monto: D(185_000), resuelto: true }, // confirmar
+      { vehiculoId: ctaCristian.id, usuarioId: cristian.id, tipo: "ROTURA", fecha: haceDias(4), descripcion: "Espejo lateral roto al estacionar en obra", monto: D(95_000) }, // confirmar
+    ],
+  });
+
   // ───────────────────── Depósito: herramientas y máquinas ─────────────────────
   const cat = async (nombre: string) => db.categoriaHerramienta.create({ data: { nombre } });
   const catMaq = await cat("Maquinaria");

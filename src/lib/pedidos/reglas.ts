@@ -1,7 +1,8 @@
 import "server-only";
 import type { Prisma, TipoPedido } from "@prisma/client";
 import { db } from "@/lib/db";
-import { cuando, dia, inicioDelDia, peso } from "@/lib/formato";
+import { cuando, dia, diaISO, peso } from "@/lib/formato";
+import { ErrorNegocio } from "@/lib/resultado";
 import { parecido, UMBRAL_PARECIDO } from "./similitud";
 import { TIPO, UMBRAL_CAMION_KG } from "./presentacion";
 
@@ -22,7 +23,8 @@ export type VehiculoConDocs = Prisma.VehiculoGetPayload<{ include: typeof conDoc
 
 /** ¿Sirve este vehículo para este pedido? Si no, el motivo en palabras. */
 export function aptitud(v: VehiculoConDocs, pedido: { pesoKg: number | null; necesitaCamion: boolean }): { apto: boolean; motivo?: string } {
-  const hoy = inicioDelDia();
+  // Vigente hasta el día de vencimiento inclusive (comparación por día, hora argentina).
+  const vencido = (f: Date) => diaISO(f) < diaISO();
   const doc = (t: "SEGURO" | "VTV") =>
     v.documentos.filter((d) => d.tipo === t).sort((a, b) => (b.vencimiento?.getTime() ?? 0) - (a.vencimiento?.getTime() ?? 0))[0];
   const seguro = doc("SEGURO");
@@ -31,8 +33,8 @@ export function aptitud(v: VehiculoConDocs, pedido: { pesoKg: number | null; nec
   if (!v.activo || v.estado === "FUERA_DE_SERVICIO") return { apto: false, motivo: "Fuera de servicio" };
   if (v.estado === "EN_TALLER") return { apto: false, motivo: "En el taller" };
   if (!seguro?.vencimiento) return { apto: false, motivo: "Sin seguro cargado" };
-  if (seguro.vencimiento < hoy) return { apto: false, motivo: "Seguro vencido" };
-  if (vtv && vtv.vencimiento && vtv.vencimiento < hoy) return { apto: false, motivo: "VTV vencida" };
+  if (vencido(seguro.vencimiento)) return { apto: false, motivo: "Seguro vencido" };
+  if (vtv && vtv.vencimiento && vencido(vtv.vencimiento)) return { apto: false, motivo: "VTV vencida" };
   if (!vtv?.vencimiento) return { apto: false, motivo: "Sin VTV cargada" };
   if (pedido.necesitaCamion && v.tipo !== "CAMION") return { apto: false, motivo: "Hace falta camión" };
   if (pedido.pesoKg && pedido.pesoKg > v.capacidadCargaKg) return { apto: false, motivo: `Muy chico para ${peso(pedido.pesoKg)}` };
@@ -57,10 +59,25 @@ export async function vehiculoParaPedido(vehiculoId: string, cliente: Cliente = 
   return cliente.vehiculo.findUnique({ where: { id: vehiculoId }, include: conDocumentos });
 }
 
+/** Chofer activo con licencia vigente y vehículo que sirve para el pedido; si no, error con el motivo. */
+export async function validarChoferYVehiculo(tx: Prisma.TransactionClient, choferId: string, vehiculoId: string, pedido: { pesoKg: number | null; necesitaCamion: boolean }, opciones: { permitirEnViaje?: boolean } = {}) {
+  const chofer = await tx.usuario.findUniqueOrThrow({ where: { id: choferId }, select: { nombre: true, rol: true, activo: true, licenciaVencimiento: true } });
+  if (chofer.rol !== "CHOFER" || !chofer.activo) throw new ErrorNegocio(`${chofer.nombre} no es un chofer activo.`);
+  if (!licenciaVigente(chofer)) throw new ErrorNegocio(`La licencia de ${chofer.nombre} está vencida o sin cargar. No puede manejar para la empresa.`);
+  const v = await vehiculoParaPedido(vehiculoId, tx);
+  if (!v) throw new ErrorNegocio("No existe ese vehículo.");
+  if (!v.entraEnCola && v.asignadoAId !== choferId) throw new ErrorNegocio(`${v.nombre} no se usa para pedidos.`);
+  const a = aptitud(v, pedido);
+  if (!a.apto && !(opciones.permitirEnViaje && a.motivo?.startsWith("En viaje"))) {
+    throw new ErrorNegocio(`No se puede usar ${v.nombre}: ${a.motivo?.toLowerCase()}.`);
+  }
+  return { chofer, vehiculo: v };
+}
+
 // ─────────────────────────── Choferes ───────────────────────────
 
 export function licenciaVigente(c: { licenciaVencimiento: Date | null }) {
-  return !!c.licenciaVencimiento && c.licenciaVencimiento >= inicioDelDia();
+  return !!c.licenciaVencimiento && diaISO(c.licenciaVencimiento) >= diaISO();
 }
 
 /** Licencias profesionales que habilitan camión (C, D, E). */

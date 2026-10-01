@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
-import { AlertTriangle, Flag, ListOrdered, Map, PlusCircle, ScanLine } from "lucide-react";
+import Link from "next/link";
+import { Download, ListOrdered, PlusCircle, ScanLine } from "lucide-react";
 import { exigirSesion } from "@/lib/auth/sesion";
-import {
-  costoDelMesPorObra, devolucionesVencidas, miViajeEnCurso, misPedidos, pedidosPendientes, resumenDireccion, vencimientosProximos,
-} from "@/lib/datos/inicio";
+import { devolucionesVencidas, misPedidos, pedidosPendientes, resumenDireccion, vencimientosProximos } from "@/lib/datos/inicio";
+import { misViajes } from "@/lib/viajes/consultas";
+import { costosPorObra, costosPorVehiculo, periodo } from "@/lib/costos/consultas";
+import { datosMapa } from "@/lib/mapa/consultas";
+import { TarjetaViaje } from "@/components/viajes/tarjeta-viaje";
+import { Mapa } from "@/components/mapa/mapa";
 import { BotonLink } from "@/components/ui/boton";
-import { Cifra, FilaLista, Insignia, Lista, Subtitulo, Tarjeta, Vacio } from "@/components/ui/basicos";
+import { Cifra, FilaLista, Insignia, Lista, Subtitulo, Vacio } from "@/components/ui/basicos";
 import { DOCUMENTO, ESTADO_PEDIDO, textoEstadoPedido } from "@/lib/etiquetas";
 import { cuando, fecha, km, plata, vencimiento } from "@/lib/formato";
 
@@ -34,7 +38,10 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<{
 // ───────────────────────────── Chofer ─────────────────────────────
 
 async function InicioChofer() {
-  const [pendientes, viaje] = await Promise.all([pedidosPendientes(), miViajeEnCurso()]);
+  const [pendientes, viajes] = await Promise.all([pedidosPendientes(), misViajes()]);
+  const enCurso = viajes.find((v) => v.estado === "EN_CURSO");
+  const programados = viajes.filter((v) => v.estado === "PROGRAMADO");
+  const terminados = viajes.filter((v) => v.estado === "FINALIZADO");
   return (
     <div className="lg:max-w-2xl">
       <BotonLink href="/pedidos" ancho tamano="grande" icono={<ListOrdered className="size-6" />} className="min-h-[88px] text-xl">
@@ -43,23 +50,23 @@ async function InicioChofer() {
       </BotonLink>
 
       <Subtitulo>Mi viaje en curso</Subtitulo>
-      {viaje ? (
-        <Tarjeta className="p-4">
-          <p className="text-xs font-semibold tracking-wider text-suave uppercase">Pedido {viaje.pedido.numero}</p>
-          <p className="text-xl font-bold">Obra {viaje.pedido.obra.nombre}</p>
-          <p className="text-suave">
-            {viaje.pedido.proveedor ? `Desde ${viaje.pedido.proveedor.nombre} · ` : ""}
-            {viaje.vehiculo.nombre}
-          </p>
-          <p className="mt-1 text-sm text-suave">
-            Saliste {cuando(viaje.salidaReal)} con {km(viaje.kmSalida)}
-          </p>
-          <BotonLink href={`/viajes?finalizar=${viaje.id}`} ancho className="mt-4" icono={<Flag className="size-5" />}>
-            Finalizar viaje
-          </BotonLink>
-        </Tarjeta>
+      {enCurso ? (
+        <ul><TarjetaViaje v={enCurso} puedeIniciar={false} /></ul>
       ) : (
-        <Vacio titulo="No tenés un viaje en curso">Cuando salgas con un pedido, lo vas a ver acá.</Vacio>
+        <Vacio titulo="No tenés un viaje en curso">{programados.length ? "Cuando salgas con el próximo, lo vas a ver acá." : "Tomá un pedido de la cola para empezar."}</Vacio>
+      )}
+
+      {programados.length > 0 && (
+        <>
+          <Subtitulo accion={<Link href="/viajes" className="text-sm font-semibold underline">Ver todos</Link>}>Próximo en tu ruta</Subtitulo>
+          <ul><TarjetaViaje v={programados[0]} puedeIniciar={!enCurso} /></ul>
+          {programados.length > 1 && <p className="mt-2 text-sm text-suave">Y {programados.length - 1} más programado{programados.length > 2 ? "s" : ""}.</p>}
+        </>
+      )}
+      {terminados.length > 0 && (
+        <p className="mt-6 text-suave">
+          Hoy terminaste {terminados.length} viaje{terminados.length === 1 ? "" : "s"} · {km(terminados.reduce((a, v) => a + (v.kmLlegada ?? 0) - (v.kmSalida ?? 0), 0))}.
+        </p>
       )}
     </div>
   );
@@ -131,23 +138,26 @@ async function InicioDeposito() {
 // ───────────────────────────── Dirección ─────────────────────────────
 
 async function InicioDireccion() {
-  const r = await resumenDireccion();
+  const [r, mapa, obras] = await Promise.all([resumenDireccion(), datosMapa(), costosPorObra(periodo())]);
+  const total = obras.reduce((a, o) => a + o.total, 0);
   return (
     <div>
-      <div className="relative grid h-[48dvh] min-h-72 place-items-center overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-[#e9e9e5] lg:h-[60dvh]">
-        <div aria-hidden className="absolute inset-0 opacity-60 [background-image:linear-gradient(#d6d6d1_1px,transparent_1px),linear-gradient(90deg,#d6d6d1_1px,transparent_1px)] [background-size:40px_40px]" />
-        <div className="relative flex flex-col items-center gap-2 text-center">
-          <Map className="size-10" />
-          <p className="text-lg font-bold">Mapa en vivo</p>
-          <p className="max-w-xs text-suave">Acá van a aparecer los vehículos con el rastreo de Cusat.</p>
-          <BotonLink href="/mapa" variante="secundario" tamano="chico" className="mt-2">Abrir mapa</BotonLink>
-        </div>
-      </div>
+      <Mapa vehiculos={mapa.vehiculos} lugares={mapa.lugares} alto="h-[46dvh] lg:h-[56dvh]" />
       <div className="mt-3 grid grid-cols-3 gap-2 lg:gap-3">
-        <Cifra etiqueta="Pedidos pendientes" valor={r.pendientes} tono={r.pendientes > 3 ? "aviso" : undefined} />
-        <Cifra etiqueta="Vehículos en viaje" valor={r.enViaje} />
-        <Cifra etiqueta="Alertas críticas" valor={r.criticas} tono={r.criticas ? "critico" : "ok"} />
+        <Link href="/pedidos"><Cifra etiqueta="Pedidos pendientes" valor={r.pendientes} tono={r.pendientes > 3 ? "aviso" : undefined} /></Link>
+        <Link href="/flota"><Cifra etiqueta="Vehículos en viaje" valor={r.enViaje} /></Link>
+        <Link href="/alertas"><Cifra etiqueta="Alertas críticas" valor={r.criticas} tono={r.criticas ? "critico" : "ok"} /></Link>
       </div>
+      <Subtitulo accion={<Link href="/costos" className="text-sm font-semibold underline">Ver costos</Link>}>Este mes · {plata(total)} en obras</Subtitulo>
+      {obras.length === 0 ? (
+        <Vacio titulo="Todavía sin viajes terminados este mes" />
+      ) : (
+        <Lista>
+          {obras.slice(0, 5).map((o) => (
+            <FilaLista key={o.obraId} href="/costos" titulo={`Obra ${o.obra}`} detalle={`${o.viajes} viajes · ${km(o.km)}`} derecha={<span className="font-bold tabular-nums">{plata(o.total)}</span>} />
+          ))}
+        </Lista>
+      )}
     </div>
   );
 }
@@ -155,58 +165,54 @@ async function InicioDireccion() {
 // ─────────────────────────── Administración ───────────────────────────
 
 async function InicioAdministracion() {
-  const [docs, costos] = await Promise.all([vencimientosProximos(), costoDelMesPorObra()]);
-  const total = costos.reduce((a, c) => a + c.costo, 0);
+  const p = periodo();
+  const [docs, obras, vehiculos] = await Promise.all([vencimientosProximos(), costosPorObra(p), costosPorVehiculo(p)]);
+  const total = obras.reduce((a, c) => a + c.total, 0);
+  const comb = vehiculos.reduce((a, v) => a + v.combustible, 0);
+  const mant = vehiculos.reduce((a, v) => a + v.mantenimiento + v.incidentes, 0);
   return (
-    <div className="grid gap-x-6 lg:grid-cols-2">
-      <section>
-        <Subtitulo>Vencimientos próximos</Subtitulo>
-        {docs.length === 0 ? (
-          <Vacio titulo="Nada vence en los próximos 30 días" />
-        ) : (
-          <Lista>
-            {docs.map((d) => {
-              const v = vencimiento(d.vencimiento!);
-              return (
-                <FilaLista
-                  key={d.id}
-                  href={`/flota?ver=${d.vehiculo.id}`}
-                  titulo={`${d.vehiculo.nombre} · ${DOCUMENTO[d.tipo]}`}
-                  detalle={fecha(d.vencimiento)}
-                  derecha={<Insignia tono={v.tono}>{v.texto}</Insignia>}
-                />
-              );
-            })}
-          </Lista>
-        )}
-      </section>
-      <section>
-        <Subtitulo>Costo del mes por obra</Subtitulo>
-        {costos.length === 0 ? (
-          <Vacio titulo="Sin viajes terminados este mes" icono={<AlertTriangle className="size-6" />} />
-        ) : (
-          <Lista>
-            {costos.map((c) => (
-              <li key={c.id} className="px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-semibold">Obra {c.obra}</span>
-                  <span className="font-bold tabular-nums">{plata(c.costo)}</span>
-                </div>
-                <div className="mt-1.5 flex items-center gap-3">
-                  <div className="h-1.5 flex-1 rounded-full bg-fondo">
-                    <div className="h-full rounded-full bg-negro" style={{ width: `${total ? (c.costo / total) * 100 : 0}%` }} />
+    <div>
+      <div className="grid grid-cols-3 gap-2 lg:gap-3">
+        <Cifra etiqueta="Gasto en obras (mes)" valor={plata(total)} detalle={`${obras.reduce((a, o) => a + o.viajes, 0)} viajes`} />
+        <Cifra etiqueta="Combustible (mes)" valor={plata(comb)} />
+        <Cifra etiqueta="Mantenimiento (mes)" valor={plata(mant)} />
+      </div>
+      <div className="grid gap-x-6 lg:grid-cols-2">
+        <section>
+          <Subtitulo>Vencimientos próximos</Subtitulo>
+          {docs.length === 0 ? (
+            <Vacio titulo="Nada vence en los próximos 30 días" />
+          ) : (
+            <Lista>
+              {docs.map((d) => {
+                const v = vencimiento(d.vencimiento!);
+                return <FilaLista key={d.id} href={`/flota/${d.vehiculo.id}?tab=documentacion`} titulo={`${d.vehiculo.nombre} · ${DOCUMENTO[d.tipo]}`} detalle={fecha(d.vencimiento)} derecha={<Insignia tono={v.tono}>{v.texto}</Insignia>} />;
+              })}
+            </Lista>
+          )}
+        </section>
+        <section>
+          <Subtitulo accion={<Link href="/costos" className="flex items-center gap-1 text-sm font-semibold underline"><Download className="size-4" /> Exportar</Link>}>Costo del mes por obra</Subtitulo>
+          {obras.length === 0 ? (
+            <Vacio titulo="Sin viajes terminados este mes" />
+          ) : (
+            <Lista>
+              {obras.map((c) => (
+                <li key={c.obraId} className="px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-semibold">Obra {c.obra}</span>
+                    <span className="font-bold tabular-nums">{plata(c.total)}</span>
                   </div>
-                  <span className="text-sm text-suave">{c.viajes} viajes</span>
-                </div>
-              </li>
-            ))}
-            <li className="flex justify-between px-4 py-3 font-bold">
-              <span>Total</span>
-              <span className="tabular-nums">{plata(total)}</span>
-            </li>
-          </Lista>
-        )}
-      </section>
+                  <div className="mt-1.5 flex items-center gap-3">
+                    <div className="h-1.5 flex-1 rounded-full bg-fondo"><div className="h-full rounded-full bg-negro" style={{ width: `${total ? (c.total / total) * 100 : 0}%` }} /></div>
+                    <span className="text-sm text-suave">{c.viajes} viajes{c.combustible ? ` · ${plata(c.combustible)} comb.` : ""}</span>
+                  </div>
+                </li>
+              ))}
+            </Lista>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

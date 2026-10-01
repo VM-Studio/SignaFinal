@@ -1,25 +1,13 @@
 import "server-only";
-import { startOfMonth } from "date-fns";
 import { db } from "@/lib/db";
 import { exigirPermiso } from "@/lib/auth/sesion";
+import { documentosVigentes } from "@/lib/flota/consultas";
 
 /** Cada query verifica su permiso: no alcanza con esconder el botón. */
 
 export async function pedidosPendientes() {
   await exigirPermiso("pedidos.ver");
   return db.pedidoViaje.count({ where: { estado: "PENDIENTE" } });
-}
-
-export async function miViajeEnCurso() {
-  const u = await exigirPermiso("viajes.verPropios");
-  return db.viaje.findFirst({
-    where: { choferId: u.id, estado: "EN_CURSO" },
-    select: {
-      id: true, salidaReal: true, kmSalida: true,
-      vehiculo: { select: { nombre: true } },
-      pedido: { select: { numero: true, descripcion: true, obra: { select: { nombre: true } }, proveedor: { select: { nombre: true } } } },
-    },
-  });
 }
 
 export async function misPedidos() {
@@ -53,27 +41,16 @@ export async function resumenDireccion() {
 
 export async function vencimientosProximos(dias = 30) {
   await exigirPermiso("flota.documentacion");
-  return db.documentoVehiculo.findMany({
-    where: { vencimiento: { not: null, lte: new Date(Date.now() + dias * 86_400_000) }, vehiculo: { activo: true } },
-    orderBy: { vencimiento: "asc" },
-    select: { id: true, tipo: true, vencimiento: true, vehiculo: { select: { id: true, nombre: true } } },
+  const docs = await db.documentoVehiculo.findMany({
+    where: { vencimiento: { not: null }, vehiculo: { activo: true } },
+    select: { id: true, tipo: true, vencimiento: true, archivoUrl: true, notas: true, creadoEn: true, vehiculoId: true, vehiculo: { select: { id: true, nombre: true } } },
   });
-}
-
-/** Costo de viajes del mes imputado a cada obra (Decimal → number antes de salir del servidor). */
-export async function costoDelMesPorObra() {
-  await exigirPermiso("costos.ver");
-  const viajes = await db.viaje.findMany({
-    where: { estado: "FINALIZADO", llegadaReal: { gte: startOfMonth(new Date()) } },
-    select: { costoCalculado: true, pedido: { select: { obra: { select: { id: true, nombre: true } } } } },
-  });
-  const porObra = new Map<string, { obra: string; viajes: number; costo: number }>();
-  for (const v of viajes) {
-    const o = v.pedido.obra;
-    const fila = porObra.get(o.id) ?? { obra: o.nombre, viajes: 0, costo: 0 };
-    fila.viajes++;
-    fila.costo += Number(v.costoCalculado ?? 0);
-    porObra.set(o.id, fila);
-  }
-  return [...porObra.entries()].map(([id, f]) => ({ id, ...f })).sort((a, b) => b.costo - a.costo);
+  // Solo el documento vigente de cada tipo (el renovado reemplaza al anterior).
+  const porVehiculo = new Map<string, typeof docs>();
+  for (const d of docs) porVehiculo.set(d.vehiculoId, [...(porVehiculo.get(d.vehiculoId) ?? []), d]);
+  const limite = new Date(Date.now() + dias * 86_400_000);
+  return [...porVehiculo.values()]
+    .flatMap((lista) => documentosVigentes(lista) as typeof docs)
+    .filter((d) => d.vencimiento! <= limite)
+    .sort((a, b) => a.vencimiento!.getTime() - b.vencimiento!.getTime());
 }

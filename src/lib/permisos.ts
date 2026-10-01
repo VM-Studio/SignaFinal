@@ -29,6 +29,8 @@ export const PERMISOS = {
   "combustible.ver": ["CHOFER", ...GESTION, "DEPOSITO"],
   "mantenimiento.ver": [...GESTION, "DEPOSITO"],
   "mantenimiento.registrar": [...GESTION, "DEPOSITO"],
+  "incidentes.registrar": [...GESTION, "CHOFER"],
+  "flota.agenda": [...GESTION, "CAPATAZ", "DEPOSITO"],
 
   // Depósito
   "herramientas.ver": TODOS,
