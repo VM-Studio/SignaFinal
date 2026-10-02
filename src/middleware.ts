@@ -23,5 +23,6 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api/|_next/static|_next/image|icons|img|splash|sw.js|offline|signalogo.png|manifest.webmanifest|icon.png|apple-icon.png|favicon.ico|robots.txt).*)"],
+  // Fuera: API, estáticos de Next y cualquier archivo de public/ (imágenes, sw.js, manifest…).
+  matcher: ["/((?!api/|_next/static|_next/image|icons/|img/|splash/|offline|.*\\.(?:png|jpe?g|svg|webp|ico|js|webmanifest|txt)$).*)"],
 };

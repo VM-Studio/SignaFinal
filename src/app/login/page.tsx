@@ -12,9 +12,24 @@ export default async function PaginaLogin({ searchParams }: { searchParams: Prom
   return (
     <>
     {modoDemo() && <div className="pt-segura fixed inset-x-0 top-0 z-40 bg-aviso"><FranjaDemo /></div>}
-    <main className="pt-segura pb-segura flex min-h-dvh flex-col items-center justify-center bg-negro px-5 py-10 text-white">
+    <main className="pt-segura pb-segura flex min-h-dvh flex-col items-center justify-center overflow-x-hidden bg-negro px-5 py-8 text-white">
+      {/* public/inicio.png (1672 × 941) recortado alrededor del logo, que ocupa ~78 % del ancho. */}
+      <div
+        className="relative mb-6 aspect-[100/55] w-[min(100vw,560px)] shrink-0 overflow-hidden"
+        // Bordes que se funden con el negro de la página (el fondo de la imagen no es negro puro).
+        style={{ maskImage: "radial-gradient(ellipse 50% 50% at 50% 50%, #000 84%, transparent 100%)" }}
+      >
+        <Image
+          src="/inicio.png"
+          alt="SIGNA · Cultura en desarrollos"
+          width={1672}
+          height={941}
+          priority
+          sizes="(min-width: 560px) 850px, 152vw"
+          className="absolute top-[-23.5%] left-[-27.3%] h-auto w-[151.5%] max-w-none"
+        />
+      </div>
       <div className="w-full max-w-sm">
-        <Image src="/signalogo.png" alt="SIGNA · Cultura en desarrollos" width={240} height={90} priority className="mx-auto mb-10 h-auto w-[220px]" />
         <FormularioLogin volver={volver} demo={demo ? { usuarios: demo, contrasena: CONTRASENA_DEMO } : null} />
       </div>
     </main>

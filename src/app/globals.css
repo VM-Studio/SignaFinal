@@ -53,30 +53,15 @@
   }
 }
 
-/* ───────── Splash ───────── */
+/* ───────── Splash (la barra la mueve splash-control.tsx) ───────── */
 html.splash-visto #splash {
   display: none;
-}
-#splash .splash-barra {
-  animation: splash-carga var(--splash-ms) linear forwards !important;
 }
 #splash.saliendo {
   opacity: 0;
   transition: opacity 300ms ease !important;
 }
-@keyframes splash-carga {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
-}
 @media (prefers-reduced-motion: reduce) {
-  #splash .splash-barra {
-    animation: none !important;
-    transform: scaleX(1);
-  }
   #splash.saliendo {
     transition: none !important;
   }

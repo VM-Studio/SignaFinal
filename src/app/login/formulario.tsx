@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { ChevronDown, Eye, EyeOff } from "lucide-react";
 import { ingresar, type EstadoLogin } from "@/lib/auth/acciones";
+import { CLAVE_INGRESO } from "@/components/splash/claves";
 
 type Demo = { usuarios: { nombre: string; email: string; rol: string }[]; contrasena: string } | null;
 
@@ -17,7 +18,16 @@ export function FormularioLogin({ volver, demo }: { volver?: string; demo: Demo 
 
   return (
     <div className="flex flex-col gap-6">
-      <form action={accion} className="flex flex-col gap-4">
+      <form
+        action={accion}
+        // Al entrar se vuelve a mostrar la pantalla de carga.
+        onSubmit={() => {
+          try {
+            sessionStorage.setItem(CLAVE_INGRESO, "1");
+          } catch {}
+        }}
+        className="flex flex-col gap-4"
+      >
         {volver && <input type="hidden" name="volver" value={volver} />}
         <div className="flex flex-col gap-1.5">
           <label htmlFor="email" className="text-sm font-semibold text-white/80">Email</label>

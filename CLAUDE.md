@@ -96,8 +96,9 @@ Negro, blanco y gris. Sobrio. Header y barra inferior negros; contenido sobre fo
 (se usa al sol). Color solo para estado: verde #1F7A4D ok, ámbar #B7791F aviso, rojo
 #B42318 crítico, siempre con texto. Tipografía Archivo (next/font). Botones mínimo 52px de
 alto en celular. Sin gradientes, sin sombras difusas, sin animaciones salvo el splash.
-Splash de inicio: fondo negro, logo public/signalogo.png centrado, barra de carga blanca
-fina debajo, 1,8 segundos, una vez por sesión.
+Splash de carga: fondo negro, logo public/loading.png grande y centrado, barra blanca fina
+del ancho del logo con el porcentaje debajo, 2,5 segundos. Se ve al abrir el sistema (una vez
+por sesión) y cada vez que alguien ingresa. Login: public/inicio.png grande arriba del formulario.
 Escritorio (1024px+): barra lateral negra de 240px con la navegación; contenido a todo el
 ancho; listados como tablas; formularios en panel lateral derecho.
 
