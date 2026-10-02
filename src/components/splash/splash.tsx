@@ -15,7 +15,7 @@ const LOGO = { x: 423, y: 332, ancho: 861, alto: 229 };
 export function Splash() {
   return (
     <div id="splash" role="status" aria-label="Cargando SIGNA" className="fixed inset-0 z-[100] flex items-center justify-center bg-negro px-6">
-      <div className="flex w-[min(84vw,560px)] flex-col items-center">
+      <div className="flex w-[min(62vw,250px)] flex-col items-center">
         <div className="relative w-full overflow-hidden" style={{ aspectRatio: `${LOGO.ancho} / ${LOGO.alto}` }}>
           <Image
             src="/loading.png"
@@ -23,7 +23,7 @@ export function Splash() {
             width={IMG.ancho}
             height={IMG.alto}
             priority
-            sizes="(min-width: 680px) 1100px, 170vw"
+            sizes="(min-width: 400px) 490px, 122vw"
             className="absolute max-w-none"
             style={{
               width: `${(IMG.ancho / LOGO.ancho) * 100}%`,
@@ -32,10 +32,10 @@ export function Splash() {
             }}
           />
         </div>
-        <div className="mt-10 h-[3px] w-full overflow-hidden bg-white/15">
+        <div className="mt-7 h-[2px] w-full overflow-hidden bg-white/15">
           <div id="splash-barra" className="h-full w-full origin-left bg-white" style={{ transform: "scaleX(0)" }} />
         </div>
-        <p id="splash-porcentaje" className="mt-3 text-sm font-semibold tracking-wider text-white/75 tabular-nums" aria-live="off">
+        <p id="splash-porcentaje" className="mt-2.5 text-xs font-medium tracking-wider text-white/55 tabular-nums" aria-live="off">
           0%
         </p>
       </div>
