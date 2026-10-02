@@ -11,10 +11,24 @@ import { cerrarSesion } from "@/lib/auth/acciones";
 import { Hoja } from "@/components/ui/hoja";
 import { ICONOS } from "./iconos";
 
-/** La sección activa es la más específica que coincide con la ruta. */
-function useActiva(hrefs: string[]) {
+/**
+ * Ruta hacia la que se está yendo: al tocar un ítem se marca en el acto, sin esperar
+ * la respuesta del servidor. Cuando cambia la ruta real, la marca deja de valer sola.
+ */
+function useDestino() {
   const pathname = usePathname();
-  const candidatas = hrefs.filter((h) => pathname === h || pathname.startsWith(h + "/"));
+  const [pendiente, setPendiente] = useState<{ href: string; desde: string } | null>(null);
+  const destino = pendiente && pendiente.desde === pathname ? pendiente.href : pathname;
+  const ir = (href: string, e: React.MouseEvent) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey) return; // se abre en otra pestaña
+    if (href !== pathname) setPendiente({ href, desde: pathname });
+  };
+  return [destino, ir] as const;
+}
+
+/** La sección activa es la más específica que coincide con la ruta. */
+function seccionActiva(hrefs: string[], ruta: string) {
+  const candidatas = hrefs.filter((h) => ruta === h || ruta.startsWith(h + "/"));
   return candidatas.sort((a, b) => b.length - a.length)[0];
 }
 
@@ -30,7 +44,8 @@ function Contador({ n, claro = false }: { n: number; claro?: boolean }) {
 // ─────────────────────────── Escritorio ───────────────────────────
 
 export function BarraLateral({ grupos, nombre, rol, alertas }: { grupos: Grupo[]; nombre: string; rol: string; alertas: number }) {
-  const activa = useActiva(grupos.flatMap((g) => g.items.map((i) => i.href)));
+  const [destino, ir] = useDestino();
+  const activa = seccionActiva(grupos.flatMap((g) => g.items.map((i) => i.href)), destino);
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col bg-negro text-white lg:flex">
       <Link href="/inicio" className="block px-5 pt-6 pb-5" aria-label="Inicio">
@@ -48,8 +63,9 @@ export function BarraLateral({ grupos, nombre, rol, alertas }: { grupos: Grupo[]
                   <li key={s.href}>
                     <Link
                       href={s.href}
+                      onClick={(e) => ir(s.href, e)}
                       aria-current={esActiva ? "page" : undefined}
-                      className={`flex min-h-11 items-center gap-3 rounded-md px-3 text-[15px] font-medium ${esActiva ? "bg-white text-negro" : "text-white/75 hover:bg-white/10 hover:text-white"}`}
+                      className={`flex min-h-11 items-center gap-3 rounded-md px-3 text-[15px] font-medium ${esActiva ? "bg-white text-negro" : "text-white/75 hover:bg-white/10 hover:text-white active:bg-white/20"}`}
                     >
                       <Icono className="size-5 shrink-0" />
                       <span className="flex-1">{s.titulo}</span>
@@ -111,7 +127,8 @@ export function HeaderMovil({ rol, alertas, franja }: { rol: Rol; alertas: numbe
 
 export function BarraInferior({ items, mas }: { items: Seccion[]; mas: Seccion[] }) {
   const [abierto, setAbierto] = useState(false);
-  const activa = useActiva([...items, ...mas].map((i) => i.href));
+  const [destino, ir] = useDestino();
+  const activa = seccionActiva([...items, ...mas].map((i) => i.href), destino);
   const masActivo = mas.some((m) => m.href === activa);
   const MasIcono = ICONOS.mas;
 
@@ -124,7 +141,7 @@ export function BarraInferior({ items, mas }: { items: Seccion[]; mas: Seccion[]
             const esActiva = activa === s.href;
             return (
               <li key={s.href}>
-                <Link href={s.href} aria-current={esActiva ? "page" : undefined} className={`relative flex h-16 flex-col items-center justify-center gap-1 text-[12px] font-semibold ${esActiva ? "text-white" : "text-white/55"}`}>
+                <Link href={s.href} onClick={(e) => ir(s.href, e)} aria-current={esActiva ? "page" : undefined} className={`relative flex h-16 flex-col items-center justify-center gap-1 text-[12px] font-semibold active:bg-white/10 ${esActiva ? "text-white" : "text-white/55"}`}>
                   {esActiva && <span aria-hidden className="absolute inset-x-5 top-0 h-[3px] rounded-b bg-white" />}
                   <Icono className="size-6" strokeWidth={esActiva ? 2.5 : 2} />
                   {s.titulo}
@@ -148,7 +165,7 @@ export function BarraInferior({ items, mas }: { items: Seccion[]; mas: Seccion[]
             const Icono = ICONOS[s.icono];
             return (
               <li key={s.href}>
-                <Link href={s.href} onClick={() => setAbierto(false)} className="flex min-h-14 items-center gap-3 px-4 text-[17px] font-semibold">
+                <Link href={s.href} onClick={(e) => { ir(s.href, e); setAbierto(false); }} className="flex min-h-14 items-center gap-3 px-4 text-[17px] font-semibold active:bg-fondo">
                   <Icono className="size-6" />
                   {s.titulo}
                 </Link>

@@ -6,6 +6,11 @@ const nextConfig: NextConfig = {
   experimental: {
     // Fotos de remitos y tickets (ya comprimidas en el teléfono a ~200 KB).
     serverActions: { bodySizeLimit: "4mb" },
+    // Volver a una pantalla ya vista en los últimos 30 s es instantáneo. Toda acción
+    // hace revalidatePath("/", "layout"), así que después de un cambio nunca se ve un dato viejo.
+    staleTimes: { dynamic: 30 },
+    // Íconos: importa solo los que se usan.
+    optimizePackageImports: ["lucide-react", "date-fns"],
   },
 };
 
