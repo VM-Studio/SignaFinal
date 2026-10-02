@@ -8,7 +8,7 @@ import { deMisObras, enReparacion, paraEntregar } from "@/lib/herramientas/consu
 import { costosPorObra, costosPorVehiculo, periodo } from "@/lib/costos/consultas";
 import { datosMapa } from "@/lib/mapa/consultas";
 import { TarjetaViaje } from "@/components/viajes/tarjeta-viaje";
-import { Mapa } from "@/components/mapa/mapa";
+import { MapaEnVivo } from "@/components/mapa/mapa-en-vivo";
 import { BotonLink } from "@/components/ui/boton";
 import { Cifra, FilaLista, Insignia, Lista, Subtitulo, Vacio } from "@/components/ui/basicos";
 import { DOCUMENTO, ESTADO_PEDIDO, textoEstadoPedido } from "@/lib/etiquetas";
@@ -60,7 +60,7 @@ async function InicioChofer() {
       {programados.length > 0 && (
         <>
           <Subtitulo accion={<Link href="/viajes" className="text-sm font-semibold underline">Ver todos</Link>}>Próximo en tu ruta</Subtitulo>
-          <ul><TarjetaViaje v={programados[0]} puedeIniciar={!enCurso} /></ul>
+          <ul><TarjetaViaje v={programados[0]} puedeIniciar={!enCurso} bloqueadoPor={enCurso?.pedidoId} /></ul>
           {programados.length > 1 && <p className="mt-2 text-sm text-suave">Y {programados.length - 1} más programado{programados.length > 2 ? "s" : ""}.</p>}
         </>
       )}
@@ -195,7 +195,7 @@ async function InicioDireccion() {
   const total = obras.reduce((a, o) => a + o.total, 0);
   return (
     <div>
-      <Mapa vehiculos={mapa.vehiculos} lugares={mapa.lugares} alto="h-[46dvh] lg:h-[56dvh]" />
+      <MapaEnVivo inicial={mapa} compacto />
       <div className="mt-3 grid grid-cols-3 gap-2 lg:gap-3">
         <Link href="/pedidos"><Cifra etiqueta="Pedidos pendientes" valor={r.pendientes} tono={r.pendientes > 3 ? "aviso" : undefined} /></Link>
         <Link href="/flota"><Cifra etiqueta="Vehículos en viaje" valor={r.enViaje} /></Link>

@@ -80,11 +80,12 @@ export function BarraLateral({ grupos, nombre, rol, alertas }: { grupos: Grupo[]
 
 // ─────────────────────────── Celular ───────────────────────────
 
-export function HeaderMovil({ rol, alertas }: { rol: Rol; alertas: number }) {
+export function HeaderMovil({ rol, alertas, franja }: { rol: Rol; alertas: number; franja?: React.ReactNode }) {
   const pathname = usePathname();
   const titulo = pathname === "/inicio" ? "" : tituloDeRuta(pathname, rol);
   return (
     <header className="pt-segura sticky top-0 z-30 bg-negro text-white lg:hidden">
+      {franja}
       <div className="flex h-14 items-center gap-3 px-3">
         <Link href="/inicio" aria-label="Inicio" className="flex min-h-11 shrink-0 items-center px-1">
           <Image src="/signalogo.png" alt="SIGNA" width={88} height={33} priority className="h-auto w-[88px]" />

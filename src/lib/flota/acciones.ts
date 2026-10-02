@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { reevaluar } from "@/lib/alertas/reevaluar";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -9,7 +10,11 @@ import { ejecutar, ErrorNegocio, type Resultado } from "@/lib/resultado";
 import { guardarArchivo } from "@/lib/archivos";
 import { aFecha } from "@/lib/formato";
 
-const refrescar = () => revalidatePath("/", "layout");
+/** Refresca pantallas y reevalúa las alertas del módulo (resuelve solas las que ya no aplican). */
+const refrescar = () => {
+  revalidatePath("/", "layout");
+  reevaluar("flota");
+};
 const vacio = (v: unknown) => (v === "" || v === null ? undefined : v);
 const fechaOpc = z.preprocess(vacio, z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Revisá la fecha.").optional());
 

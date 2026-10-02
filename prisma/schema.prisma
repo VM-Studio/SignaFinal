@@ -312,6 +312,7 @@ enum EstadoPedido {
 model PedidoViaje {
   id                String       @id @default(cuid())
   numero            Int          @unique @default(autoincrement())
+  clientId          String?      @unique // idempotencia del pedido hecho sin señal
   solicitanteId     String
   obraId            String // destino
   tipo              TipoPedido
@@ -588,12 +589,18 @@ model Alerta {
   entidadTipo String
   entidadId   String
   enlace      String?
+  // A quién le toca: la obra (la ve su responsable) y/o la persona (ej.: el chofer).
+  obraId      String?
+  usuarioId   String?
   estado      EstadoAlerta @default(ABIERTA)
   creadaEn    DateTime     @default(now())
   resueltaEn  DateTime?
 
   @@index([estado, severidad])
   @@index([entidadTipo, entidadId])
+  @@index([regla, estado])
+  @@index([obraId])
+  @@index([usuarioId])
 }
 
 model Auditoria {

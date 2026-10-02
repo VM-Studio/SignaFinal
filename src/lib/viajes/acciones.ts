@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { reevaluar } from "@/lib/alertas/reevaluar";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -11,7 +12,11 @@ import { guardarArchivo } from "@/lib/archivos";
 import { km as fmtKm } from "@/lib/formato";
 import { alLlegarElViaje } from "@/lib/herramientas/servicio";
 
-const refrescar = () => revalidatePath("/", "layout");
+/** Refresca pantallas y reevalúa las alertas del módulo (resuelve solas las que ya no aplican). */
+const refrescar = () => {
+  revalidatePath("/", "layout");
+  reevaluar("pedidos", "flota", "herramientas");
+};
 const vacio = (v: unknown) => (v === "" || v === null ? undefined : v);
 
 /** Hora real del evento: la del teléfono si se guardó sin señal (nunca en el futuro). */
@@ -113,7 +118,8 @@ export async function finalizarViaje(entrada: DatosFin): Promise<Resultado<Resul
       await tx.viaje.update({
         where: { id: viaje.id },
         data: {
-          estado: "FINALIZADO", llegadaReal: momento(d.ocurridoEn, viaje.salidaReal), kmLlegada: d.kmLlegada, peajes, costoCalculado: costo,
+          // Si la llegada ya la marcó el GPS (geocerca), vale esa hora.
+          estado: "FINALIZADO", llegadaReal: viaje.llegadaReal ?? momento(d.ocurridoEn, viaje.salidaReal), kmLlegada: d.kmLlegada, peajes, costoCalculado: costo,
           remitoUrl, observaciones: d.observaciones ?? null, clientIdFin: d.clientId,
         },
       });

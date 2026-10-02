@@ -5,10 +5,17 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, CloudOff, RefreshCw } from "lucide-react";
 import { Hoja } from "@/components/ui/hoja";
 import { finalizarViaje, iniciarViaje, registrarCarga } from "@/lib/viajes/acciones";
+import { crearPedido } from "@/lib/pedidos/acciones";
 import { descartar, enviarPendientes, escuchar, leerEnvios, type Envio } from "@/lib/offline/cola";
 import { cuando } from "@/lib/formato";
 
 const ejecutores = {
+  // Si al llegar la señal resulta que alguien ya pidió lo mismo, no se crea y se avisa.
+  "pedido.crear": async (d: Record<string, unknown>) => {
+    const r = await crearPedido(d as Parameters<typeof crearPedido>[0]);
+    if (r.ok && r.datos.estado === "duplicado") return { ok: false as const, error: `${r.datos.existente.quien} ya pidió esto ${r.datos.existente.cuando} (pedido ${r.datos.existente.numero}). No se creó otro.` };
+    return r;
+  },
   "viaje.iniciar": (d: Record<string, unknown>) => iniciarViaje(d as Parameters<typeof iniciarViaje>[0]),
   "viaje.finalizar": (d: Record<string, unknown>) => finalizarViaje(d as Parameters<typeof finalizarViaje>[0]),
   "combustible.cargar": (d: Record<string, unknown>) => registrarCarga(d as Parameters<typeof registrarCarga>[0]),

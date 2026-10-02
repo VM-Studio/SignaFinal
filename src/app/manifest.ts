@@ -3,8 +3,8 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "SIGNA · Logística",
-    short_name: "SIGNA",
+    name: "Signa",
+    short_name: "Signa",
     description: "Pedidos de viaje, flota y depósito de Signa Desarrollos.",
     start_url: "/inicio",
     scope: "/",
@@ -13,10 +13,16 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#000000",
     theme_color: "#000000",
     lang: "es-AR",
+    categories: ["business", "productivity"],
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: "/icons/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+    ],
+    shortcuts: [
+      { name: "Pedir un viaje", url: "/pedidos/nuevo", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+      { name: "Cola de pedidos", url: "/pedidos", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+      { name: "Escanear herramienta", url: "/herramientas/escanear", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
     ],
   };
 }

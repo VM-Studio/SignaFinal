@@ -1,36 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Signa · Logística
 
-## Getting Started
+App interna de Signa Desarrollos para pedidos de viaje, choferes, flota, costos por obra, depósito de herramientas, mapa en vivo y alertas. Las reglas de diseño y de dominio están en `CLAUDE.md`.
 
-First, run the development server:
+Stack: Next.js 15 (App Router) · React 19 · TypeScript · Tailwind v4 · Prisma 6 + Postgres · PWA.
+
+## Correr en local
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env        # completar DATABASE_URL y AUTH_SECRET
+npm install
+npx prisma migrate deploy   # crea las tablas
+npm run db:seed             # datos de demo + primera evaluación de alertas
+npm run dev                 # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Usuarios de demo: aparecen en el login cuando `MODO_DEMO="true"` (contraseña `signa2026`).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Variables de entorno
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Para qué |
+|---|---|
+| `DATABASE_URL` | Postgres |
+| `AUTH_SECRET` | Firma de la sesión (32+ caracteres al azar) |
+| `APP_URL` | URL pública (links de las etiquetas QR) |
+| `CRON_SECRET` | Token de `/api/posiciones` y `/api/alertas/evaluar` (`Authorization: Bearer …`) |
+| `MODO_DEMO` | `"true"`: franja de demo, usuarios en el login, botón *Reiniciar datos de demo* |
+| `SIMULADOR_ACELERAR` | Multiplicador de velocidad del simulador de Cusat (ej. `"10"` para demos) |
+| `CUSAT_API_URL`, `CUSAT_API_KEY` | API real de Cusat. Sin ellas se usa el simulador |
 
-## Learn More
+## Tareas programadas
 
-To learn more about Next.js, take a look at the following resources:
+- `POST /api/posiciones`: trae posiciones de Cusat, aplica geocercas (llegada y salida automáticas) y reevalúa alertas. Pensado **cada minuto**.
+- `POST /api/alertas/evaluar`: evalúa todas las reglas de alertas.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+`vercel.json` las agenda una vez por día (límite del plan Hobby). Para cada minuto, usar Vercel Pro o un cron externo con el token. Además, el mapa pide posiciones al abrirse (como máximo una vez por minuto) y cada acción reevalúa las alertas de su módulo.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Scripts
 
-## Deploy on Vercel
+`npm run dev` · `npm run build` · `npm run lint` · `npm run typecheck` · `npm run db:seed`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Documentación
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `docs/demo.md`: guion de demo de 8 minutos.
+- `docs/pendientes.md`: lo que falta para producción (Lebane, Cusat, fotos, WhatsApp, carga real).
+- `docs/verificacion-celular.md`: lista de prueba en un celular real.
+
+## Estructura
+
+```
+prisma/            schema, migraciones (con reglas CHECK y auditoría inmutable), seed
+src/app/           rutas (login, splash, (app)/…, api/…)
+src/components/    ui, layout, pedidos, viajes, flota, herramientas, mapa
+src/lib/           acciones y consultas por módulo, permisos, alertas, cusat, offline, demo
+public/            íconos, pantallas de inicio iOS, service worker
+```

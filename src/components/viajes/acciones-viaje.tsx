@@ -78,6 +78,8 @@ export function BotonFinalizar({ pedidoId, numero, obra, kmSalida, onGuardadoLoc
   async function llegar() {
     setError(undefined);
     if (recorridos != null && recorridos < 0) return setError(`Los km de llegada no pueden ser menos que los de salida (${km(kmSalida)}).`);
+    // Lo mismo que valida el servidor, para no guardar sin señal algo que después se va a rechazar.
+    if (recorridos != null && recorridos > 2000) return setError("Son más de 2.000 km en un viaje. Revisá el número.");
     setEnviando(true);
     const datos = { clientId: crypto.randomUUID(), pedidoId, kmLlegada: Number(kmLlegada), peajes: peajes || "0", observaciones: obs, foto: foto ?? undefined, ocurridoEn: new Date().toISOString() };
     const r = await enviarOGuardar({ id: datos.clientId, tipo: "viaje.finalizar", pedidoId, descripcion: `Llegada del pedido ${numero} a Obra ${obra}`, datos }, () => finalizarViaje(datos));

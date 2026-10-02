@@ -22,7 +22,7 @@ function Linea({ icono, etiqueta, nombre, direccion }: { icono: React.ReactNode;
 }
 
 /** Un viaje del día del chofer con su ruta en tres líneas y la acción que corresponde. */
-export function TarjetaViaje({ v, puedeIniciar }: { v: ViajeDelDia; puedeIniciar: boolean }) {
+export function TarjetaViaje({ v, puedeIniciar, bloqueadoPor }: { v: ViajeDelDia; puedeIniciar: boolean; bloqueadoPor?: string }) {
   const envios = useEnvios();
   const [local, setLocal] = useState<{ estado: "EN_CURSO" | "FINALIZADO"; kmSalida?: number } | null>(null);
 
@@ -36,7 +36,9 @@ export function TarjetaViaje({ v, puedeIniciar }: { v: ViajeDelDia; puedeIniciar
   const otroEnCursoLocal = envios.some(
     (e) => e.tipo === "viaje.iniciar" && e.pedidoId !== v.pedidoId && !envios.some((f) => f.tipo === "viaje.finalizar" && f.pedidoId === e.pedidoId),
   );
-  const habilitado = puedeIniciar && !otroEnCursoLocal;
+  // Si el viaje en curso ya se terminó sin señal (llegada guardada en el teléfono), este puede salir.
+  const enCursoTerminadoLocal = !!bloqueadoPor && envios.some((e) => e.tipo === "viaje.finalizar" && e.pedidoId === bloqueadoPor);
+  const habilitado = (puedeIniciar || enCursoTerminadoLocal) && !otroEnCursoLocal;
 
   const enCurso = estado === "EN_CURSO";
   return (

@@ -10,6 +10,8 @@ import { Campo, Entrada, Fecha, MensajeError, Selector } from "@/components/ui/c
 import { Hoja } from "@/components/ui/hoja";
 import { useAviso } from "@/components/ui/avisos";
 import { crearPedido, deshacerPedido, type DatosPedido } from "@/lib/pedidos/acciones";
+import { enviarOGuardar } from "@/lib/offline/cola";
+import { CloudOff } from "lucide-react";
 import type { Duplicado } from "@/lib/pedidos/reglas";
 import { PESOS, TIPO, TIPOS_PARA_PEDIR, VOLUMEN_ESCOMBROS } from "@/lib/pedidos/presentacion";
 import { diaISO, sumarDias } from "@/lib/formato";
@@ -50,6 +52,7 @@ export function FormularioPedido({ datos }: { datos: DatosFormulario }) {
   const [error, setError] = useState<string>();
   const [enviando, setEnviando] = useState(false);
   const [duplicado, setDuplicado] = useState<Duplicado | null>(null);
+  const [guardadoSinSenal, setGuardadoSinSenal] = useState(false);
 
   const lugares = useMemo(
     () => [
@@ -131,12 +134,16 @@ export function FormularioPedido({ datos }: { datos: DatosFormulario }) {
     if (typeof d === "string") return setError(d);
     setEnviando(true);
     setError(undefined);
-    const r = await crearPedido({ ...d, forzar });
+    // Un clientId por intento: si no hay señal se guarda en el teléfono y el servidor no duplica al reenviar.
+    const entrada = { ...d, forzar, clientId: crypto.randomUUID() };
+    const obra = datos.obras.find((o) => o.id === entrada.obraId)?.nombre ?? "";
+    const envio = await enviarOGuardar({ id: entrada.clientId, tipo: "pedido.crear", descripcion: `Pedido para Obra ${obra}: ${entrada.descripcion}`, datos: entrada }, () => crearPedido(entrada));
     setEnviando(false);
-    if (!r.ok) return setError(r.error);
-    if (r.datos.estado === "duplicado") return setDuplicado(r.datos.existente);
+    if (envio.estado === "error") return setError(envio.error);
+    if (envio.estado === "guardado") return setGuardadoSinSenal(true);
+    if (envio.datos.estado === "duplicado") return setDuplicado(envio.datos.existente);
 
-    const { id, choferes } = r.datos;
+    const { id, choferes } = envio.datos;
     setDuplicado(null);
     aviso({
       mensaje: `Pedido enviado. Lo ${choferes.length === 1 ? "ve" : "ven"} ${choferes.length ? unirNombres(choferes) : "los choferes"}.`,
@@ -159,6 +166,17 @@ export function FormularioPedido({ datos }: { datos: DatosFormulario }) {
       </Selector>
     </Campo>
   );
+
+  if (guardadoSinSenal) {
+    return (
+      <div className="flex flex-col items-center gap-4 py-10 text-center">
+        <CloudOff className="size-12" />
+        <h2 className="text-2xl font-bold">Guardado en el teléfono</h2>
+        <p className="max-w-sm text-suave">No hay señal. El pedido queda pendiente de envío y se manda solo cuando vuelva; arriba vas a ver el aviso hasta que salga.</p>
+        <button onClick={() => router.push("/inicio")} className="min-h-[52px] w-full max-w-sm rounded-[var(--radius-caja)] bg-negro font-semibold text-white">Volver al inicio</button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-5">

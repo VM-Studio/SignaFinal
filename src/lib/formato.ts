@@ -73,3 +73,13 @@ export function inicioMesSiguiente(d: Date = new Date()) {
 }
 export const litros = (n: number | null | undefined) => (n == null ? "—" : `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(n)} l`);
 export const dec = (n: number | null | undefined) => (n == null ? "—" : new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(n));
+
+/** "hace 3 min", "hace 2 h", "hace 4 días". */
+export function hace(d: Date | string) {
+  const s = Math.max(0, Math.round((Date.now() - new Date(d).getTime()) / 1000));
+  if (s < 60) return "recién";
+  if (s < 3600) return `hace ${Math.round(s / 60)} min`;
+  if (s < 86_400) return `hace ${Math.round(s / 3600)} h`;
+  const n = Math.round(s / 86_400);
+  return `hace ${n} día${n === 1 ? "" : "s"}`;
+}

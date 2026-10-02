@@ -1,0 +1,64 @@
+import "server-only";
+import { db } from "@/lib/db";
+import { distancia } from "@/lib/geo";
+import type { PosicionCusat } from "./tipos";
+
+const SALIDA_DE_BASE_M = 300;
+
+/**
+ * Geocercas:
+ * - Entró en el radio de la obra destino de un viaje en curso → llegadaReal (si el chofer no la marcó).
+ * - Se alejó de la base con un viaje programado para hoy → salidaReal (si el chofer no la marcó).
+ */
+export async function aplicarGeocercas(posiciones: PosicionCusat[]) {
+  const eventos: string[] = [];
+  const base = await db.ubicacion.findFirst({ where: { tipo: "BASE_VEHICULOS" } });
+
+  for (const p of posiciones) {
+    const aqui = { lat: p.latitud, lng: p.longitud };
+
+    // Llegada
+    const enCurso = await db.viaje.findFirst({
+      where: { vehiculoId: p.vehiculoId, estado: "EN_CURSO", llegadaReal: null },
+      include: { pedido: { select: { id: true, obra: { select: { nombre: true, latitud: true, longitud: true, radioGeocercaM: true } } } } },
+    });
+    if (enCurso) {
+      const o = enCurso.pedido.obra;
+      if (distancia(aqui, { lat: o.latitud, lng: o.longitud }) <= o.radioGeocercaM) {
+        const r = await db.viaje.updateMany({ where: { id: enCurso.id, llegadaReal: null }, data: { llegadaReal: p.fecha } });
+        if (r.count) {
+          await db.auditoria.create({ data: { accion: "viaje.llegada.gps", entidad: "PedidoViaje", entidadId: enCurso.pedido.id, despues: { llegadaReal: p.fecha.toISOString(), obra: o.nombre } } });
+          eventos.push(`Llegada por GPS a Obra ${o.nombre}`);
+        }
+      }
+      continue;
+    }
+
+    // Salida: solo si está andando, lejos de la base, sin viaje en curso, y tiene un viaje programado para hoy.
+    if (!base || p.velocidad < 5) continue;
+    const vBase = await db.vehiculo.findUnique({ where: { id: p.vehiculoId }, select: { base: true, kmActual: true } });
+    const b = vBase?.base ?? base;
+    if (distancia(aqui, { lat: b.latitud, lng: b.longitud }) < SALIDA_DE_BASE_M) continue;
+    const hace3h = new Date(Date.now() - 3 * 3_600_000);
+    const en4h = new Date(Date.now() + 4 * 3_600_000);
+    const programado = await db.viaje.findFirst({
+      where: { vehiculoId: p.vehiculoId, estado: "PROGRAMADO", salidaReal: null, salidaEstimada: { gte: hace3h, lte: en4h }, pedido: { estado: "TOMADO" } },
+      orderBy: [{ ordenRuta: { sort: "asc", nulls: "last" } }, { salidaEstimada: "asc" }],
+    });
+    if (!programado) continue;
+    const choferOcupado = await db.viaje.count({ where: { choferId: programado.choferId, estado: "EN_CURSO" } });
+    if (choferOcupado) continue;
+    await db.$transaction(async (tx) => {
+      const r = await tx.viaje.updateMany({
+        where: { id: programado.id, estado: "PROGRAMADO" },
+        data: { estado: "EN_CURSO", salidaReal: p.fecha, kmSalida: vBase?.kmActual ?? null, observaciones: "Salida registrada por GPS." },
+      });
+      if (!r.count) return;
+      await tx.pedidoViaje.update({ where: { id: programado.pedidoId }, data: { estado: "EN_VIAJE" } });
+      await tx.vehiculo.update({ where: { id: p.vehiculoId }, data: { estado: "EN_VIAJE" } });
+      await tx.auditoria.create({ data: { accion: "viaje.salida.gps", entidad: "PedidoViaje", entidadId: programado.pedidoId, despues: { salidaReal: p.fecha.toISOString() } } });
+      eventos.push("Salida por GPS");
+    });
+  }
+  return eventos;
+}

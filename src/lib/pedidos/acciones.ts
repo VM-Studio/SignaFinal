@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { reevaluar } from "@/lib/alertas/reevaluar";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -11,7 +12,11 @@ import { ejecutar, ErrorNegocio, type Resultado } from "@/lib/resultado";
 import { auditar, buscarDuplicado, choferesQueLoVen, necesitaCamion, validarChoferYVehiculo, type Duplicado } from "./reglas";
 import { FRANJA } from "./presentacion";
 
-const refrescar = () => revalidatePath("/", "layout");
+/** Refresca pantallas y reevalúa las alertas del módulo (resuelve solas las que ya no aplican). */
+const refrescar = () => {
+  revalidatePath("/", "layout");
+  reevaluar("pedidos");
+};
 const vacio = (v: unknown) => (v === "" || v === null ? undefined : v);
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -32,6 +37,7 @@ const esquemaPedido = z
     hora: z.preprocess(vacio, z.string().regex(HHMM, "Revisá la hora.").optional()),
     prioridad: z.enum(["NORMAL", "URGENTE"]),
     forzar: z.boolean().default(false), // "No, es otro pedido"
+    clientId: z.preprocess((v) => (v === "" || v === null ? undefined : v), z.string().uuid().optional()), // pedido hecho sin señal
   })
   .superRefine((d, ctx) => {
     if (d.tipo === "RETIRO_PROVEEDOR" && d.origenTipo !== "PROVEEDOR") ctx.addIssue({ code: "custom", message: "Elegí el proveedor." });
@@ -52,6 +58,12 @@ export async function crearPedido(entrada: DatosPedido): Promise<Resultado<Respu
   return ejecutar(async () => {
     const yo = await exigirPermiso("pedidos.crear");
     const d = esquemaPedido.parse(entrada);
+
+    // Idempotente: si el teléfono reenvía el pedido que guardó sin señal, no se duplica.
+    if (d.clientId) {
+      const ya = await db.pedidoViaje.findUnique({ where: { clientId: d.clientId }, select: { id: true, numero: true, necesitaCamion: true } });
+      if (ya) return { estado: "creado", id: ya.id, numero: ya.numero, choferes: await choferesQueLoVen(ya.necesitaCamion) } as const;
+    }
 
     const obra = await db.obra.findUnique({ where: { id: d.obraId }, select: { id: true, nombre: true, estado: true, responsableId: true } });
     if (!obra || obra.estado !== "ACTIVA") throw new ErrorNegocio("Esa obra no está activa.");
@@ -89,6 +101,7 @@ export async function crearPedido(entrada: DatosPedido): Promise<Resultado<Respu
     const pedido = await db.$transaction(async (tx) => {
       const p = await tx.pedidoViaje.create({
         data: {
+          clientId: d.clientId ?? null,
           solicitanteId: yo.id,
           obraId: d.obraId,
           tipo: d.tipo,

@@ -21,7 +21,7 @@ export default async function PaginaViajes() {
 
 async function MisViajes() {
   const viajes = await misViajes();
-  const enCurso = viajes.some((v) => v.estado === "EN_CURSO");
+  const enCurso = viajes.find((v) => v.estado === "EN_CURSO");
   const grupos = [
     { titulo: "En curso", lista: viajes.filter((v) => v.estado === "EN_CURSO") },
     { titulo: "Programados", lista: viajes.filter((v) => v.estado === "PROGRAMADO") },
@@ -41,7 +41,7 @@ async function MisViajes() {
               <Subtitulo>{g.titulo}</Subtitulo>
               <ul className="flex flex-col gap-3">
                 {g.lista.map((v) => (
-                  <TarjetaViaje key={v.viajeId} v={v} puedeIniciar={!enCurso} />
+                  <TarjetaViaje key={v.viajeId} v={v} puedeIniciar={!enCurso} bloqueadoPor={enCurso?.pedidoId} />
                 ))}
               </ul>
             </section>

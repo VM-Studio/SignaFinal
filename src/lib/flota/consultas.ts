@@ -1,6 +1,9 @@
 import "server-only";
-import type { DocumentoVehiculo, EstadoVehiculo, TipoDocumentoVehiculo } from "@prisma/client";
+import type { EstadoVehiculo } from "@prisma/client";
 import { db } from "@/lib/db";
+import { conConsumo, documentosVigentes } from "./calculos";
+
+export { conConsumo, documentosVigentes };
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { aFecha, diasHasta, inicioDelDia, sumarDias } from "@/lib/formato";
 
@@ -10,16 +13,6 @@ export const ESTADO_VEHICULO: Record<EstadoVehiculo, { texto: string; tono: "ok"
   EN_TALLER: { texto: "En el taller", tono: "aviso" },
   FUERA_DE_SERVICIO: { texto: "Fuera de servicio", tono: "critico" },
 };
-
-/** El vigente de cada tipo de documento = el de vencimiento más lejano. */
-export function documentosVigentes(docs: Pick<DocumentoVehiculo, "id" | "tipo" | "vencimiento" | "archivoUrl" | "notas" | "creadoEn">[]) {
-  const porTipo = new Map<TipoDocumentoVehiculo, (typeof docs)[number]>();
-  for (const d of docs) {
-    const actual = porTipo.get(d.tipo);
-    if (!actual || (d.vencimiento?.getTime() ?? 0) > (actual.vencimiento?.getTime() ?? 0)) porTipo.set(d.tipo, d);
-  }
-  return [...porTipo.values()];
-}
 
 function proximoVencimiento(docs: Parameters<typeof documentosVigentes>[0]) {
   const conFecha = documentosVigentes(docs).filter((d) => d.vencimiento);
@@ -57,18 +50,6 @@ export async function listarFlota() {
       docVencida: lista.filter((v) => v.docVencida).length,
     },
   };
-}
-
-/** Consumo en l/100 km entre cargas consecutivas (supone tanque lleno en cada carga). */
-export function conConsumo<T extends { km: number; litros: number; fecha: Date }>(cargas: T[]) {
-  const asc = [...cargas].sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
-  const consumo = new Map<T, number | null>();
-  asc.forEach((c, i) => {
-    const prev = asc[i - 1];
-    const km = prev ? c.km - prev.km : 0;
-    consumo.set(c, prev && km > 0 && km < 5000 ? (c.litros / km) * 100 : null);
-  });
-  return cargas.map((c) => ({ ...c, consumo: consumo.get(c) ?? null }));
 }
 
 export async function fichaVehiculo(id: string) {

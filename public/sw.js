@@ -2,12 +2,12 @@
  * Estáticos: primero caché. Pantallas: primero red; sin señal, la última versión guardada.
  * Nada de /api ni Server Actions se guarda en caché.
  */
-const VERSION = "signa-v2";
+const VERSION = "signa-v3";
 const ESTATICOS = `${VERSION}-estaticos`;
 const PANTALLAS = `${VERSION}-pantallas`;
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(ESTATICOS).then((c) => c.addAll(["/signalogo.png", "/icons/icon-192.png"])).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(ESTATICOS).then((c) => c.addAll(["/offline", "/signalogo.png", "/icons/icon-192.png", "/icons/icon-512.png"])).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (e) => {
@@ -47,7 +47,7 @@ self.addEventListener("fetch", (e) => {
           }
           return r;
         })
-        .catch(async () => (await caches.match(request)) || new Response("<h1 style='font-family:sans-serif'>Sin señal</h1><p>Esta pantalla todavía no se abrió en este teléfono.</p>", { headers: { "Content-Type": "text/html; charset=utf-8" } })),
+        .catch(async () => (await caches.match(request)) || (await caches.match("/offline")) || Response.error()),
     );
   }
 });

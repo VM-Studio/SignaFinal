@@ -5,6 +5,8 @@ import { cerrarSesion } from "@/lib/auth/acciones";
 import { ROL } from "@/lib/etiquetas";
 import { Tarjeta, Titulo } from "@/components/ui/basicos";
 import { Boton } from "@/components/ui/boton";
+import { modoDemo } from "@/lib/demo";
+import { ReiniciarDemo } from "@/components/layout/reiniciar-demo";
 
 export const metadata: Metadata = { title: "Mi cuenta" };
 
@@ -19,6 +21,11 @@ export default async function PaginaCuenta() {
         <p className="mt-1 text-suave">{u.email}</p>
       </Tarjeta>
       <p className="mt-3 text-sm text-suave">La sesión dura 30 días en este dispositivo.</p>
+      {modoDemo() && (u.rol === "DIRECCION" || u.rol === "ADMINISTRACION") && (
+        <div className="mt-6">
+          <ReiniciarDemo />
+        </div>
+      )}
       <form action={cerrarSesion} className="mt-6">
         <Boton variante="peligro" ancho icono={<LogOut className="size-5" />}>Cerrar sesión</Boton>
       </form>
