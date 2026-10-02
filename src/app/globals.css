@@ -2,7 +2,7 @@
 
 /* SIGNA — negro, blanco y gris. Color solo para estado y siempre con texto. */
 @theme {
-  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 
   --color-negro: #000000;
   --color-carbon: #1c1c1c;
@@ -33,7 +33,13 @@
   }
   body {
     @apply text-tinta antialiased;
-    font-feature-settings: "tnum" 1;
+    font-feature-settings: "tnum" 1, "cv11" 1;
+  }
+  /* Títulos de Inter un poco más cerrados, como en interfaces de producto. */
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.015em;
   }
   :focus-visible {
     outline: 3px solid var(--color-negro);

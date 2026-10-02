@@ -1,7 +1,6 @@
 import Image from "next/image";
 import type { Metadata } from "next";
-import { CONTRASENA_DEMO, modoDemo, usuariosDemo } from "@/lib/demo";
-import { FranjaDemo } from "@/components/layout/franja-demo";
+import { CONTRASENA_DEMO, usuariosDemo } from "@/lib/demo";
 import { FormularioLogin } from "./formulario";
 
 export const metadata: Metadata = { title: "Ingresar" };
@@ -10,8 +9,6 @@ export default async function PaginaLogin({ searchParams }: { searchParams: Prom
   const { volver } = await searchParams;
   const demo = await usuariosDemo();
   return (
-    <>
-    {modoDemo() && <div className="pt-segura fixed inset-x-0 top-0 z-40 bg-aviso"><FranjaDemo /></div>}
     <main className="pt-segura pb-segura flex min-h-dvh flex-col items-center justify-center overflow-x-hidden bg-negro px-5 py-8 text-white">
       {/* public/inicio.png (1672 × 941) recortado alrededor del logo (~230 px de ancho). */}
       <div
@@ -33,6 +30,5 @@ export default async function PaginaLogin({ searchParams }: { searchParams: Prom
         <FormularioLogin volver={volver} demo={demo ? { usuarios: demo, contrasena: CONTRASENA_DEMO } : null} />
       </div>
     </main>
-    </>
   );
 }

@@ -94,7 +94,7 @@ obvio en tres segundos, está mal.
 
 Negro, blanco y gris. Sobrio. Header y barra inferior negros; contenido sobre fondo claro
 (se usa al sol). Color solo para estado: verde #1F7A4D ok, ámbar #B7791F aviso, rojo
-#B42318 crítico, siempre con texto. Tipografía Archivo (next/font). Botones mínimo 52px de
+#B42318 crítico, siempre con texto. Tipografía Inter (next/font). Botones mínimo 52px de
 alto en celular. Sin gradientes, sin sombras difusas, sin animaciones salvo el splash.
 Splash de carga: fondo negro, logo public/loading.png grande y centrado, barra blanca fina
 del ancho del logo con el porcentaje debajo, 2,5 segundos. Se ve al abrir el sistema (una vez
