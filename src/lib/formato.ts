@@ -35,6 +35,8 @@ export function diaISO(d: Date | string = new Date()) {
 export const aFecha = (dia: string, hhmm = "00:00") => new Date(`${dia}T${hhmm}:00${OFFSET}`);
 export const sumarDias = (dia: string, n: number) => diaISO(new Date(aFecha(dia, "12:00").getTime() + n * 86_400_000));
 export const inicioDelDia = (d: Date = new Date()) => aFecha(diaISO(d));
+/** Último instante del día argentino. */
+export const finDelDia = (d: Date = new Date()) => new Date(aFecha(sumarDias(diaISO(d), 1)).getTime() - 1);
 
 export const hora = (d: Date | string) => fmtHora.format(new Date(d));
 export const fecha = (d: Date | string | null | undefined) => (d ? fmtFecha.format(aFecha(diaISO(d), "12:00")).replace(".", "") : "—");

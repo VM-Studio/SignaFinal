@@ -5,7 +5,7 @@ import { exigirPermiso } from "@/lib/auth/sesion";
 import type { UsuarioSesion } from "@/lib/auth/sesion";
 import { inicioDelDia } from "@/lib/formato";
 import { vehiculosPara } from "./reglas";
-import { filtroObras, idsObrasDelUsuario } from "@/lib/alcance";
+import { conAlcance, filtroObras, viajesVisibles } from "@/lib/alcance";
 
 const seleccion = {
   id: true, numero: true, tipo: true, estado: true, prioridad: true, descripcion: true, pesoKg: true, cantidadPersonas: true,
@@ -67,7 +67,11 @@ export const FILTROS = {
 } as const;
 export type Filtro = keyof typeof FILTROS;
 
-function whereFiltro(filtro: Filtro, u: UsuarioSesion, misObras: string[] = []): Prisma.PedidoViajeWhereInput {
+function whereFiltro(filtro: Filtro, u: UsuarioSesion): Prisma.PedidoViajeWhereInput {
+  return conAlcance(u, filtroPropio(filtro, u));
+}
+
+function filtroPropio(filtro: Filtro, u: UsuarioSesion): Prisma.PedidoViajeWhereInput {
   switch (filtro) {
     case "pendientes":
       return { estado: "PENDIENTE" };
@@ -77,36 +81,37 @@ function whereFiltro(filtro: Filtro, u: UsuarioSesion, misObras: string[] = []):
       return { estado: "ENTREGADO", viaje: { llegadaReal: { gte: inicioDelDia() } } };
     case "mios":
       return {
-        // Lo que pedí, lo que tomé y lo que se lleva una herramienta de mis obras.
-        OR: [{ solicitanteId: u.id }, { tomadoPorId: u.id }, ...(misObras.length ? [{ origenTipo: "OBRA" as const, origenId: { in: misObras }, herramientaId: { not: null } }] : [])],
+        // Lo que pedí y lo que tomé.
+        OR: [{ solicitanteId: u.id }, { tomadoPorId: u.id }],
         AND: [{ OR: [{ estado: { in: ["PENDIENTE", "TOMADO", "EN_VIAJE"] } }, { estado: "ENTREGADO", viaje: { llegadaReal: { gte: new Date(Date.now() - 2 * 86_400_000) } } }, { estado: "CANCELADO", canceladoEn: { gte: new Date(Date.now() - 2 * 86_400_000) } }] }],
       };
   }
 }
 
-/** La cola única: urgentes primero, después por fecha pedida. La ven todos los roles. */
+/** Solicitudes: urgentes primero, después por fecha pedida. Cada rol ve lo suyo (pedidosVisibles). */
 export async function cola(filtro: Filtro) {
   const u = await exigirPermiso("pedidos.ver");
-  const misObras = u.rol === "RESPONSABLE_OBRA" ? await idsObrasDelUsuario(u, true) : [];
   const orden: Prisma.PedidoViajeOrderByWithRelationInput[] =
     filtro === "entregados-hoy" ? [{ viaje: { llegadaReal: "desc" } }] : [{ prioridad: "desc" }, { paraCuando: "asc" }, { creadoEn: "asc" }];
   const [filas, conteos] = await Promise.all([
-    db.pedidoViaje.findMany({ where: whereFiltro(filtro, u, misObras), select: seleccion, orderBy: orden, take: 200 }),
-    Promise.all((Object.keys(FILTROS) as Filtro[]).map(async (f) => [f, await db.pedidoViaje.count({ where: whereFiltro(f, u, misObras) })] as const)),
+    db.pedidoViaje.findMany({ where: whereFiltro(filtro, u), select: seleccion, orderBy: orden, take: 200 }),
+    Promise.all((Object.keys(FILTROS) as Filtro[]).map(async (f) => [f, await db.pedidoViaje.count({ where: whereFiltro(f, u) })] as const)),
   ]);
   return { pedidos: await aplanar(filas), conteos: Object.fromEntries(conteos) as Record<Filtro, number> };
 }
 
+/** Un pedido, solo si el usuario lo puede ver (si no, null: la página lo manda a su inicio). */
 export async function pedido(id: string) {
-  await exigirPermiso("pedidos.ver");
-  const f = await db.pedidoViaje.findUnique({ where: { id }, select: seleccion });
+  const u = await exigirPermiso("pedidos.ver");
+  const f = await db.pedidoViaje.findFirst({ where: conAlcance(u, { id }), select: seleccion });
   if (!f) return null;
   return (await aplanar([f]))[0];
 }
 
 /** Historia del pedido desde la auditoría (quién hizo qué y cuándo). */
 export async function historia(id: string) {
-  await exigirPermiso("pedidos.ver");
+  const u = await exigirPermiso("pedidos.ver");
+  if (!(await db.pedidoViaje.count({ where: conAlcance(u, { id }) }))) return [];
   const eventos = await db.auditoria.findMany({
     where: { entidad: "PedidoViaje", entidadId: id },
     orderBy: { fecha: "asc" },
@@ -145,7 +150,7 @@ export async function opcionesReasignar(p: { pesoKg: number | null; necesitaCami
 export async function miRuta() {
   const u = await exigirPermiso("pedidos.tomar");
   const filas = await db.pedidoViaje.findMany({
-    where: { tomadoPorId: u.id, estado: { in: ["TOMADO", "EN_VIAJE"] } },
+    where: conAlcance(u, { tomadoPorId: u.id, estado: { in: ["TOMADO", "EN_VIAJE"] } }),
     select: seleccion,
   });
   const lista = await aplanar(filas);
@@ -157,7 +162,7 @@ export async function miRuta() {
 
 export async function tengoViajeEnCurso() {
   const u = await exigirPermiso("pedidos.tomar");
-  return (await db.viaje.count({ where: { choferId: u.id, estado: "EN_CURSO" } })) > 0;
+  return (await db.viaje.count({ where: { AND: [viajesVisibles(u), { choferId: u.id, estado: "EN_CURSO" }] } })) > 0;
 }
 
 // ─────────────────────────── Formulario ───────────────────────────

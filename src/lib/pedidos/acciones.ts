@@ -184,9 +184,9 @@ export async function tomarPedido(entrada: DatosTomar): Promise<Resultado<{ nume
       });
       if (!tomado.count) {
         const actual = await tx.pedidoViaje.findUniqueOrThrow({ where: { id: d.pedidoId }, select: { estado: true, tomadoPorId: true, tomadoPor: { select: { nombre: true } } } });
-        if (actual.tomadoPorId === yo.id) throw new ErrorNegocio("Ya lo tenés tomado vos.");
+        if (actual.tomadoPorId === yo.id) throw new ErrorNegocio("Ya lo aceptaste vos.");
         if (actual.estado === "CANCELADO") throw new ErrorNegocio("Este pedido fue cancelado.");
-        throw new ErrorNegocio(`Ya lo tomó ${actual.tomadoPor?.nombre ?? "otro chofer"}.`);
+        throw new ErrorNegocio(`Ya lo aceptó ${actual.tomadoPor?.nombre ?? "otro chofer"}.`);
       }
 
       const salidaEstimada = salidaPara(pedido.paraCuando, d.salida);

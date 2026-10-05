@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { AlertTriangle, ArrowLeft, FileImage, FilePlus, Pencil, Wrench } from "lucide-react";
 import { exigirPermiso } from "@/lib/auth/sesion";
-import { puede } from "@/lib/permisos";
+import { enlacePedido, puede } from "@/lib/permisos";
+import type { Rol } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ESTADO_VEHICULO, fichaVehiculo, opcionesVehiculo, type Ficha } from "@/lib/flota/consultas";
 import { costosPorVehiculo, periodo } from "@/lib/costos/consultas";
@@ -79,7 +80,7 @@ export default async function FichaVehiculo({ params, searchParams }: { params: 
 
       {tab === "datos" && <Datos v={v} editar={editar} />}
       {tab === "documentacion" && <Documentacion v={v} cargar={puede(u.rol, "flota.documentacion")} />}
-      {tab === "viajes" && <Viajes v={v} />}
+      {tab === "viajes" && <Viajes v={v} rol={u.rol} />}
       {tab === "combustible" && <Combustible v={v} />}
       {tab === "mantenimiento" && <Mantenimiento v={v} registrar={puede(u.rol, "mantenimiento.registrar")} />}
       {tab === "incidentes" && <Incidentes v={v} registrar={puede(u.rol, "incidentes.registrar")} resolver={editar} />}
@@ -157,13 +158,13 @@ function Documentacion({ v, cargar }: { v: Ficha; cargar: boolean }) {
   );
 }
 
-function Viajes({ v }: { v: Ficha }) {
+function Viajes({ v, rol }: { v: Ficha; rol: Rol }) {
   if (!v.viajes.length) return <Vacio titulo="Sin viajes todavía" />;
   return (
     <ul className="divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
       {v.viajes.map((x) => (
         <li key={x.id}>
-          <Link href={`/pedidos/${x.pedido.id}`} className="flex min-h-16 items-center gap-3 px-4 py-3 hover:bg-fondo/60">
+          <Link href={enlacePedido(rol, x.pedido.id) ?? `/flota/${v.id}?tab=viajes`} className="flex min-h-16 items-center gap-3 px-4 py-3 hover:bg-fondo/60">
             <div className="min-w-0 flex-1">
               <p className="truncate font-semibold">{x.pedido.descripcion}</p>
               <p className="text-sm text-suave">Obra {x.pedido.obra.nombre} · {x.chofer.nombre} · {cuando(x.llegadaReal ?? x.salidaReal ?? x.salidaEstimada)}</p>

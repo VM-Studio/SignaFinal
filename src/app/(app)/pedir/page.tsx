@@ -5,7 +5,8 @@ import { Vacio } from "@/components/ui/basicos";
 
 export const metadata: Metadata = { title: "Pedir un viaje" };
 
-export default async function PaginaPedir() {
+export default async function PaginaPedir({ searchParams }: { searchParams: Promise<{ obra?: string }> }) {
+  const { obra } = await searchParams;
   const datos = await datosFormulario(); // verifica pedidos.crear
   return (
     <div className="mx-auto max-w-xl">
@@ -13,7 +14,7 @@ export default async function PaginaPedir() {
       {datos.obras.length === 0 ? (
         <Vacio titulo="No tenés obras a cargo">Pedile a la oficina que te asigne tus obras para poder pedir viajes.</Vacio>
       ) : (
-        <FormularioPedido datos={datos} />
+        <FormularioPedido datos={datos} obraInicial={obra} />
       )}
     </div>
   );

@@ -12,7 +12,7 @@ import { IconoTipo } from "@/components/pedidos/iconos";
 import { BotonTomar } from "@/components/pedidos/tomar";
 import { RutaDelDia } from "@/components/pedidos/ruta-del-dia";
 
-export const metadata: Metadata = { title: "Cola de pedidos" };
+export const metadata: Metadata = { title: "Solicitudes" };
 
 const VACIOS: Record<Filtro, { titulo: string; texto: string }> = {
   pendientes: { titulo: "No hay pedidos esperando chofer", texto: "Cuando alguien pida un viaje, aparece acá." },
@@ -38,10 +38,10 @@ export default async function PaginaCola({ searchParams }: { searchParams: Promi
   return (
     <div>
       <Titulo
-        detalle="Una sola cola para todos. Urgentes primero, después por fecha pedida."
-        accion={puede(u.rol, "pedidos.crear") ? <BotonLink href="/pedidos/nuevo" icono={<PlusCircle className="size-5" />}>Pedir un viaje</BotonLink> : undefined}
+        detalle="Urgentes primero, después por fecha pedida."
+        accion={puede(u.rol, "pedidos.crear") ? <BotonLink href="/pedir" icono={<PlusCircle className="size-5" />}>Pedir un viaje</BotonLink> : undefined}
       >
-        Cola de pedidos
+        Solicitudes
       </Titulo>
 
       {esChofer && ruta.length > 0 && (
@@ -65,7 +65,7 @@ export default async function PaginaCola({ searchParams }: { searchParams: Promi
 
       <Pestanas
         items={(Object.keys(FILTROS) as Filtro[]).map((f) => ({
-          href: f === "pendientes" ? "/pedidos" : `/pedidos?filtro=${f}`,
+          href: f === "pendientes" ? "/solicitudes" : `/solicitudes?filtro=${f}`,
           etiqueta: `${FILTROS[f]} ${conteos[f] ? `(${conteos[f]})` : ""}`.trim(),
           activa: f === filtro,
         }))}
@@ -106,7 +106,7 @@ export default async function PaginaCola({ searchParams }: { searchParams: Promi
                       </span>
                     </td>
                     <td className="max-w-sm">
-                      <Link href={`/pedidos/${p.id}`} className="line-clamp-2 font-semibold hover:underline">{p.descripcion}</Link>
+                      <Link href={`/solicitudes/${p.id}`} className="line-clamp-2 font-semibold hover:underline">{p.descripcion}</Link>
                       {p.prioridad === "URGENTE" && p.estado === "PENDIENTE" && <Insignia tono="critico" className="mt-1">Urgente</Insignia>}
                     </td>
                     <td>

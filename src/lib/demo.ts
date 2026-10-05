@@ -12,7 +12,13 @@ export async function usuariosDemo() {
   const usuarios = await db.usuario.findMany({
     where: { activo: true, email: { endsWith: "@signa.demo" } },
     orderBy: [{ rol: "asc" }, { nombre: "asc" }],
-    select: { nombre: true, email: true, rol: true },
+    select: { nombre: true, email: true, rol: true, obrasACargo: { select: { obra: { select: { nombre: true } } }, orderBy: [{ principal: "desc" }, { creadoEn: "asc" }] } },
   });
-  return usuarios.map((u) => ({ nombre: u.nombre, email: u.email, rol: ROL[u.rol] }));
+  // Para probar cada versión de la app de un toque: el rol y, para responsables, sus obras.
+  return usuarios.map((u) => ({
+    nombre: u.nombre,
+    email: u.email,
+    rol: ROL[u.rol],
+    obras: u.rol === "RESPONSABLE_OBRA" ? u.obrasACargo.map((r) => r.obra.nombre).join(", ") : u.rol === "CAPATAZ" ? "Todas las obras" : null,
+  }));
 }

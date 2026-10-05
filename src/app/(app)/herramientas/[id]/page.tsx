@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { ArrowLeft, Pencil, Printer, Wrench } from "lucide-react";
 import { exigirPermiso } from "@/lib/auth/sesion";
-import { puede } from "@/lib/permisos";
+import { enlacePedido, puede } from "@/lib/permisos";
 import { db } from "@/lib/db";
 import { ficha, opciones } from "@/lib/herramientas/consultas";
 import { CONDICION, ESTADO, MOVIMIENTO, type Accion } from "@/lib/herramientas/presentacion";
@@ -150,9 +150,11 @@ export default async function FichaHerramienta({ params, searchParams }: { param
                     {m.recibidoPor ? ` · recibió ${m.recibidoPor.nombre}` : ""}
                     {m.condicion ? ` · condición ${CONDICION[m.condicion].texto.toLowerCase()}` : ""}
                   </p>
-                  {m.viaje && (
-                    <Link href={`/pedidos/${m.viaje.pedidoId}`} className="text-sm font-semibold underline">Viajó con {m.viaje.chofer.nombre} en {m.viaje.vehiculo.nombre}</Link>
-                  )}
+                  {m.viaje && (enlacePedido(u.rol, m.viaje.pedidoId) ? (
+                    <Link href={enlacePedido(u.rol, m.viaje.pedidoId)!} className="text-sm font-semibold underline">Viajó con {m.viaje.chofer.nombre} en {m.viaje.vehiculo.nombre}</Link>
+                  ) : (
+                    <p className="text-sm font-semibold">Viajó con {m.viaje.chofer.nombre} en {m.viaje.vehiculo.nombre}</p>
+                  ))}
                   {m.observaciones && <p className="text-sm">{m.observaciones}</p>}
                 </li>
               );

@@ -6,6 +6,7 @@ import { conConsumo, documentosVigentes } from "./calculos";
 export { conConsumo, documentosVigentes };
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { aFecha, diasHasta, inicioDelDia, sumarDias } from "@/lib/formato";
+import { viajesVisibles } from "@/lib/alcance";
 
 export const ESTADO_VEHICULO: Record<EstadoVehiculo, { texto: string; tono: "ok" | "activo" | "aviso" | "critico" }> = {
   DISPONIBLE: { texto: "Disponible", tono: "ok" },
@@ -101,13 +102,14 @@ export async function opcionesVehiculo() {
 
 /** Agenda del día: vehículos de la cola en filas y sus viajes como bloques por hora. */
 export async function agenda(dia: string) {
-  await exigirPermiso("flota.agenda");
+  const u = await exigirPermiso("flota.agenda");
   const desde = aFecha(dia);
   const hasta = aFecha(sumarDias(dia, 1));
   const [vehiculos, viajes] = await Promise.all([
     db.vehiculo.findMany({ where: { activo: true, entraEnCola: true }, orderBy: [{ tipo: "asc" }, { capacidadCargaKg: "desc" }], select: { id: true, nombre: true, patente: true, estado: true } }),
     db.viaje.findMany({
       where: {
+        ...viajesVisibles(u),
         estado: { not: "CANCELADO" },
         vehiculo: { entraEnCola: true },
         OR: [{ salidaReal: { gte: desde, lt: hasta } }, { salidaReal: null, salidaEstimada: { gte: desde, lt: hasta } }],

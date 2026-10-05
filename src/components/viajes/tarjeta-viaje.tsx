@@ -62,7 +62,7 @@ export function TarjetaViaje({ v, puedeIniciar, bloqueadoPor }: { v: ViajeDelDia
       </div>
 
       <div className="flex flex-col gap-3 p-4">
-        <Link href={`/pedidos/${v.pedidoId}`} className="text-lg leading-snug font-bold hover:underline">
+        <Link href={`/viaje/${v.pedidoId}`} className="text-lg leading-snug font-bold hover:underline">
           {v.descripcion}
         </Link>
         <div className="flex flex-col gap-2">

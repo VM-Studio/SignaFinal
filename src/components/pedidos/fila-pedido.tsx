@@ -16,7 +16,7 @@ export function FilaPedido({ p, accion }: { p: PedidoPlano; accion?: ReactNode }
   return (
     <li className={`overflow-hidden rounded-[var(--radius-caja)] border bg-papel ${urgente ? "border-2 border-critico" : "border-linea"}`}>
       <div className="flex items-stretch">
-        <Link href={`/pedidos/${p.id}`} className="flex min-w-0 flex-1 gap-3 p-4 hover:bg-fondo/60">
+        <Link href={`/solicitudes/${p.id}`} className="flex min-w-0 flex-1 gap-3 p-4 hover:bg-fondo/60">
           <span className="grid size-10 shrink-0 place-items-center rounded-md bg-fondo">
             <IconoTipo tipo={p.tipo} className="size-5" />
           </span>

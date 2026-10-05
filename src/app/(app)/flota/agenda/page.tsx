@@ -4,6 +4,8 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { agenda, ESTADO_VEHICULO } from "@/lib/flota/consultas";
 import { Insignia, Titulo, Vacio } from "@/components/ui/basicos";
 import { aFecha, dia, diaISO, hora, sumarDias } from "@/lib/formato";
+import { exigirSesion } from "@/lib/auth/sesion";
+import { enlacePedido } from "@/lib/permisos";
 
 export const metadata: Metadata = { title: "Agenda" };
 
@@ -22,7 +24,9 @@ const TEXTO = { EN_CURSO: "En curso", PROGRAMADO: "Programado", FINALIZADO: "Ter
 export default async function PaginaAgenda({ searchParams }: { searchParams: Promise<{ dia?: string }> }) {
   const p = (await searchParams).dia;
   const elegido = p && /^\d{4}-\d{2}-\d{2}$/.test(p) ? p : diaISO();
-  const filas = await agenda(elegido); // verifica flota.agenda
+  const [filas, u] = await Promise.all([agenda(elegido), exigirSesion()]); // agenda verifica flota.agenda
+  // Sin pantalla de pedidos (Administración), el bloque lleva a los viajes del vehículo.
+  const ver = (pedidoId: string, vehiculoId: string) => enlacePedido(u.rol, pedidoId) ?? `/flota/${vehiculoId}?tab=viajes`;
   const inicioDia = aFecha(elegido).getTime();
   const pos = (iso: string) => ((new Date(iso).getTime() - inicioDia) / 3_600_000 - DESDE_H) / (HASTA_H - DESDE_H);
   const clamp = (x: number) => Math.min(1, Math.max(0, x));
@@ -69,7 +73,7 @@ export default async function PaginaAgenda({ searchParams }: { searchParams: Pro
                   return (
                     <Link
                       key={x.id}
-                      href={`/pedidos/${x.pedidoId}`}
+                      href={ver(x.pedidoId, v.id)}
                       title={`${x.descripcion} → Obra ${x.obra} · ${x.chofer} · ${hora(x.inicio)}–${hora(x.fin)}`}
                       className={`absolute top-2 bottom-2 z-20 overflow-hidden rounded-md border-2 px-2 py-1 text-xs leading-tight ${COLOR[x.estado]}`}
                       style={{ left: `${izq * 100}%`, width: `max(${(der - izq) * 100}%, 64px)` }}
@@ -99,7 +103,7 @@ export default async function PaginaAgenda({ searchParams }: { searchParams: Pro
               <ul className="divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
                 {v.viajes.map((x) => (
                   <li key={x.id}>
-                    <Link href={`/pedidos/${x.pedidoId}`} className="flex min-h-16 items-center gap-3 px-4 py-3">
+                    <Link href={ver(x.pedidoId, v.id)} className="flex min-h-16 items-center gap-3 px-4 py-3">
                       <span className="w-12 shrink-0 font-bold tabular-nums">{hora(x.inicio)}</span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-semibold">Obra {x.obra}</span>

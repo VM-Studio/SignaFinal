@@ -1,99 +1,98 @@
 import type { Rol } from "@prisma/client";
-import { puede, type Permiso } from "./permisos";
+import { rutaPermitida } from "./permisos";
 
 export type Icono =
   | "inicio" | "pedidos" | "pedir" | "viajes" | "combustible" | "flota" | "mantenimiento" | "herramientas"
   | "escanear" | "entregas" | "sobrantes" | "mapa" | "alertas" | "obras" | "proveedores" | "usuarios" | "cuenta" | "mas"
-  | "agenda" | "costos" | "etiquetas";
+  | "agenda" | "costos" | "etiquetas" | "hoy" | "avisos" | "actividad" | "importar";
 
-export type Seccion = { href: string; titulo: string; icono: Icono; permiso?: Permiso };
+export type Seccion = { href: string; titulo: string; icono: Icono; corto?: string };
 
-/** Todas las secciones de la app. El título es el que va en el header del celular. */
+/** Todas las secciones. El título es el del header del celular; "corto", el de la barra inferior. */
 export const SECCIONES = {
   inicio: { href: "/inicio", titulo: "Inicio", icono: "inicio" },
-  cola: { href: "/pedidos", titulo: "Cola de pedidos", icono: "pedidos", permiso: "pedidos.ver" },
-  pedir: { href: "/pedidos/nuevo", titulo: "Pedir un viaje", icono: "pedir", permiso: "pedidos.crear" },
-  misViajes: { href: "/viajes", titulo: "Mis viajes", icono: "viajes", permiso: "viajes.verPropios" },
-  viajes: { href: "/viajes", titulo: "Viajes", icono: "viajes", permiso: "viajes.verTodos" },
-  flota: { href: "/flota", titulo: "Flota", icono: "flota", permiso: "flota.ver" },
-  agenda: { href: "/flota/agenda", titulo: "Agenda", icono: "agenda", permiso: "flota.agenda" },
-  combustible: { href: "/combustible", titulo: "Combustible", icono: "combustible", permiso: "combustible.ver" },
-  costos: { href: "/costos", titulo: "Costos", icono: "costos", permiso: "costos.ver" },
-  mantenimiento: { href: "/mantenimiento", titulo: "Mantenimiento", icono: "mantenimiento", permiso: "mantenimiento.ver" },
-  herramientas: { href: "/herramientas", titulo: "Herramientas", icono: "herramientas", permiso: "herramientas.ver" },
-  escanear: { href: "/herramientas/escanear", titulo: "Escanear", icono: "escanear", permiso: "herramientas.mover" },
-  etiquetas: { href: "/herramientas/etiquetas", titulo: "Etiquetas QR", icono: "etiquetas", permiso: "herramientas.editar" },
-  entregas: { href: "/entregas", titulo: "Entregas", icono: "entregas", permiso: "herramientas.mover" },
-  sobrantes: { href: "/sobrantes", titulo: "Sobrantes", icono: "sobrantes", permiso: "sobrantes.ver" },
-  mapa: { href: "/mapa", titulo: "Mapa", icono: "mapa", permiso: "mapa.ver" },
-  alertas: { href: "/alertas", titulo: "Alertas", icono: "alertas", permiso: "alertas.ver" },
-  obras: { href: "/obras", titulo: "Obras", icono: "obras", permiso: "obras.ver" },
-  proveedores: { href: "/proveedores", titulo: "Proveedores", icono: "proveedores", permiso: "proveedores.ver" },
-  usuarios: { href: "/usuarios", titulo: "Usuarios", icono: "usuarios", permiso: "usuarios.gestionar" },
+  // Obra
+  obras: { href: "/obras", titulo: "Obras", icono: "obras" },
+  pedir: { href: "/pedir", titulo: "Pedir un viaje", corto: "Pedir", icono: "pedir" },
+  misPedidos: { href: "/mis-pedidos", titulo: "Mis pedidos", icono: "pedidos" },
+  viajesObra: { href: "/viajes-en-curso", titulo: "Viajes", icono: "viajes" },
+  // Chofer
+  hoy: { href: "/hoy", titulo: "Hoy", icono: "hoy" },
+  solicitudes: { href: "/solicitudes", titulo: "Solicitudes", icono: "pedidos" },
+  combustible: { href: "/combustible", titulo: "Combustible", icono: "combustible" },
+  // Depósito
+  escanear: { href: "/herramientas/escanear", titulo: "Escanear", icono: "escanear" },
+  herramientas: { href: "/herramientas", titulo: "Herramientas", icono: "herramientas" },
+  entregas: { href: "/entregas", titulo: "Entregas", icono: "entregas" },
+  sobrantes: { href: "/herramientas?tab=sobrantes", titulo: "Sobrantes", icono: "sobrantes" },
+  etiquetas: { href: "/herramientas/etiquetas", titulo: "Etiquetas QR", icono: "etiquetas" },
+  importar: { href: "/herramientas/importar", titulo: "Alta masiva", icono: "importar" },
+  // Gestión
+  flota: { href: "/flota", titulo: "Flota", icono: "flota" },
+  agenda: { href: "/flota/agenda", titulo: "Agenda", icono: "agenda" },
+  mantenimiento: { href: "/flota/mantenimiento", titulo: "Mantenimiento", icono: "mantenimiento" },
+  costos: { href: "/costos", titulo: "Costos", icono: "costos" },
+  alertas: { href: "/alertas", titulo: "Alertas", icono: "alertas" },
+  // Dirección
+  mapa: { href: "/mapa", titulo: "Mapa", icono: "mapa" },
+  viajes: { href: "/viajes", titulo: "Viajes", icono: "viajes" },
+  actividad: { href: "/actividad", titulo: "Actividad", icono: "actividad" },
+  proveedores: { href: "/proveedores", titulo: "Proveedores", icono: "proveedores" },
+  usuarios: { href: "/usuarios", titulo: "Usuarios", icono: "usuarios" },
+  // Todos (header)
+  avisos: { href: "/avisos", titulo: "Avisos", icono: "avisos" },
   cuenta: { href: "/cuenta", titulo: "Mi cuenta", icono: "cuenta" },
 } as const satisfies Record<string, Seccion>;
 
 type Clave = keyof typeof SECCIONES;
 
-/** Barra inferior del celular: 3 secciones + "Más". Nunca más de 4. */
-const BARRA: Record<Rol, [Clave, Clave, Clave]> = {
-  CHOFER: ["cola", "misViajes", "combustible"],
-  RESPONSABLE_OBRA: ["pedir", "cola", "herramientas"],
-  CAPATAZ: ["pedir", "cola", "herramientas"],
-  DEPOSITO: ["escanear", "herramientas", "entregas"],
-  DIRECCION: ["mapa", "cola", "flota"],
-  ADMINISTRACION: ["mapa", "cola", "flota"],
+/**
+ * Navegación de cada rol (CLAUDE.md, "Navegación"). Barra inferior: máximo 4 ítems;
+ * si hay "Más", la barra tiene 3 y el cuarto es "Más". Cuenta y avisos van en el header.
+ */
+const NAV: Record<Rol, { barra: Clave[]; mas: Clave[] }> = {
+  RESPONSABLE_OBRA: { barra: ["obras", "pedir", "viajesObra", "herramientas"], mas: [] },
+  CAPATAZ: { barra: ["obras", "pedir", "viajesObra", "herramientas"], mas: [] },
+  CHOFER: { barra: ["hoy", "solicitudes", "combustible"], mas: ["inicio", "avisos"] },
+  DEPOSITO: { barra: ["escanear", "herramientas", "entregas"], mas: ["inicio", "sobrantes", "etiquetas", "importar"] },
+  ADMINISTRACION: { barra: ["flota", "costos", "alertas"], mas: ["inicio", "agenda", "mantenimiento", "obras"] },
+  DIRECCION: {
+    barra: ["mapa", "solicitudes", "viajes"],
+    mas: [
+      "inicio", "actividad", "alertas", "pedir", "misPedidos", "flota", "agenda", "mantenimiento", "combustible", "costos",
+      "herramientas", "entregas", "sobrantes", "obras", "proveedores", "usuarios",
+    ],
+  },
 };
 
-/** Etiquetas cortas para la barra inferior. */
-const ETIQUETA_CORTA: Partial<Record<Clave, string>> = {
-  cola: "Cola",
-  pedir: "Pedir",
-  misViajes: "Mis viajes",
-};
+// Nunca se muestra un enlace a una ruta que el rol no tiene (la matriz manda).
+const visibles = (rol: Rol, claves: Clave[]) =>
+  claves.map((k) => SECCIONES[k] as Seccion).filter((s) => rutaPermitida(rol, s.href.split("?")[0]));
 
-export function barraInferior(rol: Rol) {
-  return BARRA[rol].map((k) => ({ ...SECCIONES[k], titulo: rol === "CHOFER" && k === "cola" ? "Pedidos" : ETIQUETA_CORTA[k] ?? SECCIONES[k].titulo }));
+export function barraInferior(rol: Rol): Seccion[] {
+  return visibles(rol, NAV[rol].barra).map((s) => ({ ...s, titulo: s.corto ?? s.titulo }));
 }
 
-/**
- * "Más": como máximo 5 entradas. Herramientas o Flota (la que no esté en la barra),
- * Alertas, Obras, Mi cuenta y Cerrar sesión (este último lo agrega el componente).
- */
 export function menuMas(rol: Rol): Seccion[] {
-  const enBarra = BARRA[rol] as readonly Clave[];
-  const primera: Clave = enBarra.includes("herramientas") ? "flota" : enBarra.includes("flota") ? "herramientas" : "flota";
-  return [SECCIONES[primera], SECCIONES.alertas, SECCIONES.obras, SECCIONES.cuenta].filter((s) => !("permiso" in s) || puede(rol, s.permiso));
+  return visibles(rol, NAV[rol].mas);
 }
 
 export type Grupo = { titulo: string | null; items: Seccion[] };
 
-/** Escritorio: navegación completa agrupada, filtrada por permisos. */
+/** Escritorio: las mismas entradas del rol, nada más. */
 export function gruposEscritorio(rol: Rol): Grupo[] {
-  const grupos: { titulo: string | null; claves: Clave[] }[] = [
-    { titulo: null, claves: ["inicio"] },
-    { titulo: "Pedidos y viajes", claves: ["cola", "pedir", rol === "CHOFER" ? "misViajes" : "viajes"] },
-    { titulo: "Flota", claves: ["flota", "agenda", "combustible", "mantenimiento"] },
-    { titulo: "Depósito", claves: ["herramientas", "escanear", "entregas", "sobrantes", "etiquetas"] },
-    { titulo: "Mapa", claves: ["mapa"] },
-    { titulo: "Alertas", claves: ["alertas"] },
-    { titulo: "Costos", claves: ["costos"] },
-    { titulo: "Configuración", claves: ["obras", "proveedores", "usuarios", "cuenta"] },
-  ];
-  return grupos
-    .map((g) => ({
-      titulo: g.titulo,
-      items: g.claves.map((k) => SECCIONES[k] as Seccion).filter((s) => !s.permiso || puede(rol, s.permiso)),
-    }))
-    .filter((g) => g.items.length > 0);
+  return [
+    { titulo: null, items: visibles(rol, NAV[rol].barra) },
+    { titulo: "Más", items: menuMas(rol) },
+  ].filter((g) => g.items.length > 0);
 }
 
 /** Título para el header del celular según la ruta. */
-export function tituloDeRuta(pathname: string, rol: Rol): string {
-  if (pathname === "/viajes") return rol === "CHOFER" ? "Mis viajes" : "Viajes";
+export function tituloDeRuta(pathname: string): string {
   const todas = Object.values(SECCIONES) as Seccion[];
   const exacta = todas.find((s) => s.href === pathname);
   if (exacta) return exacta.titulo;
+  if (pathname.startsWith("/solicitudes/") || pathname.startsWith("/mis-pedidos/") || pathname.startsWith("/viaje/") || pathname.startsWith("/viajes-en-curso/")) return "Pedido";
   const prefijo = todas.filter((s) => pathname.startsWith(s.href + "/")).sort((a, b) => b.href.length - a.href.length)[0];
   return prefijo?.titulo ?? "SIGNA";
 }

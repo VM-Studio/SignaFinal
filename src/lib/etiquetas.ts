@@ -15,15 +15,15 @@ export const ROL: Record<Rol, string> = {
 
 export const ESTADO_PEDIDO: Record<EstadoPedido, { texto: string; tono: Tono }> = {
   PENDIENTE: { texto: "Pendiente", tono: "aviso" },
-  TOMADO: { texto: "Tomado", tono: "activo" },
+  TOMADO: { texto: "Aceptado", tono: "activo" },
   EN_VIAJE: { texto: "En viaje", tono: "activo" },
   ENTREGADO: { texto: "Entregado", tono: "ok" },
   CANCELADO: { texto: "Cancelado", tono: "neutro" },
 };
 
-/** "Tomado por Claudio", "En viaje · Cristian". */
+/** "Aceptado por Claudio", "En viaje · Cristian". */
 export function textoEstadoPedido(estado: EstadoPedido, chofer?: string | null) {
-  if (estado === "TOMADO" && chofer) return `Tomado por ${chofer}`;
+  if (estado === "TOMADO" && chofer) return `Aceptado por ${chofer}`;
   if (estado === "EN_VIAJE" && chofer) return `En viaje · ${chofer}`;
   return ESTADO_PEDIDO[estado].texto;
 }

@@ -43,3 +43,40 @@ export async function responsablePrincipal(cliente: Cliente, obraId: string) {
   });
   return r?.usuario ?? null;
 }
+
+const ACEPTADOS = ["TOMADO", "EN_VIAJE", "ENTREGADO"] as const;
+
+/**
+ * Qué pedidos ve cada rol. TODA query de pedidos pasa por acá.
+ * - RESPONSABLE_OBRA / CAPATAZ: los propios en cualquier estado, más los de sus obras ya
+ *   aceptados (TOMADO, EN_VIAJE, ENTREGADO). Nunca el PENDIENTE de otro.
+ * - CHOFER: todos los PENDIENTE, más los suyos en cualquier estado.
+ * - DEPOSITO: los traslados de maquinaria y herramientas.
+ * - DIRECCION / ADMINISTRACION: todo.
+ */
+export function pedidosVisibles(s: Pick<UsuarioSesion, "id" | "rol">): Prisma.PedidoViajeWhereInput {
+  switch (s.rol) {
+    case "RESPONSABLE_OBRA":
+    case "CAPATAZ":
+      return { OR: [{ solicitanteId: s.id }, { obra: filtroObras(s), estado: { in: [...ACEPTADOS] } }] };
+    case "CHOFER":
+      return { OR: [{ estado: "PENDIENTE" }, { tomadoPorId: s.id }] };
+    case "DEPOSITO":
+      return { tipo: { in: ["TRASLADO_MAQUINARIA", "TRASLADO_HERRAMIENTAS"] } };
+    case "DIRECCION":
+    case "ADMINISTRACION":
+      return {};
+  }
+}
+
+/** Qué viajes ve cada rol: los de los pedidos que ve (el chofer, además, los suyos). */
+export function viajesVisibles(s: Pick<UsuarioSesion, "id" | "rol">): Prisma.ViajeWhereInput {
+  if (s.rol === "CHOFER") return { choferId: s.id };
+  const p = pedidosVisibles(s);
+  return Object.keys(p).length ? { pedido: p } : {};
+}
+
+/** Junta el alcance del rol con un filtro propio de la pantalla. */
+export const conAlcance = (s: Pick<UsuarioSesion, "id" | "rol">, where: Prisma.PedidoViajeWhereInput = {}): Prisma.PedidoViajeWhereInput => ({
+  AND: [pedidosVisibles(s), where],
+});

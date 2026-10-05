@@ -1,6 +1,6 @@
 import {
   AlertTriangle, Building2, Fuel, HardHat, Home, ListOrdered, Map, Menu, PackageCheck, PlusCircle, Route,
-  ScanLine, Store, Truck, UserCircle2, Users, Wrench, Boxes, CalendarClock, CircleDollarSign, QrCode, type LucideIcon,
+  ScanLine, Store, Truck, UserCircle2, Users, Wrench, Boxes, CalendarClock, CircleDollarSign, QrCode, Sun, Bell, Activity, FileUp, type LucideIcon,
 } from "lucide-react";
 import type { Icono } from "@/lib/navegacion";
 
@@ -9,4 +9,5 @@ export const ICONOS: Record<Icono, LucideIcon> = {
   mantenimiento: HardHat, herramientas: Wrench, escanear: ScanLine, entregas: PackageCheck, sobrantes: Boxes,
   mapa: Map, alertas: AlertTriangle, obras: Building2, proveedores: Store, usuarios: Users, cuenta: UserCircle2, mas: Menu,
   agenda: CalendarClock, costos: CircleDollarSign, etiquetas: QrCode,
+  hoy: Sun, avisos: Bell, actividad: Activity, importar: FileUp,
 };

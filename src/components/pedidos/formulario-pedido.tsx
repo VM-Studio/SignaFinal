@@ -23,10 +23,10 @@ const clave = (l?: Lugar) => (l ? `${l.tipo}:${l.id}` : "");
 const deClave = (k: string): Lugar | undefined => (k ? { tipo: k.split(":")[0] as OrigenTipo, id: k.split(":")[1] } : undefined);
 
 /** "Paso 1 ¿Qué hay que hacer? → Paso 2 Detalles → Paso 3 ¿Para cuándo?" */
-export function FormularioPedido({ datos }: { datos: DatosFormulario }) {
+export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulario; obraInicial?: string }) {
   const router = useRouter();
   const aviso = useAviso();
-  const unaObra = datos.obras.length === 1 ? datos.obras[0].id : "";
+  const unaObra = obraInicial && datos.obras.some((o) => o.id === obraInicial) ? obraInicial : datos.obras.length === 1 ? datos.obras[0].id : "";
 
   const [paso, setPaso] = useState<1 | 2 | 3>(1);
   const [tipo, setTipo] = useState<TipoPedido>();
@@ -153,7 +153,7 @@ export function FormularioPedido({ datos }: { datos: DatosFormulario }) {
         router.refresh();
       },
     });
-    router.push(`/pedidos/${id}`);
+    router.push(`/mis-pedidos/${id}`);
   }
 
   const obraDestino = (
@@ -403,7 +403,7 @@ export function FormularioPedido({ datos }: { datos: DatosFormulario }) {
               </div>
             </div>
             <p className="font-semibold">¿Es lo mismo?</p>
-            <Boton ancho tamano="grande" onClick={() => router.push(`/pedidos/${duplicado.id}`)}>
+            <Boton ancho tamano="grande" onClick={() => router.push(`/mis-pedidos/${duplicado.id}`)}>
               Sí, es lo mismo
             </Boton>
             <Boton ancho variante="secundario" cargando={enviando} onClick={() => enviar(true)}>

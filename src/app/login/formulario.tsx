@@ -5,7 +5,7 @@ import { ChevronDown, Eye, EyeOff } from "lucide-react";
 import { ingresar, type EstadoLogin } from "@/lib/auth/acciones";
 import { CLAVE_INGRESO } from "@/components/splash/claves";
 
-type Demo = { usuarios: { nombre: string; email: string; rol: string }[]; contrasena: string } | null;
+type Demo = { usuarios: { nombre: string; email: string; rol: string; obras: string | null }[]; contrasena: string } | null;
 
 const campo =
   "w-full min-h-[52px] rounded-[var(--radius-caja)] border-2 border-white/20 bg-white/5 px-4 text-base text-white placeholder:text-white/40 focus:border-white focus:outline-none";
@@ -69,8 +69,11 @@ export function FormularioLogin({ volver, demo }: { volver?: string; demo: Demo 
                   }}
                   className="flex min-h-[52px] w-full items-center justify-between gap-3 px-4 text-left hover:bg-white/5"
                 >
-                  <span className="font-semibold">{u.nombre}</span>
-                  <span className="text-sm text-white/55">{u.rol}</span>
+                  <span className="min-w-0">
+                    <span className="block font-semibold">{u.nombre}</span>
+                    {u.obras && <span className="block truncate text-sm text-white/55">{u.obras}</span>}
+                  </span>
+                  <span className="shrink-0 text-sm text-white/55">{u.rol}</span>
                 </button>
               </li>
             ))}

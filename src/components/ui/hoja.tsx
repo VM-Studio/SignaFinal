@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { claseBoton, type Tamano, type Variante } from "./boton";
 
@@ -25,7 +26,8 @@ export function Hoja({ abierta, onCerrar, titulo, children }: { abierta: boolean
   }, [abierta, onCerrar]);
 
   if (!abierta) return null;
-  return (
+  // Portal al body: así ningún contenedor (header sticky, barra lateral) la tapa ni le cambia el color.
+  return createPortal(
     <ContextoHoja.Provider value={{ cerrar: onCerrar, enHoja: true }}>
       <div className="fixed inset-0 z-50 flex items-end lg:items-stretch lg:justify-end">
         <button aria-label="Cerrar" onClick={onCerrar} className="absolute inset-0 bg-black/45" />
@@ -33,7 +35,7 @@ export function Hoja({ abierta, onCerrar, titulo, children }: { abierta: boolean
           role="dialog"
           aria-modal="true"
           aria-label={titulo}
-          className="pb-segura relative flex max-h-[92dvh] w-full flex-col text-left rounded-t-2xl bg-fondo lg:h-full lg:max-h-none lg:w-[440px] lg:rounded-none lg:border-l lg:border-linea"
+          className="pb-segura relative flex max-h-[92dvh] w-full flex-col text-left text-tinta rounded-t-2xl bg-fondo lg:h-full lg:max-h-none lg:w-[440px] lg:rounded-none lg:border-l lg:border-linea"
         >
           <div aria-hidden className="mx-auto mt-2 h-1.5 w-10 rounded-full bg-black/20 lg:hidden" />
           <header className="flex shrink-0 items-center justify-between gap-3 border-b border-linea px-4 py-1 lg:py-3">
@@ -45,7 +47,8 @@ export function Hoja({ abierta, onCerrar, titulo, children }: { abierta: boolean
           <div className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</div>
         </div>
       </div>
-    </ContextoHoja.Provider>
+    </ContextoHoja.Provider>,
+    document.body,
   );
 }
 

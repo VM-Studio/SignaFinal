@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { CheckCircle2, ChevronRight } from "lucide-react";
 import { exigirPermiso } from "@/lib/auth/sesion";
-import { puede } from "@/lib/permisos";
+import { enlacePedido, puede } from "@/lib/permisos";
 import { alertasAbiertas, alertasResueltasRecientes } from "@/lib/alertas/consultas";
 import { Insignia, Subtitulo, Titulo, Vacio } from "@/components/ui/basicos";
 import { claseBoton } from "@/components/ui/boton";
@@ -58,7 +58,7 @@ export default async function PaginaAlertas() {
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       {pedidos.length === 2 ? (
                         pedidos.map((id, i) => (
-                          <Link key={id} href={`/pedidos/${id}`} className={claseBoton(i === 0 ? "primario" : "secundario", "chico")}>
+                          <Link key={id} href={enlacePedido(u.rol, id) ?? "/alertas"} className={claseBoton(i === 0 ? "primario" : "secundario", "chico")}>
                             {i === 0 ? "Ver el primero" : "Ver el segundo"}
                           </Link>
                         ))

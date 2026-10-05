@@ -6,6 +6,7 @@ import { capturarPosiciones } from "@/lib/cusat/captura";
 import { clienteCusat } from "@/lib/cusat";
 import { paradasDe, type Parada } from "@/lib/cusat/rutas";
 import type { TipoUbicacion } from "@prisma/client";
+import { viajesVisibles } from "@/lib/alcance";
 
 export type VehiculoMapa = {
   id: string; nombre: string; tipo: "CAMION" | "CAMIONETA" | "AUTO" | "MAQUINA"; estado: "DISPONIBLE" | "EN_VIAJE" | "EN_TALLER" | "FUERA_DE_SERVICIO";
@@ -76,11 +77,11 @@ async function rastroDelDia(vehiculoId: string, dia: string): Promise<PuntoRastr
 
 /** "Ver recorrido de hoy": la ruta planificada (paradas numeradas) y el rastro real. */
 export async function recorridoDelDia(vehiculoId: string, dia = diaISO()) {
-  await exigirPermiso("mapa.ver");
+  const u = await exigirPermiso("mapa.ver");
   const desde = aFecha(dia);
   const hasta = aFecha(sumarDias(dia, 1));
   const viajes = await db.viaje.findMany({
-    where: { vehiculoId, estado: { not: "CANCELADO" }, OR: [{ salidaReal: { gte: desde, lt: hasta } }, { salidaReal: null, salidaEstimada: { gte: desde, lt: hasta } }] },
+    where: { ...viajesVisibles(u), vehiculoId, estado: { not: "CANCELADO" }, OR: [{ salidaReal: { gte: desde, lt: hasta } }, { salidaReal: null, salidaEstimada: { gte: desde, lt: hasta } }] },
     orderBy: [{ salidaReal: { sort: "asc", nulls: "last" } }, { ordenRuta: { sort: "asc", nulls: "last" } }, { salidaEstimada: "asc" }],
     include: { vehiculo: { select: { baseId: true } }, pedido: { select: { origenTipo: true, origenId: true, obraId: true, descripcion: true } } },
   });

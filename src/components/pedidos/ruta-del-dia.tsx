@@ -45,7 +45,7 @@ export function RutaDelDia({ paradas }: { paradas: ParadaRuta[] }) {
         return (
           <li key={p.viajeId} className="flex items-center gap-2">
             <span className="grid w-10 shrink-0 place-items-center self-stretch bg-negro text-lg font-bold text-white">{i + 1}</span>
-            <Link href={`/pedidos/${p.pedidoId}`} className="min-w-0 flex-1 py-3">
+            <Link href={`/viaje/${p.pedidoId}`} className="min-w-0 flex-1 py-3">
               <p className="truncate font-bold">{p.descripcion}</p>
               <p className="truncate text-sm">{p.origen} → Obra {p.obra}</p>
               <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-suave">

@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { inicioDelDia } from "@/lib/formato";
+import { viajesVisibles } from "@/lib/alcance";
 
 export type Punto = { nombre: string; direccion: string; lat: number | null; lng: number | null };
 
@@ -34,6 +35,7 @@ export async function misViajes() {
   const [viajes, baseGeneral] = await Promise.all([
     db.viaje.findMany({
       where: {
+        ...viajesVisibles(u),
         choferId: u.id,
         OR: [{ estado: { in: ["EN_CURSO", "PROGRAMADO"] }, pedido: { estado: { in: ["TOMADO", "EN_VIAJE"] } } }, { estado: "FINALIZADO", llegadaReal: { gte: inicioDelDia() } }],
       },
@@ -104,7 +106,7 @@ export async function datosCarga() {
   const u = await exigirPermiso("combustible.cargar");
   const [vehiculos, enCurso, yo] = await Promise.all([
     db.vehiculo.findMany({ where: { activo: true }, orderBy: [{ tipo: "asc" }, { nombre: "asc" }], select: { id: true, nombre: true, patente: true, kmActual: true, asignadoAId: true } }),
-    db.viaje.findFirst({ where: { choferId: u.id, estado: "EN_CURSO" }, select: { vehiculoId: true, pedido: { select: { obra: { select: { nombre: true } } } } } }),
+    db.viaje.findFirst({ where: { ...viajesVisibles(u), choferId: u.id, estado: "EN_CURSO" }, select: { vehiculoId: true, pedido: { select: { obra: { select: { nombre: true } } } } } }),
     db.usuario.findUnique({ where: { id: u.id }, select: { vehiculoAsignadoId: true } }),
   ]);
   const preseleccion = enCurso?.vehiculoId ?? yo?.vehiculoAsignadoId ?? null;
@@ -132,10 +134,10 @@ export async function misCargas() {
 
 /** Para gestión: viajes de los últimos días con chofer, vehículo, km y costo. */
 export async function viajesRecientes(dias = 7) {
-  await exigirPermiso("viajes.verTodos");
+  const u = await exigirPermiso("viajes.verTodos");
   const desde = new Date(inicioDelDia().getTime() - dias * 86_400_000);
   const viajes = await db.viaje.findMany({
-    where: { OR: [{ estado: { in: ["EN_CURSO", "PROGRAMADO"] } }, { estado: "FINALIZADO", llegadaReal: { gte: desde } }] },
+    where: { AND: [viajesVisibles(u), { OR: [{ estado: { in: ["EN_CURSO", "PROGRAMADO"] } }, { estado: "FINALIZADO", llegadaReal: { gte: desde } }] }] },
     orderBy: [{ estado: "asc" }, { llegadaReal: { sort: "desc", nulls: "first" } }, { salidaEstimada: "asc" }],
     take: 150,
     include: { chofer: { select: { nombre: true } }, vehiculo: { select: { nombre: true } }, pedido: { select: { id: true, descripcion: true, obra: { select: { nombre: true } } } } },

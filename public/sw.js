@@ -2,7 +2,7 @@
  * Estáticos: primero caché. Pantallas: primero red; sin señal, la última versión guardada.
  * Nada de /api ni Server Actions se guarda en caché.
  */
-const VERSION = "signa-v3";
+const VERSION = "signa-v4";
 const ESTATICOS = `${VERSION}-estaticos`;
 const PANTALLAS = `${VERSION}-pantallas`;
 
@@ -50,4 +50,35 @@ self.addEventListener("fetch", (e) => {
         .catch(async () => (await caches.match(request)) || (await caches.match("/offline")) || Response.error()),
     );
   }
+});
+
+// Avisos push: título, cuerpo y a dónde lleva al tocarlo.
+self.addEventListener("push", (e) => {
+  let d = {};
+  try {
+    d = e.data ? e.data.json() : {};
+  } catch {
+    d = { titulo: "SIGNA", cuerpo: e.data ? e.data.text() : "" };
+  }
+  e.waitUntil(
+    self.registration.showNotification(d.titulo || "SIGNA", {
+      body: d.cuerpo || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { enlace: d.enlace || "/avisos" },
+      tag: d.tag,
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const destino = new URL(e.notification.data?.enlace || "/avisos", self.location.origin).href;
+  e.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((ventanas) => {
+      const abierta = ventanas.find((v) => v.url.startsWith(self.location.origin));
+      if (abierta) return abierta.navigate(destino).then((v) => v && v.focus());
+      return self.clients.openWindow(destino);
+    }),
+  );
 });

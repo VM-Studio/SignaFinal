@@ -41,14 +41,14 @@ export type EstadoMostrable = {
   llegadaReal?: Date | string | null;
 };
 
-/** Estado con palabras: "Tomado por Claudio · sale 8:30", "En viaje · Cristian", "Entregado 10:15". */
+/** Estado con palabras: "Aceptado por Claudio · sale 8:30", "En viaje · Cristian", "Entregado 10:15". */
 export function textoEstado(p: EstadoMostrable): { texto: string; tono: Tono } {
   switch (p.estado) {
     case "PENDIENTE":
       return { texto: "Pendiente", tono: "aviso" };
     case "TOMADO": {
       const sale = p.salidaEstimada ? ` · sale ${diasDistintos(p.salidaEstimada) ? cuando(p.salidaEstimada) : hora(p.salidaEstimada)}` : "";
-      return { texto: `Tomado por ${p.chofer ?? "un chofer"}${sale}`, tono: "activo" };
+      return { texto: `Aceptado por ${p.chofer ?? "un chofer"}${sale}`, tono: "activo" };
     }
     case "EN_VIAJE":
       return { texto: `En viaje · ${p.chofer ?? ""}`.trim(), tono: "activo" };

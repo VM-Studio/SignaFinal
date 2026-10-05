@@ -1,7 +1,8 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { exigirPermiso } from "@/lib/auth/sesion";
+import { exigirPermiso, exigirSesion } from "@/lib/auth/sesion";
 import { aFecha, diaISO, inicioDelMes, inicioMesSiguiente, sumarDias } from "@/lib/formato";
+import { viajesVisibles } from "@/lib/alcance";
 
 export type Periodo = { desde: Date; hasta: Date; desdeISO: string; hastaISO: string };
 
@@ -16,8 +17,9 @@ export function periodo(p: { desde?: string; hasta?: string } = {}): Periodo {
 const n = (v: unknown) => (v == null ? 0 : Number(v));
 
 async function viajesDelPeriodo({ desde, hasta }: Periodo) {
+  const u = await exigirSesion();
   return db.viaje.findMany({
-    where: { estado: "FINALIZADO", llegadaReal: { gte: desde, lt: hasta } },
+    where: { ...viajesVisibles(u), estado: "FINALIZADO", llegadaReal: { gte: desde, lt: hasta } },
     select: { vehiculoId: true, kmSalida: true, kmLlegada: true, costoCalculado: true, peajes: true, pedido: { select: { obraId: true } } },
   });
 }
@@ -62,11 +64,11 @@ export type FilaVehiculo = {
 
 /** Por vehículo: lo mismo, más mantenimiento e incidentes y el costo real por km. */
 export async function costosPorVehiculo(p: Periodo, vehiculoId?: string): Promise<FilaVehiculo[]> {
-  await exigirPermiso("flota.ver");
+  const u = await exigirPermiso("flota.ver");
   const filtroV = vehiculoId ? { vehiculoId } : {};
   const [vehiculos, viajes, cargas, mant, inc] = await Promise.all([
     db.vehiculo.findMany({ where: vehiculoId ? { id: vehiculoId } : { activo: true }, select: { id: true, nombre: true, patente: true }, orderBy: [{ tipo: "asc" }, { nombre: "asc" }] }),
-    db.viaje.findMany({ where: { ...filtroV, estado: "FINALIZADO", llegadaReal: { gte: p.desde, lt: p.hasta } }, select: { vehiculoId: true, kmSalida: true, kmLlegada: true, costoCalculado: true } }),
+    db.viaje.findMany({ where: { ...viajesVisibles(u), ...filtroV, estado: "FINALIZADO", llegadaReal: { gte: p.desde, lt: p.hasta } }, select: { vehiculoId: true, kmSalida: true, kmLlegada: true, costoCalculado: true } }),
     db.cargaCombustible.findMany({ where: { ...filtroV, fecha: { gte: p.desde, lt: p.hasta } }, select: { vehiculoId: true, monto: true, litros: true } }),
     db.mantenimientoVehiculo.findMany({ where: { ...filtroV, fecha: { gte: p.desde, lt: p.hasta } }, select: { vehiculoId: true, costo: true } }),
     db.incidenteVehiculo.findMany({ where: { ...filtroV, fecha: { gte: p.desde, lt: p.hasta } }, select: { vehiculoId: true, monto: true } }),

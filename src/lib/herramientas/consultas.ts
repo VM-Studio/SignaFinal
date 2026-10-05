@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { exigirPermiso, type UsuarioSesion } from "@/lib/auth/sesion";
 import { diaISO, inicioDelDia } from "@/lib/formato";
-import { idsObrasDelUsuario } from "@/lib/alcance";
+import { conAlcance, idsObrasDelUsuario } from "@/lib/alcance";
 
 export const PESTANAS = { maquinaria: "Maquinaria", herramientas: "Herramientas", cantidad: "Por cantidad", sobrantes: "Sobrantes" } as const;
 export type Pestana = keyof typeof PESTANAS;
@@ -88,7 +88,7 @@ export async function opciones() {
 }
 
 export async function ficha(id: string) {
-  await exigirPermiso("herramientas.ver");
+  const u = await exigirPermiso("herramientas.ver");
   const h = await db.herramienta.findUnique({
     where: { id },
     include: {
@@ -109,7 +109,7 @@ export async function ficha(id: string) {
       },
       mantenimientos: { orderBy: { fecha: "desc" }, include: { registradoPor: { select: { nombre: true } } } },
       pedidos: {
-        where: { estado: { in: ["PENDIENTE", "TOMADO", "EN_VIAJE"] } },
+        where: conAlcance(u, { estado: { in: ["PENDIENTE", "TOMADO", "EN_VIAJE"] } }),
         include: { obra: { select: { nombre: true } }, solicitante: { select: { nombre: true } }, tomadoPor: { select: { nombre: true } } },
       },
     },
@@ -127,9 +127,9 @@ export type FichaHerramienta = NonNullable<Awaited<ReturnType<typeof ficha>>>;
 
 /** Para el depósito: lo que hay que entregar porque alguien lo pidió (y entra o está en la cola de viajes). */
 export async function paraEntregar() {
-  await exigirPermiso("herramientas.mover");
+  const u = await exigirPermiso("herramientas.mover");
   return db.pedidoViaje.findMany({
-    where: { herramientaId: { not: null }, estado: { in: ["PENDIENTE", "TOMADO", "EN_VIAJE"] }, herramienta: { estado: { not: "EN_OBRA" } } },
+    where: conAlcance(u, { herramientaId: { not: null }, estado: { in: ["PENDIENTE", "TOMADO", "EN_VIAJE"] }, herramienta: { estado: { not: "EN_OBRA" } } }),
     orderBy: [{ prioridad: "desc" }, { paraCuando: "asc" }],
     include: {
       herramienta: { select: { id: true, codigo: true, nombre: true, estado: true } },
@@ -176,7 +176,7 @@ export async function deMisObras(u: UsuarioSesion) {
     }),
     db.existenciaHerramienta.findMany({ where: { obraId: { in: ids }, cantidad: { gt: 0 } }, include: { herramienta: { select: { id: true, nombre: true } }, obra: { select: { nombre: true } } } }),
     db.pedidoViaje.findMany({
-      where: { herramientaId: { not: null }, origenTipo: "OBRA", origenId: { in: ids }, estado: { in: ["PENDIENTE", "TOMADO", "EN_VIAJE"] } },
+      where: conAlcance(u, { herramientaId: { not: null }, origenTipo: "OBRA", origenId: { in: ids }, estado: { in: ["PENDIENTE", "TOMADO", "EN_VIAJE"] } }),
       include: { herramienta: { select: { nombre: true } }, obra: { select: { nombre: true } }, solicitante: { select: { nombre: true } } },
     }),
   ]);

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { ArrowDown, ArrowLeft, MapPin, Navigation, Phone } from "lucide-react";
 import { exigirPermiso } from "@/lib/auth/sesion";
@@ -39,7 +39,8 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
   const u = await exigirPermiso("pedidos.ver");
   const { id } = await params;
   const p = await buscarPedido(id);
-  if (!p) notFound();
+  // No existe o no le corresponde verlo: a su inicio, sin mensaje.
+  if (!p) redirect("/inicio");
 
   const esChofer = puede(u.rol, "pedidos.tomar");
   const esMio = p.tomadoPorId === u.id;
@@ -82,13 +83,17 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
       {puedeCancelar && <BotonCancelar pedidoId={p.id} />}
     </>
   );
+  const volver =
+    u.rol === "CHOFER" ? { href: "/hoy", titulo: "Hoy" } :
+    u.rol === "RESPONSABLE_OBRA" || u.rol === "CAPATAZ" ? { href: "/mis-pedidos", titulo: "Mis pedidos" } :
+    { href: "/solicitudes", titulo: "Solicitudes" };
   const hayAcciones = (esChofer && p.estado === "PENDIENTE") || (esMio && p.estado === "TOMADO") || puedeReasignar || puedeCancelar;
 
   return (
     <div className="mx-auto grid max-w-5xl gap-x-8 gap-y-5 lg:grid-cols-[1fr_360px]">
       <header className="min-w-0 lg:col-start-1">
-        <Link href="/pedidos" className="mb-2 hidden min-h-11 items-center gap-1 font-semibold text-suave lg:inline-flex">
-          <ArrowLeft className="size-5" /> Cola de pedidos
+        <Link href={volver.href} className="mb-2 hidden min-h-11 items-center gap-1 font-semibold text-suave lg:inline-flex">
+          <ArrowLeft className="size-5" /> {volver.titulo}
         </Link>
         <p className="flex items-center gap-2 text-sm font-semibold tracking-wider text-suave uppercase">
           <IconoTipo tipo={p.tipo} /> {TIPO[p.tipo].titulo} · Pedido {p.numero}

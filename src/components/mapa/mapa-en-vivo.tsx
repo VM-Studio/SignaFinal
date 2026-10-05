@@ -55,7 +55,7 @@ function Tarjeta({ v, recorrido, cargando, onRecorrido, onCerrar }: { v: Vehicul
       <dl className="grid grid-cols-2 gap-3 text-[15px]">
         <div><dt className="text-xs font-semibold tracking-wider text-suave uppercase">Chofer</dt><dd className="font-medium">{v.chofer ?? "—"}</dd></div>
         <div><dt className="text-xs font-semibold tracking-wider text-suave uppercase">Velocidad</dt><dd className="font-medium tabular-nums">{v.velocidad} km/h</dd></div>
-        <div className="col-span-2"><dt className="text-xs font-semibold tracking-wider text-suave uppercase">Viaje actual</dt><dd className="font-medium">{v.viaje ? <Link href={`/pedidos/${v.viaje.pedidoId}`} className="underline">{v.viaje.descripcion}</Link> : "Sin viaje"}</dd></div>
+        <div className="col-span-2"><dt className="text-xs font-semibold tracking-wider text-suave uppercase">Viaje actual</dt><dd className="font-medium">{v.viaje ? <Link href={`/solicitudes/${v.viaje.pedidoId}`} className="underline">{v.viaje.descripcion}</Link> : "Sin viaje"}</dd></div>
         {v.viaje && <div className="col-span-2"><dt className="text-xs font-semibold tracking-wider text-suave uppercase">Obra destino</dt><dd className="font-medium">Obra {v.viaje.obra}{v.viaje.llegoPorGps ? " · ya llegó (GPS)" : ""}</dd></div>}
         <div className="col-span-2"><dt className="text-xs font-semibold tracking-wider text-suave uppercase">Última actualización</dt><dd className="font-medium">{hora(v.fecha)} · {hace(v.fecha)}</dd></div>
       </dl>
