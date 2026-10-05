@@ -2,7 +2,7 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { exigirPermiso, type UsuarioSesion } from "@/lib/auth/sesion";
-import { diaISO, inicioDelDia } from "@/lib/formato";
+import { diaISO, diaMes, inicioDelDia } from "@/lib/formato";
 import { conAlcance, idsObrasDelUsuario } from "@/lib/alcance";
 
 export const PESTANAS = { maquinaria: "Maquinaria", herramientas: "Herramientas", cantidad: "Por cantidad", sobrantes: "Sobrantes" } as const;
@@ -189,5 +189,70 @@ export async function paraEtiquetas(ids?: string[]) {
     where: { activo: true, ...(ids ? { id: { in: ids } } : {}) },
     orderBy: [{ esMaquina: "desc" }, { codigo: "asc" }],
     select: { id: true, codigo: true, nombre: true, esMaquina: true, tipoControl: true, categoria: { select: { nombre: true } } },
+  });
+}
+
+// ─────────────────────── Versión de obra (responsables, capataz, dirección) ───────────────────────
+
+export type FilaObraHerramienta = {
+  id: string; codigo: string; nombre: string; categoria: string; esMaquina: boolean; tipoControl: "UNITARIA" | "CANTIDAD";
+  /** Estado con palabras: "En el depósito", "En Obra Chubut · la tiene César desde el 28/9", "En reparación". */
+  estado: string;
+  tono: "ok" | "activo" | "aviso" | "critico" | "neutro";
+  obraId: string | null;
+  stockDeposito: number;
+  sePuedePedir: boolean;
+};
+
+const buscar = (q?: string): Prisma.HerramientaWhereInput =>
+  q ? { OR: [{ nombre: { contains: q, mode: "insensitive" } }, { codigo: { contains: q.toUpperCase() } }, { marca: { contains: q, mode: "insensitive" } }] } : {};
+
+/**
+ * "Disponibles para pedir": unitarias en el depósito y por cantidad con stock en el depósito.
+ * "Todas": cada una con dónde está y quién la tiene desde cuándo. Se puede pedir la que está en otra obra.
+ */
+export async function herramientasParaObra({ vista, q }: { vista: "disponibles" | "todas"; q?: string }): Promise<FilaObraHerramienta[]> {
+  await exigirPermiso("herramientas.solicitar");
+  const disponibles: Prisma.HerramientaWhereInput = {
+    OR: [
+      { tipoControl: "UNITARIA", estado: "DISPONIBLE", ubicacionId: { not: null } },
+      { tipoControl: "CANTIDAD", existencias: { some: { ubicacionId: { not: null }, cantidad: { gt: 0 } } } },
+    ],
+  };
+  const where: Prisma.HerramientaWhereInput = { AND: [{ activo: true }, buscar(q), ...(vista === "disponibles" ? [disponibles] : [])] };
+
+  const filas = await db.herramienta.findMany({
+    where,
+    orderBy: [{ esMaquina: "desc" }, { nombre: "asc" }, { codigo: "asc" }],
+    take: 300,
+    include: {
+      categoria: { select: { nombre: true } },
+      obra: { select: { nombre: true } },
+      responsable: { select: { nombre: true } },
+      existencias: { where: { cantidad: { gt: 0 } }, include: { obra: { select: { nombre: true } } } },
+      // Desde cuándo está donde está: el último movimiento que la llevó a esa obra.
+      movimientos: { where: { haciaObraId: { not: null } }, orderBy: { fecha: "desc" }, take: 1, select: { fecha: true, haciaObraId: true } },
+    },
+  });
+  return filas.map((h) => {
+    const dep = h.existencias.filter((e) => e.ubicacionId).reduce((a, e) => a + e.cantidad, 0);
+    let estado: string;
+    let tono: FilaObraHerramienta["tono"];
+    if (h.tipoControl === "CANTIDAD") {
+      estado = [dep ? `${dep} en el depósito` : "Sin stock en el depósito", ...h.existencias.filter((e) => e.obra).map((e) => `${e.cantidad} en Obra ${e.obra!.nombre}`)].join(" · ");
+      tono = dep ? "ok" : "neutro";
+    } else if (h.estado === "EN_OBRA") {
+      const desde = h.movimientos[0]?.haciaObraId === h.obraId ? h.movimientos[0].fecha : null;
+      estado = `En Obra ${h.obra?.nombre}${h.responsable ? ` · la tiene ${h.responsable.nombre}` : ""}${desde ? ` desde el ${diaMes(desde)}` : ""}`;
+      tono = vencida(h) ? "critico" : "activo";
+    } else if (h.estado === "DISPONIBLE") [estado, tono] = ["En el depósito", "ok"];
+    else if (h.estado === "EN_REPARACION") [estado, tono] = ["En reparación", "aviso"];
+    else if (h.estado === "EXTRAVIADA") [estado, tono] = ["Extraviada", "critico"];
+    else [estado, tono] = ["Dada de baja", "neutro"];
+    return {
+      id: h.id, codigo: h.codigo, nombre: h.nombre, categoria: h.categoria.nombre, esMaquina: h.esMaquina, tipoControl: h.tipoControl,
+      estado, tono, obraId: h.obraId, stockDeposito: dep,
+      sePuedePedir: h.tipoControl === "CANTIDAD" ? dep > 0 : h.estado === "DISPONIBLE" || h.estado === "EN_OBRA",
+    };
   });
 }

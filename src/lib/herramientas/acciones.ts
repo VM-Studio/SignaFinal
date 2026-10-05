@@ -8,13 +8,13 @@ import { db } from "@/lib/db";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { ejecutar, ErrorNegocio, type Resultado } from "@/lib/resultado";
 import { guardarArchivo } from "@/lib/archivos";
-import { aFecha, diaISO, sumarDias } from "@/lib/formato";
+import { aFecha, diaISO, elDiaALas, paraElDia, sumarDias } from "@/lib/formato";
 import { choferesQueLoVen } from "@/lib/pedidos/reglas";
 import { FRANJA } from "@/lib/pedidos/presentacion";
 import { accionSugerida } from "./presentacion";
 import { auditar, depositoId, moverUnitaria, restar, siguienteCodigo, stockEn, sumar, viajeQueLaLleva } from "./servicio";
 import { auditar as auditarBase } from "@/lib/auditoria";
-import { esObraDelUsuario, responsablePrincipal } from "@/lib/alcance";
+import { conAlcance, esObraDelUsuario } from "@/lib/alcance";
 import { resolverPuntos } from "@/lib/pedidos/puntos";
 
 /** Refresca pantallas y reevalúa las alertas del módulo (resuelve solas las que ya no aplican). */
@@ -379,28 +379,64 @@ const esquemaPedir = z.object({
   franja: z.enum(["MANANA", "TARDE"]).default("MANANA"),
   cantidad,
   prioridad: z.enum(["NORMAL", "URGENTE"]).default("NORMAL"),
+  // "Pedir igual" después del aviso de duplicado: con motivo de una línea.
+  forzar: z.boolean().default(false),
+  motivo: z.preprocess(vacio, z.string().trim().max(200).optional()),
 });
 export type DatosPedirHerramienta = z.input<typeof esquemaPedir>;
 
+export type DuplicadoHerramienta = { id: string; mensaje: string; visible: boolean };
+export type RespuestaPedirHerramienta =
+  | { estado: "creado"; pedidoId: string; numero: number; choferes: string[]; avisado: string | null }
+  | { estado: "duplicado"; existente: DuplicadoHerramienta };
+
 /**
  * "La necesito en [obra] para [fecha]": crea el pedido de viaje con origen donde esté la
- * herramienta y destino la obra. Entra en la cola de los choferes.
+ * herramienta (depósito u otra obra) y destino la obra. Entra en las solicitudes de los choferes.
+ * Antes, el duplicado exacto: misma herramienta + misma obra + mismo día, pendiente o aceptado.
  */
-export async function pedirHerramienta(entrada: DatosPedirHerramienta): Promise<Resultado<{ pedidoId: string; numero: number; choferes: string[]; avisado: string | null }>> {
+export async function pedirHerramienta(entrada: DatosPedirHerramienta): Promise<Resultado<RespuestaPedirHerramienta>> {
   return ejecutar(async () => {
     const yo = await exigirPermiso("herramientas.solicitar");
     const d = esquemaPedir.parse(entrada);
     const obra = await obraActiva(d.obraId);
+    // Alcance en el servidor: aunque manden el id a mano, solo para sus obras.
     if (!(await esObraDelUsuario(yo, obra.id))) throw new ErrorNegocio(`No sos responsable de Obra ${obra.nombre}.`);
     if (d.dia < diaISO()) throw new ErrorNegocio("El día ya pasó.");
+    const fechaNecesaria = aFecha(d.dia, "12:00");
 
     const h = await db.herramienta.findUnique({ where: { id: d.herramientaId }, include: { obra: { select: { id: true, nombre: true } } } });
     if (!h || !h.activo) throw new ErrorNegocio("Esa herramienta no existe o está dada de baja.");
+
+    // Duplicado exacto: se avisa con nombre y fecha; nunca se bloquea.
+    const igual = await db.pedidoViaje.findFirst({
+      where: { herramientaId: h.id, obraId: obra.id, fechaNecesaria, estado: { in: ["PENDIENTE", "TOMADO"] } },
+      orderBy: { creadoEn: "asc" },
+      include: { solicitante: { select: { id: true, nombre: true } }, tomadoPor: { select: { nombre: true } } },
+    });
+    if (igual && !d.forzar) {
+      const yoMismo = igual.solicitanteId === yo.id;
+      const quien = yoMismo ? "Vos ya pediste" : `${igual.solicitante.nombre} ya pidió`;
+      const estado = igual.estado === "TOMADO" ? `y ya lo aceptó ${igual.tomadoPor?.nombre ?? "un chofer"}` : "y todavía está pendiente";
+      return {
+        estado: "duplicado",
+        existente: {
+          id: igual.id,
+          mensaje: `${quien} ${h.nombre} para Obra ${obra.nombre} ${paraElDia(fechaNecesaria)}. Lo ${yoMismo ? "pediste" : "pidió"} ${elDiaALas(igual.creadoEn)} ${estado}.`,
+          visible: (await db.pedidoViaje.count({ where: conAlcance(yo, { id: igual.id }) })) > 0,
+        },
+      } as const;
+    }
+    if (igual && (d.motivo ?? "").length < 3) throw new ErrorNegocio("Contá en una línea por qué hace falta otro.");
+
     if (h.tipoControl === "UNITARIA") {
       if (h.obraId === obra.id) throw new ErrorNegocio(`${h.nombre} ya está en Obra ${obra.nombre}.`);
-      if (h.estado !== "DISPONIBLE" && h.estado !== "EN_OBRA") throw new ErrorNegocio(`${h.nombre} ${h.estado === "EN_REPARACION" ? "está en reparación" : "no está disponible"}.`);
-      const ya = await db.pedidoViaje.findFirst({ where: { herramientaId: h.id, estado: { in: ["PENDIENTE", "TOMADO", "EN_VIAJE"] } }, include: { solicitante: { select: { nombre: true } }, obra: { select: { nombre: true } } } });
-      if (ya) throw new ErrorNegocio(`Ya la pidió ${ya.solicitante.nombre} para Obra ${ya.obra.nombre} (pedido ${ya.numero}).`);
+      if (h.estado === "EN_REPARACION") throw new ErrorNegocio(`${h.nombre} está en reparación.`);
+      if (h.estado !== "DISPONIBLE" && h.estado !== "EN_OBRA") throw new ErrorNegocio(`${h.nombre} no está disponible.`);
+      if (!igual) {
+        const ya = await db.pedidoViaje.findFirst({ where: { herramientaId: h.id, estado: { in: ["PENDIENTE", "TOMADO", "EN_VIAJE"] } }, include: { solicitante: { select: { nombre: true } }, obra: { select: { nombre: true } } } });
+        if (ya) throw new ErrorNegocio(`Ya la pidió ${ya.solicitante.nombre} para Obra ${ya.obra.nombre} ${paraElDia(ya.fechaNecesaria ?? ya.paraCuando)} (pedido ${ya.numero}).`);
+      }
     }
 
     const dep = await db.ubicacion.findFirst({ where: { tipo: "DEPOSITO" }, select: { id: true } });
@@ -412,6 +448,11 @@ export async function pedirHerramienta(entrada: DatosPedirHerramienta): Promise<
 
     const origen = { origenTipo: desdeObra ? ("OBRA" as const) : ("DEPOSITO" as const), origenId: desdeObra ? desdeObra.id : dep!.id };
     const puntos = await resolverPuntos(db, { ...origen, obraId: obra.id });
+    const nombreH = h.tipoControl === "CANTIDAD" ? `${d.cantidad} ${h.nombre.toLowerCase()}` : h.nombre;
+    const responsablesOrigen = desdeObra
+      ? await db.responsableObra.findMany({ where: { obraId: desdeObra.id, usuarioId: { not: yo.id } }, select: { usuario: { select: { id: true, nombre: true } } } })
+      : [];
+
     const pedido = await db.$transaction(async (tx) => {
       const p = await tx.pedidoViaje.create({
         data: {
@@ -421,8 +462,8 @@ export async function pedirHerramienta(entrada: DatosPedirHerramienta): Promise<
           ...origen,
           ...puntos,
           herramientaId: h.id,
-          fechaNecesaria: aFecha(d.dia, "12:00"),
-          descripcion: h.tipoControl === "CANTIDAD" ? `${d.cantidad} ${h.nombre.toLowerCase()} (${h.codigo})` : `${h.nombre} (${h.codigo})`,
+          fechaNecesaria,
+          descripcion: `${nombreH} (${h.codigo})`,
           necesitaCamion: h.esMaquina,
           paraCuando: aFecha(d.dia, FRANJA[d.franja].hora),
           franja: d.franja,
@@ -430,15 +471,40 @@ export async function pedirHerramienta(entrada: DatosPedirHerramienta): Promise<
         },
         select: { id: true, numero: true },
       });
+      // Al que lo pidió primero: que sepa que otro también lo necesitaba.
+      if (igual && igual.solicitanteId !== yo.id) {
+        await tx.notificacion.create({
+          data: {
+            usuarioId: igual.solicitante.id, tipo: "DUPLICADO",
+            titulo: `${yo.nombre} también pidió ${h.nombre} para Obra ${obra.nombre}`,
+            cuerpo: `Es ${paraElDia(fechaNecesaria)}, igual que el tuyo. Motivo: ${d.motivo}`,
+            enlace: `/mis-pedidos/${igual.id}`, datos: { pedidoId: p.id, motivo: d.motivo ?? null },
+          },
+        });
+      }
+      // Si sale de otra obra, le avisa a quienes la tienen ahí.
+      for (const r of responsablesOrigen) {
+        await tx.notificacion.create({
+          data: {
+            usuarioId: r.usuario.id, tipo: "GENERAL",
+            titulo: `${yo.nombre} pidió ${h.nombre} que está en Obra ${desdeObra!.nombre}`,
+            cuerpo: `La van a buscar para llevarla a Obra ${obra.nombre} ${paraElDia(fechaNecesaria)}.`,
+            enlace: `/herramientas/${h.id}`, datos: { pedidoId: p.id },
+          },
+        });
+      }
       await auditarBase(tx, {
-        usuarioId: yo.id, accion: "pedido.crear", entidad: "PedidoViaje", entidadId: p.id,
-        resumen: `${yo.nombre} pidió ${h.nombre} (${h.codigo}) para Obra ${obra.nombre} el ${d.dia.split("-").reverse().join("/")}`,
-        despues: { estado: "PENDIENTE", herramienta: h.codigo, obra: obra.nombre },
+        usuarioId: yo.id, accion: igual ? "pedido.crear.noEraDuplicado" : "pedido.crear", entidad: "PedidoViaje", entidadId: p.id,
+        resumen: `${yo.nombre} pidió ${nombreH} (${h.codigo}) para Obra ${obra.nombre} ${paraElDia(fechaNecesaria)}${desdeObra ? `, desde Obra ${desdeObra.nombre}` : ""}${igual ? (igual.solicitanteId === yo.id ? ` otra vez (${d.motivo})` : ` aunque ya la había pedido ${igual.solicitante.nombre} (${d.motivo})`) : ""}`,
+        despues: { estado: "PENDIENTE", herramienta: h.codigo, obra: obra.nombre, motivo: d.motivo ?? null },
       });
       return p;
     });
     refrescar();
-    return { pedidoId: pedido.id, numero: pedido.numero, choferes: await choferesQueLoVen(h.esMaquina), avisado: desdeObra ? (await responsablePrincipal(db, desdeObra.id))?.nombre ?? null : null };
+    return {
+      estado: "creado", pedidoId: pedido.id, numero: pedido.numero, choferes: await choferesQueLoVen(h.esMaquina),
+      avisado: responsablesOrigen.length ? responsablesOrigen.map((r) => r.usuario.nombre).join(" y ") : null,
+    } as const;
   });
 }
 

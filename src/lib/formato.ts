@@ -85,3 +85,19 @@ export function hace(d: Date | string) {
   const n = Math.round(s / 86_400);
   return `hace ${n} día${n === 1 ? "" : "s"}`;
 }
+
+/** "3/10" en hora argentina. */
+export const diaMes = (d: Date | string) => diaISO(d).split("-").slice(1).reverse().map(Number).join("/");
+
+/** "hoy a las 9:15", "ayer a las 18:00", "el 3/10 a las 9:15". */
+export function elDiaALas(d: Date | string) {
+  const n = diasHasta(d);
+  const h = hora(d);
+  return n === 0 ? `hoy a las ${h}` : n === -1 ? `ayer a las ${h}` : `el ${diaMes(d)} a las ${h}`;
+}
+
+/** "para hoy", "para mañana", "para el 6/10". */
+export function paraElDia(d: Date | string) {
+  const n = diasHasta(d);
+  return n === 0 ? "para hoy" : n === 1 ? "para mañana" : `para el ${diaMes(d)}`;
+}

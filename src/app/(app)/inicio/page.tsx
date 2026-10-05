@@ -11,7 +11,7 @@ import { costosPorObra, costosPorVehiculo, periodo } from "@/lib/costos/consulta
 import { datosMapa } from "@/lib/mapa/consultas";
 import { TarjetaViaje } from "@/components/viajes/tarjeta-viaje";
 import { MapaEnVivo } from "@/components/mapa/mapa-en-vivo";
-import { ListaPedidos } from "@/components/pedidos/lista-pedidos";
+import { ListaPedidos, ListaViajes } from "@/components/pedidos/lista-pedidos";
 import { BotonLink } from "@/components/ui/boton";
 import { Cifra, FilaLista, Insignia, Lista, Subtitulo, Vacio } from "@/components/ui/basicos";
 import { DOCUMENTO } from "@/lib/etiquetas";
@@ -52,7 +52,7 @@ async function InicioObra() {
         {enMisObras.length === 0 ? (
           <Vacio titulo="Ningún viaje aceptado hacia tus obras hoy" />
         ) : (
-          <ListaPedidos filas={enMisObras} base="/viajes-en-curso" conSolicitante />
+          <ListaViajes filas={enMisObras} base="/viajes-en-curso" />
         )}
       </section>
     </div>

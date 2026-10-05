@@ -1,30 +1,22 @@
 import type { Metadata } from "next";
 import { Route } from "lucide-react";
 import { viajesDeMisObras } from "@/lib/pedidos/listas";
-import { Subtitulo, Titulo, Vacio } from "@/components/ui/basicos";
-import { ListaPedidos } from "@/components/pedidos/lista-pedidos";
+import { Titulo, Vacio } from "@/components/ui/basicos";
+import { ListaViajes } from "@/components/pedidos/lista-pedidos";
 
 export const metadata: Metadata = { title: "Viajes" };
 
-/** Viajes aceptados por los choferes que van a mis obras (nunca las solicitudes pendientes de otros). */
+/** "Hoy a Darwin llegan dos camiones", sin preguntar: lo ya aceptado que va a mis obras. */
 export default async function PaginaViajesEnCurso() {
-  const { enCurso, entregados } = await viajesDeMisObras();
+  const viajes = await viajesDeMisObras();
+  const enViaje = viajes.filter((v) => v.estado === "EN_VIAJE").length;
   return (
     <div className="mx-auto max-w-3xl">
-      <Titulo detalle="Los viajes que ya aceptó un chofer y van a tus obras.">Viajes</Titulo>
-      {enCurso.length + entregados.length === 0 ? (
+      <Titulo detalle={viajes.length ? `${enViaje ? `${enViaje} en camino · ` : ""}${viajes.length} en total hacia tus obras.` : undefined}>Viajes</Titulo>
+      {viajes.length === 0 ? (
         <Vacio icono={<Route className="size-10" />} titulo="No hay viajes hacia tus obras">Cuando un chofer acepte un pedido para tus obras, lo vas a ver acá.</Vacio>
       ) : (
-        <>
-          <Subtitulo>En camino y aceptados</Subtitulo>
-          {enCurso.length ? <ListaPedidos filas={enCurso} base="/viajes-en-curso" conSolicitante /> : <Vacio titulo="Nada en camino ahora" />}
-          {entregados.length > 0 && (
-            <>
-              <Subtitulo>Entregados (últimos 2 días)</Subtitulo>
-              <ListaPedidos filas={entregados} base="/viajes-en-curso" conSolicitante />
-            </>
-          )}
-        </>
+        <ListaViajes filas={viajes} base="/viajes-en-curso" />
       )}
     </div>
   );

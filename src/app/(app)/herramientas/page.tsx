@@ -13,14 +13,18 @@ import { FormularioHerramienta } from "@/components/herramientas/formulario";
 import { Sobrantes } from "@/components/herramientas/sobrantes";
 import { FiltroUbicacion } from "@/components/herramientas/filtro";
 import { vencimiento } from "@/lib/formato";
+import { VistaObra } from "@/components/herramientas/vista-obra";
 
 export const metadata: Metadata = { title: "Herramientas" };
 
-type P = { tab?: string; q?: string; donde?: string };
+type P = { tab?: string; q?: string; donde?: string; vista?: string };
 
 export default async function PaginaHerramientas({ searchParams }: { searchParams: Promise<P> }) {
   const u = await exigirPermiso("herramientas.ver");
   const sp = await searchParams;
+  // Gente de obra (y Dirección, salvo que pida la vista del depósito): la versión para pedir.
+  const deObra = u.rol === "RESPONSABLE_OBRA" || u.rol === "CAPATAZ" || (u.rol === "DIRECCION" && sp.vista !== "deposito" && !sp.tab);
+  if (deObra) return <VistaObra u={u} vista={sp.vista === "todas" ? "todas" : "disponibles"} q={sp.q} />;
   const tab: Pestana = sp.tab && sp.tab in PESTANAS ? (sp.tab as Pestana) : "maquinaria";
   const [c, ops] = await Promise.all([cifras(), opciones()]);
   const qs = (extra: Partial<P>) => {

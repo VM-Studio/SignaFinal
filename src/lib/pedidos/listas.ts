@@ -12,7 +12,12 @@ const fila = {
   obra: { select: { id: true, nombre: true } },
   solicitante: { select: { nombre: true } },
   tomadoPor: { select: { nombre: true } },
-  viaje: { select: { etapa: true, etaDestino: true, etaRetiro: true, llegadaReal: true, vehiculo: { select: { nombre: true } } } },
+  viaje: {
+    select: {
+      etapa: true, salidaEstimada: true, etaDestino: true, etaRetiro: true, llegadaReal: true, llegadaDestinoEn: true,
+      chofer: { select: { nombre: true } }, vehiculo: { select: { nombre: true } },
+    },
+  },
 } satisfies Prisma.PedidoViajeSelect;
 
 export type FilaPedidoLista = Prisma.PedidoViajeGetPayload<{ select: typeof fila }>;
@@ -51,28 +56,44 @@ export async function viajesAMisObrasHoy() {
   return filas.sort(porEstado);
 }
 
-/** /mis-pedidos: todo lo que pedí, lo activo primero y después lo último terminado. */
-export async function misPedidos() {
+export const PESTANAS_MIS_PEDIDOS = { pendientes: "Pendientes", aceptados: "Aceptados", entregados: "Entregados" } as const;
+export type PestanaMisPedidos = keyof typeof PESTANAS_MIS_PEDIDOS;
+
+const ESTADOS_PESTANA = { pendientes: ["PENDIENTE"], aceptados: ["TOMADO", "EN_VIAJE"], entregados: ["ENTREGADO"] } as const;
+
+/** /mis-pedidos: solo los propios, por pestaña, con cuántos hay en cada una. */
+export async function misPedidos(pestana: PestanaMisPedidos) {
   const u = await exigirPermiso("pedidos.crear");
-  const filas = await db.pedidoViaje.findMany({ where: conAlcance(u, { solicitanteId: u.id }), select: fila, orderBy: { creadoEn: "desc" }, take: 100 });
-  return {
-    activos: filas.filter((f) => (ACTIVOS as readonly string[]).includes(f.estado)).sort(porEstado),
-    terminados: filas.filter((f) => !(ACTIVOS as readonly string[]).includes(f.estado)).slice(0, 30),
-  };
+  const propios = (p: PestanaMisPedidos): Prisma.PedidoViajeWhereInput =>
+    conAlcance(u, { solicitanteId: u.id, estado: { in: [...ESTADOS_PESTANA[p]] }, ...(p === "entregados" ? { creadoEn: { gte: new Date(Date.now() - 30 * 86_400_000) } } : {}) });
+  const [filas, ...conteos] = await Promise.all([
+    db.pedidoViaje.findMany({ where: propios(pestana), select: fila, orderBy: pestana === "entregados" ? { actualizadoEn: "desc" } : { paraCuando: "asc" }, take: 100 }),
+    ...(Object.keys(PESTANAS_MIS_PEDIDOS) as PestanaMisPedidos[]).map((p) => db.pedidoViaje.count({ where: propios(p) })),
+  ]);
+  const cuantos = Object.fromEntries((Object.keys(PESTANAS_MIS_PEDIDOS) as PestanaMisPedidos[]).map((p, k) => [p, conteos[k]])) as Record<PestanaMisPedidos, number>;
+  return { filas: pestana === "aceptados" ? filas.sort(porEstado) : filas, cuantos };
 }
 
-/** /viajes-en-curso: viajes aceptados que van a mis obras, y lo entregado en los últimos 2 días. */
+/**
+ * /viajes-en-curso: viajes ya aceptados que van a mis obras (nunca pendientes de otros).
+ * En viaje primero, después aceptados por hora de salida, después lo entregado hoy.
+ */
 export async function viajesDeMisObras() {
   const u = await exigirPermiso("pedidos.ver");
   const filas = await db.pedidoViaje.findMany({
     where: conAlcance(u, {
       obra: filtroObras(u),
-      OR: [{ estado: { in: ["TOMADO", "EN_VIAJE"] } }, { estado: "ENTREGADO", viaje: { llegadaReal: { gte: new Date(Date.now() - 2 * 86_400_000) } } }],
+      OR: [{ estado: { in: ["TOMADO", "EN_VIAJE"] } }, { estado: "ENTREGADO", viaje: { llegadaReal: hoy() } }],
     }),
     select: fila,
     take: 100,
   });
-  return { enCurso: filas.filter((f) => f.estado !== "ENTREGADO").sort(porEstado), entregados: filas.filter((f) => f.estado === "ENTREGADO") };
+  const salida = (f: FilaPedidoLista) => f.viaje?.salidaEstimada?.getTime() ?? f.paraCuando.getTime();
+  return [
+    ...filas.filter((f) => f.estado === "EN_VIAJE").sort((a, b) => (a.viaje?.etaDestino?.getTime() ?? 0) - (b.viaje?.etaDestino?.getTime() ?? 0)),
+    ...filas.filter((f) => f.estado === "TOMADO").sort((a, b) => salida(a) - salida(b)),
+    ...filas.filter((f) => f.estado === "ENTREGADO").sort((a, b) => (b.viaje?.llegadaReal?.getTime() ?? 0) - (a.viaje?.llegadaReal?.getTime() ?? 0)),
+  ];
 }
 
 /** Ficha de obra: los pedidos de esa obra que el usuario puede ver. */

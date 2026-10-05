@@ -13,7 +13,7 @@ const ejecutores = {
   // Si al llegar la señal resulta que alguien ya pidió lo mismo, no se crea y se avisa.
   "pedido.crear": async (d: Record<string, unknown>) => {
     const r = await crearPedido(d as Parameters<typeof crearPedido>[0]);
-    if (r.ok && r.datos.estado === "duplicado") return { ok: false as const, error: `${r.datos.existente.quien} ya pidió esto ${r.datos.existente.cuando} (pedido ${r.datos.existente.numero}). No se creó otro.` };
+    if (r.ok && r.datos.estado === "duplicado") return { ok: false as const, error: `${r.datos.existente.mensaje} No se creó otro; si es un pedido distinto, volvé a pedirlo.` };
     return r;
   },
   "viaje.iniciar": (d: Record<string, unknown>) => iniciarViaje(d as Parameters<typeof iniciarViaje>[0]),

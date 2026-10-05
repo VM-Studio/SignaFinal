@@ -11,6 +11,7 @@ const seleccion = {
   id: true, numero: true, tipo: true, estado: true, prioridad: true, descripcion: true, pesoKg: true, cantidadPersonas: true,
   necesitaCamion: true, paraCuando: true, franja: true, ordenCompraLebane: true, origenTipo: true, origenId: true,
   motivoCancelacion: true, canceladoEn: true, creadoEn: true, tomadoEn: true, solicitanteId: true, tomadoPorId: true,
+  origenNombre: true, destinoNombre: true,
   obra: { select: { id: true, nombre: true, direccion: true, localidad: true } },
   proveedor: { select: { nombre: true, direccion: true, localidad: true, telefono: true } },
   solicitante: { select: { nombre: true } },
@@ -19,6 +20,7 @@ const seleccion = {
     select: {
       id: true, estado: true, salidaEstimada: true, salidaReal: true, llegadaReal: true, kmSalida: true, kmLlegada: true,
       ordenRuta: true, peajes: true, costoCalculado: true, vehiculo: { select: { id: true, nombre: true, patente: true } },
+      etapa: true, inicioEn: true, llegadaRetiroEn: true, salidaRetiroEn: true, llegadaDestinoEn: true, etaRetiro: true, etaDestino: true,
     },
   },
 } satisfies Prisma.PedidoViajeSelect;

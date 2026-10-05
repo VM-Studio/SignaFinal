@@ -1,34 +1,45 @@
+import Link from "next/link";
 import type { Metadata } from "next";
-import { Building2 } from "lucide-react";
+import { Building2, ChevronRight } from "lucide-react";
 import { listaObras } from "@/lib/obras/consultas";
-import { FilaLista, Insignia, Lista, Titulo, Vacio } from "@/components/ui/basicos";
+import { Insignia, Titulo, Vacio } from "@/components/ui/basicos";
 
 export const metadata: Metadata = { title: "Obras" };
 
+/** Mis obras: nombre, dirección y dos números (pedidos activos y herramientas en la obra). */
 export default async function PaginaObras() {
   const obras = await listaObras();
   return (
     <div className="mx-auto max-w-3xl">
-      <Titulo detalle="Las obras activas (vienen de Lebane).">Obras</Titulo>
+      <Titulo>Obras</Titulo>
       {obras.length === 0 ? (
         <Vacio icono={<Building2 className="size-10" />} titulo="No tenés obras asignadas">Pedile a la oficina que te asigne tus obras.</Vacio>
       ) : (
-        <Lista>
+        <ul className="grid gap-3 sm:grid-cols-2">
           {obras.map((o) => (
-            <FilaLista
-              key={o.id}
-              href={`/obras/${o.id}`}
-              titulo={`Obra ${o.nombre}`}
-              detalle={`${o.direccion}, ${o.localidad} · ${o.responsables.map((r) => r.usuario.nombre).join(", ") || "sin responsable"}`}
-              derecha={
-                <div className="flex flex-col items-end gap-1">
-                  {o.estado !== "ACTIVA" && <Insignia tono="aviso">Pausada</Insignia>}
-                  {o.enCurso > 0 && <Insignia tono="activo">{o.enCurso} en curso</Insignia>}
+            <li key={o.id}>
+              <Link href={`/obras/${o.id}`} className="flex h-full flex-col rounded-[var(--radius-caja)] border border-linea bg-papel p-4 hover:bg-fondo/60">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-lg font-bold">Obra {o.nombre}</p>
+                    <p className="truncate text-sm text-suave">{o.direccion}</p>
+                  </div>
+                  {o.estado !== "ACTIVA" ? <Insignia tono="aviso">Pausada</Insignia> : <ChevronRight aria-hidden className="size-5 shrink-0 text-apagado" />}
                 </div>
-              }
-            />
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="rounded-md bg-fondo px-3 py-2">
+                    <p className="text-2xl font-bold tabular-nums">{o.pedidosActivos}</p>
+                    <p className="text-sm text-suave">{o.pedidosActivos === 1 ? "pedido activo" : "pedidos activos"}</p>
+                  </div>
+                  <div className="rounded-md bg-fondo px-3 py-2">
+                    <p className="text-2xl font-bold tabular-nums">{o.herramientas}</p>
+                    <p className="text-sm text-suave">{o.herramientas === 1 ? "herramienta" : "herramientas"}</p>
+                  </div>
+                </div>
+              </Link>
+            </li>
           ))}
-        </Lista>
+        </ul>
       )}
     </div>
   );

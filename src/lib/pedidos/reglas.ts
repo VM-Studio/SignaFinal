@@ -1,7 +1,8 @@
 import "server-only";
-import type { Prisma, TipoPedido } from "@prisma/client";
+import type { Prisma, Rol, TipoPedido } from "@prisma/client";
 import { db } from "@/lib/db";
-import { cuando, dia, diaISO, peso } from "@/lib/formato";
+import { dia, diaISO, elDiaALas, peso } from "@/lib/formato";
+import { conAlcance } from "@/lib/alcance";
 import { ErrorNegocio } from "@/lib/resultado";
 import { auditar as auditarBase, type DatosAuditoria } from "@/lib/auditoria";
 import { parecido, UMBRAL_PARECIDO } from "./similitud";
@@ -96,13 +97,32 @@ export async function choferesQueLoVen(camion: boolean) {
 
 // ─────────────────────────── Duplicados ───────────────────────────
 
-export type Duplicado = { id: string; numero: number; quien: string; cuando: string; resumen: string };
+export type Duplicado = {
+  id: string;
+  numero: number;
+  /** "Lolo ya pidió esto el 3/10 a las 9:15 para Obra Darwin. Estado: aceptado por Claudio." */
+  mensaje: string;
+  resumen: string;
+  /** Si quien pide puede abrir ese pedido (si no, se le muestra el resumen en el aviso). */
+  visible: boolean;
+};
+
+/** Estado de un pedido en palabras, en minúscula, para frases: "pendiente, lo ven los choferes". */
+export function estadoParaFrase(estado: string, chofer?: string | null) {
+  if (estado === "TOMADO") return `aceptado por ${chofer ?? "un chofer"}`;
+  if (estado === "EN_VIAJE") return `en viaje con ${chofer ?? "un chofer"}`;
+  if (estado === "ENTREGADO") return "entregado";
+  return "pendiente, lo ven los choferes";
+}
 
 /**
  * ¿Ya hay un pedido igual? Misma obra, mismo tipo, PENDIENTE o TOMADO, en las últimas 48 h,
- * y mismo proveedor o descripción muy parecida.
+ * y mismo proveedor o descripción muy parecida. Nunca bloquea: el que pide decide.
  */
-export async function buscarDuplicado(p: { obraId: string; tipo: TipoPedido; proveedorId?: string | null; descripcion: string }): Promise<Duplicado | null> {
+export async function buscarDuplicado(
+  u: { id: string; rol: Rol },
+  p: { obraId: string; tipo: TipoPedido; proveedorId?: string | null; descripcion: string },
+): Promise<Duplicado | null> {
   const candidatos = await db.pedidoViaje.findMany({
     where: {
       obraId: p.obraId,
@@ -111,21 +131,22 @@ export async function buscarDuplicado(p: { obraId: string; tipo: TipoPedido; pro
       creadoEn: { gte: new Date(Date.now() - 48 * 3_600_000) },
     },
     orderBy: { creadoEn: "asc" },
-    include: { solicitante: { select: { nombre: true } }, proveedor: { select: { nombre: true } }, obra: { select: { nombre: true } } },
+    include: { solicitante: { select: { nombre: true } }, tomadoPor: { select: { nombre: true } }, proveedor: { select: { nombre: true } }, obra: { select: { nombre: true } } },
   });
   const igual = candidatos.find(
     (c) => (p.proveedorId && c.proveedorId === p.proveedorId) || parecido(c.descripcion, p.descripcion) >= UMBRAL_PARECIDO,
   );
   if (!igual) return null;
-  const d = dia(igual.creadoEn);
+  const quien = igual.solicitanteId === u.id ? "Vos ya pediste" : `${igual.solicitante.nombre} ya pidió`;
+  const visible = (await db.pedidoViaje.count({ where: conAlcance(u, { id: igual.id }) })) > 0;
   return {
     id: igual.id,
     numero: igual.numero,
-    quien: igual.solicitante.nombre,
-    cuando: d === "hoy" ? `hoy a las ${cuando(igual.creadoEn).slice(4)}` : d,
-    resumen: [TIPO[igual.tipo].corto, igual.descripcion, igual.proveedor ? `de ${igual.proveedor.nombre}` : null, `para Obra ${igual.obra.nombre}`]
+    mensaje: `${quien} esto ${elDiaALas(igual.creadoEn)} para Obra ${igual.obra.nombre}. Estado: ${estadoParaFrase(igual.estado, igual.tomadoPor?.nombre)}.`,
+    resumen: [TIPO[igual.tipo].corto, igual.descripcion, igual.proveedor ? `de ${igual.proveedor.nombre}` : null, `para ${dia(igual.paraCuando)}`]
       .filter(Boolean)
       .join(" · "),
+    visible,
   };
 }
 

@@ -104,7 +104,7 @@ const DIRECCION: Entrada = {
 export const MATRIZ: Record<Rol, Entrada> = {
   DIRECCION,
   RESPONSABLE_OBRA: OBRA,
-  CAPATAZ: { rutas: OBRA.rutas, acciones: [...OBRA.acciones, "pedidos.cancelarCualquiera"] },
+  CAPATAZ: { rutas: OBRA.rutas, acciones: OBRA.acciones },
   CHOFER,
   DEPOSITO,
   ADMINISTRACION,

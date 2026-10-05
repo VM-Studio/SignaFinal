@@ -1,5 +1,7 @@
 "use client";
 
+import { FormularioPedirHerramienta } from "./pedir";
+
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ArchiveX, ArrowRightLeft, CalendarPlus, PackageCheck, SearchX, Truck, Undo2, Wrench, WrenchIcon } from "lucide-react";
@@ -9,7 +11,7 @@ import { Opciones } from "@/components/ui/opciones";
 import { AreaTexto, Campo, Entrada, Fecha, MensajeError, Selector } from "@/components/ui/campos";
 import { useAviso } from "@/components/ui/avisos";
 import {
-  darDeBaja, devolver, entregar, enviarAReparacion, marcarExtraviada, pedirHerramienta, reaparecio, registrarMantenimiento, transferir, volvioDeReparacion,
+  darDeBaja, devolver, entregar, enviarAReparacion, marcarExtraviada, reaparecio, registrarMantenimiento, transferir, volvioDeReparacion,
 } from "@/lib/herramientas/acciones";
 import { MOTIVOS_BAJA, MOTIVOS_EXTRAVIO, type Accion } from "@/lib/herramientas/presentacion";
 import { diaISO, sumarDias } from "@/lib/formato";
@@ -304,43 +306,14 @@ function Mantenimiento({ d, cerrar }: { d: DatosAcciones; cerrar: () => void }) 
   );
 }
 
-/** "La necesito en [obra] para [fecha]": crea el pedido de viaje. */
+/** "La necesito en [obra] para [fecha]": el mismo formulario que en el listado (con el aviso de duplicado). */
 function Pedir({ d, cerrar }: { d: DatosAcciones; cerrar: () => void }) {
-  const destinos = d.misObras.filter((o) => o.id !== d.herramienta.obraId);
-  const [obraId, setObraId] = useState(destinos.length === 1 ? destinos[0].id : "");
-  const hoy = diaISO();
-  const [dia, setDia] = useState(sumarDias(hoy, 1));
-  const [franja, setFranja] = useState("MANANA");
-  const [cant, setCant] = useState("1");
-  const [error, setError] = useState<string>();
-  const [enviando, setEnviando] = useState(false);
-  const fin = useResultado();
-  const cantidad = d.herramienta.tipoControl === "CANTIDAD";
   return (
-    <div className="flex flex-col gap-4">
-      {destinos.length > 1 && (
-        <Campo etiqueta="¿Para qué obra?" htmlFor="pd-obra">
-          <Selector id="pd-obra" value={obraId} onChange={(e) => setObraId(e.target.value)}>
-            <option value="">Elegí la obra</option>
-            {destinos.map((o) => <option key={o.id} value={o.id}>Obra {o.nombre}</option>)}
-          </Selector>
-        </Campo>
-      )}
-      <div className="flex flex-col gap-2">
-        <p className="text-sm font-semibold">¿Para cuándo?</p>
-        <Opciones nombre="Día" columnas={3} valor={dia} onElegir={setDia} opciones={[{ valor: hoy, titulo: "Hoy" }, { valor: sumarDias(hoy, 1), titulo: "Mañana" }, { valor: sumarDias(hoy, 2), titulo: "Pasado" }]} />
-        <Fecha aria-label="Otra fecha" value={dia} min={hoy} onChange={(e) => setDia(e.target.value)} />
-        <Opciones nombre="Franja" columnas={2} valor={franja} onElegir={setFranja} opciones={[{ valor: "MANANA", titulo: "A la mañana" }, { valor: "TARDE", titulo: "A la tarde" }]} />
-      </div>
-      {cantidad && <Campo etiqueta={`Cantidad (hay ${d.herramienta.stockDeposito})`} htmlFor="pd-cant"><Entrada id="pd-cant" inputMode="numeric" value={cant} onChange={(e) => setCant(e.target.value.replace(/\D/g, ""))} /></Campo>}
-      <MensajeError>{error}</MensajeError>
-      <Boton ancho tamano="grande" disabled={!obraId} cargando={enviando} onClick={async () => {
-        setEnviando(true);
-        const r = await pedirHerramienta({ herramientaId: d.herramienta.id, obraId, dia, franja: franja as "MANANA", cantidad: cant });
-        setEnviando(false);
-        await fin(r, (x) => `Pedido ${x.numero} en la cola. Lo ven ${x.choferes.join(" y ") || "los choferes"}${x.avisado ? `; también lo ve ${x.avisado}` : ""}.`, setError, cerrar);
-      }}>La necesito en {destinos.find((o) => o.id === obraId) ? `Obra ${destinos.find((o) => o.id === obraId)!.nombre}` : "la obra"}</Boton>
-    </div>
+    <FormularioPedirHerramienta
+      h={{ id: d.herramienta.id, nombre: d.herramienta.nombre, tipoControl: d.herramienta.tipoControl, stockDeposito: d.herramienta.stockDeposito, obraId: d.herramienta.obraId }}
+      obras={d.misObras}
+      cerrar={cerrar}
+    />
   );
 }
 

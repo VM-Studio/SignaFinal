@@ -5,7 +5,8 @@ import { ArrowDown, ArrowLeft, MapPin, Navigation, Phone } from "lucide-react";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { puede } from "@/lib/permisos";
 import { db } from "@/lib/db";
-import { historia, opcionesReasignar, pedido as buscarPedido, vehiculosParaTomar } from "@/lib/pedidos/consultas";
+import { opcionesReasignar, pedido as buscarPedido, vehiculosParaTomar } from "@/lib/pedidos/consultas";
+import { SeguimientoViaje } from "@/components/viajes/seguimiento-viaje";
 import { textoParaCuando, TIPO } from "@/lib/pedidos/presentacion";
 import { Insignia, Subtitulo, Tarjeta } from "@/components/ui/basicos";
 import { EstadoPedido } from "@/components/pedidos/fila-pedido";
@@ -13,7 +14,7 @@ import { IconoTipo } from "@/components/pedidos/iconos";
 import { BotonReasignar, BotonTomar } from "@/components/pedidos/tomar";
 import { BotonCancelar, BotonSoltar } from "@/components/pedidos/acciones-detalle";
 import { BotonIniciar } from "@/components/viajes/acciones-viaje";
-import { cuando, hora, km, peso, plata } from "@/lib/formato";
+import { cuando, hora, peso, plata } from "@/lib/formato";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const p = await db.pedidoViaje.findUnique({ where: { id: (await params).id }, select: { numero: true } });
@@ -21,19 +22,6 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 }
 
 const mapsA = (dir: string) => `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dir)}`;
-
-const ACCIONES: Record<string, (d: Record<string, unknown> | null, quien: string) => string> = {
-  "pedido.crear": (_, q) => `${q} lo pidió`,
-  "pedido.crear.noEraDuplicado": (_, q) => `${q} lo pidió (avisó que no era un duplicado)`,
-  "pedido.tomar": (d, q) => `${q} lo tomó con ${d?.vehiculo ?? "un vehículo"}${d?.salida ? ` · sale ${hora(String(d.salida))}` : ""}`,
-  "pedido.soltar": (_, q) => `${q} lo soltó y volvió a la cola`,
-  "pedido.reasignar": (d, q) => `${q} se lo asignó a ${d?.chofer ?? "otro chofer"}`,
-  "viaje.iniciar": (d, q) => `${q} salió con ${d?.vehiculo ?? "el vehículo"} · ${km(Number(d?.kmSalida))}`,
-  "viaje.finalizar": (_, q) => `${q} llegó a la obra`,
-  "pedido.cancelar": (d, q) => `${q} lo canceló: ${d?.motivo ?? ""}`,
-  "pedido.deshacerCancelacion": (_, q) => `${q} deshizo la cancelación`,
-  "pedido.deshacer": (_, q) => `${q} lo deshizo al pedirlo`,
-};
 
 export default async function PaginaPedido({ params }: { params: Promise<{ id: string }> }) {
   const u = await exigirPermiso("pedidos.ver");
@@ -49,25 +37,22 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
     (["PENDIENTE", "TOMADO"].includes(p.estado) && puede(u.rol, "pedidos.cancelarCualquiera"));
   const puedeReasignar = ["PENDIENTE", "TOMADO"].includes(p.estado) && puede(u.rol, "pedidos.reasignar");
 
-  const [eventos, vehiculos, reasignar, vehiculoActual] = await Promise.all([
-    historia(id),
+  const [vehiculos, reasignar, vehiculoActual] = await Promise.all([
     esChofer && p.estado === "PENDIENTE" ? vehiculosParaTomar(p) : Promise.resolve(null),
     puedeReasignar ? opcionesReasignar(p) : Promise.resolve(null),
     esMio && p.estado === "TOMADO" && p.viaje ? db.vehiculo.findUnique({ where: { id: p.viaje.vehiculo.id }, select: { kmActual: true } }) : Promise.resolve(null),
   ]);
 
-  // Línea de tiempo: pedido, tomado, salida, llegada (y lo que haya pasado entre medio).
-  const linea = eventos.map((e) => ({ fecha: e.fecha, texto: (ACCIONES[e.accion] ?? ((_, q) => `${q}: ${e.accion}`))(e.despues, e.usuario?.nombre ?? "Sistema") }));
-  if (!eventos.some((e) => e.accion.startsWith("pedido.crear"))) linea.unshift({ fecha: p.creadoEn, texto: `${p.solicitante.nombre} lo pidió` });
-  if (p.tomadoEn && !eventos.some((e) => e.accion === "pedido.tomar" || e.accion === "pedido.reasignar")) linea.push({ fecha: p.tomadoEn, texto: `${p.tomadoPor?.nombre} lo tomó` });
-  if (p.viaje?.salidaReal && !eventos.some((e) => e.accion === "viaje.iniciar")) linea.push({ fecha: p.viaje.salidaReal, texto: `Salió con ${p.viaje.vehiculo.nombre}` });
-  if (p.viaje?.llegadaReal && !eventos.some((e) => e.accion === "viaje.finalizar")) linea.push({ fecha: p.viaje.llegadaReal, texto: "Llegó a la obra" });
-  linea.sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
-  const proximos = [
-    p.estado === "PENDIENTE" && "Que un chofer lo tome",
-    ["PENDIENTE", "TOMADO"].includes(p.estado) && (p.viaje?.salidaEstimada ? `Salida estimada ${cuando(p.viaje.salidaEstimada)}` : "Salida"),
-    ["PENDIENTE", "TOMADO", "EN_VIAJE"].includes(p.estado) && "Llegada a la obra",
-  ].filter(Boolean) as string[];
+  // Los cuatro momentos: pedido, aceptado, retiro y destino, con hora (o la estimada si todavía no pasó).
+  const v = p.viaje && p.estado !== "PENDIENTE" ? p.viaje : null;
+  const enRetiro = v?.llegadaRetiroEn ?? v?.salidaRetiroEn ?? null;
+  const enDestino = v?.llegadaDestinoEn ?? v?.llegadaReal ?? null;
+  const momentos: { titulo: string; hecho: boolean; fecha: Date | null; detalle?: string }[] = [
+    { titulo: `${p.solicitante.nombre} lo pidió`, hecho: true, fecha: p.creadoEn },
+    { titulo: p.tomadoEn ? `Lo aceptó ${p.tomadoPor?.nombre ?? "un chofer"}` : "Que lo acepte un chofer", hecho: !!p.tomadoEn, fecha: p.tomadoEn, detalle: v ? `${v.vehiculo.nombre}${v.salidaEstimada && !v.salidaReal ? ` · sale ${hora(v.salidaEstimada)}` : ""}` : undefined },
+    { titulo: enRetiro ? `Retiró en ${p.origen.nombre}` : `Retiro en ${p.origen.nombre}`, hecho: !!enRetiro, fecha: enRetiro, detalle: !enRetiro && v?.etaRetiro ? `llega ${hora(v.etaRetiro)} aprox` : undefined },
+    { titulo: p.estado === "ENTREGADO" ? `Entregado en Obra ${p.obra.nombre}` : enDestino ? `Llegó a Obra ${p.obra.nombre}` : `Llegada a Obra ${p.obra.nombre}`, hecho: !!enDestino, fecha: enDestino, detalle: !enDestino && v?.etaDestino ? `llega ${hora(v.etaDestino)} aprox` : undefined },
+  ];
 
   const destino = `${p.obra.direccion}, ${p.obra.localidad}`;
   const acciones = (
@@ -166,21 +151,26 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
             ))}
         </dl>
 
+        {p.estado === "EN_VIAJE" && v && (
+          <SeguimientoViaje etapa={v.etapa} origen={p.origen.nombre} chofer={p.tomadoPor?.nombre ?? "El chofer"} vehiculo={v.vehiculo.nombre} etaRetiro={v.etaRetiro} etaDestino={v.etaDestino} />
+        )}
+
         <Subtitulo>Línea de tiempo</Subtitulo>
         <ol className="relative ml-2 border-l-2 border-linea pl-5">
-          {linea.map((e, i) => (
-            <li key={i} className="relative pb-4">
-              <span aria-hidden className="absolute top-1.5 -left-[27px] size-3 rounded-full border-2 border-negro bg-negro" />
-              <p className="font-medium">{e.texto}</p>
-              <p className="text-sm text-suave">{cuando(e.fecha)}</p>
+          {momentos.map((m) => (
+            <li key={m.titulo} className="relative pb-4 last:pb-0">
+              <span aria-hidden className={`absolute top-1.5 -left-[27px] size-3 rounded-full border-2 ${m.hecho ? "border-negro bg-negro" : "border-linea-fuerte bg-papel"}`} />
+              <p className={m.hecho ? "font-semibold" : "text-apagado"}>{m.titulo}</p>
+              {(m.fecha || m.detalle) && <p className="text-sm text-suave">{[m.fecha ? cuando(m.fecha) : null, m.detalle].filter(Boolean).join(" · ")}</p>}
             </li>
           ))}
-          {proximos.map((t) => (
-            <li key={t} className="relative pb-4 last:pb-0">
-              <span aria-hidden className="absolute top-1.5 -left-[27px] size-3 rounded-full border-2 border-linea-fuerte bg-papel" />
-              <p className="text-apagado">{t}</p>
+          {p.estado === "CANCELADO" && (
+            <li className="relative">
+              <span aria-hidden className="absolute top-1.5 -left-[27px] size-3 rounded-full border-2 border-critico bg-critico" />
+              <p className="font-semibold text-critico">Cancelado{p.motivoCancelacion ? `: ${p.motivoCancelacion}` : ""}</p>
+              {p.canceladoEn && <p className="text-sm text-suave">{cuando(p.canceladoEn)}</p>}
             </li>
-          ))}
+          )}
         </ol>
       </div>
     </div>

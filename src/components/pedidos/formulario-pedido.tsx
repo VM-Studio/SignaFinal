@@ -29,6 +29,7 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
   const unaObra = obraInicial && datos.obras.some((o) => o.id === obraInicial) ? obraInicial : datos.obras.length === 1 ? datos.obras[0].id : "";
 
   const [paso, setPaso] = useState<1 | 2 | 3>(1);
+  const [verResumen, setVerResumen] = useState(false);
   const [tipo, setTipo] = useState<TipoPedido>();
   // Detalles
   const [obraId, setObraId] = useState(unaObra);
@@ -146,7 +147,7 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
     const { id, choferes } = envio.datos;
     setDuplicado(null);
     aviso({
-      mensaje: `Pedido enviado. Lo ${choferes.length === 1 ? "ve" : "ven"} ${choferes.length ? unirNombres(choferes) : "los choferes"}.`,
+      mensaje: `Pedido enviado. Lo ${choferes.length === 1 ? "va a ver" : "van a ver"} ${choferes.length ? unirNombres(choferes) : "los choferes"}. Te avisamos cuando lo acepten.`,
       deshacer: async () => {
         const x = await deshacerPedido(id);
         if (!x.ok) aviso({ mensaje: x.error, tono: "error" });
@@ -156,7 +157,10 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
     router.push(`/mis-pedidos/${id}`);
   }
 
-  const obraDestino = (
+  // Con una sola obra no se pregunta: va preseleccionada.
+  const obraDestino = datos.obras.length === 1 ? (
+    <p className="rounded-[var(--radius-caja)] bg-papel px-4 py-3 font-semibold">Para Obra {datos.obras[0].nombre}</p>
+  ) : (
     <Campo etiqueta="Obra destino" htmlFor="obra">
       <Selector id="obra" value={obraId} onChange={(e) => setObraId(e.target.value)}>
         {!unaObra && <option value="">Elegí la obra</option>}
@@ -389,25 +393,24 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
       )}
 
       {/* Aviso de duplicado: el punto que más valor tiene de toda la app. */}
-      <Hoja abierta={!!duplicado} onCerrar={() => setDuplicado(null)} titulo="¿Es el mismo pedido?">
+      <Hoja abierta={!!duplicado} onCerrar={() => { setDuplicado(null); setVerResumen(false); }} titulo="¿Es el mismo pedido?">
         {duplicado && (
           <div className="flex flex-col gap-4">
             <div className="flex gap-3 rounded-[var(--radius-caja)] border-2 border-aviso bg-aviso-fondo p-4">
               <Copy className="mt-0.5 size-6 shrink-0 text-aviso" />
               <div>
-                <p className="text-lg font-bold">
-                  {duplicado.quien} ya pidió esto {duplicado.cuando}:
-                </p>
-                <p className="mt-1">{duplicado.resumen}</p>
-                <p className="mt-1 text-sm text-suave">Pedido {duplicado.numero}</p>
+                <p className="text-lg font-bold">{duplicado.mensaje}</p>
+                {verResumen && <p className="mt-2">{duplicado.resumen} · Pedido {duplicado.numero}</p>}
               </div>
             </div>
-            <p className="font-semibold">¿Es lo mismo?</p>
-            <Boton ancho tamano="grande" onClick={() => router.push(`/mis-pedidos/${duplicado.id}`)}>
-              Sí, es lo mismo
-            </Boton>
-            <Boton ancho variante="secundario" cargando={enviando} onClick={() => enviar(true)}>
-              No, es otro pedido
+            {/* Nunca se bloquea: se avisa y decide quien pide. */}
+            {!verResumen && (
+              <Boton ancho tamano="grande" onClick={() => (duplicado.visible ? router.push(`/mis-pedidos/${duplicado.id}`) : setVerResumen(true))}>
+                Ver ese pedido
+              </Boton>
+            )}
+            <Boton ancho variante="secundario" tamano={verResumen ? "grande" : "normal"} cargando={enviando} onClick={() => enviar(true)}>
+              Es otro pedido
             </Boton>
           </div>
         )}

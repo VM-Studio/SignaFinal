@@ -90,7 +90,7 @@ export async function crearPedido(entrada: DatosPedido): Promise<Resultado<Respu
 
     // Lo que más valor tiene: no duplicar pedidos.
     if (!d.forzar) {
-      const existente = await buscarDuplicado({ obraId: d.obraId, tipo: d.tipo, proveedorId, descripcion: d.descripcion });
+      const existente = await buscarDuplicado(yo, { obraId: d.obraId, tipo: d.tipo, proveedorId, descripcion: d.descripcion });
       if (existente) return { estado: "duplicado", existente } as const;
     }
 
@@ -112,6 +112,7 @@ export async function crearPedido(entrada: DatosPedido): Promise<Resultado<Respu
           cantidadPersonas: d.tipo === "TRASLADO_PERSONAS" ? d.cantidadPersonas ?? null : null,
           necesitaCamion: camion,
           paraCuando,
+          fechaNecesaria: aFecha(d.dia, "12:00"),
           franja: d.franja,
           prioridad: d.prioridad,
         },
