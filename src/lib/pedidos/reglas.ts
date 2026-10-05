@@ -3,6 +3,7 @@ import type { Prisma, TipoPedido } from "@prisma/client";
 import { db } from "@/lib/db";
 import { cuando, dia, diaISO, peso } from "@/lib/formato";
 import { ErrorNegocio } from "@/lib/resultado";
+import { auditar as auditarBase, type DatosAuditoria } from "@/lib/auditoria";
 import { parecido, UMBRAL_PARECIDO } from "./similitud";
 import { TIPO, UMBRAL_CAMION_KG } from "./presentacion";
 
@@ -130,9 +131,14 @@ export async function buscarDuplicado(p: { obraId: string; tipo: TipoPedido; pro
 
 // ─────────────────────────── Auditoría ───────────────────────────
 
-export async function auditar(
-  cliente: Cliente,
-  d: { usuarioId: string; accion: string; entidadId: string; antes?: Prisma.InputJsonValue; despues?: Prisma.InputJsonValue; entidad?: string },
-) {
-  await cliente.auditoria.create({ data: { entidad: "PedidoViaje", ...d } });
+export async function auditar(cliente: Cliente, d: Omit<DatosAuditoria, "entidad"> & { entidad?: string }) {
+  await auditarBase(cliente, { entidad: "PedidoViaje", ...d });
+}
+
+/** Para los resúmenes: "el pedido #12 (Hierro del 10, 40 barras) para Obra Darwin". */
+export async function describirPedido(cliente: Cliente, pedidoId: string) {
+  const p = await cliente.pedidoViaje.findUnique({ where: { id: pedidoId }, select: { numero: true, descripcion: true, obra: { select: { nombre: true } } } });
+  if (!p) return "un pedido";
+  const desc = p.descripcion.length > 40 ? `${p.descripcion.slice(0, 40)}…` : p.descripcion;
+  return `el pedido #${p.numero} (${desc}) para Obra ${p.obra.nombre}`;
 }

@@ -5,6 +5,7 @@ import { aFecha, diaISO, sumarDias } from "@/lib/formato";
 import { capturarPosiciones } from "@/lib/cusat/captura";
 import { clienteCusat } from "@/lib/cusat";
 import { paradasDe, type Parada } from "@/lib/cusat/rutas";
+import type { TipoUbicacion } from "@prisma/client";
 
 export type VehiculoMapa = {
   id: string; nombre: string; tipo: "CAMION" | "CAMIONETA" | "AUTO" | "MAQUINA"; estado: "DISPONIBLE" | "EN_VIAJE" | "EN_TALLER" | "FUERA_DE_SERVICIO";
@@ -13,7 +14,7 @@ export type VehiculoMapa = {
   viaje: { pedidoId: string; descripcion: string; obra: string; llegoPorGps: boolean } | null;
 };
 export type ObraMapa = { id: string; nombre: string; lat: number; lng: number; radio: number };
-export type LugarMapa = { id: string; nombre: string; lat: number; lng: number; tipo: "DEPOSITO" | "BASE_VEHICULOS" };
+export type LugarMapa = { id: string; nombre: string; lat: number; lng: number; tipo: TipoUbicacion };
 export type DatosMapa = { vehiculos: VehiculoMapa[]; obras: ObraMapa[]; lugares: LugarMapa[]; origen: "mock" | "api"; actualizado: string; sinGps: string[] };
 
 /** Estado del mapa. Antes de leer, pide posiciones nuevas si las últimas tienen más de un minuto. */

@@ -2,31 +2,12 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { exigirPermiso, type UsuarioSesion } from "@/lib/auth/sesion";
+import { idsObrasDelUsuario } from "@/lib/alcance";
+import { filtroDestinatario } from "./destinatarios";
 
-/**
- * Cada rol ve las suyas:
- * - Dirección y Administración: todas.
- * - Capataz: pedidos, viajes y herramientas de todas las obras.
- * - Responsable de obra: las de sus obras.
- * - Chofer: las que lo nombran a él (licencia, sus viajes, su camioneta).
- * - Depósito: herramientas y flota (services, documentación).
- */
+/** Cada uno ve solo las alertas que lo tienen como destinatario (matriz en ./destinatarios). */
 async function alcance(u: UsuarioSesion): Promise<Prisma.AlertaWhereInput> {
-  switch (u.rol) {
-    case "DIRECCION":
-    case "ADMINISTRACION":
-      return {};
-    case "CAPATAZ":
-      return { entidadTipo: { in: ["PedidoViaje", "Viaje", "Herramienta"] } };
-    case "RESPONSABLE_OBRA": {
-      const obras = (await db.obra.findMany({ where: { responsableId: u.id }, select: { id: true } })).map((o) => o.id);
-      return { OR: [{ obraId: { in: obras } }, { usuarioId: u.id }] };
-    }
-    case "CHOFER":
-      return { usuarioId: u.id };
-    case "DEPOSITO":
-      return { entidadTipo: { in: ["Herramienta", "Vehiculo", "CargaCombustible"] } };
-  }
+  return filtroDestinatario(u, u.rol === "RESPONSABLE_OBRA" ? await idsObrasDelUsuario(u, true) : []);
 }
 
 export async function alertasAbiertas() {

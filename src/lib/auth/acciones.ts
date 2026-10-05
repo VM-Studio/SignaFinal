@@ -4,7 +4,8 @@ import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { abrirSesion, cerrarSesionCookie } from "./sesion";
+import { auditar } from "@/lib/auditoria";
+import { abrirSesion, cerrarSesionCookie, obtenerSesion } from "./sesion";
 
 const esquema = z.object({
   email: z.string().trim().toLowerCase().email("Revisá el email."),
@@ -28,12 +29,14 @@ export async function ingresar(_: EstadoLogin, form: FormData): Promise<EstadoLo
   if (!u.activo) return { error: "Tu usuario está desactivado. Hablá con la oficina.", email };
 
   await abrirSesion(u);
-  await db.auditoria.create({ data: { usuarioId: u.id, accion: "sesion.ingresar", entidad: "Usuario", entidadId: u.id } });
+  await auditar(db, { usuarioId: u.id, accion: "sesion.ingresar", entidad: "Usuario", entidadId: u.id, resumen: `${u.nombre} ingresó al sistema` });
   const v = d.data.volver;
   redirect(v && v.startsWith("/") && !v.startsWith("//") ? v : "/inicio");
 }
 
 export async function cerrarSesion() {
+  const u = await obtenerSesion();
+  if (u) await auditar(db, { usuarioId: u.id, accion: "sesion.salir", entidad: "Usuario", entidadId: u.id, resumen: `${u.nombre} cerró sesión` });
   await cerrarSesionCookie();
   redirect("/login");
 }

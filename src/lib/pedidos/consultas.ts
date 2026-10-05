@@ -5,6 +5,7 @@ import { exigirPermiso } from "@/lib/auth/sesion";
 import type { UsuarioSesion } from "@/lib/auth/sesion";
 import { inicioDelDia } from "@/lib/formato";
 import { vehiculosPara } from "./reglas";
+import { filtroObras, idsObrasDelUsuario } from "@/lib/alcance";
 
 const seleccion = {
   id: true, numero: true, tipo: true, estado: true, prioridad: true, descripcion: true, pesoKg: true, cantidadPersonas: true,
@@ -86,7 +87,7 @@ function whereFiltro(filtro: Filtro, u: UsuarioSesion, misObras: string[] = []):
 /** La cola única: urgentes primero, después por fecha pedida. La ven todos los roles. */
 export async function cola(filtro: Filtro) {
   const u = await exigirPermiso("pedidos.ver");
-  const misObras = u.rol === "RESPONSABLE_OBRA" ? (await db.obra.findMany({ where: { responsableId: u.id }, select: { id: true } })).map((o) => o.id) : [];
+  const misObras = u.rol === "RESPONSABLE_OBRA" ? await idsObrasDelUsuario(u, true) : [];
   const orden: Prisma.PedidoViajeOrderByWithRelationInput[] =
     filtro === "entregados-hoy" ? [{ viaje: { llegadaReal: "desc" } }] : [{ prioridad: "desc" }, { paraCuando: "asc" }, { creadoEn: "asc" }];
   const [filas, conteos] = await Promise.all([
@@ -165,7 +166,7 @@ export async function datosFormulario() {
   const u = await exigirPermiso("pedidos.crear");
   const [obras, todasLasObras, proveedores, ubicaciones, herramientas] = await Promise.all([
     db.obra.findMany({
-      where: { estado: "ACTIVA", ...(u.rol === "RESPONSABLE_OBRA" ? { responsableId: u.id } : {}) },
+      where: { estado: "ACTIVA", ...filtroObras(u) },
       orderBy: { nombre: "asc" },
       select: { id: true, nombre: true, direccion: true, localidad: true },
     }),

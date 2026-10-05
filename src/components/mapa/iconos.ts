@@ -1,4 +1,5 @@
 import L from "leaflet";
+import type { TipoUbicacion } from "@prisma/client";
 
 /** Marcadores propios (SVG en línea). Color por estado: verde en viaje, gris disponible, negro taller. */
 
@@ -38,8 +39,10 @@ export function iconoObra(nombre: string) {
   });
 }
 
-export function iconoLugar(nombre: string, tipo: "DEPOSITO" | "BASE_VEHICULOS") {
-  const figura = tipo === "DEPOSITO"
+export function iconoLugar(nombre: string, tipo: TipoUbicacion) {
+  const figura = tipo === "DESCARGA" || tipo === "VARIOS"
+    ? '<circle cx="12" cy="12" r="8" fill="#000"/><circle cx="12" cy="12" r="3" fill="#fff"/>'
+    : tipo === "DEPOSITO"
     ? '<path d="M3 10 12 4l9 6v11H3z" fill="#000"/><path d="M7 21v-7h10v7M7 17h10" stroke="#fff" stroke-width="1.6" fill="none"/>'
     : '<rect x="3" y="7" width="18" height="14" fill="#000"/><path d="M3 7 12 3l9 4" fill="#000"/><path d="M7 21v-8h10v8" stroke="#fff" stroke-width="1.6" fill="none"/><path d="M7 16h10" stroke="#fff" stroke-width="1.6"/>';
   return L.divIcon({

@@ -1,6 +1,7 @@
 import "server-only";
 import type { Condicion, Prisma, TipoMovimiento } from "@prisma/client";
 import { ErrorNegocio } from "@/lib/resultado";
+import { auditar as auditarBase } from "@/lib/auditoria";
 
 /**
  * Operaciones del depósito dentro de una transacción. Cada una crea el movimiento y
@@ -17,9 +18,20 @@ export async function depositoId(tx: Tx) {
   return d.id;
 }
 
-export async function auditar(tx: Tx, usuarioId: string, accion: string, entidadId: string, antes?: Prisma.InputJsonValue, despues?: Prisma.InputJsonValue) {
-  await tx.auditoria.create({ data: { usuarioId, accion, entidad: "Herramienta", entidadId, antes, despues } });
+export async function auditar(tx: Tx, usuarioId: string, accion: string, entidadId: string, resumen: string, antes?: Prisma.InputJsonValue, despues?: Prisma.InputJsonValue) {
+  await auditarBase(tx, { usuarioId, accion, entidad: "Herramienta", entidadId, resumen, antes, despues });
 }
+
+/** Cómo se cuenta cada movimiento en la Actividad. */
+const VERBO: Record<TipoMovimiento, (h: string, obra: string | null) => string> = {
+  ENTREGA: (h, o) => `entregó ${h} en Obra ${o}`,
+  DEVOLUCION: (h) => `recibió ${h} de vuelta en el depósito`,
+  TRANSFERENCIA: (h, o) => `pasó ${h} a Obra ${o}`,
+  A_REPARACION: (h) => `mandó ${h} a reparar`,
+  DE_REPARACION: (h) => `recibió ${h} del taller`,
+  EXTRAVIO: (h) => `marcó ${h} como extraviada`,
+  BAJA: (h) => `dio de baja ${h}`,
+};
 
 // ─────────────────────────── Existencias (por cantidad) ───────────────────────────
 
@@ -116,7 +128,12 @@ export async function moverUnitaria(tx: Tx, m: Mov) {
     },
     select: { id: true },
   });
+  const [quien, haciaObra] = await Promise.all([
+    tx.usuario.findUnique({ where: { id: m.usuarioId }, select: { nombre: true } }),
+    m.hacia?.obraId ? tx.obra.findUnique({ where: { id: m.hacia.obraId }, select: { nombre: true } }) : null,
+  ]);
   await auditar(tx, m.usuarioId, `herramienta.${m.tipo.toLowerCase()}`, h.id,
+    `${quien?.nombre ?? "Alguien"} ${VERBO[m.tipo](`${h.nombre} (${h.codigo})`, haciaObra?.nombre ?? null)}${m.viajeId ? " al llegar el viaje" : ""}`,
     { estado: h.estado, obraId: h.obraId, responsableId: h.responsableId },
     { estado: m.estado, obraId: m.hacia?.obraId ?? null, movimientoId: mov.id, viajeId: m.viajeId ?? null });
 
@@ -125,7 +142,7 @@ export async function moverUnitaria(tx: Tx, m: Mov) {
     const pedidos = await tx.pedidoViaje.findMany({ where: { herramientaId: h.id, estado: { in: ["PENDIENTE", "TOMADO"] } }, select: { id: true } });
     for (const p of pedidos) {
       await tx.pedidoViaje.update({ where: { id: p.id }, data: { estado: "CANCELADO", canceladoEn: new Date(), motivoCancelacion: `${h.nombre} ${m.estado === "BAJA" ? "fue dada de baja" : "está extraviada"}` } });
-      await tx.viaje.updateMany({ where: { pedidoId: p.id, estado: "PROGRAMADO" }, data: { estado: "CANCELADO", ordenRuta: null } });
+      await tx.viaje.updateMany({ where: { pedidoId: p.id, estado: "PROGRAMADO" }, data: { estado: "CANCELADO", ordenRuta: null } }); // la etapa queda en PROGRAMADO
     }
   }
   return { movimientoId: mov.id, herramienta: h };
@@ -135,7 +152,7 @@ export async function moverUnitaria(tx: Tx, m: Mov) {
  * Al terminar un viaje que llevaba una herramienta: si nadie registró la entrega,
  * se registra sola (entrega desde el depósito o transferencia desde otra obra).
  */
-export async function alLlegarElViaje(tx: Tx, p: { usuarioId: string; viajeId: string; herramientaId: string; obraId: string; recibidoPorId: string }) {
+export async function alLlegarElViaje(tx: Tx, p: { usuarioId: string; viajeId: string; herramientaId: string; obraId: string; recibidoPorId: string | null }) {
   const h = await tx.herramienta.findUnique({ where: { id: p.herramientaId }, select: { estado: true, obraId: true, tipoControl: true, nombre: true } });
   if (!h || h.tipoControl !== "UNITARIA" || h.obraId === p.obraId) return null;
   if (h.estado !== "DISPONIBLE" && h.estado !== "EN_OBRA") return null;

@@ -33,7 +33,7 @@ export default async function FichaHerramienta({ params, searchParams }: { param
   const cantidad = h.tipoControl === "CANTIDAD";
   const enDeposito = h.existencias.filter((e) => e.ubicacionId).reduce((s, e) => s + e.cantidad, 0);
   const enObras = h.existencias.filter((e) => e.obra && e.cantidad > 0).map((e) => ({ obraId: e.obra!.id, obra: e.obra!.nombre, cantidad: e.cantidad }));
-  const misObras = ops.obras.filter((o) => (u.rol === "RESPONSABLE_OBRA" ? o.responsableId === u.id : u.rol === "CAPATAZ" || u.rol === "DIRECCION"));
+  const misObras = ops.obras.filter((o) => (u.rol === "RESPONSABLE_OBRA" ? o.responsablesIds.includes(u.id) : u.rol === "CAPATAZ" || u.rol === "DIRECCION"));
   const pedido = h.pedidos[0];
   const devolucion = h.devolucionPrevista ? vencimiento(h.devolucionPrevista) : null;
   const proxMant = h.proximoMantenimiento ? vencimiento(h.proximoMantenimiento) : null;
@@ -63,7 +63,7 @@ export default async function FichaHerramienta({ params, searchParams }: { param
         <AccionesHerramienta
           accionInicial={a && (ACCIONES as string[]).includes(a) ? (a as Accion) : null}
           d={{
-            herramienta: { id: h.id, nombre: h.nombre, estado: h.estado, tipoControl: h.tipoControl, esMaquina: h.esMaquina, obraId: h.obraId, responsableObraId: h.obra?.responsableId ?? null, stockDeposito: enDeposito, existencias: enObras, mantenimientoCadaDias: h.mantenimientoCadaDias },
+            herramienta: { id: h.id, nombre: h.nombre, estado: h.estado, tipoControl: h.tipoControl, esMaquina: h.esMaquina, obraId: h.obraId, responsableObraId: h.obra?.responsables[0]?.usuarioId ?? null, stockDeposito: enDeposito, existencias: enObras, mantenimientoCadaDias: h.mantenimientoCadaDias },
             obras: ops.obras,
             misObras,
             personas: ops.personas,

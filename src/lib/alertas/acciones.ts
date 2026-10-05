@@ -6,12 +6,17 @@ import { exigirPermiso } from "@/lib/auth/sesion";
 import { puede } from "@/lib/permisos";
 import { ejecutar, ErrorNegocio, type Resultado } from "@/lib/resultado";
 import { evaluarAlertas } from "./index";
+import { auditar } from "@/lib/auditoria";
 
 /** "Ya la vi": deja de contar en la campana, pero sigue abierta hasta que se resuelva sola. */
 export async function marcarVista(id: string): Promise<Resultado> {
   return ejecutar(async () => {
-    await exigirPermiso("alertas.ver");
-    await db.alerta.updateMany({ where: { id, estado: "ABIERTA" }, data: { estado: "VISTA" } });
+    const yo = await exigirPermiso("alertas.ver");
+    const r = await db.alerta.updateMany({ where: { id, estado: "ABIERTA" }, data: { estado: "VISTA" } });
+    if (r.count) {
+      const a = await db.alerta.findUnique({ where: { id }, select: { titulo: true } });
+      await auditar(db, { usuarioId: yo.id, accion: "alerta.vista", entidad: "Alerta", entidadId: id, resumen: `${yo.nombre} vio la alerta "${a?.titulo ?? ""}"` });
+    }
     revalidatePath("/", "layout");
     return null;
   });

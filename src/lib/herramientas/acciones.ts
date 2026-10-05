@@ -13,6 +13,9 @@ import { choferesQueLoVen } from "@/lib/pedidos/reglas";
 import { FRANJA } from "@/lib/pedidos/presentacion";
 import { accionSugerida } from "./presentacion";
 import { auditar, depositoId, moverUnitaria, restar, siguienteCodigo, stockEn, sumar, viajeQueLaLleva } from "./servicio";
+import { auditar as auditarBase } from "@/lib/auditoria";
+import { esObraDelUsuario, responsablePrincipal } from "@/lib/alcance";
+import { resolverPuntos } from "@/lib/pedidos/puntos";
 
 /** Refresca pantallas y reevalúa las alertas del módulo (resuelve solas las que ya no aplican). */
 const refrescar = () => {
@@ -25,7 +28,7 @@ const condicion = z.enum(["BUENA", "REGULAR", "MALA"]);
 const cantidad = z.preprocess((v) => (v === "" || v == null ? 1 : v), z.coerce.number().int().min(1, "La cantidad tiene que ser al menos 1.").max(100_000));
 
 async function obraActiva(id: string) {
-  const o = await db.obra.findUnique({ where: { id }, select: { id: true, nombre: true, estado: true, responsableId: true } });
+  const o = await db.obra.findUnique({ where: { id }, select: { id: true, nombre: true, estado: true } });
   if (!o || o.estado !== "ACTIVA") throw new ErrorNegocio("Esa obra no está activa.");
   return o;
 }
@@ -91,7 +94,7 @@ export async function entregar(entrada: DatosEntrega): Promise<Resultado<{ viaje
         const mov = await tx.movimientoHerramienta.create({
           data: { herramientaId: d.herramientaId, tipo: "ENTREGA", cantidad: d.cantidad, desdeUbicacionId: dep, haciaObraId: obra.id, registradoPorId: yo.id, recibidoPorId: d.recibidoPorId, viajeId: viaje?.id ?? null, condicion: d.condicion ?? null },
         });
-        await auditar(tx, yo.id, "herramienta.entrega", d.herramientaId, undefined, { cantidad: d.cantidad, obra: obra.nombre, movimientoId: mov.id });
+        await auditar(tx, yo.id, "herramienta.entrega", d.herramientaId, `${yo.nombre} entregó ${d.cantidad} ${h.nombre.toLowerCase()} en Obra ${obra.nombre}`, undefined, { cantidad: d.cantidad, obra: obra.nombre, movimientoId: mov.id });
       } else {
         await moverUnitaria(tx, {
           usuarioId: yo.id, herramientaId: d.herramientaId, tipo: "ENTREGA", hacia: { obraId: obra.id },
@@ -153,12 +156,12 @@ export async function devolver(entrada: DatosDevolucion): Promise<Resultado<{ of
   return ejecutar(async () => {
     const yo = await exigirPermiso("herramientas.devolver");
     const d = esquemaDevolucion.parse(entrada);
-    const h = await db.herramienta.findUniqueOrThrow({ where: { id: d.herramientaId }, select: { tipoControl: true, obraId: true, obra: { select: { responsableId: true, nombre: true } } } });
+    const h = await db.herramienta.findUniqueOrThrow({ where: { id: d.herramientaId }, select: { tipoControl: true, obraId: true, nombre: true } });
     const obraOrigen = h.tipoControl === "CANTIDAD" ? d.desdeObraId : h.obraId;
     if (!obraOrigen) throw new ErrorNegocio("No está en ninguna obra.");
-    if (yo.rol === "RESPONSABLE_OBRA") {
-      const o = await db.obra.findUnique({ where: { id: obraOrigen }, select: { responsableId: true, nombre: true } });
-      if (o?.responsableId !== yo.id) throw new ErrorNegocio(`Solo el responsable de Obra ${o?.nombre} puede registrar esta devolución.`);
+    if (!(await esObraDelUsuario(yo, obraOrigen))) {
+      const o = await db.obra.findUnique({ where: { id: obraOrigen }, select: { nombre: true } });
+      throw new ErrorNegocio(`Solo un responsable de Obra ${o?.nombre} puede registrar esta devolución.`);
     }
     const aReparacion = d.aReparacion && d.condicion === "MALA" && h.tipoControl === "UNITARIA";
 
@@ -171,7 +174,7 @@ export async function devolver(entrada: DatosDevolucion): Promise<Resultado<{ of
         await tx.movimientoHerramienta.create({
           data: { herramientaId: d.herramientaId, tipo: "DEVOLUCION", cantidad: d.cantidad, desdeObraId: obraOrigen, haciaUbicacionId: dep, condicion: d.condicion, registradoPorId: yo.id, observaciones: d.observaciones ?? null },
         });
-        await auditar(tx, yo.id, "herramienta.devolucion", d.herramientaId, undefined, { cantidad: d.cantidad, desde: o.nombre });
+        await auditar(tx, yo.id, "herramienta.devolucion", d.herramientaId, `${yo.nombre} devolvió ${d.cantidad} ${h.nombre.toLowerCase()} de Obra ${o.nombre} al depósito`, undefined, { cantidad: d.cantidad, desde: o.nombre });
         return;
       }
       await moverUnitaria(tx, {
@@ -210,7 +213,7 @@ export async function transferir(entrada: DatosTransferencia): Promise<Resultado
     await personaActiva(d.recibidoPorId);
     const devolucion = devolucionValida(d.devolucionPrevista);
     await db.$transaction(async (tx) => {
-      const h = await tx.herramienta.findUniqueOrThrow({ where: { id: d.herramientaId }, select: { tipoControl: true } });
+      const h = await tx.herramienta.findUniqueOrThrow({ where: { id: d.herramientaId }, select: { tipoControl: true, nombre: true } });
       if (h.tipoControl === "CANTIDAD") {
         if (!d.desdeObraId || d.desdeObraId === obra.id) throw new ErrorNegocio("Elegí dos obras distintas.");
         const o = await tx.obra.findUniqueOrThrow({ where: { id: d.desdeObraId }, select: { nombre: true } });
@@ -219,7 +222,7 @@ export async function transferir(entrada: DatosTransferencia): Promise<Resultado
         await tx.movimientoHerramienta.create({
           data: { herramientaId: d.herramientaId, tipo: "TRANSFERENCIA", cantidad: d.cantidad, desdeObraId: d.desdeObraId, haciaObraId: obra.id, registradoPorId: yo.id, recibidoPorId: d.recibidoPorId },
         });
-        await auditar(tx, yo.id, "herramienta.transferencia", d.herramientaId, undefined, { cantidad: d.cantidad, desde: o.nombre, hacia: obra.nombre });
+        await auditar(tx, yo.id, "herramienta.transferencia", d.herramientaId, `${yo.nombre} pasó ${d.cantidad} ${h.nombre.toLowerCase()} de Obra ${o.nombre} a Obra ${obra.nombre}`, undefined, { cantidad: d.cantidad, desde: o.nombre, hacia: obra.nombre });
         return;
       }
       const viaje = await viajeQueLaLleva(tx, d.herramientaId, obra.id);
@@ -326,7 +329,7 @@ export async function darDeBaja(herramientaId: string, motivo: string): Promise<
         await tx.movimientoHerramienta.create({ data: { herramientaId, tipo: "BAJA", cantidad: enDep, desdeUbicacionId: dep, registradoPorId: yo.id, observaciones: motivo.trim() } });
       }
       await tx.herramienta.update({ where: { id: herramientaId }, data: { estado: "BAJA", activo: false } });
-      await auditar(tx, yo.id, "herramienta.baja", herramientaId, undefined, { motivo: motivo.trim(), cantidad: enDep });
+      await auditar(tx, yo.id, "herramienta.baja", herramientaId, `${yo.nombre} dio de baja ${h.nombre}: ${motivo.trim()}`, undefined, { motivo: motivo.trim(), cantidad: enDep });
     });
     refrescar();
     return null;
@@ -352,14 +355,14 @@ export async function registrarMantenimiento(entrada: DatosMantHerramienta): Pro
     const d = esquemaMant.parse(entrada);
     if (d.fecha > diaISO()) throw new ErrorNegocio("La fecha no puede ser futura.");
     const r = await db.$transaction(async (tx) => {
-      const h = await tx.herramienta.findUniqueOrThrow({ where: { id: d.herramientaId }, select: { mantenimientoCadaDias: true } });
+      const h = await tx.herramienta.findUniqueOrThrow({ where: { id: d.herramientaId }, select: { mantenimientoCadaDias: true, nombre: true } });
       await tx.mantenimientoHerramienta.create({
         data: { herramientaId: d.herramientaId, fecha: aFecha(d.fecha, "12:00"), descripcion: d.descripcion, taller: d.taller ?? null, costo: new Prisma.Decimal(d.costo), registradoPorId: yo.id },
       });
       const cada = d.cadaDias ?? h.mantenimientoCadaDias;
       const proximo = cada ? sumarDias(d.fecha, cada) : null;
       await tx.herramienta.update({ where: { id: d.herramientaId }, data: { mantenimientoCadaDias: cada ?? null, proximoMantenimiento: proximo ? aFecha(proximo, "12:00") : null } });
-      await auditar(tx, yo.id, "herramienta.mantenimiento", d.herramientaId, undefined, { costo: d.costo, proximo });
+      await auditar(tx, yo.id, "herramienta.mantenimiento", d.herramientaId, `${yo.nombre} registró mantenimiento de ${h.nombre}: ${d.descripcion}`, undefined, { costo: d.costo, proximo });
       return { proximo };
     });
     refrescar();
@@ -388,10 +391,10 @@ export async function pedirHerramienta(entrada: DatosPedirHerramienta): Promise<
     const yo = await exigirPermiso("herramientas.solicitar");
     const d = esquemaPedir.parse(entrada);
     const obra = await obraActiva(d.obraId);
-    if (yo.rol === "RESPONSABLE_OBRA" && obra.responsableId !== yo.id) throw new ErrorNegocio(`No sos responsable de Obra ${obra.nombre}.`);
+    if (!(await esObraDelUsuario(yo, obra.id))) throw new ErrorNegocio(`No sos responsable de Obra ${obra.nombre}.`);
     if (d.dia < diaISO()) throw new ErrorNegocio("El día ya pasó.");
 
-    const h = await db.herramienta.findUnique({ where: { id: d.herramientaId }, include: { obra: { select: { id: true, nombre: true, responsable: { select: { nombre: true } } } } } });
+    const h = await db.herramienta.findUnique({ where: { id: d.herramientaId }, include: { obra: { select: { id: true, nombre: true } } } });
     if (!h || !h.activo) throw new ErrorNegocio("Esa herramienta no existe o está dada de baja.");
     if (h.tipoControl === "UNITARIA") {
       if (h.obraId === obra.id) throw new ErrorNegocio(`${h.nombre} ya está en Obra ${obra.nombre}.`);
@@ -407,15 +410,18 @@ export async function pedirHerramienta(entrada: DatosPedirHerramienta): Promise<
       if ((hay?.cantidad ?? 0) < d.cantidad) throw new ErrorNegocio(`En el depósito hay ${hay?.cantidad ?? 0}.`);
     }
 
+    const origen = { origenTipo: desdeObra ? ("OBRA" as const) : ("DEPOSITO" as const), origenId: desdeObra ? desdeObra.id : dep!.id };
+    const puntos = await resolverPuntos(db, { ...origen, obraId: obra.id });
     const pedido = await db.$transaction(async (tx) => {
       const p = await tx.pedidoViaje.create({
         data: {
           solicitanteId: yo.id,
           obraId: obra.id,
           tipo: h.esMaquina ? "TRASLADO_MAQUINARIA" : "TRASLADO_HERRAMIENTAS",
-          origenTipo: desdeObra ? "OBRA" : "DEPOSITO",
-          origenId: desdeObra ? desdeObra.id : dep!.id,
+          ...origen,
+          ...puntos,
           herramientaId: h.id,
+          fechaNecesaria: aFecha(d.dia, "12:00"),
           descripcion: h.tipoControl === "CANTIDAD" ? `${d.cantidad} ${h.nombre.toLowerCase()} (${h.codigo})` : `${h.nombre} (${h.codigo})`,
           necesitaCamion: h.esMaquina,
           paraCuando: aFecha(d.dia, FRANJA[d.franja].hora),
@@ -424,11 +430,15 @@ export async function pedirHerramienta(entrada: DatosPedirHerramienta): Promise<
         },
         select: { id: true, numero: true },
       });
-      await tx.auditoria.create({ data: { usuarioId: yo.id, accion: "pedido.crear", entidad: "PedidoViaje", entidadId: p.id, despues: { estado: "PENDIENTE", herramienta: h.codigo, obra: obra.nombre } } });
+      await auditarBase(tx, {
+        usuarioId: yo.id, accion: "pedido.crear", entidad: "PedidoViaje", entidadId: p.id,
+        resumen: `${yo.nombre} pidió ${h.nombre} (${h.codigo}) para Obra ${obra.nombre} el ${d.dia.split("-").reverse().join("/")}`,
+        despues: { estado: "PENDIENTE", herramienta: h.codigo, obra: obra.nombre },
+      });
       return p;
     });
     refrescar();
-    return { pedidoId: pedido.id, numero: pedido.numero, choferes: await choferesQueLoVen(h.esMaquina), avisado: desdeObra ? desdeObra.responsable.nombre : null };
+    return { pedidoId: pedido.id, numero: pedido.numero, choferes: await choferesQueLoVen(h.esMaquina), avisado: desdeObra ? (await responsablePrincipal(db, desdeObra.id))?.nombre ?? null : null };
   });
 }
 
@@ -464,7 +474,7 @@ export async function guardarHerramienta(entrada: DatosHerramienta): Promise<Res
       };
       if (d.id) {
         const h = await tx.herramienta.update({ where: { id: d.id }, data: datos, select: { id: true, codigo: true } });
-        await auditar(tx, yo.id, "herramienta.editar", h.id, undefined, { ...d, foto: undefined });
+        await auditar(tx, yo.id, "herramienta.editar", h.id, `${yo.nombre} editó ${d.nombre} (${h.codigo})`, undefined, { ...d, foto: undefined });
         return h;
       }
       const codigo = (await siguienteCodigo(tx))();
@@ -474,7 +484,7 @@ export async function guardarHerramienta(entrada: DatosHerramienta): Promise<Res
         select: { id: true, codigo: true },
       });
       if (d.tipoControl === "CANTIDAD" && d.cantidadInicial) await sumar(tx, h.id, { ubicacionId: dep }, d.cantidadInicial);
-      await auditar(tx, yo.id, "herramienta.alta", h.id, undefined, { codigo, nombre: d.nombre });
+      await auditar(tx, yo.id, "herramienta.alta", h.id, `${yo.nombre} dio de alta ${d.nombre} (${codigo})`, undefined, { codigo, nombre: d.nombre });
       return h;
     });
     refrescar();
@@ -517,7 +527,11 @@ export async function importarHerramientas(filas: FilaImportacion[]): Promise<Re
         });
         if (d.tipoControl === "CANTIDAD" && d.cantidadInicial) await sumar(tx, h.id, { ubicacionId: dep }, d.cantidadInicial);
       }
-      await tx.auditoria.create({ data: { usuarioId: yo.id, accion: "herramienta.importar", entidad: "Herramienta", entidadId: "csv", despues: { cantidad: codigos.length, desde: codigos[0], hasta: codigos.at(-1)! } } });
+      await auditarBase(tx, {
+        usuarioId: yo.id, accion: "herramienta.importar", entidad: "Herramienta", entidadId: "csv",
+        resumen: `${yo.nombre} importó ${codigos.length} herramientas (${codigos[0]} a ${codigos.at(-1)})`,
+        despues: { cantidad: codigos.length, desde: codigos[0], hasta: codigos.at(-1)! },
+      });
       return { creadas: codigos.length, desde: codigos[0], hasta: codigos.at(-1)! };
     }, { timeout: 60_000 });
     refrescar();
@@ -541,7 +555,7 @@ export async function agregarSobrante(entrada: DatosSobrante): Promise<Resultado
     const yo = await exigirPermiso("sobrantes.editar");
     const d = esquemaSobrante.parse(entrada);
     const s = await db.materialSobrante.create({ data: { ...d, cantidad: new Prisma.Decimal(d.cantidad), obraOrigenId: d.obraOrigenId ?? null } });
-    await db.auditoria.create({ data: { usuarioId: yo.id, accion: "sobrante.alta", entidad: "MaterialSobrante", entidadId: s.id, despues: { ...d } } });
+    await auditarBase(db, { usuarioId: yo.id, accion: "sobrante.alta", entidad: "MaterialSobrante", entidadId: s.id, resumen: `${yo.nombre} cargó un sobrante: ${d.cantidad} ${d.unidad} de ${d.descripcion}`, despues: { ...d } });
     refrescar();
     return null;
   });
@@ -561,7 +575,11 @@ export async function usarSobrante(id: string, usado: number | null, motivo: str
       where: { id },
       data: queda > 0 ? { cantidad: new Prisma.Decimal(queda) } : { bajaEn: new Date(), motivoBaja: motivo.trim() || "Se usó todo" },
     });
-    await db.auditoria.create({ data: { usuarioId: yo.id, accion: "sobrante.uso", entidad: "MaterialSobrante", entidadId: id, antes: { cantidad: total }, despues: { cantidad: queda, motivo: motivo.trim() } } });
+    await auditarBase(db, {
+      usuarioId: yo.id, accion: "sobrante.uso", entidad: "MaterialSobrante", entidadId: id,
+      resumen: `${yo.nombre} usó ${n} ${s.unidad} de ${s.descripcion}${queda > 0 ? ` (quedan ${queda})` : ""}`,
+      antes: { cantidad: total }, despues: { cantidad: queda, motivo: motivo.trim() },
+    });
     refrescar();
     return { queda };
   });
@@ -569,8 +587,12 @@ export async function usarSobrante(id: string, usado: number | null, motivo: str
 
 export async function deshacerUsoSobrante(id: string, cantidadAnterior: number): Promise<Resultado> {
   return ejecutar(async () => {
-    await exigirPermiso("sobrantes.editar");
-    await db.materialSobrante.update({ where: { id }, data: { cantidad: new Prisma.Decimal(cantidadAnterior), bajaEn: null, motivoBaja: null } });
+    const yo = await exigirPermiso("sobrantes.editar");
+    const s = await db.materialSobrante.update({ where: { id }, data: { cantidad: new Prisma.Decimal(cantidadAnterior), bajaEn: null, motivoBaja: null } });
+    await auditarBase(db, {
+      usuarioId: yo.id, accion: "sobrante.deshacerUso", entidad: "MaterialSobrante", entidadId: id,
+      resumen: `${yo.nombre} deshizo el uso de ${s.descripcion} (vuelve a ${cantidadAnterior} ${s.unidad})`, despues: { cantidad: cantidadAnterior },
+    });
     refrescar();
     return null;
   });

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
+import { auditar } from "@/lib/auditoria";
 import { obtenerSesion } from "@/lib/auth/sesion";
 import { puede } from "@/lib/permisos";
 import { costosPorObra, costosPorVehiculo, periodo } from "@/lib/costos/consultas";
@@ -40,7 +41,11 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  await db.auditoria.create({ data: { usuarioId: u.id, accion: "costos.exportar", entidad: "Costos", entidadId: tipo, despues: { desde: p.desdeISO, hasta: p.hastaISO } } });
+  await auditar(db, {
+    usuarioId: u.id, accion: "costos.exportar", entidad: "Costos", entidadId: tipo,
+    resumen: `${u.nombre} exportó costos por ${tipo === "vehiculos" ? "vehículo" : "obra"} del ${p.desdeISO.split("-").reverse().join("/")} al ${p.hastaISO.split("-").reverse().join("/")}`,
+    despues: { desde: p.desdeISO, hasta: p.hastaISO },
+  });
   return new NextResponse(contenido, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

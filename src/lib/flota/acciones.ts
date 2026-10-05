@@ -9,6 +9,8 @@ import { exigirPermiso } from "@/lib/auth/sesion";
 import { ejecutar, ErrorNegocio, type Resultado } from "@/lib/resultado";
 import { guardarArchivo } from "@/lib/archivos";
 import { aFecha } from "@/lib/formato";
+import { auditar as auditarBase } from "@/lib/auditoria";
+import { DOCUMENTO } from "@/lib/etiquetas";
 
 /** Refresca pantallas y reevalúa las alertas del módulo (resuelve solas las que ya no aplican). */
 const refrescar = () => {
@@ -18,8 +20,13 @@ const refrescar = () => {
 const vacio = (v: unknown) => (v === "" || v === null ? undefined : v);
 const fechaOpc = z.preprocess(vacio, z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Revisá la fecha.").optional());
 
-async function auditar(tx: Prisma.TransactionClient | typeof db, usuarioId: string, accion: string, entidadId: string, antes?: Prisma.InputJsonValue, despues?: Prisma.InputJsonValue) {
-  await tx.auditoria.create({ data: { usuarioId, accion, entidad: "Vehiculo", entidadId, antes, despues } });
+/** Auditoría de flota. `que` arma el resumen con el nombre del vehículo: (v) => `Ana cargó la VTV de ${v}`. */
+async function auditar(
+  tx: Prisma.TransactionClient | typeof db, usuarioId: string, accion: string, entidadId: string,
+  que: (vehiculo: string) => string, antes?: Prisma.InputJsonValue, despues?: Prisma.InputJsonValue,
+) {
+  const v = await tx.vehiculo.findUnique({ where: { id: entidadId }, select: { nombre: true } });
+  await auditarBase(tx, { usuarioId, accion, entidad: "Vehiculo", entidadId, resumen: que(v?.nombre ?? "un vehículo"), antes, despues });
 }
 
 // ═══════════════════════════ Vehículo ═══════════════════════════
@@ -57,10 +64,10 @@ export async function guardarVehiculo(entrada: DatosVehiculo): Promise<Resultado
         const antes = await tx.vehiculo.findUniqueOrThrow({ where: { id } });
         if (d.kmActual < antes.kmActual) throw new ErrorNegocio(`Los km no pueden bajar: tiene registrados ${antes.kmActual.toLocaleString("es-AR")}.`);
         v = await tx.vehiculo.update({ where: { id }, data: datos, select: { id: true } });
-        await auditar(tx, yo.id, "vehiculo.editar", id, { nombre: antes.nombre, costoKm: antes.costoKm.toString(), asignadoAId: antes.asignadoAId, entraEnCola: antes.entraEnCola }, { ...d });
+        await auditar(tx, yo.id, "vehiculo.editar", id, (v) => `${yo.nombre} editó ${v}`, { nombre: antes.nombre, costoKm: antes.costoKm.toString(), asignadoAId: antes.asignadoAId, entraEnCola: antes.entraEnCola }, { ...d });
       } else {
         v = await tx.vehiculo.create({ data: datos, select: { id: true } });
-        await auditar(tx, yo.id, "vehiculo.crear", v.id, undefined, { ...d });
+        await auditar(tx, yo.id, "vehiculo.crear", v.id, (n) => `${yo.nombre} dio de alta ${n}`, undefined, { ...d });
       }
       // La camioneta propia: queda también en la persona (un vehículo por persona).
       await tx.usuario.updateMany({ where: { vehiculoAsignadoId: v.id, NOT: d.asignadoAId ? { id: d.asignadoAId } : undefined }, data: { vehiculoAsignadoId: null } });
@@ -82,7 +89,7 @@ export async function cambiarEstadoVehiculo(id: string, estado: "DISPONIBLE" | "
     if (enViaje) throw new ErrorNegocio("Está en un viaje. Esperá a que termine.");
     const antes = await db.vehiculo.findUniqueOrThrow({ where: { id }, select: { estado: true } });
     await db.vehiculo.update({ where: { id }, data: { estado } });
-    await auditar(db, yo.id, "vehiculo.estado", id, { estado: antes.estado }, { estado });
+    await auditar(db, yo.id, "vehiculo.estado", id, (v) => `${yo.nombre} pasó ${v} a ${estado === "EN_TALLER" ? "en taller" : estado === "FUERA_DE_SERVICIO" ? "fuera de servicio" : "disponible"}`, { estado: antes.estado }, { estado });
     refrescar();
     return null;
   });
@@ -96,7 +103,7 @@ export async function cambiarActivoVehiculo(id: string, activo: boolean): Promis
       if (pend) throw new ErrorNegocio("Tiene viajes en curso o programados. Reasignalos antes de darlo de baja.");
     }
     await db.vehiculo.update({ where: { id }, data: { activo } });
-    await auditar(db, yo.id, activo ? "vehiculo.reactivar" : "vehiculo.baja", id);
+    await auditar(db, yo.id, activo ? "vehiculo.reactivar" : "vehiculo.baja", id, (v) => `${yo.nombre} ${activo ? "reactivó" : "dio de baja"} ${v}`);
     refrescar();
     return null;
   });
@@ -124,7 +131,7 @@ export async function guardarDocumento(entrada: DatosDocumento): Promise<Resulta
       const doc = await tx.documentoVehiculo.create({
         data: { vehiculoId: d.vehiculoId, tipo: d.tipo, vencimiento: d.vencimiento ? aFecha(d.vencimiento, "12:00") : null, archivoUrl, notas: d.notas ?? null },
       });
-      await auditar(tx, yo.id, "vehiculo.documento", d.vehiculoId, undefined, { documentoId: doc.id, tipo: d.tipo, vencimiento: d.vencimiento ?? null });
+      await auditar(tx, yo.id, "vehiculo.documento", d.vehiculoId, (v) => `${yo.nombre} cargó ${DOCUMENTO[d.tipo]} de ${v}${d.vencimiento ? ` (vence ${d.vencimiento.split("-").reverse().join("/")})` : ""}`, undefined, { documentoId: doc.id, tipo: d.tipo, vencimiento: d.vencimiento ?? null });
     });
     refrescar();
     return null;
@@ -159,7 +166,7 @@ export async function registrarMantenimiento(entrada: DatosMantenimiento): Promi
         },
       });
       await tx.vehiculo.updateMany({ where: { id: d.vehiculoId, kmActual: { lt: d.km } }, data: { kmActual: d.km } });
-      await auditar(tx, yo.id, "vehiculo.mantenimiento", d.vehiculoId, undefined, { mantenimientoId: m.id, tipo: d.tipo, costo: d.costo });
+      await auditar(tx, yo.id, "vehiculo.mantenimiento", d.vehiculoId, (v) => `${yo.nombre} registró ${d.tipo === "SERVICE" ? "un service" : "mantenimiento"} de ${v}: ${d.descripcion}`, undefined, { mantenimientoId: m.id, tipo: d.tipo, costo: d.costo });
     });
     refrescar();
     return null;
@@ -184,7 +191,7 @@ export async function registrarIncidente(entrada: DatosIncidente): Promise<Resul
     const i = await db.incidenteVehiculo.create({
       data: { vehiculoId: d.vehiculoId, usuarioId: yo.id, tipo: d.tipo, fecha: aFecha(d.fecha, "12:00"), descripcion: d.descripcion, monto: new Prisma.Decimal(d.monto) },
     });
-    await auditar(db, yo.id, "vehiculo.incidente", d.vehiculoId, undefined, { incidenteId: i.id, tipo: d.tipo, monto: d.monto });
+    await auditar(db, yo.id, "vehiculo.incidente", d.vehiculoId, (v) => `${yo.nombre} registró ${d.tipo === "MULTA" ? "una multa" : d.tipo === "SINIESTRO" ? "un siniestro" : d.tipo === "ROBO" ? "un robo" : "una rotura"} de ${v}`, undefined, { incidenteId: i.id, tipo: d.tipo, monto: d.monto });
     refrescar();
     return null;
   });
@@ -194,7 +201,7 @@ export async function resolverIncidente(id: string, resuelto: boolean): Promise<
   return ejecutar(async () => {
     const yo = await exigirPermiso("flota.editar");
     const i = await db.incidenteVehiculo.update({ where: { id }, data: { resuelto } });
-    await auditar(db, yo.id, resuelto ? "vehiculo.incidente.resuelto" : "vehiculo.incidente.reabierto", i.vehiculoId, undefined, { incidenteId: id });
+    await auditar(db, yo.id, resuelto ? "vehiculo.incidente.resuelto" : "vehiculo.incidente.reabierto", i.vehiculoId, (v) => `${yo.nombre} ${resuelto ? "dio por resuelto" : "reabrió"} un incidente de ${v}`, undefined, { incidenteId: id });
     refrescar();
     return null;
   });

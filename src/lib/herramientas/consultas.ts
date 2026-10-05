@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { exigirPermiso, type UsuarioSesion } from "@/lib/auth/sesion";
 import { diaISO, inicioDelDia } from "@/lib/formato";
+import { idsObrasDelUsuario } from "@/lib/alcance";
 
 export const PESTANAS = { maquinaria: "Maquinaria", herramientas: "Herramientas", cantidad: "Por cantidad", sobrantes: "Sobrantes" } as const;
 export type Pestana = keyof typeof PESTANAS;
@@ -73,12 +74,16 @@ export async function listar({ tab, q, ubicacion }: { tab: Exclude<Pestana, "sob
 
 export async function opciones() {
   await exigirPermiso("herramientas.ver");
-  const [obras, personas, categorias, deposito] = await Promise.all([
-    db.obra.findMany({ where: { estado: "ACTIVA" }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true, responsableId: true } }),
+  const [obrasConResponsables, personas, categorias, deposito] = await Promise.all([
+    db.obra.findMany({ where: { estado: "ACTIVA" }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true, responsables: { select: { usuarioId: true, principal: true }, orderBy: [{ principal: "desc" }, { creadoEn: "asc" }] } } }),
     db.usuario.findMany({ where: { activo: true, rol: { in: ["RESPONSABLE_OBRA", "CAPATAZ", "CHOFER", "DIRECCION", "DEPOSITO"] } }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true } }),
     db.categoriaHerramienta.findMany({ orderBy: { nombre: "asc" } }),
     db.ubicacion.findFirst({ where: { tipo: "DEPOSITO" }, select: { id: true, nombre: true } }),
   ]);
+  // responsableId: el principal (quien recibe por defecto); responsablesIds: todos los asignados.
+  const obras = obrasConResponsables.map((o) => ({
+    id: o.id, nombre: o.nombre, responsableId: o.responsables[0]?.usuarioId ?? "", responsablesIds: o.responsables.map((r) => r.usuarioId),
+  }));
   return { obras, personas, categorias, deposito };
 }
 
@@ -88,7 +93,7 @@ export async function ficha(id: string) {
     where: { id },
     include: {
       categoria: true,
-      obra: { select: { id: true, nombre: true, responsableId: true } },
+      obra: { select: { id: true, nombre: true, responsables: { select: { usuarioId: true, principal: true }, orderBy: [{ principal: "desc" }, { creadoEn: "asc" }] } } },
       ubicacion: { select: { nombre: true } },
       responsable: { select: { id: true, nombre: true } },
       existencias: { include: { obra: { select: { id: true, nombre: true } }, ubicacion: { select: { nombre: true } } }, orderBy: { cantidad: "desc" } },
@@ -162,8 +167,7 @@ export async function sobrantes() {
 /** Responsable/capataz: lo que hay en sus obras y los pedidos que se llevan herramientas de ahí. */
 export async function deMisObras(u: UsuarioSesion) {
   await exigirPermiso("herramientas.ver");
-  const obras = await db.obra.findMany({ where: { estado: "ACTIVA", ...(u.rol === "RESPONSABLE_OBRA" ? { responsableId: u.id } : {}) }, select: { id: true } });
-  const ids = obras.map((o) => o.id);
+  const ids = await idsObrasDelUsuario(u);
   const [unitarias, porCantidad, salen] = await Promise.all([
     db.herramienta.findMany({
       where: { activo: true, estado: "EN_OBRA", obraId: { in: ids } },

@@ -13,6 +13,8 @@ import {
   type OrigenTipo,
 } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { resolverPuntos, type Puntos } from "@/lib/pedidos/puntos";
+import { largo, puntoEn, type Punto } from "@/lib/geo";
 
 let db: PrismaClient;
 
@@ -31,6 +33,7 @@ const haceDias = (n: number, hora = 10) => {
 const hoyAR = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(ahora);
 const enDias = (n: number) => new Date(new Date(`${hoyAR}T12:00:00-03:00`).getTime() + n * DIA);
 const haceHoras = (n: number) => new Date(ahora.getTime() - n * HORA);
+const hhmm = (d: Date) => new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", hour: "2-digit", minute: "2-digit", hour12: false }).format(d);
 
 // Generador pseudoaleatorio con semilla: el seed da siempre lo mismo.
 let semilla = 20261001;
@@ -43,6 +46,8 @@ async function limpiar() {
   await db.auditoria.deleteMany();
   await db.$executeRawUnsafe(`ALTER TABLE "Auditoria" ENABLE TRIGGER USER`).catch(() => {});
   await db.alerta.deleteMany();
+  await db.notificacion.deleteMany();
+  await db.suscripcionPush.deleteMany();
   await db.mantenimientoHerramienta.deleteMany();
   await db.materialSobrante.deleteMany();
   await db.movimientoHerramienta.deleteMany();
@@ -58,6 +63,7 @@ async function limpiar() {
   await db.documentoVehiculo.deleteMany();
   await db.usuario.updateMany({ data: { vehiculoAsignadoId: null } });
   await db.vehiculo.deleteMany();
+  await db.responsableObra.deleteMany();
   await db.obra.deleteMany();
   await db.proveedor.deleteMany();
   await db.ubicacion.deleteMany();
@@ -95,19 +101,31 @@ export async function cargarDatosDemo(cliente: PrismaClient) {
   });
 
   // ──────────────────────────── Obras ────────────────────────────
-  const obra = (codigo: string, nombre: string, direccion: string, localidad: string, latitud: number, longitud: number, responsableId: string) =>
-    db.obra.create({ data: { codigo, nombre, direccion, localidad, latitud, longitud, responsableId, idLebane: `LB-${codigo}` } });
+  const obra = (codigo: string, nombre: string, direccion: string, localidad: string, latitud: number, longitud: number) =>
+    db.obra.create({ data: { codigo, nombre, direccion, localidad, latitud, longitud, idLebane: `LB-${codigo}` } });
 
   // Direcciones y coordenadas verosímiles: confirmar todas con Lebane.
-  const darwin = await obra("OB-01", "Darwin", "Darwin 1154", "Villa Crespo, CABA", -34.5925, -58.4376, daniela.id); // confirmar
-  const pinares = await obra("OB-02", "Pinares II", "Av. de los Lagos 7008", "Nordelta, Tigre", -34.4092, -58.6461, daniela.id); // confirmar
-  const chubut = await obra("OB-03", "Chubut", "Chubut 1621", "Olivos", -34.5081, -58.4952, cesar.id); // confirmar
-  const gaspar = await obra("OB-04", "Gaspar Campos", "Gaspar Campos 1950", "Vicente López", -34.5226, -58.4876, cesar.id); // confirmar
-  const laura = await obra("OB-05", "Laura Thomas", "Laura Thomas 2450", "San Isidro", -34.4733, -58.5307, vicky.id); // confirmar
-  const cabildo = await obra("OB-06", "Cabildo", "Av. Cabildo 3900", "Núñez, CABA", -34.5462, -58.4693, leandro.id); // confirmar
-  const alvear = await obra("OB-07", "Alvear", "Alvear 2210", "Martínez", -34.4951, -58.5154, leandro.id); // confirmar
-  const parana = await obra("OB-08", "Paraná", "Paraná 3700", "Olivos", -34.5115, -58.5122, leandro.id); // confirmar
+  const darwin = await obra("OB-01", "Darwin", "Darwin 1154", "Villa Crespo, CABA", -34.5925, -58.4376); // confirmar
+  const pinares = await obra("OB-02", "Pinares II", "Av. de los Lagos 7008", "Nordelta, Tigre", -34.4092, -58.6461); // confirmar
+  const chubut = await obra("OB-03", "Chubut", "Chubut 1621", "Olivos", -34.5081, -58.4952); // confirmar
+  const gaspar = await obra("OB-04", "Gaspar Campos", "Gaspar Campos 1950", "Vicente López", -34.5226, -58.4876); // confirmar
+  const laura = await obra("OB-05", "Laura Thomas", "Laura Thomas 2450", "San Isidro", -34.4733, -58.5307); // confirmar
+  const cabildo = await obra("OB-06", "Cabildo", "Av. Cabildo 3900", "Núñez, CABA", -34.5462, -58.4693); // confirmar
+  const alvear = await obra("OB-07", "Alvear", "Alvear 2210", "Martínez", -34.4951, -58.5154); // confirmar
+  const parana = await obra("OB-08", "Paraná", "Paraná 3700", "Olivos", -34.5115, -58.5122); // confirmar
   const obras = [darwin, pinares, chubut, gaspar, laura, cabildo, alvear, parana];
+
+  // Responsables reales: Daniela en Darwin y Pinares II; César en todas (principal en Chubut y
+  // Gaspar Campos); Vicky en Laura Thomas; Leandro en Cabildo, Alvear y Paraná.
+  const principalDe = new Map<string, typeof daniela>([
+    [darwin.id, daniela], [pinares.id, daniela], [chubut.id, cesar], [gaspar.id, cesar],
+    [laura.id, vicky], [cabildo.id, leandro], [alvear.id, leandro], [parana.id, leandro],
+  ]);
+  const resp = (o: { id: string }) => principalDe.get(o.id)!;
+  for (const o of obras) {
+    await db.responsableObra.create({ data: { obraId: o.id, usuarioId: resp(o).id, principal: true } });
+    if (resp(o).id !== cesar.id) await db.responsableObra.create({ data: { obraId: o.id, usuarioId: cesar.id, principal: false } });
+  }
 
   // ────────────────────────── Proveedores ──────────────────────────
   const proveedor = (nombre: string, direccion: string, localidad: string, latitud: number, longitud: number, telefono: string) =>
@@ -164,8 +182,9 @@ export async function cargarDatosDemo(cliente: PrismaClient) {
 
   // ───────────────────────── Pedidos y viajes ─────────────────────────
   let numero = 0;
-  type P = Omit<Prisma.PedidoViajeUncheckedCreateInput, "numero">;
-  const pedido = (p: P) => db.pedidoViaje.create({ data: { ...p, numero: ++numero } });
+  type P = Omit<Prisma.PedidoViajeUncheckedCreateInput, "numero" | keyof Puntos>;
+  // Origen y destino resueltos igual que al pedir desde la app.
+  const pedido = async (p: P) => db.pedidoViaje.create({ data: { ...p, ...(await resolverPuntos(db, p)), numero: ++numero } });
   const costo = (km: number, costoKm: Prisma.Decimal, peajes: number) => costoKm.mul(km).add(peajes);
 
   const desdeProveedor = (p: { id: string }) => ({ origenTipo: "PROVEEDOR" as OrigenTipo, origenId: p.id, proveedorId: p.id, tipo: "RETIRO_PROVEEDOR" as TipoPedido });
@@ -195,12 +214,15 @@ export async function cargarDatosDemo(cliente: PrismaClient) {
       peajes: kmViaje > 35 ? 2400 : 0,
       desc,
       peso: Math.min(peso, v.capacidadCargaKg),
-      sol: (await db.usuario.findUniqueOrThrow({ where: { id: o.responsableId } })),
+      sol: resp(o),
     });
   }
+  let viajeDeAyer: { pedidoId: string; numero: number; salida: Date; llegada: Date; prov: string; obra: string; chofer: string; km: number } | null = null;
   for (const h of historia) {
     const salida = haceDias(h.dias, 8 + (h.km % 5));
     const llegada = new Date(salida.getTime() + (1 + h.km / 30) * HORA);
+    const enRetiro = new Date(salida.getTime() + (llegada.getTime() - salida.getTime()) * 0.35);
+    const sale = new Date(enRetiro.getTime() + 20 * 60_000);
     const p = await pedido({
       ...desdeProveedor(h.prov), solicitanteId: h.sol.id, obraId: h.obra.id, descripcion: h.desc, pesoKg: h.peso,
       necesitaCamion: h.v.tipo === "CAMION", paraCuando: salida, estado: "ENTREGADO", tomadoPorId: h.chofer.id,
@@ -212,8 +234,12 @@ export async function cargarDatosDemo(cliente: PrismaClient) {
       data: {
         pedidoId: p.id, vehiculoId: h.v.id, choferId: h.chofer.id, salidaReal: salida, llegadaReal: llegada,
         kmSalida, kmLlegada: kmSalida + h.km, peajes: D(h.peajes), costoCalculado: costo(h.km, h.v.costoKm, h.peajes), estado: "FINALIZADO",
+        etapa: "FINALIZADO", inicioEn: salida, llegadaRetiroEn: enRetiro, salidaRetiroEn: sale, llegadaDestinoEn: llegada,
       },
     });
+    if (!viajeDeAyer && h.dias === 1 && h.sol.id === daniela.id) {
+      viajeDeAyer = { pedidoId: p.id, numero: p.numero, salida, llegada, prov: h.prov.nombre, obra: h.obra.nombre, chofer: h.chofer.nombre, km: h.km };
+    }
   }
 
   // La historia del problema: el mismo hierro para Darwin pedido dos veces el mismo día.
@@ -251,17 +277,43 @@ export async function cargarDatosDemo(cliente: PrismaClient) {
     await db.viaje.create({ data: { pedidoId: p.id, vehiculoId: t.v.id, choferId: claudio.id, estado: "PROGRAMADO", salidaEstimada: sale, ordenRuta: i + 1 } });
   }
 
-  // En viaje: Cristian con el Camión 4 tn, de Hierros Martínez a Chubut.
+  // En viaje: Cristian con el Camión 4 tn, ya cargó en Corralón Munro y va hacia Obra Darwin.
   const enViaje = await pedido({
-    ...desdeProveedor(hierros), solicitanteId: cesar.id, obraId: chubut.id, descripcion: "Hierro del 8 y del 12, 60 barras", pesoKg: 2400,
+    ...desdeProveedor(munro), solicitanteId: daniela.id, obraId: darwin.id, descripcion: "Cemento, cal y arena para losa", pesoKg: 3200,
     necesitaCamion: true, paraCuando: ahora, estado: "EN_VIAJE", tomadoPorId: cristian.id, tomadoEn: haceHoras(2), creadoEn: haceHoras(5),
-    ordenCompraLebane: "OC 3118",
+    ordenCompraLebane: "OC 3118", // confirmar
   });
+  // Recorrido verosímil Munro → Villa Crespo (Av. Mitre, General Paz, Balbín, Triunvirato, Corrientes).
+  const rutaDarwin: Punto[] = [
+    { lat: munro.latitud, lng: munro.longitud }, { lat: -34.5371, lng: -58.5121 }, { lat: -34.5462, lng: -58.5019 },
+    { lat: -34.5531, lng: -58.4934 }, { lat: -34.5642, lng: -58.4813 }, { lat: -34.5717, lng: -58.4706 },
+    { lat: -34.5771, lng: -58.4621 }, { lat: -34.5852, lng: -58.4489 }, { lat: darwin.latitud, lng: darwin.longitud },
+  ];
+  const metrosRuta = Math.round(largo(rutaDarwin));
+  const VEL_MS = 6.4; // ~23 km/h promedio en ciudad
+  const salioDelCorralon = new Date(ahora.getTime() - 20 * 60_000);
+  const recorrido = VEL_MS * 20 * 60; // lo andado en 20 minutos
   const viajeEnCurso = await db.viaje.create({
-    data: { pedidoId: enViaje.id, vehiculoId: camion4.id, choferId: cristian.id, salidaReal: haceHoras(1), kmSalida: camion4.kmActual, estado: "EN_CURSO" },
+    data: {
+      pedidoId: enViaje.id, vehiculoId: camion4.id, choferId: cristian.id, salidaReal: haceHoras(1), kmSalida: camion4.kmActual, estado: "EN_CURSO",
+      etapa: "HACIA_DESTINO", inicioEn: haceHoras(1), llegadaRetiroEn: new Date(ahora.getTime() - 45 * 60_000), salidaRetiroEn: salioDelCorralon,
+      distanciaRetiroM: 6_800, duracionRetiroS: 15 * 60, distanciaDestinoM: metrosRuta, duracionDestinoS: Math.round(metrosRuta / VEL_MS),
+      etaDestino: new Date(ahora.getTime() + ((metrosRuta - recorrido) / VEL_MS) * 1000),
+    },
   });
+  // Posiciones del teléfono de Cristian cada 30 segundos desde que salió del corralón.
+  for (let t = 0; t <= 20 * 60; t += 30) {
+    const { punto, rumbo } = puntoEn(rutaDarwin, VEL_MS * t * (0.85 + azar() * 0.3));
+    await db.posicionVehiculo.create({
+      data: {
+        vehiculoId: camion4.id, viajeId: viajeEnCurso.id, usuarioId: cristian.id, fuente: "TELEFONO",
+        latitud: punto.lat + (azar() - 0.5) * 0.00008, longitud: punto.lng + (azar() - 0.5) * 0.00008,
+        velocidad: Math.round(VEL_MS * 3.6 * (0.6 + azar() * 0.8)), rumbo: Math.round(rumbo), motorEncendido: true,
+        precisionM: Math.round(6 + azar() * 12), fecha: new Date(salioDelCorralon.getTime() + t * 1000),
+      },
+    });
+  }
 
-  await db.$executeRaw`SELECT setval(pg_get_serial_sequence('"PedidoViaje"', 'numero'), (SELECT MAX("numero") FROM "PedidoViaje"))`;
 
   // ─────────────────────── Combustible y services ───────────────────────
   const cargadores = new Map([[camion5.id, claudio.id], [camion4.id, cristian.id], [camion3.id, claudio.id], [autoDavid.id, david.id], [ctaClaudio.id, claudio.id], [ctaCristian.id, cristian.id], [ctaLeandro.id, leandro.id], [ctaLolo.id, lolo.id]]);
@@ -275,7 +327,7 @@ export async function cargarDatosDemo(cliente: PrismaClient) {
       await db.cargaCombustible.create({
         data: {
           vehiculoId, usuarioId, fecha: haceDias(3 + k * 9, 7), litros: D(litros), monto: D(Math.round(litros * (v.tipo === "AUTO" ? 1150 : 1290))), // confirmar precio
-          km: v.kmActual - 50 - k * 400, obraId: v.asignadoAId ? obras.find((o) => o.responsableId === v.asignadoAId)?.id ?? null : null,
+          km: v.kmActual - 50 - k * 400, obraId: v.asignadoAId ? obras.find((o) => resp(o).id === v.asignadoAId)?.id ?? null : null,
         },
       });
     }
@@ -306,7 +358,7 @@ export async function cargarDatosDemo(cliente: PrismaClient) {
 
   let codigo = 0;
   const sig = () => `SIG-${String(++codigo).padStart(4, "0")}`;
-  const obraDe = (o: typeof darwin) => ({ obraId: o.id, responsableId: o.responsableId });
+  const obraDe = (o: typeof darwin) => ({ obraId: o.id, responsableId: resp(o).id });
 
   type H = { nombre: string; categoriaId: string; esMaquina?: boolean; marca?: string; modelo?: string; valor: number; en?: typeof darwin; dias?: number; estado?: "EN_REPARACION"; condicion?: "BUENA" | "REGULAR" | "MALA"; cadaDias?: number; devolucion?: Date };
   const unitarias: H[] = [
@@ -363,7 +415,7 @@ export async function cargarDatosDemo(cliente: PrismaClient) {
     // Movimientos coherentes con dónde está hoy.
     if (enObra) {
       await db.movimientoHerramienta.create({
-        data: { herramientaId: herramienta.id, tipo: "ENTREGA", desdeUbicacionId: depo.id, haciaObraId: h.en!.id, condicion: herramienta.condicion, registradoPorId: deposito.id, recibidoPorId: h.en!.responsableId, fecha: desde },
+        data: { herramientaId: herramienta.id, tipo: "ENTREGA", desdeUbicacionId: depo.id, haciaObraId: h.en!.id, condicion: herramienta.condicion, registradoPorId: deposito.id, recibidoPorId: resp(h.en!).id, fecha: desde },
       });
     }
     if (h.estado === "EN_REPARACION") {
@@ -396,7 +448,7 @@ export async function cargarDatosDemo(cliente: PrismaClient) {
       await db.existenciaHerramienta.create({ data: { herramientaId: h.id, ubicacionId: o ? null : depo.id, obraId: o?.id ?? null, cantidad } });
       if (o) {
         await db.movimientoHerramienta.create({
-          data: { herramientaId: h.id, tipo: "ENTREGA", cantidad, desdeUbicacionId: depo.id, haciaObraId: o.id, registradoPorId: deposito.id, recibidoPorId: o.responsableId, fecha: haceDias(entre(5, 40)) },
+          data: { herramientaId: h.id, tipo: "ENTREGA", cantidad, desdeUbicacionId: depo.id, haciaObraId: o.id, registradoPorId: deposito.id, recibidoPorId: resp(o).id, fecha: haceDias(entre(5, 40)) },
         });
       }
     }
@@ -419,19 +471,15 @@ export async function cargarDatosDemo(cliente: PrismaClient) {
   // ──────────────────── Posiciones (mock de Cusat) ────────────────────
   // En viaje: en ruta entre el proveedor y la obra. Disponible: en su base.
   for (const v of flota) {
-    let lat: number, lng: number, velocidad = 0, encendido = false;
-    if (v.id === camion4.id) {
-      const f = 0.55; // un poco más de la mitad del camino
-      lat = hierros.latitud + (chubut.latitud - hierros.latitud) * f;
-      lng = hierros.longitud + (chubut.longitud - hierros.longitud) * f;
-      velocidad = 38;
-      encendido = true;
-    } else if (v.baseId) {
+    if (v.id === camion4.id) continue; // en viaje: ya tiene las posiciones del teléfono de Cristian
+    let lat: number, lng: number;
+    const velocidad = 0, encendido = false;
+    if (v.baseId) {
       lat = base.latitud + (azar() - 0.5) * 0.0008;
       lng = base.longitud + (azar() - 0.5) * 0.0008;
     } else if (v.asignadoAId) {
       // Camionetas propias: donde está su dueño, en una de sus obras.
-      const o = obras.find((x) => x.responsableId === v.asignadoAId) ?? (v.asignadoAId === lolo.id ? darwin : null);
+      const o = obras.find((x) => resp(x).id === v.asignadoAId) ?? (v.asignadoAId === lolo.id ? darwin : null);
       lat = (o?.latitud ?? base.latitud) + 0.0004;
       lng = (o?.longitud ?? base.longitud) + 0.0004;
     } else {
@@ -440,7 +488,7 @@ export async function cargarDatosDemo(cliente: PrismaClient) {
       lng = v.id === interior1.id ? -59.105 : -60.2138;
     }
     await db.posicionVehiculo.create({
-      data: { vehiculoId: v.id, latitud: lat, longitud: lng, velocidad, rumbo: velocidad ? 135 : 0, motorEncendido: encendido, fecha: v.id === camion4.id ? new Date() : haceHoras(entre(1, 12)) },
+      data: { vehiculoId: v.id, latitud: lat, longitud: lng, velocidad, rumbo: velocidad ? 135 : 0, motorEncendido: encendido, fecha: haceHoras(entre(1, 12)) },
     });
   }
 
@@ -455,13 +503,68 @@ export async function cargarDatosDemo(cliente: PrismaClient) {
   const andamio = await db.herramienta.findFirstOrThrow({ where: { nombre: "Andamio tubular motorizado" } });
   await db.herramienta.update({ where: { id: andamio.id }, data: { mantenimientoCadaDias: 60, proximoMantenimiento: enDias(-3) } });
 
-  await db.auditoria.create({ data: { usuarioId: dueno.id, accion: "seed", entidad: "Sistema", entidadId: "seed", despues: { viajeEnCurso: viajeEnCurso.id } } });
+  // ──────────────────── Pedidos de herramienta ────────────────────
+  // Daniela pidió la Hormigonera 130 l para Darwin hoy y Claudio ya lo aceptó: pedirla otra vez
+  // para Darwin hoy tiene que avisar el duplicado exacto (misma herramienta + obra + día).
+  const hormigonera = await db.herramienta.findFirstOrThrow({ where: { nombre: "Hormigonera 130 l" } });
+  const pedidoHormigonera = await pedido({
+    solicitanteId: daniela.id, obraId: darwin.id, tipo: "TRASLADO_MAQUINARIA", origenTipo: "DEPOSITO", origenId: depo.id,
+    herramientaId: hormigonera.id, fechaNecesaria: enDias(0), descripcion: `${hormigonera.nombre} (${hormigonera.codigo})`,
+    necesitaCamion: true, paraCuando: enDias(0), franja: "TARDE", estado: "TOMADO", tomadoPorId: claudio.id,
+    tomadoEn: haceHoras(1), creadoEn: haceHoras(3),
+  });
+  const salidaHormigonera = new Date(ahora);
+  salidaHormigonera.setHours(15, 0, 0, 0);
+  await db.viaje.create({ data: { pedidoId: pedidoHormigonera.id, vehiculoId: camion5.id, choferId: claudio.id, estado: "PROGRAMADO", salidaEstimada: salidaHormigonera, ordenRuta: tomados.length + 1 } });
+  // Leandro pide el nivel láser para Cabildo mañana: pendiente.
+  const nivel = await db.herramienta.findFirstOrThrow({ where: { nombre: "Nivel láser", estado: "DISPONIBLE" } });
+  await pedido({
+    solicitanteId: leandro.id, obraId: cabildo.id, tipo: "TRASLADO_HERRAMIENTAS", origenTipo: "DEPOSITO", origenId: depo.id,
+    herramientaId: nivel.id, fechaNecesaria: enDias(1), descripcion: `${nivel.nombre} (${nivel.codigo})`,
+    paraCuando: enDias(1), franja: "MANANA", creadoEn: haceHoras(2),
+  });
+  await db.$executeRaw`SELECT setval(pg_get_serial_sequence('"PedidoViaje"', 'numero'), (SELECT MAX("numero") FROM "PedidoViaje"))`;
+
+  // ────────────────── Avisos de Daniela (viaje de ayer) ──────────────────
+  if (viajeDeAyer) {
+    const y = viajeDeAyer;
+    const min = (d: Date, m: number) => new Date(d.getTime() + m * 60_000);
+    const enRetiro = min(y.salida, ((y.llegada.getTime() - y.salida.getTime()) / 60_000) * 0.35);
+    const distancia = y.km * 1000;
+    await db.notificacion.createMany({
+      data: [
+        {
+          usuarioId: daniela.id, tipo: "VIAJE_INICIADO", titulo: `${y.chofer} salió a buscar tu pedido #${y.numero}`,
+          cuerpo: `Va a ${y.prov}. Llega a Obra ${y.obra} a las ${hhmm(y.llegada)} aprox.`, enlace: `/pedidos/${y.pedidoId}`,
+          datos: { distanciaM: distancia, eta: y.llegada.toISOString() }, creadaEn: y.salida, leidaEn: min(y.salida, 4),
+        },
+        {
+          usuarioId: daniela.id, tipo: "LLEGO_RETIRO", titulo: `${y.chofer} está cargando en ${y.prov}`,
+          cuerpo: `Faltan ${Math.round(distancia * 0.65 / 100) / 10} km hasta Obra ${y.obra}. Llega a las ${hhmm(y.llegada)} aprox.`, enlace: `/pedidos/${y.pedidoId}`,
+          datos: { distanciaM: Math.round(distancia * 0.65), eta: y.llegada.toISOString() }, creadaEn: enRetiro, leidaEn: min(enRetiro, 9),
+        },
+        {
+          usuarioId: daniela.id, tipo: "LLEGO_DESTINO", titulo: `Llegó tu pedido #${y.numero} a Obra ${y.obra}`,
+          cuerpo: `${y.chofer} lo entregó a las ${hhmm(y.llegada)}.`, enlace: `/pedidos/${y.pedidoId}`,
+          datos: { distanciaM: 0, eta: y.llegada.toISOString() }, creadaEn: y.llegada,
+        },
+      ],
+    });
+  }
+
+  await db.auditoria.create({
+    data: {
+      usuarioId: dueno.id, rol: "DIRECCION", accion: "seed", entidad: "Sistema", entidadId: "seed",
+      resumen: "Se cargaron los datos de demostración", despues: { viajeEnCurso: viajeEnCurso.id },
+    },
+  });
 
   // ─────────────────────────── Resumen ───────────────────────────
   const conteo = {
     Usuario: await db.usuario.count(),
     Ubicacion: await db.ubicacion.count(),
     Obra: await db.obra.count(),
+    ResponsableObra: await db.responsableObra.count(),
     Proveedor: await db.proveedor.count(),
     Vehiculo: await db.vehiculo.count(),
     DocumentoVehiculo: await db.documentoVehiculo.count(),
@@ -478,6 +581,8 @@ export async function cargarDatosDemo(cliente: PrismaClient) {
     MaterialSobrante: await db.materialSobrante.count(),
     MantenimientoHerramienta: await db.mantenimientoHerramienta.count(),
     Alerta: await db.alerta.count(),
+    Notificacion: await db.notificacion.count(),
+    SuscripcionPush: await db.suscripcionPush.count(),
     Auditoria: await db.auditoria.count(),
   };
   return conteo;

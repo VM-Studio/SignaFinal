@@ -7,7 +7,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   url       = env("DATABASE_URL")
   // Conexión directa (sin pooler) para migraciones. En local, la misma que DATABASE_URL.
   directUrl = env("DATABASE_URL_UNPOOLED")
@@ -42,7 +42,7 @@ model Usuario {
 
   vehiculoAsignado          Vehiculo?                  @relation("VehiculoPropio", fields: [vehiculoAsignadoId], references: [id])
   vehiculosACargo           Vehiculo[]                 @relation("VehiculoAsignadoA")
-  obrasACargo               Obra[]
+  obrasACargo               ResponsableObra[]
   pedidosSolicitados        PedidoViaje[]              @relation("PedidoSolicitante")
   pedidosTomados            PedidoViaje[]              @relation("PedidoTomadoPor")
   viajes                    Viaje[]
@@ -53,6 +53,9 @@ model Usuario {
   movimientosRecibidos      MovimientoHerramienta[]    @relation("MovimientoRecibidoPor")
   mantenimientosHerramienta MantenimientoHerramienta[] @relation("MantenimientoHerramientaRegistro")
   auditoria                 Auditoria[]
+  posiciones                PosicionVehiculo[]
+  notificaciones            Notificacion[]
+  suscripcionesPush         SuscripcionPush[]
 
   @@index([rol, activo])
 }
@@ -71,14 +74,13 @@ model Obra {
   localidad      String
   latitud        Float
   longitud       Float
-  responsableId  String
   estado         EstadoObra @default(ACTIVA)
   idLebane       String?    @unique
   radioGeocercaM Int        @default(200)
   creadoEn       DateTime   @default(now())
   actualizadoEn  DateTime   @updatedAt
 
-  responsable         Usuario                 @relation(fields: [responsableId], references: [id])
+  responsables        ResponsableObra[]
   pedidos             PedidoViaje[]
   cargasCombustible   CargaCombustible[]
   herramientas        Herramienta[]
@@ -88,7 +90,21 @@ model Obra {
   sobrantesOriginados MaterialSobrante[]
 
   @@index([estado])
-  @@index([responsableId])
+}
+
+// Una obra tiene uno o más responsables; uno puede ser el principal (recibe herramientas, etc.).
+model ResponsableObra {
+  id        String   @id @default(cuid())
+  obraId    String
+  usuarioId String
+  principal Boolean  @default(false)
+  creadoEn  DateTime @default(now())
+
+  obra    Obra    @relation(fields: [obraId], references: [id])
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@unique([obraId, usuarioId])
+  @@index([usuarioId])
 }
 
 model Proveedor {
@@ -110,6 +126,8 @@ model Proveedor {
 enum TipoUbicacion {
   DEPOSITO
   BASE_VEHICULOS
+  DESCARGA // volquete / descarga de escombros
+  VARIOS
 }
 
 model Ubicacion {
@@ -324,6 +342,8 @@ model PedidoViaje {
   proveedorId       String?
   // Si el viaje lleva una máquina o herramienta del depósito: herramientas y viajes quedan unidos.
   herramientaId     String?
+  // Día en que se necesita la herramienta: misma herramienta + obra + día = duplicado exacto.
+  fechaNecesaria    DateTime?    @db.Date
   ordenCompraLebane String?
   descripcion       String
   pesoKg            Int?
@@ -337,6 +357,15 @@ model PedidoViaje {
   tomadoEn          DateTime?
   motivoCancelacion String?
   canceladoEn       DateTime?
+  // Origen y destino resueltos al crear: el chofer y el mapa nunca tienen que buscarlos.
+  origenNombre      String
+  origenDireccion   String
+  origenLat         Float
+  origenLng         Float
+  destinoNombre     String
+  destinoDireccion  String
+  destinoLat        Float
+  destinoLng        Float
   creadoEn          DateTime     @default(now())
   actualizadoEn     DateTime     @updatedAt
 
@@ -352,6 +381,16 @@ model PedidoViaje {
   @@index([tomadoPorId, estado])
   @@index([solicitanteId])
   @@index([herramientaId, estado])
+  @@index([herramientaId, obraId, fechaNecesaria])
+}
+
+// El ciclo del viaje. EstadoViaje se deriva de la etapa (ver src/lib/viajes/etapas.ts).
+enum EtapaViaje {
+  PROGRAMADO
+  HACIA_RETIRO
+  EN_RETIRO
+  HACIA_DESTINO
+  FINALIZADO
 }
 
 enum EstadoViaje {
@@ -362,48 +401,77 @@ enum EstadoViaje {
 }
 
 model Viaje {
-  id             String      @id @default(cuid())
-  pedidoId       String      @unique
-  vehiculoId     String
-  choferId       String
-  salidaEstimada DateTime?
-  ordenRuta      Int? // orden en la ruta del día del chofer
-  salidaReal     DateTime?
-  llegadaReal    DateTime?
-  kmSalida       Int?
-  kmLlegada      Int?
-  peajes         Decimal     @default(0) @db.Decimal(12, 2)
-  costoCalculado Decimal?    @db.Decimal(12, 2)
-  remitoUrl      String?
-  observaciones  String?
+  id                String      @id @default(cuid())
+  pedidoId          String      @unique
+  vehiculoId        String
+  choferId          String
+  salidaEstimada    DateTime?
+  ordenRuta         Int? // orden en la ruta del día del chofer
+  salidaReal        DateTime?
+  llegadaReal       DateTime?
+  kmSalida          Int?
+  kmLlegada         Int?
+  peajes            Decimal     @default(0) @db.Decimal(12, 2)
+  costoCalculado    Decimal?    @db.Decimal(12, 2)
+  remitoUrl         String?
+  observaciones     String?
   // Idempotencia de los envíos hechos sin señal.
-  clientIdInicio String?     @unique
-  clientIdFin    String?     @unique
-  estado         EstadoViaje @default(PROGRAMADO)
+  clientIdInicio    String?     @unique
+  clientIdFin       String?     @unique
+  // Compatibilidad: se deriva de etapa (PROGRAMADO / EN_CURSO / FINALIZADO), salvo CANCELADO.
+  estado            EstadoViaje @default(PROGRAMADO)
+  etapa             EtapaViaje  @default(PROGRAMADO)
+  inicioEn          DateTime?
+  llegadaRetiroEn   DateTime?
+  salidaRetiroEn    DateTime?
+  llegadaDestinoEn  DateTime?
+  // Lo que calculó el ruteo al empezar cada tramo.
+  distanciaRetiroM  Int?
+  duracionRetiroS   Int?
+  distanciaDestinoM Int?
+  duracionDestinoS  Int?
+  // Se recalculan con cada posición nueva.
+  etaRetiro         DateTime?
+  etaDestino        DateTime?
 
   pedido      PedidoViaje             @relation(fields: [pedidoId], references: [id])
   vehiculo    Vehiculo                @relation(fields: [vehiculoId], references: [id])
   chofer      Usuario                 @relation(fields: [choferId], references: [id])
   movimientos MovimientoHerramienta[]
+  posiciones  PosicionVehiculo[]
 
   @@index([vehiculoId, estado])
   @@index([choferId, estado])
+  @@index([choferId, etapa])
   @@index([llegadaReal])
 }
 
+enum FuentePosicion {
+  TELEFONO // la app del chofer durante el viaje
+  CUSAT // rastreo satelital
+  MOCK // simulador
+}
+
 model PosicionVehiculo {
-  id             String   @id @default(cuid())
+  id             String         @id @default(cuid())
   vehiculoId     String
   latitud        Float
   longitud       Float
-  velocidad      Float    @default(0)
-  rumbo          Float    @default(0)
-  motorEncendido Boolean  @default(false)
-  fecha          DateTime @default(now())
+  velocidad      Float          @default(0)
+  rumbo          Float          @default(0)
+  motorEncendido Boolean        @default(false)
+  fecha          DateTime       @default(now())
+  fuente         FuentePosicion @default(MOCK)
+  viajeId        String?
+  usuarioId      String?
+  precisionM     Float?
 
   vehiculo Vehiculo @relation(fields: [vehiculoId], references: [id])
+  viaje    Viaje?   @relation(fields: [viajeId], references: [id])
+  usuario  Usuario? @relation(fields: [usuarioId], references: [id])
 
   @@index([vehiculoId, fecha])
+  @@index([viajeId, fecha])
 }
 
 // ═══════════════════════════════ DEPÓSITO ═══════════════════════════════
@@ -582,21 +650,23 @@ enum EstadoAlerta {
 }
 
 model Alerta {
-  id          String       @id @default(cuid())
-  claveUnica  String       @unique // regla:entidad — nunca se duplica
-  regla       String
-  severidad   Severidad
-  titulo      String
-  detalle     String
-  entidadTipo String
-  entidadId   String
-  enlace      String?
+  id           String       @id @default(cuid())
+  claveUnica   String       @unique // regla:entidad — nunca se duplica
+  regla        String
+  severidad    Severidad
+  titulo       String
+  detalle      String
+  entidadTipo  String
+  entidadId    String
+  enlace       String?
   // A quién le toca: la obra (la ve su responsable) y/o la persona (ej.: el chofer).
-  obraId      String?
-  usuarioId   String?
-  estado      EstadoAlerta @default(ABIERTA)
-  creadaEn    DateTime     @default(now())
-  resueltaEn  DateTime?
+  obraId       String?
+  usuarioId    String?
+  // Roles que la ven (matriz en src/lib/alertas/destinatarios.ts). Nadie más la ve.
+  rolesDestino Rol[]        @default([])
+  estado       EstadoAlerta @default(ABIERTA)
+  creadaEn     DateTime     @default(now())
+  resueltaEn   DateTime?
 
   @@index([estado, severidad])
   @@index([entidadTipo, entidadId])
@@ -608,17 +678,71 @@ model Alerta {
 model Auditoria {
   id        String   @id @default(cuid())
   usuarioId String?
+  rol       Rol?
   accion    String
   entidad   String
   entidadId String
+  // Texto corto legible: "Daniela pidió hierro para Obra Darwin".
+  resumen   String
   antes     Json?
   despues   Json?
+  ip        String?
+  userAgent String?
   fecha     DateTime @default(now())
 
   usuario Usuario? @relation(fields: [usuarioId], references: [id])
 
   @@index([entidad, entidadId])
+  @@index([usuarioId, fecha])
   @@index([fecha])
+}
+
+// ═══════════════════════════ AVISOS A PERSONAS ═══════════════════════════
+
+enum TipoNotificacion {
+  PEDIDO_ACEPTADO
+  VIAJE_INICIADO
+  LLEGO_RETIRO
+  LLEGO_DESTINO
+  PEDIDO_SOLTADO
+  PEDIDO_CANCELADO
+  NUEVA_SOLICITUD
+  SOLICITUD_URGENTE
+  HERRAMIENTA_VENCIDA
+  DUPLICADO
+  GENERAL
+}
+
+model Notificacion {
+  id            String           @id @default(cuid())
+  usuarioId     String
+  tipo          TipoNotificacion
+  titulo        String
+  cuerpo        String
+  enlace        String?
+  datos         Json? // distancia, eta, etc.
+  creadaEn      DateTime         @default(now())
+  leidaEn       DateTime?
+  enviadaPushEn DateTime?
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@index([usuarioId, leidaEn])
+}
+
+model SuscripcionPush {
+  id        String   @id @default(cuid())
+  usuarioId String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  creadaEn  DateTime @default(now())
+  activa    Boolean  @default(true)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@index([usuarioId, activa])
 }
 
 // ═══════════════════════════════ ARCHIVOS ═══════════════════════════════

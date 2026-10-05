@@ -2,6 +2,9 @@ import "server-only";
 import { db } from "@/lib/db";
 import { distancia } from "@/lib/geo";
 import type { PosicionCusat } from "./tipos";
+import { auditar } from "@/lib/auditoria";
+import { describirPedido } from "@/lib/pedidos/reglas";
+import { conEtapa } from "@/lib/viajes/etapas";
 
 const SALIDA_DE_BASE_M = 300;
 
@@ -20,14 +23,18 @@ export async function aplicarGeocercas(posiciones: PosicionCusat[]) {
     // Llegada
     const enCurso = await db.viaje.findFirst({
       where: { vehiculoId: p.vehiculoId, estado: "EN_CURSO", llegadaReal: null },
-      include: { pedido: { select: { id: true, obra: { select: { nombre: true, latitud: true, longitud: true, radioGeocercaM: true } } } } },
+      include: { vehiculo: { select: { nombre: true } }, pedido: { select: { id: true, numero: true, obra: { select: { nombre: true, latitud: true, longitud: true, radioGeocercaM: true } } } } },
     });
     if (enCurso) {
       const o = enCurso.pedido.obra;
       if (distancia(aqui, { lat: o.latitud, lng: o.longitud }) <= o.radioGeocercaM) {
-        const r = await db.viaje.updateMany({ where: { id: enCurso.id, llegadaReal: null }, data: { llegadaReal: p.fecha } });
+        const r = await db.viaje.updateMany({ where: { id: enCurso.id, llegadaReal: null }, data: { llegadaReal: p.fecha, llegadaDestinoEn: p.fecha } });
         if (r.count) {
-          await db.auditoria.create({ data: { accion: "viaje.llegada.gps", entidad: "PedidoViaje", entidadId: enCurso.pedido.id, despues: { llegadaReal: p.fecha.toISOString(), obra: o.nombre } } });
+          await auditar(db, {
+            accion: "viaje.llegada.gps", entidad: "PedidoViaje", entidadId: enCurso.pedido.id,
+            resumen: `GPS: ${enCurso.vehiculo.nombre} llegó a Obra ${o.nombre} (pedido #${enCurso.pedido.numero})`,
+            despues: { llegadaReal: p.fecha.toISOString(), obra: o.nombre },
+          });
           eventos.push(`Llegada por GPS a Obra ${o.nombre}`);
         }
       }
@@ -51,12 +58,17 @@ export async function aplicarGeocercas(posiciones: PosicionCusat[]) {
     await db.$transaction(async (tx) => {
       const r = await tx.viaje.updateMany({
         where: { id: programado.id, estado: "PROGRAMADO" },
-        data: { estado: "EN_CURSO", salidaReal: p.fecha, kmSalida: vBase?.kmActual ?? null, observaciones: "Salida registrada por GPS." },
+        data: { ...conEtapa("HACIA_RETIRO"), salidaReal: p.fecha, inicioEn: p.fecha, kmSalida: vBase?.kmActual ?? null, observaciones: "Salida registrada por GPS." },
       });
       if (!r.count) return;
       await tx.pedidoViaje.update({ where: { id: programado.pedidoId }, data: { estado: "EN_VIAJE" } });
       await tx.vehiculo.update({ where: { id: p.vehiculoId }, data: { estado: "EN_VIAJE" } });
-      await tx.auditoria.create({ data: { accion: "viaje.salida.gps", entidad: "PedidoViaje", entidadId: programado.pedidoId, despues: { salidaReal: p.fecha.toISOString() } } });
+      const v = await tx.vehiculo.findUnique({ where: { id: p.vehiculoId }, select: { nombre: true } });
+      await auditar(tx, {
+        accion: "viaje.salida.gps", entidad: "PedidoViaje", entidadId: programado.pedidoId,
+        resumen: `GPS: ${v?.nombre ?? "un vehículo"} salió de la base para ${await describirPedido(tx, programado.pedidoId)}`,
+        despues: { salidaReal: p.fecha.toISOString() },
+      });
       eventos.push("Salida por GPS");
     });
   }

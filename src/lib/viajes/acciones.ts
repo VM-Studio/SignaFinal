@@ -7,7 +7,9 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { ejecutar, ErrorNegocio, type Resultado } from "@/lib/resultado";
-import { auditar, validarChoferYVehiculo } from "@/lib/pedidos/reglas";
+import { auditar, describirPedido, validarChoferYVehiculo } from "@/lib/pedidos/reglas";
+import { responsablePrincipal } from "@/lib/alcance";
+import { conEtapa } from "./etapas";
 import { guardarArchivo } from "@/lib/archivos";
 import { km as fmtKm } from "@/lib/formato";
 import { alLlegarElViaje } from "@/lib/herramientas/servicio";
@@ -59,10 +61,10 @@ export async function iniciarViaje(entrada: DatosInicio): Promise<Resultado<{ ve
       if (d.kmSalida > vehiculo.kmActual + 3000) throw new ErrorNegocio(`Son ${fmtKm(d.kmSalida - vehiculo.kmActual)} más que los registrados. Revisá el número.`);
 
       const salidaReal = momento(d.ocurridoEn);
-      await tx.viaje.update({ where: { id: viaje.id }, data: { estado: "EN_CURSO", salidaReal, kmSalida: d.kmSalida, clientIdInicio: d.clientId } });
+      await tx.viaje.update({ where: { id: viaje.id }, data: { ...conEtapa("HACIA_RETIRO"), salidaReal, inicioEn: salidaReal, kmSalida: d.kmSalida, clientIdInicio: d.clientId } });
       await tx.pedidoViaje.update({ where: { id: d.pedidoId }, data: { estado: "EN_VIAJE" } });
       await tx.vehiculo.update({ where: { id: vehiculo.id }, data: { estado: "EN_VIAJE", kmActual: d.kmSalida } });
-      await auditar(tx, { usuarioId: yo.id, accion: "viaje.iniciar", entidadId: d.pedidoId, antes: { estado: "TOMADO" }, despues: { estado: "EN_VIAJE", kmSalida: d.kmSalida, vehiculo: vehiculo.nombre } });
+      await auditar(tx, { usuarioId: yo.id, accion: "viaje.iniciar", entidadId: d.pedidoId, resumen: `${yo.nombre} salió con ${vehiculo.nombre} para ${await describirPedido(tx, d.pedidoId)}`, antes: { estado: "TOMADO" }, despues: { estado: "EN_VIAJE", kmSalida: d.kmSalida, vehiculo: vehiculo.nombre } });
       return { vehiculo: vehiculo.nombre };
     });
     refrescar();
@@ -119,14 +121,15 @@ export async function finalizarViaje(entrada: DatosFin): Promise<Resultado<Resul
         where: { id: viaje.id },
         data: {
           // Si la llegada ya la marcó el GPS (geocerca), vale esa hora.
-          estado: "FINALIZADO", llegadaReal: viaje.llegadaReal ?? momento(d.ocurridoEn, viaje.salidaReal), kmLlegada: d.kmLlegada, peajes, costoCalculado: costo,
+          ...conEtapa("FINALIZADO"), llegadaReal: viaje.llegadaReal ?? momento(d.ocurridoEn, viaje.salidaReal), kmLlegada: d.kmLlegada, peajes, costoCalculado: costo,
+          llegadaDestinoEn: viaje.llegadaDestinoEn ?? viaje.llegadaReal ?? momento(d.ocurridoEn, viaje.salidaReal),
           remitoUrl, observaciones: d.observaciones ?? null, clientIdFin: d.clientId,
         },
       });
       await tx.pedidoViaje.update({ where: { id: d.pedidoId }, data: { estado: "ENTREGADO" } });
       // Si el viaje llevaba una máquina o herramienta y nadie registró la entrega, queda en la obra.
       if (viaje.pedido.herramientaId) {
-        await alLlegarElViaje(tx, { usuarioId: yo.id, viajeId: viaje.id, herramientaId: viaje.pedido.herramientaId, obraId: viaje.pedido.obraId, recibidoPorId: viaje.pedido.obra.responsableId });
+        await alLlegarElViaje(tx, { usuarioId: yo.id, viajeId: viaje.id, herramientaId: viaje.pedido.herramientaId, obraId: viaje.pedido.obraId, recibidoPorId: (await responsablePrincipal(tx, viaje.pedido.obraId))?.id ?? null });
       }
       await tx.vehiculo.update({
         where: { id: viaje.vehiculoId },
@@ -134,6 +137,7 @@ export async function finalizarViaje(entrada: DatosFin): Promise<Resultado<Resul
       });
       await auditar(tx, {
         usuarioId: yo.id, accion: "viaje.finalizar", entidadId: d.pedidoId,
+        resumen: `${yo.nombre} entregó ${await describirPedido(tx, d.pedidoId)}: ${recorridos} km`,
         antes: { estado: "EN_VIAJE" }, despues: { estado: "ENTREGADO", kmLlegada: d.kmLlegada, km: recorridos, peajes: d.peajes, costo: costo.toString(), obra: viaje.pedido.obra.nombre },
       });
 
@@ -192,7 +196,7 @@ export async function registrarCarga(entrada: DatosCarga): Promise<Resultado<{ o
         },
       });
       if (d.km != null && d.km > v.kmActual) await tx.vehiculo.update({ where: { id: v.id }, data: { kmActual: d.km } });
-      await auditar(tx, { usuarioId: yo.id, accion: "combustible.cargar", entidad: "CargaCombustible", entidadId: c.id, despues: { vehiculo: v.nombre, litros: d.litros, monto: d.monto, obra: enViaje?.pedido.obra.nombre ?? null } });
+      await auditar(tx, { usuarioId: yo.id, accion: "combustible.cargar", entidad: "CargaCombustible", entidadId: c.id, resumen: `${yo.nombre} cargó ${d.litros} l en ${v.nombre}${enViaje ? ` (Obra ${enViaje.pedido.obra.nombre})` : ""}`, despues: { vehiculo: v.nombre, litros: d.litros, monto: d.monto, obra: enViaje?.pedido.obra.nombre ?? null } });
       return { obra: enViaje?.pedido.obra.nombre ?? null };
     });
     refrescar();

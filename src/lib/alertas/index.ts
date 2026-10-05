@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import type { AlertaCalculada, Modulo, Regla } from "./tipos";
+import { rolesDeRegla } from "./destinatarios";
 
 /* Sin "server-only" ni imports de Next: también lo usa la carga de datos de demo (prisma/seed.ts).
    Para reevaluar después de una acción, usar reevaluar() de ./reevaluar. */
@@ -22,7 +23,7 @@ export async function evaluarAlertas(modulos?: Modulo[]) {
 
   await db.$transaction(async (tx) => {
     for (const a of calculadas) {
-      const datos = { regla: a.regla, severidad: a.severidad, titulo: a.titulo, detalle: a.detalle, entidadTipo: a.entidadTipo, entidadId: a.entidadId, enlace: a.enlace, obraId: a.obraId ?? null, usuarioId: a.usuarioId ?? null };
+      const datos = { regla: a.regla, severidad: a.severidad, titulo: a.titulo, detalle: a.detalle, entidadTipo: a.entidadTipo, entidadId: a.entidadId, enlace: a.enlace, obraId: a.obraId ?? null, usuarioId: a.usuarioId ?? null, rolesDestino: rolesDeRegla(a.regla) };
       const previa = await tx.alerta.findUnique({ where: { claveUnica: a.claveUnica }, select: { estado: true } });
       if (!previa) await tx.alerta.create({ data: { claveUnica: a.claveUnica, ...datos } });
       // Si estaba resuelta y el problema volvió, se reabre; si estaba vista, sigue vista.
