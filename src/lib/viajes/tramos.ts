@@ -3,8 +3,10 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { calcularRuta, rutaEstimada, type Ruta } from "@/lib/rutas";
 import { auditar } from "@/lib/auditoria";
+import { notificar } from "@/lib/notificaciones";
+import { TEXTO } from "@/lib/notificaciones/textos";
 import { conEtapa } from "./etapas";
-import type { Punto } from "@/lib/geo";
+import { distancia, type Punto } from "@/lib/geo";
 
 /** Lo que se tarda en cargar en el punto de retiro (para estimar la llegada a la obra). */
 export const CARGA_S = 20 * 60;
@@ -44,4 +46,78 @@ export async function salirDelRetiro(cliente: Prisma.TransactionClient, viajeId:
     resumen: `${porGps ? "GPS: " : ""}${v.chofer.nombre} salió de ${v.pedido.origenNombre} hacia la obra (pedido #${v.pedido.numero})`,
   });
   return true;
+}
+
+// ─────────────────────── Posición, hora estimada y demora ───────────────────────
+
+const DEMORA_AVISO_MS = 15 * 60_000;
+
+type ViajeConPedido = Prisma.ViajeGetPayload<{ include: { pedido: true; chofer: { select: { nombre: true } } } }>;
+
+/**
+ * La hora estimada que ya le dijimos al que pidió (la del último aviso del viaje). Si la nueva se
+ * corre más de 15 minutos, se le avisa UNA vez: "Claudio viene con demora, ahora llega 10:05 aprox".
+ */
+export async function avisarSiHayDemora(v: ViajeConPedido, nuevaEta: Date) {
+  const avisos = await db.notificacion.findMany({
+    where: { usuarioId: v.pedido.solicitanteId, datos: { path: ["pedidoId"], equals: v.pedido.id } },
+    orderBy: { creadaEn: "desc" },
+    select: { datos: true },
+    take: 10,
+  });
+  if (avisos.some((a) => (a.datos as { demora?: boolean } | null)?.demora)) return false;
+  const dicho = avisos.map((a) => (a.datos as { eta?: string } | null)?.eta).find(Boolean);
+  if (!dicho || nuevaEta.getTime() - new Date(dicho).getTime() <= DEMORA_AVISO_MS) return false;
+  await notificar(v.pedido.solicitanteId, "GENERAL", {
+    ...TEXTO.demora(v.chofer.nombre, nuevaEta),
+    enlace: `/mis-pedidos/${v.pedido.id}`,
+    datos: { pedidoId: v.pedido.id, eta: nuevaEta.toISOString(), demora: true },
+  }, { copiaDireccion: true });
+  return true;
+}
+
+/**
+ * Una posición nueva del viaje (teléfono, Cusat o simulador): la guarda, pasa a "en camino" si se
+ * alejó del retiro, recalcula la hora estimada del tramo y avisa si hay demora.
+ */
+export async function registrarPosicion(
+  viajeId: string,
+  aqui: Punto,
+  o: { fuente: "TELEFONO" | "CUSAT" | "MOCK"; usuarioId?: string | null; precisionM?: number | null; velocidadKmh?: number; rumbo?: number },
+) {
+  const v = await db.viaje.findUnique({ where: { id: viajeId }, include: { pedido: true, chofer: { select: { nombre: true } } } });
+  if (!v || !["HACIA_RETIRO", "EN_RETIRO", "HACIA_DESTINO"].includes(v.etapa)) return null;
+  const ahora = new Date();
+  await db.posicionVehiculo.create({
+    data: {
+      vehiculoId: v.vehiculoId, viajeId: v.id, usuarioId: o.usuarioId ?? null, fuente: o.fuente, latitud: aqui.lat, longitud: aqui.lng,
+      precisionM: o.precisionM ?? null, velocidad: o.velocidadKmh ?? 0, rumbo: o.rumbo ?? 0, motorEncendido: true, fecha: ahora,
+    },
+  });
+  let etapa = v.etapa;
+  // Se fue del punto de retiro sin tocar "Salgo": lo hace el GPS.
+  if (etapa === "EN_RETIRO" && distancia(aqui, origenDe(v.pedido)) > SALIDA_RETIRO_M) {
+    await db.$transaction((tx) => salirDelRetiro(tx, v.id, ahora, true, null));
+    etapa = "HACIA_DESTINO";
+  }
+  const eta = await recalcularEta({ ...v, etapa }, aqui, ahora);
+  return { etapa, eta, cambioDeEtapa: etapa !== v.etapa };
+}
+
+/** Recalcula la hora estimada del tramo desde una posición (y avisa si se corrió más de 15 min). */
+export async function recalcularEta(v: ViajeConPedido, aqui: Punto, ahora = new Date()) {
+  let eta: Date | null = null;
+  if (v.etapa === "HACIA_RETIRO") {
+    const [aRetiro, aDestino] = await Promise.all([rutaSegura(aqui, origenDe(v.pedido)), rutaSegura(origenDe(v.pedido), destinoDe(v.pedido))]);
+    eta = new Date(ahora.getTime() + aRetiro.duracionS * 1000);
+    const etaDestino = new Date(eta.getTime() + (CARGA_S + aDestino.duracionS) * 1000);
+    await db.viaje.update({ where: { id: v.id }, data: { etaRetiro: eta, etaDestino } });
+    await avisarSiHayDemora(v, etaDestino);
+  } else if (v.etapa === "HACIA_DESTINO") {
+    const aDestino = await rutaSegura(aqui, destinoDe(v.pedido));
+    eta = new Date(ahora.getTime() + aDestino.duracionS * 1000);
+    await db.viaje.update({ where: { id: v.id }, data: { etaDestino: eta } });
+    await avisarSiHayDemora(v, eta);
+  }
+  return eta;
 }

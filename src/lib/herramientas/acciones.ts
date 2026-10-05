@@ -16,6 +16,8 @@ import { auditar, depositoId, moverUnitaria, restar, siguienteCodigo, stockEn, s
 import { auditar as auditarBase } from "@/lib/auditoria";
 import { conAlcance, esObraDelUsuario } from "@/lib/alcance";
 import { resolverPuntos } from "@/lib/pedidos/puntos";
+import { notificar } from "@/lib/notificaciones";
+import { avisarUrgente } from "@/lib/pedidos/avisos";
 
 /** Refresca pantallas y reevalúa las alertas del módulo (resuelve solas las que ya no aplican). */
 const refrescar = () => {
@@ -473,25 +475,19 @@ export async function pedirHerramienta(entrada: DatosPedirHerramienta): Promise<
       });
       // Al que lo pidió primero: que sepa que otro también lo necesitaba.
       if (igual && igual.solicitanteId !== yo.id) {
-        await tx.notificacion.create({
-          data: {
-            usuarioId: igual.solicitante.id, tipo: "DUPLICADO",
-            titulo: `${yo.nombre} también pidió ${h.nombre} para Obra ${obra.nombre}`,
-            cuerpo: `Es ${paraElDia(fechaNecesaria)}, igual que el tuyo. Motivo: ${d.motivo}`,
-            enlace: `/mis-pedidos/${igual.id}`, datos: { pedidoId: p.id, motivo: d.motivo ?? null },
-          },
-        });
+        await notificar(igual.solicitante.id, "DUPLICADO", {
+          titulo: `${yo.nombre} también pidió ${h.nombre} para Obra ${obra.nombre}`,
+          cuerpo: `Es ${paraElDia(fechaNecesaria)}, igual que el tuyo. Motivo: ${d.motivo}`,
+          enlace: `/mis-pedidos/${igual.id}`, datos: { pedidoId: p.id, motivo: d.motivo ?? null },
+        }, { tx });
       }
       // Si sale de otra obra, le avisa a quienes la tienen ahí.
       for (const r of responsablesOrigen) {
-        await tx.notificacion.create({
-          data: {
-            usuarioId: r.usuario.id, tipo: "GENERAL",
-            titulo: `${yo.nombre} pidió ${h.nombre} que está en Obra ${desdeObra!.nombre}`,
-            cuerpo: `La van a buscar para llevarla a Obra ${obra.nombre} ${paraElDia(fechaNecesaria)}.`,
-            enlace: `/herramientas/${h.id}`, datos: { pedidoId: p.id },
-          },
-        });
+        await notificar(r.usuario.id, "GENERAL", {
+          titulo: `${yo.nombre} pidió ${h.nombre} que está en Obra ${desdeObra!.nombre}`,
+          cuerpo: `La van a buscar para llevarla a Obra ${obra.nombre} ${paraElDia(fechaNecesaria)}.`,
+          enlace: `/herramientas/${h.id}`, datos: { pedidoId: p.id },
+        }, { tx });
       }
       await auditarBase(tx, {
         usuarioId: yo.id, accion: igual ? "pedido.crear.noEraDuplicado" : "pedido.crear", entidad: "PedidoViaje", entidadId: p.id,
@@ -501,6 +497,7 @@ export async function pedirHerramienta(entrada: DatosPedirHerramienta): Promise<
       return p;
     });
     refrescar();
+    if (d.prioridad === "URGENTE") await avisarUrgente(pedido.id);
     return {
       estado: "creado", pedidoId: pedido.id, numero: pedido.numero, choferes: await choferesQueLoVen(h.esMaquina),
       avisado: responsablesOrigen.length ? responsablesOrigen.map((r) => r.usuario.nombre).join(" y ") : null,

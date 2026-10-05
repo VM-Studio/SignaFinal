@@ -7,6 +7,7 @@ import { Tarjeta, Titulo } from "@/components/ui/basicos";
 import { Boton } from "@/components/ui/boton";
 import { modoDemo } from "@/lib/demo";
 import { ReiniciarDemo } from "@/components/layout/reiniciar-demo";
+import { EstadoPush } from "@/components/layout/estado-push";
 
 export const metadata: Metadata = { title: "Mi cuenta" };
 
@@ -21,6 +22,7 @@ export default async function PaginaCuenta() {
         <p className="mt-1 text-suave">{u.email}</p>
       </Tarjeta>
       <p className="mt-3 text-sm text-suave">La sesión dura 30 días en este dispositivo.</p>
+      <div className="mt-6"><EstadoPush /></div>
       {modoDemo() && (u.rol === "DIRECCION" || u.rol === "ADMINISTRACION") && (
         <div className="mt-6">
           <ReiniciarDemo />

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell, LogOut, UserCircle2 } from "lucide-react";
 import { tituloDeRuta, type Grupo, type Seccion } from "@/lib/navegacion";
 import { cerrarSesion } from "@/lib/auth/acciones";
@@ -33,6 +33,23 @@ function useDestino() {
 function seccionActiva(hrefs: string[], ruta: string) {
   const candidatas = hrefs.map((h) => h.split("?")[0]).filter((h) => ruta === h || ruta.startsWith(h + "/"));
   return candidatas.sort((a, b) => b.length - a.length)[0];
+}
+
+/** La campana: arranca con lo que mandó el servidor y se actualiza sola cada 30 s. */
+function useAvisos(inicial: number) {
+  const [n, setN] = useState(inicial);
+  useEffect(() => setN(inicial), [inicial]);
+  useEffect(() => {
+    const t = window.setInterval(async () => {
+      if (document.hidden) return;
+      try {
+        const r = await fetch("/api/avisos/contador", { cache: "no-store" });
+        if (r.ok) setN(((await r.json()) as { avisos: number }).avisos);
+      } catch {}
+    }, 30_000);
+    return () => window.clearInterval(t);
+  }, []);
+  return n;
 }
 
 function Contador({ n, claro = false }: { n: number; claro?: boolean }) {
@@ -78,7 +95,8 @@ function HojaPerfil({ perfil, abierta, onCerrar }: { perfil: Perfil; abierta: bo
 
 // ─────────────────────────── Escritorio ───────────────────────────
 
-export function BarraLateral({ grupos, perfil, avisos }: { grupos: Grupo[]; perfil: Perfil; avisos: number }) {
+export function BarraLateral({ grupos, perfil, avisos: inicial }: { grupos: Grupo[]; perfil: Perfil; avisos: number }) {
+  const avisos = useAvisos(inicial);
   const [destino, ir] = useDestino();
   const [abierta, setAbierta] = useState(false);
   const activa = seccionActiva(grupos.flatMap((g) => g.items.map((i) => i.href)), destino);
@@ -133,7 +151,8 @@ export function BarraLateral({ grupos, perfil, avisos }: { grupos: Grupo[]; perf
 
 // ─────────────────────────── Celular ───────────────────────────
 
-export function HeaderMovil({ perfil, avisos }: { perfil: Perfil; avisos: number }) {
+export function HeaderMovil({ perfil, avisos: inicial }: { perfil: Perfil; avisos: number }) {
+  const avisos = useAvisos(inicial);
   const pathname = usePathname();
   const [abierta, setAbierta] = useState(false);
   const titulo = pathname === "/inicio" ? "" : tituloDeRuta(pathname);

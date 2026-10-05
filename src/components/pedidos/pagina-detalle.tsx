@@ -7,6 +7,8 @@ import { puede } from "@/lib/permisos";
 import { db } from "@/lib/db";
 import { opcionesReasignar, pedido as buscarPedido, vehiculosParaTomar } from "@/lib/pedidos/consultas";
 import { SeguimientoViaje } from "@/components/viajes/seguimiento-viaje";
+import { seguimiento } from "@/lib/viajes/seguimiento";
+import { modoDemo } from "@/lib/demo";
 import { textoParaCuando, TIPO } from "@/lib/pedidos/presentacion";
 import { Insignia, Subtitulo, Tarjeta } from "@/components/ui/basicos";
 import { EstadoPedido } from "@/components/pedidos/fila-pedido";
@@ -68,6 +70,7 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
       {puedeCancelar && <BotonCancelar pedidoId={p.id} />}
     </>
   );
+  const enVivo = ["TOMADO", "EN_VIAJE", "ENTREGADO"].includes(p.estado) ? await seguimiento(u, p.id) : null;
   const volver =
     u.rol === "CHOFER" ? { href: "/hoy", titulo: "Hoy" } :
     u.rol === "RESPONSABLE_OBRA" || u.rol === "CAPATAZ" ? { href: "/mis-pedidos", titulo: "Mis pedidos" } :
@@ -98,7 +101,10 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
         </aside>
       )}
 
-      <div className="min-w-0 lg:col-start-1">
+      <div id="detalle" className="min-w-0 scroll-mt-20 lg:col-start-1">
+        {/* Seguimiento en vivo (aceptado, en viaje o entregado): pasos, mapa, frase y llamar al chofer. */}
+        {enVivo && <SeguimientoViaje pedidoId={p.id} inicial={enVivo} demo={modoDemo() && u.rol === "DIRECCION"} />}
+        {enVivo && <Subtitulo>Qué pidió</Subtitulo>}
         <Tarjeta className="p-4">
           <div className="flex gap-3">
             <MapPin className="mt-0.5 size-5 shrink-0" />
@@ -151,12 +157,8 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
             ))}
         </dl>
 
-        {p.estado === "EN_VIAJE" && v && (
-          <SeguimientoViaje etapa={v.etapa} origen={p.origen.nombre} chofer={p.tomadoPor?.nombre ?? "El chofer"} vehiculo={v.vehiculo.nombre} etaRetiro={v.etaRetiro} etaDestino={v.etaDestino} />
-        )}
-
-        <Subtitulo>Línea de tiempo</Subtitulo>
-        <ol className="relative ml-2 border-l-2 border-linea pl-5">
+        {!enVivo && <Subtitulo>Línea de tiempo</Subtitulo>}
+        <ol className={`relative ml-2 border-l-2 border-linea pl-5 ${enVivo ? "hidden" : ""}`}>
           {momentos.map((m) => (
             <li key={m.titulo} className="relative pb-4 last:pb-0">
               <span aria-hidden className={`absolute top-1.5 -left-[27px] size-3 rounded-full border-2 ${m.hecho ? "border-negro bg-negro" : "border-linea-fuerte bg-papel"}`} />

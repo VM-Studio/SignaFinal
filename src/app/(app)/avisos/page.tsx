@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { Bell } from "lucide-react";
 import { misAvisos } from "@/lib/avisos/consultas";
 import { Insignia, Subtitulo, Titulo, Vacio } from "@/components/ui/basicos";
-import { MarcarLeidos } from "@/components/avisos/marcar-leidos";
+import { BotonMarcarTodas, ItemAviso } from "@/components/avisos/item-aviso";
 import { cuando } from "@/lib/formato";
 
 export const metadata: Metadata = { title: "Avisos" };
@@ -15,12 +15,30 @@ export default async function PaginaAvisos() {
   const item = "block rounded-[var(--radius-caja)] border border-linea bg-papel p-4";
   return (
     <div className="mx-auto max-w-2xl">
-      <MarcarLeidos hay={sinLeer > 0} />
-      <Titulo>Avisos</Titulo>
+      <Titulo accion={<BotonMarcarTodas hay={sinLeer} />}>Avisos</Titulo>
       {notificaciones.length + alertas.length === 0 ? (
         <Vacio icono={<Bell className="size-10" />} titulo="No tenés avisos">Cuando pase algo con tus pedidos o tus cosas, te avisamos acá.</Vacio>
       ) : (
         <>
+          {notificaciones.length > 0 && (
+            <>
+              <Subtitulo>{sinLeer ? `Novedades · ${sinLeer} sin leer` : "Novedades"}</Subtitulo>
+              <ul className="flex flex-col gap-2">
+                {notificaciones.map((n) => (
+                  <li key={n.id}>
+                    <ItemAviso id={n.id} enlace={n.enlace} leida={!!n.leidaEn}>
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="font-semibold">{n.titulo}</p>
+                        {!n.leidaEn && <Insignia tono="activo">Nuevo</Insignia>}
+                      </div>
+                      <p className="mt-1 text-[15px]">{n.cuerpo}</p>
+                      <p className="mt-1 text-sm text-suave">{cuando(n.creadaEn)}</p>
+                    </ItemAviso>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
           {alertas.length > 0 && (
             <>
               <Subtitulo>Para resolver</Subtitulo>
@@ -36,26 +54,6 @@ export default async function PaginaAvisos() {
                     </>
                   );
                   return <li key={a.id}>{a.enlace ? <Link href={a.enlace} className={`${item} hover:bg-fondo/60`}>{contenido}</Link> : <div className={item}>{contenido}</div>}</li>;
-                })}
-              </ul>
-            </>
-          )}
-          {notificaciones.length > 0 && (
-            <>
-              <Subtitulo>Novedades</Subtitulo>
-              <ul className="flex flex-col gap-2">
-                {notificaciones.map((n) => {
-                  const contenido = (
-                    <>
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="font-semibold">{n.titulo}</p>
-                        {!n.leidaEn && <Insignia tono="activo">Nuevo</Insignia>}
-                      </div>
-                      <p className="mt-1 text-[15px]">{n.cuerpo}</p>
-                      <p className="mt-1 text-sm text-suave">{cuando(n.creadaEn)}</p>
-                    </>
-                  );
-                  return <li key={n.id}>{n.enlace ? <Link href={n.enlace} className={`${item} hover:bg-fondo/60`}>{contenido}</Link> : <div className={item}>{contenido}</div>}</li>;
                 })}
               </ul>
             </>

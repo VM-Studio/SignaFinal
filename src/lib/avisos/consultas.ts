@@ -20,7 +20,8 @@ export async function misAvisos() {
   const u = await exigirPermiso("avisos.ver");
   const misObras = u.rol === "RESPONSABLE_OBRA" ? await idsObrasDelUsuario(u, true) : [];
   const [notificaciones, alertas] = await Promise.all([
-    db.notificacion.findMany({ where: { usuarioId: u.id }, orderBy: { creadaEn: "desc" }, take: 50 }),
+    // No leídas primero, después las más nuevas.
+    db.notificacion.findMany({ where: { usuarioId: u.id }, orderBy: [{ leidaEn: { sort: "desc", nulls: "first" } }, { creadaEn: "desc" }], take: 60 }),
     db.alerta.findMany({ where: { ...filtroDestinatario(u, misObras), estado: { not: "RESUELTA" } }, orderBy: [{ severidad: "desc" }, { creadaEn: "desc" }], take: 50 }),
   ]);
   return { notificaciones, alertas };

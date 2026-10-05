@@ -13,7 +13,9 @@ import { auditar, buscarDuplicado, choferesQueLoVen, describirPedido, necesitaCa
 import { resolverPuntos } from "./puntos";
 import { esObraDelUsuario } from "@/lib/alcance";
 import { conEtapa } from "@/lib/viajes/etapas";
-import { notificar } from "@/lib/avisos/notificar";
+import { notificar } from "@/lib/notificaciones";
+import { avisarUrgente } from "./avisos";
+import { TEXTO } from "@/lib/notificaciones/textos";
 import { FRANJA } from "./presentacion";
 
 /** Refresca pantallas y reevalúa las alertas del módulo (resuelve solas las que ya no aplican). */
@@ -25,6 +27,7 @@ const vacio = (v: unknown) => (v === "" || v === null ? undefined : v);
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 // ═══════════════════════════════ Pedir ═══════════════════════════════
+
 
 const esquemaPedido = z
   .object({
@@ -128,6 +131,7 @@ export async function crearPedido(entrada: DatosPedido): Promise<Resultado<Respu
     });
 
     refrescar();
+    if (d.prioridad === "URGENTE") await avisarUrgente(pedido.id);
     return { estado: "creado", id: pedido.id, numero: pedido.numero, choferes: await choferesQueLoVen(camion) } as const;
   });
 }
@@ -201,12 +205,10 @@ export async function tomarPedido(entrada: DatosTomar): Promise<Resultado<{ nume
         resumen: `${yo.nombre} aceptó ${await describirPedido(tx, pedido.id)} con ${vehiculo.nombre}`,
         antes: { estado: "PENDIENTE" }, despues: { estado: "TOMADO", chofer: yo.nombre, vehiculo: vehiculo.nombre, salida: salidaEstimada.toISOString() },
       });
-      await notificar({
-        usuarioId: pedido.solicitanteId, tipo: "PEDIDO_ACEPTADO",
-        titulo: `${yo.nombre} aceptó tu pedido #${pedido.numero}`,
-        cuerpo: `Sale a las ${hora(salidaEstimada)} con ${vehiculo.nombre} a ${pedido.origenNombre}.`,
-        enlace: `/mis-pedidos/${pedido.id}`, datos: { salida: salidaEstimada.toISOString() },
-      }, tx);
+      await notificar(pedido.solicitanteId, "PEDIDO_ACEPTADO", {
+        ...TEXTO.aceptado(yo.nombre, { descripcion: pedido.descripcion, destino: pedido.destinoNombre, salida: salidaEstimada, vehiculo: vehiculo.nombre }),
+        enlace: `/mis-pedidos/${pedido.id}`, datos: { pedidoId: pedido.id, salida: salidaEstimada.toISOString() },
+      }, { tx, copiaDireccion: true });
       return { numero: pedido.numero, vehiculo: vehiculo.nombre, salida: hora(salidaEstimada) };
     });
 
@@ -228,12 +230,7 @@ export async function soltarPedido(pedidoId: string): Promise<Resultado<{ vehicu
       const viaje = await tx.viaje.findUnique({ where: { pedidoId } });
       if (viaje) await tx.viaje.update({ where: { pedidoId }, data: { estado: "CANCELADO", ordenRuta: null } });
       const p = await tx.pedidoViaje.findUniqueOrThrow({ where: { id: pedidoId }, select: { numero: true, solicitanteId: true } });
-      await notificar({
-        usuarioId: p.solicitanteId, tipo: "PEDIDO_SOLTADO",
-        titulo: `${yo.nombre} soltó tu pedido #${p.numero}`,
-        cuerpo: "Volvió a las solicitudes para que lo acepte otro chofer.",
-        enlace: `/mis-pedidos/${pedidoId}`,
-      }, tx);
+      await notificar(p.solicitanteId, "PEDIDO_SOLTADO", { ...TEXTO.soltado(yo.nombre), enlace: `/mis-pedidos/${pedidoId}`, datos: { pedidoId } }, { tx, copiaDireccion: true });
       await auditar(tx, { usuarioId: yo.id, accion: "pedido.soltar", entidadId: pedidoId, resumen: `${yo.nombre} soltó ${await describirPedido(tx, pedidoId)}: vuelve a las solicitudes`, antes: { estado: "TOMADO", chofer: yo.nombre }, despues: { estado: "PENDIENTE" } });
       // Para poder deshacer: con qué vehículo y a qué hora iba a salir.
       return viaje ? { vehiculoId: viaje.vehiculoId, salida: viaje.salidaEstimada ? hora(viaje.salidaEstimada) : "08:00" } : null;
@@ -250,7 +247,7 @@ export async function cancelarPedido(pedidoId: string, motivo: string): Promise<
     const yo = await exigirSesion();
     const m = motivo.trim();
     if (m.length < 3) throw new ErrorNegocio("Contá por qué se cancela.");
-    const pedido = await db.pedidoViaje.findUnique({ where: { id: pedidoId }, select: { estado: true, solicitanteId: true, tomadoPor: { select: { nombre: true } } } });
+    const pedido = await db.pedidoViaje.findUnique({ where: { id: pedidoId }, select: { estado: true, solicitanteId: true, tomadoPorId: true, descripcion: true, destinoNombre: true, tomadoPor: { select: { nombre: true } } } });
     if (!pedido) throw new ErrorNegocio("No existe ese pedido.");
 
     const cualquiera = puede(yo.rol, "pedidos.cancelarCualquiera");
@@ -268,6 +265,13 @@ export async function cancelarPedido(pedidoId: string, motivo: string): Promise<
       });
       if (!r.count) throw new ErrorNegocio("El pedido cambió mientras lo cancelabas.");
       await tx.viaje.updateMany({ where: { pedidoId, estado: "PROGRAMADO" }, data: { estado: "CANCELADO", ordenRuta: null } });
+      // Si ya lo había aceptado un chofer, que sepa que no tiene que ir.
+      if (pedido.tomadoPorId && pedido.tomadoPorId !== yo.id) {
+        await notificar(pedido.tomadoPorId, "PEDIDO_CANCELADO", {
+          ...TEXTO.cancelado(yo.nombre, { descripcion: pedido.descripcion, destino: pedido.destinoNombre, motivo: m }),
+          enlace: "/hoy", datos: { pedidoId },
+        }, { tx });
+      }
       await auditar(tx, { usuarioId: yo.id, accion: "pedido.cancelar", entidadId: pedidoId, resumen: `${yo.nombre} canceló ${await describirPedido(tx, pedidoId)}: ${m}`, antes: { estado: pedido.estado }, despues: { estado: "CANCELADO", motivo: m } });
     });
     refrescar();

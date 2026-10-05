@@ -2,7 +2,7 @@
  * Estáticos: primero caché. Pantallas: primero red; sin señal, la última versión guardada.
  * Nada de /api ni Server Actions se guarda en caché.
  */
-const VERSION = "signa-v4";
+const VERSION = "signa-v5";
 const ESTATICOS = `${VERSION}-estaticos`;
 const PANTALLAS = `${VERSION}-pantallas`;
 
