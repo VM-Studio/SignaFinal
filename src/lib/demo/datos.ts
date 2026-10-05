@@ -247,11 +247,11 @@ export async function cargarDatosDemo(cliente: PrismaClient) {
   hoy9.setHours(9, 0, 0, 0);
   await pedido({
     ...desdeProveedor(hierros), solicitanteId: lolo.id, obraId: darwin.id, descripcion: "Hierro del 10, 40 barras", pesoKg: 1800,
-    necesitaCamion: true, paraCuando: enDias(1), creadoEn: new Date(hoy9.getTime()), ordenCompraLebane: "OC 3120",
+    necesitaCamion: true, paraCuando: enDias(1), creadoEn: new Date(Math.min(hoy9.getTime(), ahora.getTime() - 2 * HORA)), ordenCompraLebane: "OC 3120",
   });
   await pedido({
     ...desdeProveedor(hierros), solicitanteId: daniela.id, obraId: darwin.id, descripcion: "Hierro del 10 para losa (40 barras)", pesoKg: 1800,
-    necesitaCamion: true, paraCuando: enDias(1), creadoEn: new Date(hoy9.getTime() + 2.5 * HORA), ordenCompraLebane: "OC 3120",
+    necesitaCamion: true, paraCuando: enDias(1), creadoEn: new Date(Math.min(hoy9.getTime() + 2.5 * HORA, ahora.getTime() - HORA)), ordenCompraLebane: "OC 3120",
     // Mismo pedido que el de Lolo: es exactamente lo que la cola única evita.
   });
 

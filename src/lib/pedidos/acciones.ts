@@ -13,6 +13,7 @@ import { auditar, buscarDuplicado, choferesQueLoVen, describirPedido, necesitaCa
 import { resolverPuntos } from "./puntos";
 import { esObraDelUsuario } from "@/lib/alcance";
 import { conEtapa } from "@/lib/viajes/etapas";
+import { notificar } from "@/lib/avisos/notificar";
 import { FRANJA } from "./presentacion";
 
 /** Refresca pantallas y reevalúa las alertas del módulo (resuelve solas las que ya no aplican). */
@@ -152,15 +153,17 @@ const esquemaTomar = z.object({
   pedidoId: z.string().min(1),
   vehiculoId: z.string().min(1, "Elegí el vehículo."),
   salida: z.string().regex(HHMM, "Poné la hora de salida."),
+  // "Ahora" o "En 1 h": sale hoy aunque el pedido sea para más adelante.
+  saleHoy: z.boolean().optional(),
 });
 
 export type DatosTomar = z.input<typeof esquemaTomar>;
 
 /** Día en que sale: el del pedido, o hoy si el pedido era para antes. */
-function salidaPara(paraCuando: Date, hhmm: string) {
+function salidaPara(paraCuando: Date, hhmm: string, saleHoy = false) {
   const diaPedido = diaISO(paraCuando);
   const hoy = diaISO();
-  return aFecha(diaPedido < hoy ? hoy : diaPedido, hhmm);
+  return aFecha(saleHoy || diaPedido < hoy ? hoy : diaPedido, hhmm);
 }
 
 async function siguienteEnRuta(tx: Prisma.TransactionClient, choferId: string) {
@@ -190,7 +193,7 @@ export async function tomarPedido(entrada: DatosTomar): Promise<Resultado<{ nume
         throw new ErrorNegocio(`Ya lo aceptó ${actual.tomadoPor?.nombre ?? "otro chofer"}.`);
       }
 
-      const salidaEstimada = salidaPara(pedido.paraCuando, d.salida);
+      const salidaEstimada = salidaPara(pedido.paraCuando, d.salida, d.saleHoy);
       const viaje = { vehiculoId: vehiculo.id, choferId: yo.id, ...conEtapa("PROGRAMADO"), salidaEstimada, ordenRuta: await siguienteEnRuta(tx, yo.id) };
       await tx.viaje.upsert({ where: { pedidoId: pedido.id }, create: { pedidoId: pedido.id, ...viaje }, update: viaje });
       await auditar(tx, {
@@ -198,6 +201,12 @@ export async function tomarPedido(entrada: DatosTomar): Promise<Resultado<{ nume
         resumen: `${yo.nombre} aceptó ${await describirPedido(tx, pedido.id)} con ${vehiculo.nombre}`,
         antes: { estado: "PENDIENTE" }, despues: { estado: "TOMADO", chofer: yo.nombre, vehiculo: vehiculo.nombre, salida: salidaEstimada.toISOString() },
       });
+      await notificar({
+        usuarioId: pedido.solicitanteId, tipo: "PEDIDO_ACEPTADO",
+        titulo: `${yo.nombre} aceptó tu pedido #${pedido.numero}`,
+        cuerpo: `Sale a las ${hora(salidaEstimada)} con ${vehiculo.nombre} a ${pedido.origenNombre}.`,
+        enlace: `/mis-pedidos/${pedido.id}`, datos: { salida: salidaEstimada.toISOString() },
+      }, tx);
       return { numero: pedido.numero, vehiculo: vehiculo.nombre, salida: hora(salidaEstimada) };
     });
 
@@ -218,6 +227,13 @@ export async function soltarPedido(pedidoId: string): Promise<Resultado<{ vehicu
       if (!soltado.count) throw new ErrorNegocio("Ya no se puede soltar: el viaje empezó o el pedido cambió.");
       const viaje = await tx.viaje.findUnique({ where: { pedidoId } });
       if (viaje) await tx.viaje.update({ where: { pedidoId }, data: { estado: "CANCELADO", ordenRuta: null } });
+      const p = await tx.pedidoViaje.findUniqueOrThrow({ where: { id: pedidoId }, select: { numero: true, solicitanteId: true } });
+      await notificar({
+        usuarioId: p.solicitanteId, tipo: "PEDIDO_SOLTADO",
+        titulo: `${yo.nombre} soltó tu pedido #${p.numero}`,
+        cuerpo: "Volvió a las solicitudes para que lo acepte otro chofer.",
+        enlace: `/mis-pedidos/${pedidoId}`,
+      }, tx);
       await auditar(tx, { usuarioId: yo.id, accion: "pedido.soltar", entidadId: pedidoId, resumen: `${yo.nombre} soltó ${await describirPedido(tx, pedidoId)}: vuelve a las solicitudes`, antes: { estado: "TOMADO", chofer: yo.nombre }, despues: { estado: "PENDIENTE" } });
       // Para poder deshacer: con qué vehículo y a qué hora iba a salir.
       return viaje ? { vehiculoId: viaje.vehiculoId, salida: viaje.salidaEstimada ? hora(viaje.salidaEstimada) : "08:00" } : null;

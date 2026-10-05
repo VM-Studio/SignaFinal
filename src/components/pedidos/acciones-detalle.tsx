@@ -78,7 +78,7 @@ export function BotonSoltar({ pedidoId, numero }: { pedidoId: string; numero: nu
         if (!r.ok) return aviso({ mensaje: r.error, tono: "error" });
         const antes = r.datos;
         aviso({
-          mensaje: `Soltaste el pedido ${numero}. Volvió a la cola.`,
+          mensaje: `Soltaste el pedido ${numero}. Volvió a las solicitudes y le avisamos a quien lo pidió.`,
           deshacer: antes
             ? async () => {
                 const x = await tomarPedido({ pedidoId, vehiculoId: antes.vehiculoId, salida: antes.salida });

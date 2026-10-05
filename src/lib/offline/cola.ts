@@ -2,12 +2,12 @@
 
 /**
  * Envíos guardados en el teléfono cuando no hay señal.
- * Pedidos nuevos, inicio y fin de viaje y cargas de combustible se guardan acá y se mandan solos al
+ * Pedidos nuevos, los botones del viaje (iniciar, llegué al retiro, salgo, llegué) y cargas de combustible se guardan acá y se mandan solos al
  * volver la señal, en el mismo orden. Cada envío lleva un clientId: el servidor no duplica.
  */
 import type { Resultado } from "@/lib/resultado";
 
-export type TipoEnvio = "pedido.crear" | "viaje.iniciar" | "viaje.finalizar" | "combustible.cargar";
+export type TipoEnvio = "pedido.crear" | "viaje.iniciar" | "viaje.retiro" | "viaje.salgo" | "viaje.finalizar" | "combustible.cargar";
 
 export type Envio = {
   id: string;

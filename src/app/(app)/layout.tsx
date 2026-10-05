@@ -6,6 +6,8 @@ import { barraInferior, gruposEscritorio, menuMas } from "@/lib/navegacion";
 import { ROL } from "@/lib/etiquetas";
 import { obrasDelUsuario } from "@/lib/alcance";
 import { contarAvisos } from "@/lib/avisos/consultas";
+import { tengoViajeEnCurso, ultimaSolicitud } from "@/lib/viajes/chofer";
+import { SeguimientoChofer } from "@/components/viajes/seguimiento-chofer";
 import { BarraInferior, BarraLateral, HeaderMovil } from "@/components/layout/navegacion";
 import { ProveedorAvisos } from "@/components/ui/avisos";
 import { IndicadorConexion } from "@/components/layout/conexion";
@@ -17,7 +19,13 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
   if (ruta && !rutaPermitida(u.rol, ruta)) redirect("/inicio");
 
   const deObra = u.rol === "RESPONSABLE_OBRA" || u.rol === "CAPATAZ";
-  const [avisos, obras] = await Promise.all([contarAvisos(), deObra ? obrasDelUsuario(u) : Promise.resolve(null)]);
+  const chofer = u.rol === "CHOFER";
+  const [avisos, obras, enViaje, ultima] = await Promise.all([
+    contarAvisos(),
+    deObra ? obrasDelUsuario(u) : Promise.resolve(null),
+    chofer ? tengoViajeEnCurso() : Promise.resolve(false),
+    chofer ? ultimaSolicitud() : Promise.resolve(null),
+  ]);
   const perfil = {
     nombre: u.nombre,
     rol: ROL[u.rol],
@@ -34,7 +42,9 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
         </div>
         <main className="w-full flex-1 px-4 pt-4 pb-28 lg:p-8">{children}</main>
       </div>
-      <BarraInferior items={barraInferior(u.rol)} mas={menuMas(u.rol)} />
+      <BarraInferior items={barraInferior(u.rol)} mas={menuMas(u.rol)} conSalir={chofer} nuevas={chofer ? { href: "/solicitudes", ultima: ultima?.toISOString() ?? null } : undefined} />
+      {/* Mientras el chofer está en viaje, el teléfono manda su posición aunque navegue. */}
+      {chofer && <SeguimientoChofer activo={enViaje} />}
     </ProveedorAvisos>
   );
 }

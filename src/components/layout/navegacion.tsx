@@ -10,6 +10,7 @@ import { cerrarSesion } from "@/lib/auth/acciones";
 import { Hoja } from "@/components/ui/hoja";
 import { ICONOS } from "./iconos";
 import { EstadoPush } from "./estado-push";
+import { useHaySolicitudesNuevas } from "@/components/pedidos/solicitudes-vistas";
 
 export type Perfil = { nombre: string; rol: string; obras: string | null };
 
@@ -165,7 +166,8 @@ export function HeaderMovil({ perfil, avisos }: { perfil: Perfil; avisos: number
   );
 }
 
-export function BarraInferior({ items, mas }: { items: Seccion[]; mas: Seccion[] }) {
+export function BarraInferior({ items, mas, conSalir = false, nuevas }: { items: Seccion[]; mas: Seccion[]; conSalir?: boolean; nuevas?: { href: string; ultima: string | null } }) {
+  const hayNuevas = useHaySolicitudesNuevas(nuevas?.ultima ?? null);
   const [abierto, setAbierto] = useState(false);
   const [destino, ir] = useDestino();
   const activa = seccionActiva([...items, ...mas].map((i) => i.href), destino);
@@ -184,8 +186,11 @@ export function BarraInferior({ items, mas }: { items: Seccion[]; mas: Seccion[]
               <li key={s.href}>
                 <Link href={s.href} onClick={(e) => ir(s.href, e)} aria-current={esActiva ? "page" : undefined} className={`relative flex h-16 flex-col items-center justify-center gap-1 text-[12px] font-semibold active:bg-white/10 ${esActiva ? "text-white" : "text-white/55"}`}>
                   {esActiva && <span aria-hidden className="absolute inset-x-5 top-0 h-[3px] rounded-b bg-white" />}
-                  <Icono className="size-6" strokeWidth={esActiva ? 2.5 : 2} />
-                  {s.titulo}
+                  <span className="relative">
+                    <Icono className="size-6" strokeWidth={esActiva ? 2.5 : 2} />
+                    {nuevas?.href === s.href && hayNuevas && <span aria-label="Hay nuevas" className="absolute -top-1 -right-2 size-3 rounded-full border-2 border-negro bg-critico" />}
+                  </span>
+                  {s.titulo}{nuevas?.href === s.href && hayNuevas && <span className="sr-only"> (hay nuevas)</span>}
                 </Link>
               </li>
             );
@@ -216,6 +221,15 @@ export function BarraInferior({ items, mas }: { items: Seccion[]; mas: Seccion[]
                 </li>
               );
             })}
+            {conSalir && (
+              <li>
+                <form action={cerrarSesion}>
+                  <button className="flex min-h-14 w-full items-center gap-3 px-4 text-[17px] font-semibold text-critico">
+                    <LogOut className="size-6" /> Cerrar sesión
+                  </button>
+                </form>
+              </li>
+            )}
           </ul>
         </Hoja>
       )}

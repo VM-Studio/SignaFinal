@@ -4,18 +4,20 @@ import { Download, ListOrdered, PlusCircle, ScanLine } from "lucide-react";
 import { exigirSesion } from "@/lib/auth/sesion";
 import { devolucionesVencidas, pedidosPendientes, resumenDireccion, vencimientosProximos } from "@/lib/datos/inicio";
 import { misPedidosDeHoy, viajesAMisObrasHoy } from "@/lib/pedidos/listas";
-import { misViajes } from "@/lib/viajes/consultas";
+import { viajesDelChofer } from "@/lib/viajes/chofer";
+import { ETAPAS_EN_CURSO } from "@/lib/viajes/etapas";
 import { paraEntregar } from "@/lib/herramientas/consultas";
 import { accionesDeHoy } from "@/lib/actividad/consultas";
 import { costosPorObra, costosPorVehiculo, periodo } from "@/lib/costos/consultas";
 import { datosMapa } from "@/lib/mapa/consultas";
-import { TarjetaViaje } from "@/components/viajes/tarjeta-viaje";
+import { TarjetaChofer } from "@/components/viajes/tarjeta-chofer";
+import { BotonEtapa } from "@/components/viajes/acciones-viaje";
 import { MapaEnVivo } from "@/components/mapa/mapa-en-vivo";
 import { ListaPedidos, ListaViajes } from "@/components/pedidos/lista-pedidos";
 import { BotonLink } from "@/components/ui/boton";
 import { Cifra, FilaLista, Insignia, Lista, Subtitulo, Vacio } from "@/components/ui/basicos";
 import { DOCUMENTO } from "@/lib/etiquetas";
-import { cuando, fecha, finDelDia, km, plata, vencimiento } from "@/lib/formato";
+import { cuando, fecha, finDelDia, plata, vencimiento } from "@/lib/formato";
 
 export const metadata: Metadata = { title: "Inicio" };
 
@@ -62,16 +64,19 @@ async function InicioObra() {
 // ───────────────────────────── Chofer ─────────────────────────────
 
 async function InicioChofer() {
-  const [pendientes, viajes] = await Promise.all([pedidosPendientes(), misViajes()]);
-  const enCurso = viajes.find((v) => v.estado === "EN_CURSO");
-  const aceptados = viajes.filter((v) => v.estado === "PROGRAMADO");
-  const terminados = viajes.filter((v) => v.estado === "FINALIZADO");
+  const [pendientes, { tarjetas }] = await Promise.all([pedidosPendientes(), viajesDelChofer("hoy")]);
+  const enCurso = tarjetas.find((t) => t.etapa && ETAPAS_EN_CURSO.includes(t.etapa));
+  const aceptados = tarjetas.filter((t) => t !== enCurso);
   return (
-    <div className="lg:max-w-2xl">
+    <div className="lg:max-w-xl">
       {enCurso ? (
         <>
           <Subtitulo>Mi viaje en curso</Subtitulo>
-          <ul><TarjetaViaje v={enCurso} puedeIniciar={false} /></ul>
+          <ul>
+            <TarjetaChofer t={enCurso} href={`/viaje/${enCurso.pedidoId}`} destacada accion={
+              <BotonEtapa etapa={enCurso.etapa!} pedidoId={enCurso.pedidoId} numero={enCurso.numero} vehiculo={enCurso.vehiculo ?? ""} kmActual={enCurso.kmActual} kmSalida={enCurso.kmSalida} obra={enCurso.entregar.nombre} />
+            } />
+          </ul>
           <BotonLink href="/solicitudes" variante="secundario" ancho className="mt-4">Solicitudes pendientes: {pendientes}</BotonLink>
         </>
       ) : (
@@ -79,18 +84,13 @@ async function InicioChofer() {
           Solicitudes pendientes: {pendientes}
         </BotonLink>
       )}
-      <Subtitulo accion={aceptados.length > 1 ? <Link href="/hoy" className="text-sm font-semibold underline">Ver todos</Link> : undefined}>Aceptados para hoy</Subtitulo>
+      <Subtitulo accion={aceptados.length > 2 ? <Link href="/hoy" className="text-sm font-semibold underline">Ver todos</Link> : undefined}>Aceptados para hoy</Subtitulo>
       {aceptados.length === 0 ? (
-        <Vacio titulo="No tenés viajes aceptados">Aceptá una solicitud para empezar.</Vacio>
+        <Vacio titulo="No tenés viajes aceptados para hoy">Aceptá una solicitud para empezar.</Vacio>
       ) : (
         <ul className="flex flex-col gap-3">
-          {aceptados.slice(0, 3).map((v) => <TarjetaViaje key={v.viajeId} v={v} puedeIniciar={!enCurso} bloqueadoPor={enCurso?.pedidoId} />)}
+          {aceptados.slice(0, 2).map((t) => <TarjetaChofer key={t.pedidoId} t={t} href={`/viaje/${t.pedidoId}`} />)}
         </ul>
-      )}
-      {terminados.length > 0 && (
-        <p className="mt-6 text-suave">
-          Hoy terminaste {terminados.length} viaje{terminados.length === 1 ? "" : "s"} · {km(terminados.reduce((a, v) => a + (v.kmLlegada ?? 0) - (v.kmSalida ?? 0), 0))}.
-        </p>
       )}
     </div>
   );

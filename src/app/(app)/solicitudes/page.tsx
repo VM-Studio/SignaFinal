@@ -11,6 +11,9 @@ import { EstadoPedido, FilaPedido } from "@/components/pedidos/fila-pedido";
 import { IconoTipo } from "@/components/pedidos/iconos";
 import { BotonTomar } from "@/components/pedidos/tomar";
 import { RutaDelDia } from "@/components/pedidos/ruta-del-dia";
+import { TarjetaChofer } from "@/components/viajes/tarjeta-chofer";
+import { MarcarSolicitudesVistas } from "@/components/pedidos/solicitudes-vistas";
+import { FILTROS_SOLICITUDES, solicitudesPendientes, type FiltroSolicitudes } from "@/lib/viajes/chofer";
 
 export const metadata: Metadata = { title: "Solicitudes" };
 
@@ -21,7 +24,34 @@ const VACIOS: Record<Filtro, { titulo: string; texto: string }> = {
   mios: { titulo: "No tenés pedidos en curso", texto: "Lo que pidas o tomes aparece acá." },
 };
 
-export default async function PaginaCola({ searchParams }: { searchParams: Promise<{ filtro?: string }> }) {
+/** Chofer: tarjetas para aceptar. Dirección: la cola completa con pestañas. */
+export default async function PaginaSolicitudes(props: { searchParams: Promise<{ filtro?: string }> }) {
+  const u = await exigirPermiso("pedidos.ver");
+  if (u.rol === "CHOFER") return <VistaChofer filtro={(await props.searchParams).filtro} />;
+  return <VistaDireccion searchParams={props.searchParams} />;
+}
+
+async function VistaChofer({ filtro: f }: { filtro?: string }) {
+  const filtro: FiltroSolicitudes = f && f in FILTROS_SOLICITUDES ? (f as FiltroSolicitudes) : "todas";
+  const lista = await solicitudesPendientes(filtro);
+  return (
+    <div className="mx-auto max-w-xl">
+      <MarcarSolicitudesVistas />
+      <Pestanas items={(Object.keys(FILTROS_SOLICITUDES) as FiltroSolicitudes[]).map((k) => ({ href: k === "todas" ? "/solicitudes" : `/solicitudes?filtro=${k}`, etiqueta: FILTROS_SOLICITUDES[k], activa: k === filtro }))} />
+      {lista.length === 0 ? (
+        <Vacio icono={<ListOrdered className="size-10" />} titulo="No hay solicitudes pendientes">Cuando alguien de obra pida un viaje, aparece acá.</Vacio>
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {lista.map((t) => (
+            <TarjetaChofer key={t.pedidoId} t={t} href={`/solicitudes/${t.pedidoId}`} accion={<BotonTomar pedidoId={t.pedidoId} numero={t.numero} vehiculos={t.vehiculos} ancho tamano="grande" />} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+async function VistaDireccion({ searchParams }: { searchParams: Promise<{ filtro?: string }> }) {
   const u = await exigirPermiso("pedidos.ver");
   const pedido = (await searchParams).filtro;
   const filtro: Filtro = pedido && pedido in FILTROS ? (pedido as Filtro) : "pendientes";

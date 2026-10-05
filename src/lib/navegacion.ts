@@ -41,6 +41,7 @@ export const SECCIONES = {
   usuarios: { href: "/usuarios", titulo: "Usuarios", icono: "usuarios" },
   // Todos (header)
   avisos: { href: "/avisos", titulo: "Avisos", icono: "avisos" },
+  misAvisos: { href: "/avisos", titulo: "Mis avisos", icono: "avisos" },
   cuenta: { href: "/cuenta", titulo: "Mi cuenta", icono: "cuenta" },
 } as const satisfies Record<string, Seccion>;
 
@@ -53,7 +54,7 @@ type Clave = keyof typeof SECCIONES;
 const NAV: Record<Rol, { barra: Clave[]; mas: Clave[] }> = {
   RESPONSABLE_OBRA: { barra: ["obras", "pedir", "viajesObra", "herramientas"], mas: [] },
   CAPATAZ: { barra: ["obras", "pedir", "viajesObra", "herramientas"], mas: [] },
-  CHOFER: { barra: ["hoy", "solicitudes", "combustible"], mas: ["inicio", "avisos"] },
+  CHOFER: { barra: ["hoy", "solicitudes", "combustible"], mas: ["cuenta", "misAvisos"] },
   DEPOSITO: { barra: ["escanear", "herramientas", "entregas"], mas: ["inicio", "sobrantes", "etiquetas", "importar"] },
   ADMINISTRACION: { barra: ["flota", "costos", "alertas"], mas: ["inicio", "agenda", "mantenimiento", "obras"] },
   DIRECCION: {
