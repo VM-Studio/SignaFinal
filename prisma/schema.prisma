@@ -382,6 +382,8 @@ model PedidoViaje {
   @@index([solicitanteId])
   @@index([herramientaId, estado])
   @@index([herramientaId, obraId, fechaNecesaria])
+  // Solicitudes pendientes: urgentes primero, después por fecha necesaria.
+  @@index([estado, prioridad, fechaNecesaria])
 }
 
 // El ciclo del viaje. EstadoViaje se deriva de la etapa (ver src/lib/viajes/etapas.ts).
@@ -650,29 +652,33 @@ enum EstadoAlerta {
 }
 
 model Alerta {
-  id           String       @id @default(cuid())
-  claveUnica   String       @unique // regla:entidad — nunca se duplica
-  regla        String
-  severidad    Severidad
-  titulo       String
-  detalle      String
-  entidadTipo  String
-  entidadId    String
-  enlace       String?
+  id              String       @id @default(cuid())
+  claveUnica      String       @unique // regla:entidad — nunca se duplica
+  regla           String
+  severidad       Severidad
+  titulo          String
+  detalle         String
+  entidadTipo     String
+  entidadId       String
+  enlace          String?
   // A quién le toca: la obra (la ve su responsable) y/o la persona (ej.: el chofer).
-  obraId       String?
-  usuarioId    String?
+  obraId          String?
+  usuarioId       String?
   // Roles que la ven (matriz en src/lib/alertas/destinatarios.ts). Nadie más la ve.
-  rolesDestino Rol[]        @default([])
-  estado       EstadoAlerta @default(ABIERTA)
-  creadaEn     DateTime     @default(now())
-  resueltaEn   DateTime?
+  rolesDestino    Rol[]        @default([])
+  // Personas puntuales que la ven (los solicitantes, el chofer, quien tiene la herramienta).
+  usuariosDestino String[]     @default([])
+  estado          EstadoAlerta @default(ABIERTA)
+  creadaEn        DateTime     @default(now())
+  resueltaEn      DateTime?
 
   @@index([estado, severidad])
   @@index([entidadTipo, entidadId])
   @@index([regla, estado])
   @@index([obraId])
   @@index([usuarioId])
+  @@index([usuariosDestino], type: Gin)
+  @@index([rolesDestino], type: Gin)
 }
 
 model Auditoria {
@@ -728,6 +734,7 @@ model Notificacion {
   usuario Usuario @relation(fields: [usuarioId], references: [id])
 
   @@index([usuarioId, leidaEn])
+  @@index([usuarioId, creadaEn])
 }
 
 model SuscripcionPush {

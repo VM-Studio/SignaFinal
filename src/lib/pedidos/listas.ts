@@ -62,16 +62,17 @@ export type PestanaMisPedidos = keyof typeof PESTANAS_MIS_PEDIDOS;
 const ESTADOS_PESTANA = { pendientes: ["PENDIENTE"], aceptados: ["TOMADO", "EN_VIAJE"], entregados: ["ENTREGADO"] } as const;
 
 /** /mis-pedidos: solo los propios, por pestaña, con cuántos hay en cada una. */
-export async function misPedidos(pestana: PestanaMisPedidos) {
+export async function misPedidos(pestana: PestanaMisPedidos, limite = 50) {
   const u = await exigirPermiso("pedidos.crear");
   const propios = (p: PestanaMisPedidos): Prisma.PedidoViajeWhereInput =>
     conAlcance(u, { solicitanteId: u.id, estado: { in: [...ESTADOS_PESTANA[p]] }, ...(p === "entregados" ? { creadoEn: { gte: new Date(Date.now() - 30 * 86_400_000) } } : {}) });
   const [filas, ...conteos] = await Promise.all([
-    db.pedidoViaje.findMany({ where: propios(pestana), select: fila, orderBy: pestana === "entregados" ? { actualizadoEn: "desc" } : { paraCuando: "asc" }, take: 100 }),
+    db.pedidoViaje.findMany({ where: propios(pestana), select: fila, orderBy: pestana === "entregados" ? { actualizadoEn: "desc" } : { paraCuando: "asc" }, take: limite + 1 }),
     ...(Object.keys(PESTANAS_MIS_PEDIDOS) as PestanaMisPedidos[]).map((p) => db.pedidoViaje.count({ where: propios(p) })),
   ]);
   const cuantos = Object.fromEntries((Object.keys(PESTANAS_MIS_PEDIDOS) as PestanaMisPedidos[]).map((p, k) => [p, conteos[k]])) as Record<PestanaMisPedidos, number>;
-  return { filas: pestana === "aceptados" ? filas.sort(porEstado) : filas, cuantos };
+  const pagina = filas.slice(0, limite);
+  return { filas: pestana === "aceptados" ? pagina.sort(porEstado) : pagina, cuantos, hayMas: filas.length > limite };
 }
 
 /**

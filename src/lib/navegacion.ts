@@ -22,6 +22,7 @@ export const SECCIONES = {
   combustible: { href: "/combustible", titulo: "Combustible", icono: "combustible" },
   // Depósito
   escanear: { href: "/herramientas/escanear", titulo: "Escanear", icono: "escanear" },
+  deposito: { href: "/herramientas?vista=deposito", titulo: "Depósito", icono: "herramientas" },
   herramientas: { href: "/herramientas", titulo: "Herramientas", icono: "herramientas" },
   entregas: { href: "/entregas", titulo: "Entregas", icono: "entregas" },
   sobrantes: { href: "/herramientas?tab=sobrantes", titulo: "Sobrantes", icono: "sobrantes" },
@@ -36,6 +37,8 @@ export const SECCIONES = {
   // Dirección
   mapa: { href: "/mapa", titulo: "Mapa", icono: "mapa" },
   viajes: { href: "/viajes", titulo: "Viajes", icono: "viajes" },
+  viajesAObras: { href: "/viajes-en-curso", titulo: "Viajes hacia obras", icono: "viajes" },
+  historial: { href: "/mapa/historial", titulo: "Recorridos del día", icono: "mapa" },
   actividad: { href: "/actividad", titulo: "Actividad", icono: "actividad" },
   proveedores: { href: "/proveedores", titulo: "Proveedores", icono: "proveedores" },
   usuarios: { href: "/usuarios", titulo: "Usuarios", icono: "usuarios" },
@@ -47,21 +50,31 @@ export const SECCIONES = {
 
 type Clave = keyof typeof SECCIONES;
 
+type GrupoClaves = { titulo: string | null; claves: Clave[] };
+
 /**
  * Navegación de cada rol (CLAUDE.md, "Navegación"). Barra inferior: máximo 4 ítems;
  * si hay "Más", la barra tiene 3 y el cuarto es "Más". Cuenta y avisos van en el header.
+ * Dirección ve todo: su "Más" va agrupado por tema.
  */
-const NAV: Record<Rol, { barra: Clave[]; mas: Clave[] }> = {
+const NAV: Record<Rol, { barra: Clave[]; mas: GrupoClaves[] }> = {
   RESPONSABLE_OBRA: { barra: ["obras", "pedir", "viajesObra", "herramientas"], mas: [] },
   CAPATAZ: { barra: ["obras", "pedir", "viajesObra", "herramientas"], mas: [] },
-  CHOFER: { barra: ["hoy", "solicitudes", "combustible"], mas: ["cuenta", "misAvisos"] },
-  DEPOSITO: { barra: ["escanear", "herramientas", "entregas"], mas: ["inicio", "sobrantes", "etiquetas", "importar"] },
-  ADMINISTRACION: { barra: ["flota", "costos", "alertas"], mas: ["inicio", "agenda", "mantenimiento", "obras"] },
+  CHOFER: { barra: ["hoy", "solicitudes", "combustible"], mas: [{ titulo: null, claves: ["cuenta", "misAvisos"] }] },
+  DEPOSITO: { barra: ["escanear", "herramientas", "entregas"], mas: [{ titulo: null, claves: ["inicio", "sobrantes", "etiquetas", "importar"] }] },
+  ADMINISTRACION: { barra: ["flota", "costos", "alertas"], mas: [{ titulo: null, claves: ["inicio", "agenda", "mantenimiento", "obras"] }] },
   DIRECCION: {
     barra: ["mapa", "solicitudes", "viajes"],
     mas: [
-      "inicio", "actividad", "alertas", "pedir", "misPedidos", "flota", "agenda", "mantenimiento", "combustible", "costos",
-      "herramientas", "entregas", "sobrantes", "obras", "proveedores", "usuarios",
+      { titulo: null, claves: ["inicio"] },
+      { titulo: "Pedidos y viajes", claves: ["pedir", "misPedidos", "viajesAObras"] },
+      { titulo: "Flota", claves: ["flota", "agenda", "mantenimiento", "combustible"] },
+      { titulo: "Depósito", claves: ["herramientas", "deposito", "escanear", "entregas", "sobrantes", "etiquetas", "importar"] },
+      { titulo: "Mapa", claves: ["historial"] },
+      { titulo: "Alertas", claves: ["alertas", "avisos"] },
+      { titulo: "Actividad", claves: ["actividad"] },
+      { titulo: "Costos", claves: ["costos"] },
+      { titulo: "Obras", claves: ["obras", "proveedores", "usuarios"] },
     ],
   },
 };
@@ -74,18 +87,16 @@ export function barraInferior(rol: Rol): Seccion[] {
   return visibles(rol, NAV[rol].barra).map((s) => ({ ...s, titulo: s.corto ?? s.titulo }));
 }
 
-export function menuMas(rol: Rol): Seccion[] {
-  return visibles(rol, NAV[rol].mas);
-}
-
 export type Grupo = { titulo: string | null; items: Seccion[] };
+
+/** "Más": agrupado (Dirección) o una sola lista. */
+export function menuMas(rol: Rol): Grupo[] {
+  return NAV[rol].mas.map((g) => ({ titulo: g.titulo, items: visibles(rol, g.claves) })).filter((g) => g.items.length > 0);
+}
 
 /** Escritorio: las mismas entradas del rol, nada más. */
 export function gruposEscritorio(rol: Rol): Grupo[] {
-  return [
-    { titulo: null, items: visibles(rol, NAV[rol].barra) },
-    { titulo: "Más", items: menuMas(rol) },
-  ].filter((g) => g.items.length > 0);
+  return [{ titulo: null, items: visibles(rol, NAV[rol].barra) }, ...menuMas(rol).map((g) => ({ ...g, titulo: g.titulo ?? (rol === "DIRECCION" ? null : "Más") }))].filter((g) => g.items.length > 0);
 }
 
 /** Título para el header del celular según la ruta. */

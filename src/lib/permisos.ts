@@ -89,7 +89,7 @@ const DIRECCION: Entrada = {
   rutas: [
     ...new Set([
       ...OBRA.rutas, ...CHOFER.rutas, ...DEPOSITO.rutas, ...ADMINISTRACION.rutas,
-      "/mapa/**", "/actividad", "/solicitudes/**", "/viajes", "/proveedores", "/usuarios", "/sobrantes",
+      "/mapa/**", "/actividad", "/actividad/[id]", "/solicitudes/**", "/viajes", "/proveedores", "/usuarios", "/sobrantes",
     ]),
   ],
   acciones: [

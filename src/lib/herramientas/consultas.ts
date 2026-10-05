@@ -211,7 +211,7 @@ const buscar = (q?: string): Prisma.HerramientaWhereInput =>
  * "Disponibles para pedir": unitarias en el depósito y por cantidad con stock en el depósito.
  * "Todas": cada una con dónde está y quién la tiene desde cuándo. Se puede pedir la que está en otra obra.
  */
-export async function herramientasParaObra({ vista, q }: { vista: "disponibles" | "todas"; q?: string }): Promise<FilaObraHerramienta[]> {
+export async function herramientasParaObra({ vista, q, limite = 50 }: { vista: "disponibles" | "todas"; q?: string; limite?: number }): Promise<{ filas: FilaObraHerramienta[]; hayMas: boolean }> {
   await exigirPermiso("herramientas.solicitar");
   const disponibles: Prisma.HerramientaWhereInput = {
     OR: [
@@ -224,17 +224,18 @@ export async function herramientasParaObra({ vista, q }: { vista: "disponibles" 
   const filas = await db.herramienta.findMany({
     where,
     orderBy: [{ esMaquina: "desc" }, { nombre: "asc" }, { codigo: "asc" }],
-    take: 300,
-    include: {
+    take: limite + 1,
+    select: {
+      id: true, codigo: true, nombre: true, esMaquina: true, tipoControl: true, estado: true, obraId: true, devolucionPrevista: true,
       categoria: { select: { nombre: true } },
       obra: { select: { nombre: true } },
       responsable: { select: { nombre: true } },
-      existencias: { where: { cantidad: { gt: 0 } }, include: { obra: { select: { nombre: true } } } },
+      existencias: { where: { cantidad: { gt: 0 } }, select: { cantidad: true, ubicacionId: true, obra: { select: { nombre: true } } } },
       // Desde cuándo está donde está: el último movimiento que la llevó a esa obra.
       movimientos: { where: { haciaObraId: { not: null } }, orderBy: { fecha: "desc" }, take: 1, select: { fecha: true, haciaObraId: true } },
     },
   });
-  return filas.map((h) => {
+  const lista = filas.slice(0, limite).map((h) => {
     const dep = h.existencias.filter((e) => e.ubicacionId).reduce((a, e) => a + e.cantidad, 0);
     let estado: string;
     let tono: FilaObraHerramienta["tono"];
@@ -255,4 +256,5 @@ export async function herramientasParaObra({ vista, q }: { vista: "disponibles" 
       sePuedePedir: h.tipoControl === "CANTIDAD" ? dep > 0 : h.estado === "DISPONIBLE" || h.estado === "EN_OBRA",
     };
   });
+  return { filas: lista, hayMas: filas.length > limite };
 }

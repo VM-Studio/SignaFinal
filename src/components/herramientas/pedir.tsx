@@ -119,7 +119,7 @@ export function BotonPedirHerramienta({ h, obras, etiqueta = "Pedir" }: { h: Her
     <>
       <Boton tamano="chico" onClick={() => setAbierta(true)}>{etiqueta}</Boton>
       <Hoja abierta={abierta} onCerrar={() => setAbierta(false)} titulo={`Pedir ${h.nombre}`}>
-        <div className="p-4">
+        <div>
           <FormularioPedirHerramienta h={h} obras={obras} cerrar={() => setAbierta(false)} />
         </div>
       </Hoja>

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { revalidatePath } from "next/cache";
+import { revalidar } from "@/lib/revalidar";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { obtenerSesion } from "@/lib/auth/sesion";
@@ -33,6 +33,6 @@ export async function POST(req: NextRequest) {
   const r = await registrarPosicion(v.id, { lat: d.data.lat, lng: d.data.lng }, {
     fuente: "TELEFONO", usuarioId: u.id, precisionM: d.data.precisionM, velocidadKmh: d.data.velocidadMs ? d.data.velocidadMs * 3.6 : 0, rumbo: d.data.rumbo ?? 0,
   });
-  if (r?.cambioDeEtapa) revalidatePath("/", "layout");
+  if (r?.cambioDeEtapa) revalidar("pedidos");
   return NextResponse.json({ enViaje: true, etapa: r?.etapa ?? null, eta: r?.eta?.toISOString() ?? null, cambioDeEtapa: r?.cambioDeEtapa ?? false });
 }

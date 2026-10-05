@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidar } from "@/lib/revalidar";
 import { db } from "@/lib/db";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { puede } from "@/lib/permisos";
@@ -17,7 +17,7 @@ export async function marcarVista(id: string): Promise<Resultado> {
       const a = await db.alerta.findUnique({ where: { id }, select: { titulo: true } });
       await auditar(db, { usuarioId: yo.id, accion: "alerta.vista", entidad: "Alerta", entidadId: id, resumen: `${yo.nombre} vio la alerta "${a?.titulo ?? ""}"` });
     }
-    revalidatePath("/", "layout");
+    revalidar("avisos", "flota");
     return null;
   });
 }
@@ -27,7 +27,8 @@ export async function revisarAhora(): Promise<Resultado<{ activas: number }>> {
     const u = await exigirPermiso("alertas.ver");
     if (!puede(u.rol, "costos.ver")) throw new ErrorNegocio("Solo Dirección y Administración.");
     const r = await evaluarAlertas();
-    revalidatePath("/", "layout");
+    await auditar(db, { usuarioId: u.id, accion: "alerta.revisar", entidad: "Alerta", entidadId: "todas", resumen: `${u.nombre} revisó las alertas: ${r.activas} activas` });
+    revalidar("avisos", "flota");
     return { activas: r.activas };
   });
 }

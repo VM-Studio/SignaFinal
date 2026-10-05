@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidar } from "@/lib/revalidar";
 import { db } from "@/lib/db";
 import { exigirSesion } from "@/lib/auth/sesion";
 import { modoDemo } from "@/lib/demo";
@@ -8,6 +8,7 @@ import { ejecutar, ErrorNegocio, type Resultado } from "@/lib/resultado";
 import { distancia, puntoEn } from "@/lib/geo";
 import { ETAPAS_EN_CURSO } from "./etapas";
 import { baseDe, destinoDe, origenDe, registrarPosicion, rutaSegura } from "./tramos";
+import { auditar } from "@/lib/auditoria";
 
 const PASO_M = 1000;
 
@@ -32,7 +33,8 @@ export async function avanzarSimulado(pedidoId: string): Promise<Resultado<{ eta
     const linea = ruta.geometria.map(([lat, lng]) => ({ lat, lng }));
     const punto = ruta.distanciaM <= PASO_M ? hasta : puntoEn(linea, PASO_M).punto;
     const r = await registrarPosicion(v.id, punto, { fuente: "MOCK", velocidadKmh: 32 });
-    revalidatePath("/", "layout");
+    await auditar(db, { usuarioId: yo.id, accion: "demo.avanzar", entidad: "PedidoViaje", entidadId: pedidoId, resumen: `${yo.nombre} avanzó 1 km la simulación del pedido #${v.pedido.numero}` });
+    revalidar("pedidos");
     return { etapa: r?.etapa ?? v.etapa, faltaM: Math.round(distancia(punto, hasta)) };
   });
 }

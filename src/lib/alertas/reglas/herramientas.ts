@@ -6,7 +6,7 @@ import type { AlertaCalculada, Regla } from "../tipos";
 async function devolucionVencida(): Promise<AlertaCalculada[]> {
   const h = await db.herramienta.findMany({
     where: { activo: true, estado: "EN_OBRA", devolucionPrevista: { not: null } },
-    include: { obra: { select: { nombre: true } }, responsable: { select: { nombre: true } } },
+    include: { obra: { select: { nombre: true, responsables: { select: { usuarioId: true } } } }, responsable: { select: { nombre: true } } },
   });
   return h.flatMap((x): AlertaCalculada[] => {
     const n = -diasHasta(x.devolucionPrevista!);
@@ -16,6 +16,8 @@ async function devolucionVencida(): Promise<AlertaCalculada[]> {
       titulo: `${x.nombre}: devolución vencida hace ${n} día${n === 1 ? "" : "s"}`,
       detalle: `Sigue en Obra ${x.obra?.nombre}${x.responsable ? `, la tiene ${x.responsable.nombre}` : ""}. Debía volver el ${fecha(x.devolucionPrevista)}.`,
       entidadTipo: "Herramienta", entidadId: x.id, enlace: `/herramientas/${x.id}?accion=devolver`, obraId: x.obraId,
+      // Quien la tiene y los responsables de esa obra.
+      usuarios: [x.responsableId, ...(x.obra?.responsables.map((r) => r.usuarioId) ?? [])].filter((id): id is string => !!id),
     }];
   });
 }

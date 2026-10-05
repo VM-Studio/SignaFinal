@@ -53,7 +53,7 @@ export function BotonIniciar({ pedidoId, numero, vehiculo, kmActual, irAlViaje =
     <>
       <Boton ancho tamano="grande" icono={<Play className="size-6" />} onClick={() => setAbierta(true)} className="min-h-[64px] text-xl">Iniciar viaje</Boton>
       <Hoja abierta={abierta} onCerrar={() => setAbierta(false)} titulo={`Salir con ${vehiculo}`}>
-        <div className="flex flex-col gap-4 p-4">
+        <div className="flex flex-col gap-4">
           <Campo etiqueta="Km del tablero" htmlFor={`km-${pedidoId}`} ayuda={`Último registrado: ${km(kmActual)}. Corregilo si no coincide.`}>
             <Entrada id={`km-${pedidoId}`} inputMode="numeric" value={valor} onChange={(e) => setValor(soloNumeros(e.target.value))} className="text-3xl font-bold tabular-nums" />
           </Campo>
@@ -154,7 +154,7 @@ export function BotonFinalizar({ pedidoId, numero, obra, kmSalida, onGuardadoLoc
     <>
       <Boton ancho tamano="grande" icono={<Flag className="size-6" />} onClick={() => setAbierta(true)} className="min-h-[64px] text-xl">Llegué al destino</Boton>
       <Hoja abierta={abierta} onCerrar={cerrar} titulo={terminado ? "Viaje terminado" : `Llegada a ${obra}`}>
-        <div className="p-4">
+        <div>
           {terminado === "guardado" ? (
             <div className="flex flex-col items-center gap-3 py-6 text-center">
               <CloudOff className="size-10" />

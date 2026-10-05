@@ -91,15 +91,15 @@ function filtroPropio(filtro: Filtro, u: UsuarioSesion): Prisma.PedidoViajeWhere
 }
 
 /** Solicitudes: urgentes primero, después por fecha pedida. Cada rol ve lo suyo (pedidosVisibles). */
-export async function cola(filtro: Filtro) {
+export async function cola(filtro: Filtro, limite = 50) {
   const u = await exigirPermiso("pedidos.ver");
   const orden: Prisma.PedidoViajeOrderByWithRelationInput[] =
     filtro === "entregados-hoy" ? [{ viaje: { llegadaReal: "desc" } }] : [{ prioridad: "desc" }, { paraCuando: "asc" }, { creadoEn: "asc" }];
   const [filas, conteos] = await Promise.all([
-    db.pedidoViaje.findMany({ where: whereFiltro(filtro, u), select: seleccion, orderBy: orden, take: 200 }),
+    db.pedidoViaje.findMany({ where: whereFiltro(filtro, u), select: seleccion, orderBy: orden, take: limite + 1 }),
     Promise.all((Object.keys(FILTROS) as Filtro[]).map(async (f) => [f, await db.pedidoViaje.count({ where: whereFiltro(f, u) })] as const)),
   ]);
-  return { pedidos: await aplanar(filas), conteos: Object.fromEntries(conteos) as Record<Filtro, number> };
+  return { pedidos: await aplanar(filas.slice(0, limite)), conteos: Object.fromEntries(conteos) as Record<Filtro, number>, hayMas: filas.length > limite };
 }
 
 /** Un pedido, solo si el usuario lo puede ver (si no, null: la página lo manda a su inicio). */

@@ -3,16 +3,18 @@ import type { Metadata } from "next";
 import { ListOrdered, PlusCircle } from "lucide-react";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { puede } from "@/lib/permisos";
-import { cola, FILTROS, miRuta, vehiculosParaTomar, type Filtro } from "@/lib/pedidos/consultas";
+import { cola, FILTROS, miRuta, opcionesReasignar, vehiculosParaTomar, type Filtro } from "@/lib/pedidos/consultas";
 import { textoParaCuando, TIPO } from "@/lib/pedidos/presentacion";
 import { BotonLink } from "@/components/ui/boton";
 import { Insignia, Pestanas, Subtitulo, Titulo, Vacio } from "@/components/ui/basicos";
 import { EstadoPedido, FilaPedido } from "@/components/pedidos/fila-pedido";
 import { IconoTipo } from "@/components/pedidos/iconos";
-import { BotonTomar } from "@/components/pedidos/tomar";
+import { BotonReasignar, BotonTomar } from "@/components/pedidos/tomar";
 import { RutaDelDia } from "@/components/pedidos/ruta-del-dia";
 import { TarjetaChofer } from "@/components/viajes/tarjeta-chofer";
 import { MarcarSolicitudesVistas } from "@/components/pedidos/solicitudes-vistas";
+import { CargarMas } from "@/components/ui/cargar-mas";
+import { limiteDe } from "@/lib/pagina";
 import { FILTROS_SOLICITUDES, solicitudesPendientes, type FiltroSolicitudes } from "@/lib/viajes/chofer";
 
 export const metadata: Metadata = { title: "Solicitudes" };
@@ -27,13 +29,17 @@ const VACIOS: Record<Filtro, { titulo: string; texto: string }> = {
 /** Chofer: tarjetas para aceptar. Dirección: la cola completa con pestañas. */
 export default async function PaginaSolicitudes(props: { searchParams: Promise<{ filtro?: string }> }) {
   const u = await exigirPermiso("pedidos.ver");
-  if (u.rol === "CHOFER") return <VistaChofer filtro={(await props.searchParams).filtro} />;
+  if (u.rol === "CHOFER") {
+    const sp = (await props.searchParams) as { filtro?: string; n?: string };
+    return <VistaChofer filtro={sp.filtro} n={sp.n} />;
+  }
   return <VistaDireccion searchParams={props.searchParams} />;
 }
 
-async function VistaChofer({ filtro: f }: { filtro?: string }) {
+async function VistaChofer({ filtro: f, n }: { filtro?: string; n?: string }) {
   const filtro: FiltroSolicitudes = f && f in FILTROS_SOLICITUDES ? (f as FiltroSolicitudes) : "todas";
-  const lista = await solicitudesPendientes(filtro);
+  const { limite, siguiente } = await limiteDe(n);
+  const { lista, hayMas } = await solicitudesPendientes(filtro, limite);
   return (
     <div className="mx-auto max-w-xl">
       <MarcarSolicitudesVistas />
@@ -47,23 +53,31 @@ async function VistaChofer({ filtro: f }: { filtro?: string }) {
           ))}
         </ul>
       )}
+      {hayMas && <CargarMas href={`/solicitudes?${filtro !== "todas" ? `filtro=${filtro}&` : ""}n=${siguiente}`} />}
     </div>
   );
 }
 
-async function VistaDireccion({ searchParams }: { searchParams: Promise<{ filtro?: string }> }) {
+async function VistaDireccion({ searchParams }: { searchParams: Promise<{ filtro?: string; n?: string }> }) {
   const u = await exigirPermiso("pedidos.ver");
   const pedido = (await searchParams).filtro;
   const filtro: Filtro = pedido && pedido in FILTROS ? (pedido as Filtro) : "pendientes";
   const esChofer = puede(u.rol, "pedidos.tomar");
 
-  const [{ pedidos, conteos }, ruta] = await Promise.all([cola(filtro), esChofer ? miRuta() : Promise.resolve([])]);
+  const { limite, siguiente } = await limiteDe((await searchParams).n);
+  const [{ pedidos, conteos, hayMas }, ruta] = await Promise.all([cola(filtro, limite), esChofer ? miRuta() : Promise.resolve([])]);
   // Para cada pendiente, los vehículos con los que este chofer lo podría llevar.
   const vehiculos = esChofer
     ? Object.fromEntries(await Promise.all(pedidos.filter((p) => p.estado === "PENDIENTE").map(async (p) => [p.id, await vehiculosParaTomar(p)] as const)))
     : {};
+  // Dirección acepta en nombre de un chofer: "Asignar" con chofer, vehículo y hora.
+  const asignar = puede(u.rol, "pedidos.reasignar")
+    ? Object.fromEntries(await Promise.all(pedidos.filter((p) => p.estado === "PENDIENTE").map(async (p) => [p.id, await opcionesReasignar(p)] as const)))
+    : {};
   const tomar = (p: (typeof pedidos)[number], ancho = false) =>
-    esChofer && p.estado === "PENDIENTE" ? <BotonTomar pedidoId={p.id} numero={p.numero} vehiculos={vehiculos[p.id] ?? []} ancho={ancho} /> : undefined;
+    esChofer && p.estado === "PENDIENTE" ? <BotonTomar pedidoId={p.id} numero={p.numero} vehiculos={vehiculos[p.id] ?? []} ancho={ancho} /> :
+    asignar[p.id] ? <BotonReasignar pedidoId={p.id} numero={p.numero} choferes={asignar[p.id].choferes} vehiculos={asignar[p.id].vehiculos} etiqueta="Asignar" /> : undefined;
+  const conAccion = esChofer || puede(u.rol, "pedidos.reasignar");
 
   return (
     <div>
@@ -123,7 +137,7 @@ async function VistaDireccion({ searchParams }: { searchParams: Promise<{ filtro
                   <th>Para cuándo</th>
                   <th>Pidió</th>
                   <th>Estado</th>
-                  {esChofer && <th />}
+                  {conAccion && <th />}
                 </tr>
               </thead>
               <tbody className="divide-y divide-linea">
@@ -146,7 +160,7 @@ async function VistaDireccion({ searchParams }: { searchParams: Promise<{ filtro
                     <td className="whitespace-nowrap">{textoParaCuando(p.paraCuando, p.franja)}</td>
                     <td>{p.solicitante.nombre}</td>
                     <td><EstadoPedido p={p} /></td>
-                    {esChofer && <td className="text-right">{tomar(p)}</td>}
+                    {conAccion && <td className="text-right">{tomar(p)}</td>}
                   </tr>
                 ))}
               </tbody>
@@ -154,6 +168,7 @@ async function VistaDireccion({ searchParams }: { searchParams: Promise<{ filtro
           </div>
         </>
       )}
+      {hayMas && <CargarMas href={`/solicitudes?${filtro !== "pendientes" ? `filtro=${filtro}&` : ""}n=${siguiente}`} />}
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, CloudOff, RefreshCw } from "lucide-react";
 import { Hoja } from "@/components/ui/hoja";
 import { finalizarViaje, iniciarViaje, llegueAlRetiro, registrarCarga, salgoHaciaDestino } from "@/lib/viajes/acciones";
-import { crearPedido } from "@/lib/pedidos/acciones";
+import { crearPedido, tomarPedido } from "@/lib/pedidos/acciones";
 import { descartar, enviarPendientes, escuchar, leerEnvios, type Envio } from "@/lib/offline/cola";
 import { cuando } from "@/lib/formato";
 
@@ -17,6 +17,7 @@ const ejecutores = {
     return r;
   },
   "viaje.iniciar": (d: Record<string, unknown>) => iniciarViaje(d as Parameters<typeof iniciarViaje>[0]),
+  "pedido.aceptar": (d: Record<string, unknown>) => tomarPedido(d as Parameters<typeof tomarPedido>[0]),
   "viaje.retiro": (d: Record<string, unknown>) => llegueAlRetiro(d as Parameters<typeof llegueAlRetiro>[0]),
   "viaje.salgo": (d: Record<string, unknown>) => salgoHaciaDestino(d as Parameters<typeof salgoHaciaDestino>[0]),
   "viaje.finalizar": (d: Record<string, unknown>) => finalizarViaje(d as Parameters<typeof finalizarViaje>[0]),

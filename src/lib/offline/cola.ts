@@ -7,7 +7,7 @@
  */
 import type { Resultado } from "@/lib/resultado";
 
-export type TipoEnvio = "pedido.crear" | "viaje.iniciar" | "viaje.retiro" | "viaje.salgo" | "viaje.finalizar" | "combustible.cargar";
+export type TipoEnvio = "pedido.crear" | "pedido.aceptar" | "viaje.iniciar" | "viaje.retiro" | "viaje.salgo" | "viaje.finalizar" | "combustible.cargar";
 
 export type Envio = {
   id: string;

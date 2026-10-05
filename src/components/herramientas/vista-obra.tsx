@@ -6,13 +6,16 @@ import { obrasDelUsuario } from "@/lib/alcance";
 import { Buscador } from "@/components/ui/campos";
 import { Insignia, Pestanas, Titulo, Vacio } from "@/components/ui/basicos";
 import { BotonPedirHerramienta } from "./pedir";
+import { CargarMas } from "@/components/ui/cargar-mas";
+import { limiteDe } from "@/lib/pagina";
 
 /**
  * Herramientas para la gente de obra: arranca SIEMPRE en "Disponibles para pedir".
  * "Ver todas" muestra dónde está cada una y quién la tiene; se puede pedir la que está en otra obra.
  */
-export async function VistaObra({ u, vista, q }: { u: UsuarioSesion; vista: "disponibles" | "todas"; q?: string }) {
-  const [filas, obras] = await Promise.all([herramientasParaObra({ vista, q }), obrasDelUsuario(u)]);
+export async function VistaObra({ u, vista, q, n }: { u: UsuarioSesion; vista: "disponibles" | "todas"; q?: string; n?: string }) {
+  const { limite, siguiente } = await limiteDe(n);
+  const [{ filas, hayMas }, obras] = await Promise.all([herramientasParaObra({ vista, q, limite }), obrasDelUsuario(u)]);
   const misObras = obras.map((o) => ({ id: o.id, nombre: o.nombre }));
   const href = (v: string) => `/herramientas?vista=${v}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
   return (
@@ -53,6 +56,7 @@ export async function VistaObra({ u, vista, q }: { u: UsuarioSesion; vista: "dis
           })}
         </ul>
       )}
+      {hayMas && <CargarMas href={`${href(vista)}&n=${siguiente}`} />}
     </div>
   );
 }

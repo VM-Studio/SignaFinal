@@ -15,7 +15,7 @@ async function urgenteSinTomar(): Promise<AlertaCalculada[]> {
     claveUnica: `URGENTE_SIN_TOMAR:${x.id}`, regla: "URGENTE_SIN_TOMAR", severidad: "CRITICA",
     titulo: `Urgente sin tomar: ${x.descripcion}`,
     detalle: `Para Obra ${x.obra.nombre}. Lo pidió ${x.solicitante.nombre} ${cuando(x.creadoEn)} y nadie lo tomó.`,
-    entidadTipo: "PedidoViaje", entidadId: x.id, enlace: `/pedidos/${x.id}`, obraId: x.obraId,
+    entidadTipo: "PedidoViaje", entidadId: x.id, enlace: `/pedidos/${x.id}`, obraId: x.obraId, usuarios: [x.solicitanteId],
   }));
 }
 
@@ -53,7 +53,7 @@ async function duplicados(): Promise<AlertaCalculada[]> {
         claveUnica: `DUPLICADO:${a.id}:${b.id}`, regla: "DUPLICADO", severidad: "AVISO",
         titulo: `¿Pedido repetido para Obra ${a.obra.nombre}?`,
         detalle: `Pedido ${a.numero} de ${a.solicitante.nombre} y pedido ${b.numero} de ${b.solicitante.nombre} parecen lo mismo: “${a.descripcion}”.`,
-        entidadTipo: "PedidoViaje", entidadId: `${a.id},${b.id}`, enlace: `/pedidos/${a.id}`, obraId: a.obraId,
+        entidadTipo: "PedidoViaje", entidadId: `${a.id},${b.id}`, enlace: `/pedidos/${a.id}`, obraId: a.obraId, usuarios: [a.solicitanteId, b.solicitanteId],
       });
     }
   }

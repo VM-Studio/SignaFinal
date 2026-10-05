@@ -9,6 +9,7 @@ import { Opciones } from "@/components/ui/opciones";
 import { Campo, Entrada, MensajeError, Selector } from "@/components/ui/campos";
 import { useAviso } from "@/components/ui/avisos";
 import { reasignarPedido, soltarPedido, tomarPedido } from "@/lib/pedidos/acciones";
+import { enviarOGuardar } from "@/lib/offline/cola";
 import type { OpcionVehiculo } from "@/lib/pedidos/consultas";
 
 const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -51,14 +52,20 @@ export function BotonTomar({ pedidoId, numero, vehiculos, ancho = false, tamano 
     setEnviando(true);
     setError(undefined);
     const salida = cuando === "ahora" ? hhmm(new Date()) : cuando === "hora" ? hhmm(new Date(Date.now() + 3_600_000)) : elegida;
-    const r = await tomarPedido({ pedidoId, vehiculoId, salida, saleHoy: cuando !== "elegir" });
+    // Sin señal se guarda en el teléfono con la hora real y se manda solo al volver.
+    const datos = { pedidoId, vehiculoId, salida, saleHoy: cuando !== "elegir", ocurridoEn: new Date().toISOString() };
+    const r = await enviarOGuardar({ id: crypto.randomUUID(), tipo: "pedido.aceptar", pedidoId, descripcion: `Aceptar el pedido ${numero}`, datos }, () => tomarPedido(datos));
     setEnviando(false);
-    if (!r.ok) {
+    if (r.estado === "error") {
       setError(r.error); // "Ya lo aceptó Cristian."
       router.refresh();
       return;
     }
     setAbierta(false);
+    if (r.estado === "guardado") {
+      aviso({ mensaje: `Sin señal: el pedido ${numero} quedó aceptado en el teléfono y se manda solo. Si otro lo aceptó antes, te avisamos.` });
+      return;
+    }
     aviso({
       mensaje: `Aceptaste el pedido ${r.datos.numero}. Salís ${r.datos.salida} con ${r.datos.vehiculo}.`,
       deshacer: async () => {
@@ -76,7 +83,7 @@ export function BotonTomar({ pedidoId, numero, vehiculos, ancho = false, tamano 
         Aceptar
       </Boton>
       <Hoja abierta={abierta} onCerrar={() => setAbierta(false)} titulo={`Aceptar pedido ${numero}`}>
-        <div className="flex flex-col gap-4 p-4">
+        <div className="flex flex-col gap-4">
           <p className="font-semibold">¿Con qué vehículo?</p>
           <ElegirVehiculo vehiculos={vehiculos} valor={vehiculoId} onElegir={setVehiculoId} />
           <p className="font-semibold">¿Cuándo salís?</p>
@@ -93,8 +100,8 @@ export function BotonTomar({ pedidoId, numero, vehiculos, ancho = false, tamano 
 }
 
 /** Dirección: asignar el pedido a otro chofer, con vehículo y hora. */
-export function BotonReasignar({ pedidoId, numero, choferes, vehiculos }: {
-  pedidoId: string; numero: number; choferes: { id: string; nombre: string }[]; vehiculos: Record<string, OpcionVehiculo[]>;
+export function BotonReasignar({ pedidoId, numero, choferes, vehiculos, etiqueta = "Reasignar" }: {
+  pedidoId: string; numero: number; choferes: { id: string; nombre: string }[]; vehiculos: Record<string, OpcionVehiculo[]>; etiqueta?: string;
 }) {
   const [abierta, setAbierta] = useState(false);
   const [choferId, setChoferId] = useState("");
@@ -118,8 +125,8 @@ export function BotonReasignar({ pedidoId, numero, choferes, vehiculos }: {
 
   return (
     <>
-      <Boton variante="secundario" ancho onClick={() => setAbierta(true)}>Reasignar</Boton>
-      <Hoja abierta={abierta} onCerrar={() => setAbierta(false)} titulo={`Reasignar pedido ${numero}`}>
+      <Boton variante="secundario" ancho onClick={() => setAbierta(true)}>{etiqueta}</Boton>
+      <Hoja abierta={abierta} onCerrar={() => setAbierta(false)} titulo={`${etiqueta} pedido ${numero}`}>
         <div className="flex flex-col gap-4">
           <Campo etiqueta="Chofer" htmlFor="chofer">
             <Selector id="chofer" value={choferId} onChange={(e) => { setChoferId(e.target.value); setVehiculoId(""); }}>

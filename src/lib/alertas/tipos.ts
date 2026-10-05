@@ -12,6 +12,8 @@ export type AlertaCalculada = {
   enlace: string;
   obraId?: string | null;
   usuarioId?: string | null;
+  /** Personas puntuales (el que pidió, el chofer, quien tiene la herramienta). Se filtran por rol en destinatarios.ts. */
+  usuarios?: string[];
 };
 
 /** Módulos: después de cada acción se reevalúan solo las reglas del módulo afectado. */

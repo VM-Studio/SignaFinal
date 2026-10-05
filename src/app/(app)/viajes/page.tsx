@@ -4,27 +4,33 @@ import { redirect } from "next/navigation";
 import { FileImage, Route } from "lucide-react";
 import { exigirSesion } from "@/lib/auth/sesion";
 import { puede } from "@/lib/permisos";
-import { viajesRecientes } from "@/lib/viajes/consultas";
-import { Insignia, Titulo, Vacio } from "@/components/ui/basicos";
+import { viajesTodos } from "@/lib/viajes/consultas";
+import { Insignia, Pestanas, Titulo, Vacio } from "@/components/ui/basicos";
+import { claseBoton } from "@/components/ui/boton";
 import { cuando, km, plata } from "@/lib/formato";
 
 export const metadata: Metadata = { title: "Viajes" };
 
-export default async function PaginaViajes() {
+type P = { vista?: string; pagina?: string };
+
+export default async function PaginaViajes({ searchParams }: { searchParams: Promise<P> }) {
   const u = await exigirSesion();
   if (!puede(u.rol, "viajes.verTodos")) redirect("/inicio");
-  return <TodosLosViajes />;
+  const sp = await searchParams;
+  return <TodosLosViajes vista={sp.vista === "terminados" ? "terminados" : "activos"} pagina={Math.max(1, Number(sp.pagina) || 1)} />;
 }
 
 const ESTADO = { EN_CURSO: { t: "En curso", tono: "activo" }, PROGRAMADO: { t: "Programado", tono: "aviso" }, FINALIZADO: { t: "Terminado", tono: "ok" }, CANCELADO: { t: "Cancelado", tono: "neutro" } } as const;
 
-async function TodosLosViajes() {
-  const viajes = await viajesRecientes();
+async function TodosLosViajes({ vista, pagina }: { vista: "activos" | "terminados"; pagina: number }) {
+  const { viajes, total, paginas } = await viajesTodos(vista, pagina);
+  const href = (p: number) => `/viajes?vista=${vista}${p > 1 ? `&pagina=${p}` : ""}`;
   return (
     <div>
-      <Titulo detalle="En curso, programados y terminados en los últimos 7 días.">Viajes</Titulo>
+      <Titulo detalle="Todos los viajes de todos los choferes.">Viajes</Titulo>
+      <Pestanas items={[{ href: "/viajes", etiqueta: "En curso y aceptados", activa: vista === "activos" }, { href: "/viajes?vista=terminados", etiqueta: "Terminados", activa: vista === "terminados" }]} />
       {viajes.length === 0 ? (
-        <Vacio icono={<Route className="size-10" />} titulo="Sin viajes en los últimos días" />
+        <Vacio icono={<Route className="size-10" />} titulo={vista === "activos" ? "No hay viajes en curso ni aceptados" : "Todavía no hay viajes terminados"} />
       ) : (
         <div className="overflow-x-auto rounded-[var(--radius-caja)] border border-linea bg-papel">
           <table className="w-full min-w-[720px] text-left text-[15px]">
@@ -48,6 +54,13 @@ async function TodosLosViajes() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      {paginas > 1 && (
+        <div className="mt-4 flex items-center justify-between gap-3">
+          {pagina > 1 ? <Link href={href(pagina - 1)} className={claseBoton("secundario")}>Anteriores</Link> : <span />}
+          <span className="text-sm text-suave">{total} viajes · página {pagina} de {paginas}</span>
+          {pagina < paginas ? <Link href={href(pagina + 1)} className={claseBoton("secundario")}>Siguientes</Link> : <span />}
         </div>
       )}
     </div>

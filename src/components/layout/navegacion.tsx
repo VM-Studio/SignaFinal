@@ -65,7 +65,7 @@ function Contador({ n, claro = false }: { n: number; claro?: boolean }) {
 function HojaPerfil({ perfil, abierta, onCerrar }: { perfil: Perfil; abierta: boolean; onCerrar: () => void }) {
   return (
     <Hoja abierta={abierta} onCerrar={onCerrar} titulo="Mi cuenta">
-      <div className="flex flex-col gap-4 p-4">
+      <div className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
           <div className="grid size-14 shrink-0 place-items-center rounded-full bg-negro text-xl font-bold text-white">{perfil.nombre.slice(0, 1)}</div>
           <div className="min-w-0">
@@ -185,7 +185,8 @@ export function HeaderMovil({ perfil, avisos: inicial }: { perfil: Perfil; aviso
   );
 }
 
-export function BarraInferior({ items, mas, conSalir = false, nuevas }: { items: Seccion[]; mas: Seccion[]; conSalir?: boolean; nuevas?: { href: string; ultima: string | null } }) {
+export function BarraInferior({ items, mas: grupos, conSalir = false, nuevas }: { items: Seccion[]; mas: Grupo[]; conSalir?: boolean; nuevas?: { href: string; ultima: string | null } }) {
+  const mas = grupos.flatMap((g) => g.items);
   const hayNuevas = useHaySolicitudesNuevas(nuevas?.ultima ?? null);
   const [abierto, setAbierto] = useState(false);
   const [destino, ir] = useDestino();
@@ -228,28 +229,33 @@ export function BarraInferior({ items, mas, conSalir = false, nuevas }: { items:
 
       {mas.length > 0 && (
         <Hoja abierta={abierto} onCerrar={() => setAbierto(false)} titulo="Más">
-          <ul className="m-4 flex flex-col divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
-            {mas.map((s) => {
-              const Icono = ICONOS[s.icono];
-              return (
-                <li key={s.href}>
-                  <Link href={s.href} onClick={(e) => { ir(s.href, e); setAbierto(false); }} className="flex min-h-14 items-center gap-3 px-4 text-[17px] font-semibold active:bg-fondo">
-                    <Icono className="size-6" />
-                    {s.titulo}
-                  </Link>
-                </li>
-              );
-            })}
+          <div className="flex flex-col gap-4">
+            {grupos.map((g, i) => (
+              <section key={g.titulo ?? i}>
+                {g.titulo && <p className="mb-1.5 px-1 text-xs font-bold tracking-wider text-suave uppercase">{g.titulo}</p>}
+                <ul className="flex flex-col divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
+                  {g.items.map((s) => {
+                    const Icono = ICONOS[s.icono];
+                    return (
+                      <li key={s.href}>
+                        <Link href={s.href} onClick={(e) => { ir(s.href, e); setAbierto(false); }} className="flex min-h-14 items-center gap-3 px-4 text-[17px] font-semibold active:bg-fondo">
+                          <Icono className="size-6" />
+                          {s.titulo}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
             {conSalir && (
-              <li>
-                <form action={cerrarSesion}>
-                  <button className="flex min-h-14 w-full items-center gap-3 px-4 text-[17px] font-semibold text-critico">
-                    <LogOut className="size-6" /> Cerrar sesión
-                  </button>
-                </form>
-              </li>
+              <form action={cerrarSesion}>
+                <button className="flex min-h-14 w-full items-center gap-3 rounded-[var(--radius-caja)] border border-linea bg-papel px-4 text-[17px] font-semibold text-critico">
+                  <LogOut className="size-6" /> Cerrar sesión
+                </button>
+              </form>
             )}
-          </ul>
+          </div>
         </Hoja>
       )}
     </>

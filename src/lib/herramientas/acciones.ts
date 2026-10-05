@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidar } from "@/lib/revalidar";
 import { reevaluar } from "@/lib/alertas/reevaluar";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
@@ -21,7 +21,7 @@ import { avisarUrgente } from "@/lib/pedidos/avisos";
 
 /** Refresca pantallas y reevalúa las alertas del módulo (resuelve solas las que ya no aplican). */
 const refrescar = () => {
-  revalidatePath("/", "layout");
+  revalidar("herramientas", "pedidos");
   reevaluar("herramientas", "pedidos");
 };
 const vacio = (v: unknown) => (v === "" || v === null ? undefined : v);

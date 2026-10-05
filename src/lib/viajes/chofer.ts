@@ -86,17 +86,18 @@ export const FILTROS_SOLICITUDES = { todas: "Todas", hoy: "Hoy", camion: "Necesi
 export type FiltroSolicitudes = keyof typeof FILTROS_SOLICITUDES;
 
 /** Solicitudes pendientes de cualquiera: urgentes primero, después por fecha necesaria. Con los vehículos para aceptar. */
-export async function solicitudesPendientes(filtro: FiltroSolicitudes) {
+export async function solicitudesPendientes(filtro: FiltroSolicitudes, limite = 50) {
   const u = await exigirPermiso("pedidos.tomar");
   const extra: Prisma.PedidoViajeWhereInput = filtro === "hoy" ? { paraCuando: { lte: finDelDia() } } : filtro === "camion" ? { necesitaCamion: true } : {};
   const filas = await db.pedidoViaje.findMany({
     where: conAlcance(u, { estado: "PENDIENTE", ...extra }),
     select: seleccion,
     orderBy: [{ prioridad: "desc" }, { fechaNecesaria: { sort: "asc", nulls: "last" } }, { paraCuando: "asc" }, { creadoEn: "asc" }],
-    take: 100,
+    take: limite + 1,
   });
-  const vehiculos = await Promise.all(filas.map((p) => vehiculosParaTomar(p)));
-  return filas.map((p, i) => ({ ...tarjeta(p), vehiculos: vehiculos[i] }));
+  const pagina = filas.slice(0, limite);
+  const vehiculos = await Promise.all(pagina.map((p) => vehiculosParaTomar(p)));
+  return { lista: pagina.map((p, i) => ({ ...tarjeta(p), vehiculos: vehiculos[i] })), hayMas: filas.length > limite };
 }
 
 /** La última solicitud nueva (para el indicador de la barra del chofer). */

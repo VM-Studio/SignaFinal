@@ -2,12 +2,11 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { exigirPermiso, type UsuarioSesion } from "@/lib/auth/sesion";
-import { idsObrasDelUsuario } from "@/lib/alcance";
 import { filtroDestinatario } from "./destinatarios";
 
 /** Cada uno ve solo las alertas que lo tienen como destinatario (matriz en ./destinatarios). */
 async function alcance(u: UsuarioSesion): Promise<Prisma.AlertaWhereInput> {
-  return filtroDestinatario(u, u.rol === "RESPONSABLE_OBRA" ? await idsObrasDelUsuario(u, true) : []);
+  return filtroDestinatario(u);
 }
 
 export async function alertasAbiertas() {

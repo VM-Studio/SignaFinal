@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidar } from "@/lib/revalidar";
 import { reevaluar } from "@/lib/alertas/reevaluar";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
@@ -20,7 +20,7 @@ import { FRANJA } from "./presentacion";
 
 /** Refresca pantallas y reevalúa las alertas del módulo (resuelve solas las que ya no aplican). */
 const refrescar = () => {
-  revalidatePath("/", "layout");
+  revalidar("pedidos", "herramientas");
   reevaluar("pedidos");
 };
 const vacio = (v: unknown) => (v === "" || v === null ? undefined : v);
@@ -45,6 +45,8 @@ const esquemaPedido = z
     prioridad: z.enum(["NORMAL", "URGENTE"]),
     forzar: z.boolean().default(false), // "No, es otro pedido"
     clientId: z.preprocess((v) => (v === "" || v === null ? undefined : v), z.string().uuid().optional()), // pedido hecho sin señal
+    // Pedido hecho sin señal: la hora real en que lo pidió.
+    ocurridoEn: z.coerce.date().optional(),
   })
   .superRefine((d, ctx) => {
     if (d.tipo === "RETIRO_PROVEEDOR" && d.origenTipo !== "PROVEEDOR") ctx.addIssue({ code: "custom", message: "Elegí el proveedor." });
@@ -103,6 +105,7 @@ export async function crearPedido(entrada: DatosPedido): Promise<Resultado<Respu
       const p = await tx.pedidoViaje.create({
         data: {
           clientId: d.clientId ?? null,
+          ...(d.ocurridoEn && d.ocurridoEn < new Date() ? { creadoEn: d.ocurridoEn } : {}),
           solicitanteId: yo.id,
           obraId: d.obraId,
           tipo: d.tipo,
@@ -159,6 +162,8 @@ const esquemaTomar = z.object({
   salida: z.string().regex(HHMM, "Poné la hora de salida."),
   // "Ahora" o "En 1 h": sale hoy aunque el pedido sea para más adelante.
   saleHoy: z.boolean().optional(),
+  // Aceptado sin señal: la hora real en que tocó "Aceptar".
+  ocurridoEn: z.coerce.date().optional(),
 });
 
 export type DatosTomar = z.input<typeof esquemaTomar>;
@@ -188,11 +193,12 @@ export async function tomarPedido(entrada: DatosTomar): Promise<Resultado<{ nume
       // Cerrojo: solo uno lo toma. El segundo ve quién se le adelantó.
       const tomado = await tx.pedidoViaje.updateMany({
         where: { id: d.pedidoId, estado: "PENDIENTE" },
-        data: { estado: "TOMADO", tomadoPorId: yo.id, tomadoEn: new Date() },
+        data: { estado: "TOMADO", tomadoPorId: yo.id, tomadoEn: d.ocurridoEn && d.ocurridoEn < new Date() ? d.ocurridoEn : new Date() },
       });
       if (!tomado.count) {
-        const actual = await tx.pedidoViaje.findUniqueOrThrow({ where: { id: d.pedidoId }, select: { estado: true, tomadoPorId: true, tomadoPor: { select: { nombre: true } } } });
-        if (actual.tomadoPorId === yo.id) throw new ErrorNegocio("Ya lo aceptaste vos.");
+        const actual = await tx.pedidoViaje.findUniqueOrThrow({ where: { id: d.pedidoId }, select: { estado: true, tomadoPorId: true, tomadoPor: { select: { nombre: true } }, viaje: { select: { salidaEstimada: true, vehiculo: { select: { nombre: true } } } } } });
+        // Reenvío de un "Aceptar" guardado sin señal (o doble toque): ya es suyo, no es un error.
+        if (actual.tomadoPorId === yo.id) return { numero: pedido.numero, vehiculo: actual.viaje?.vehiculo.nombre ?? vehiculo.nombre, salida: actual.viaje?.salidaEstimada ? hora(actual.viaje.salidaEstimada) : d.salida };
         if (actual.estado === "CANCELADO") throw new ErrorNegocio("Este pedido fue cancelado.");
         throw new ErrorNegocio(`Ya lo aceptó ${actual.tomadoPor?.nombre ?? "otro chofer"}.`);
       }

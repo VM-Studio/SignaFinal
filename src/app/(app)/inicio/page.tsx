@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
+import { EsqueletoLista } from "@/components/ui/esqueletos";
 import { Download, ListOrdered, PlusCircle, ScanLine } from "lucide-react";
 import { exigirSesion } from "@/lib/auth/sesion";
 import { devolucionesVencidas, pedidosPendientes, resumenDireccion, vencimientosProximos } from "@/lib/datos/inicio";
@@ -15,7 +17,7 @@ import { BotonEtapa } from "@/components/viajes/acciones-viaje";
 import { MapaEnVivo } from "@/components/mapa/mapa-en-vivo";
 import { ListaPedidos, ListaViajes } from "@/components/pedidos/lista-pedidos";
 import { BotonLink } from "@/components/ui/boton";
-import { Cifra, FilaLista, Insignia, Lista, Subtitulo, Vacio } from "@/components/ui/basicos";
+import { Cifra, Esqueleto, FilaLista, Insignia, Lista, Subtitulo, Vacio } from "@/components/ui/basicos";
 import { DOCUMENTO } from "@/lib/etiquetas";
 import { cuando, fecha, finDelDia, plata, vencimiento } from "@/lib/formato";
 
@@ -27,11 +29,14 @@ export default async function Inicio() {
   return (
     <div className="mx-auto max-w-3xl lg:max-w-none">
       <h1 className="mb-4 text-2xl font-bold lg:text-3xl">Hola, {u.nombre}</h1>
-      {u.rol === "CHOFER" && <InicioChofer />}
-      {(u.rol === "RESPONSABLE_OBRA" || u.rol === "CAPATAZ") && <InicioObra />}
-      {u.rol === "DEPOSITO" && <InicioDeposito />}
+      {/* El saludo sale al instante; cada bloque llega cuando está listo. */}
+      <Suspense fallback={<EsqueletoLista filas={4} ancho="max-w-none" />}>
+        {u.rol === "CHOFER" && <InicioChofer />}
+        {(u.rol === "RESPONSABLE_OBRA" || u.rol === "CAPATAZ") && <InicioObra />}
+        {u.rol === "DEPOSITO" && <InicioDeposito />}
+        {u.rol === "ADMINISTRACION" && <InicioAdministracion />}
+      </Suspense>
       {u.rol === "DIRECCION" && <InicioDireccion />}
-      {u.rol === "ADMINISTRACION" && <InicioAdministracion />}
     </div>
   );
 }
@@ -143,17 +148,31 @@ async function InicioDeposito() {
 
 // ───────────────────────────── Dirección ─────────────────────────────
 
-async function InicioDireccion() {
-  const [r, mapa, acciones] = await Promise.all([resumenDireccion(), datosMapa(), accionesDeHoy()]);
+function InicioDireccion() {
   return (
     <div>
-      <MapaEnVivo inicial={mapa} compacto />
-      <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
-        <Link href="/solicitudes"><Cifra etiqueta="Solicitudes pendientes" valor={r.pendientes} tono={r.pendientes > 3 ? "aviso" : undefined} /></Link>
-        <Link href="/viajes"><Cifra etiqueta="Viajes en curso" valor={r.enViaje} /></Link>
-        <Link href="/alertas"><Cifra etiqueta="Alertas críticas" valor={r.criticas} tono={r.criticas ? "critico" : "ok"} /></Link>
-        <Link href="/actividad"><Cifra etiqueta="Acciones de hoy" valor={acciones} /></Link>
-      </div>
+      <Suspense fallback={<Esqueleto className="h-[340px]" />}>
+        <MapaDireccion />
+      </Suspense>
+      <Suspense fallback={<div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">{[0, 1, 2, 3].map((i) => <Esqueleto key={i} className="h-24" />)}</div>}>
+        <CifrasDireccion />
+      </Suspense>
+    </div>
+  );
+}
+
+async function MapaDireccion() {
+  return <MapaEnVivo inicial={await datosMapa()} compacto />;
+}
+
+async function CifrasDireccion() {
+  const [r, acciones] = await Promise.all([resumenDireccion(), accionesDeHoy()]);
+  return (
+    <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
+      <Link href="/solicitudes"><Cifra etiqueta="Solicitudes pendientes" valor={r.pendientes} tono={r.pendientes > 3 ? "aviso" : undefined} /></Link>
+      <Link href="/viajes"><Cifra etiqueta="Viajes en curso" valor={r.enViaje} /></Link>
+      <Link href="/alertas"><Cifra etiqueta="Alertas críticas" valor={r.criticas} tono={r.criticas ? "critico" : "ok"} /></Link>
+      <Link href="/actividad"><Cifra etiqueta="Acciones de hoy" valor={acciones} /></Link>
     </div>
   );
 }
@@ -168,7 +187,7 @@ async function InicioAdministracion() {
   const mant = vehiculos.reduce((a, v) => a + v.mantenimiento + v.incidentes, 0);
   return (
     <div>
-      <div className="grid grid-cols-3 gap-2 lg:gap-3">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:gap-3">
         <Cifra etiqueta="Gasto en obras (mes)" valor={plata(total)} detalle={`${obras.reduce((a, o) => a + o.viajes, 0)} viajes`} />
         <Cifra etiqueta="Combustible (mes)" valor={plata(comb)} />
         <Cifra etiqueta="Mantenimiento (mes)" valor={plata(mant)} />

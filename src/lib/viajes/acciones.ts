@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidar } from "@/lib/revalidar";
 import { reevaluar } from "@/lib/alertas/reevaluar";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
@@ -20,7 +20,7 @@ import { alLlegarElViaje } from "@/lib/herramientas/servicio";
 
 /** Refresca pantallas y reevalúa las alertas del módulo (resuelve solas las que ya no aplican). */
 const refrescar = () => {
-  revalidatePath("/", "layout");
+  revalidar("pedidos", "flota", "herramientas");
   reevaluar("pedidos", "flota", "herramientas");
 };
 const vacio = (v: unknown) => (v === "" || v === null ? undefined : v);

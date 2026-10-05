@@ -136,7 +136,7 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
     setEnviando(true);
     setError(undefined);
     // Un clientId por intento: si no hay señal se guarda en el teléfono y el servidor no duplica al reenviar.
-    const entrada = { ...d, forzar, clientId: crypto.randomUUID() };
+    const entrada = { ...d, forzar, clientId: crypto.randomUUID(), ocurridoEn: new Date().toISOString() };
     const obra = datos.obras.find((o) => o.id === entrada.obraId)?.nombre ?? "";
     const envio = await enviarOGuardar({ id: entrada.clientId, tipo: "pedido.crear", descripcion: `Pedido para Obra ${obra}: ${entrada.descripcion}`, datos: entrada }, () => crearPedido(entrada));
     setEnviando(false);

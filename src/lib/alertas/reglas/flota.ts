@@ -8,7 +8,7 @@ const venceTexto = (n: number) => (n < 0 ? `venció hace ${-n} día${n === -1 ? 
 
 /** Documento de vehículo: vence en 15 días (aviso) o venció (crítica). */
 async function documentos(): Promise<AlertaCalculada[]> {
-  const vehiculos = await db.vehiculo.findMany({ where: { activo: true }, select: { id: true, nombre: true, documentos: { select: { id: true, tipo: true, vencimiento: true, archivoUrl: true, notas: true, creadoEn: true } } } });
+  const vehiculos = await db.vehiculo.findMany({ where: { activo: true }, select: { id: true, nombre: true, asignadoAId: true, documentos: { select: { id: true, tipo: true, vencimiento: true, archivoUrl: true, notas: true, creadoEn: true } } } });
   const out: AlertaCalculada[] = [];
   for (const v of vehiculos) {
     for (const d of documentosVigentes(v.documentos)) {
@@ -19,7 +19,7 @@ async function documentos(): Promise<AlertaCalculada[]> {
         claveUnica: `DOCUMENTO:${v.id}:${d.tipo}`, regla: "DOCUMENTO", severidad: n < 0 ? "CRITICA" : "AVISO",
         titulo: `${v.nombre}: ${DOCUMENTO[d.tipo]} ${venceTexto(n)}`,
         detalle: n < 0 ? `Venció el ${fecha(d.vencimiento)}. No se puede usar para viajes hasta renovarla.` : `Vence el ${fecha(d.vencimiento)}. Sacar turno o renovar.`,
-        entidadTipo: "Vehiculo", entidadId: v.id, enlace: `/flota/${v.id}?tab=documentacion`,
+        entidadTipo: "Vehiculo", entidadId: v.id, enlace: `/flota/${v.id}?tab=documentacion`, usuarios: v.asignadoAId ? [v.asignadoAId] : [],
       });
     }
   }
@@ -47,7 +47,7 @@ async function licencias(): Promise<AlertaCalculada[]> {
 async function service(): Promise<AlertaCalculada[]> {
   const vehiculos = await db.vehiculo.findMany({
     where: { activo: true },
-    select: { id: true, nombre: true, kmActual: true, mantenimientos: { where: { OR: [{ proximoKm: { not: null } }, { proximaFecha: { not: null } }] }, orderBy: { fecha: "desc" }, take: 1 } },
+    select: { id: true, nombre: true, kmActual: true, asignadoAId: true, mantenimientos: { where: { OR: [{ proximoKm: { not: null } }, { proximaFecha: { not: null } }] }, orderBy: { fecha: "desc" }, take: 1 } },
   });
   const out: AlertaCalculada[] = [];
   for (const v of vehiculos) {
@@ -63,7 +63,7 @@ async function service(): Promise<AlertaCalculada[]> {
     out.push({
       claveUnica: `SERVICE:${v.id}`, regla: "SERVICE", severidad: pasado ? "CRITICA" : "AVISO",
       titulo: `${v.nombre}: service ${pasado ? "atrasado" : "próximo"}`, detalle: `${partes.join(" · ")}. Tiene ${km(v.kmActual)}.`,
-      entidadTipo: "Vehiculo", entidadId: v.id, enlace: `/flota/${v.id}?tab=mantenimiento`,
+      entidadTipo: "Vehiculo", entidadId: v.id, enlace: `/flota/${v.id}?tab=mantenimiento`, usuarios: v.asignadoAId ? [v.asignadoAId] : [],
     });
   }
   return out;

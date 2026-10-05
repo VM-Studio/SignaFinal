@@ -6,22 +6,10 @@ import { conAlcance, viajesVisibles } from "@/lib/alcance";
 
 /** Cada query verifica su permiso: no alcanza con esconder el botón. */
 
-// Lo terminado se sigue mostrando dos días (por fecha real de entrega o cancelación).
-const DIAS_RECIENTES = 2 * 86_400_000;
 
 export async function pedidosPendientes() {
   const u = await exigirPermiso("pedidos.ver");
   return db.pedidoViaje.count({ where: conAlcance(u, { estado: "PENDIENTE" }) });
-}
-
-export async function misPedidos() {
-  const u = await exigirPermiso("pedidos.crear");
-  return db.pedidoViaje.findMany({
-    where: conAlcance(u, { solicitanteId: u.id, OR: [{ estado: { in: ["PENDIENTE", "TOMADO", "EN_VIAJE"] } }, { estado: "ENTREGADO", viaje: { llegadaReal: { gte: new Date(Date.now() - DIAS_RECIENTES) } } }, { estado: "CANCELADO", canceladoEn: { gte: new Date(Date.now() - DIAS_RECIENTES) } }] }),
-    orderBy: [{ creadoEn: "desc" }],
-    take: 15,
-    select: { id: true, numero: true, estado: true, descripcion: true, paraCuando: true, prioridad: true, obra: { select: { nombre: true } }, tomadoPor: { select: { nombre: true } } },
-  });
 }
 
 export async function devolucionesVencidas() {
