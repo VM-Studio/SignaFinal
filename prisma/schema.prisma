@@ -94,17 +94,21 @@ model Obra {
 
 // Una obra tiene uno o más responsables; uno puede ser el principal (recibe herramientas, etc.).
 model ResponsableObra {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   obraId    String
   usuarioId String
-  principal Boolean  @default(false)
-  creadoEn  DateTime @default(now())
+  principal Boolean   @default(false)
+  // Nada se borra: al sacarle una obra a alguien, la asignación queda inactiva con su fecha.
+  activo    Boolean   @default(true)
+  hastaEn   DateTime?
+  creadoEn  DateTime  @default(now())
 
   obra    Obra    @relation(fields: [obraId], references: [id])
   usuario Usuario @relation(fields: [usuarioId], references: [id])
 
   @@unique([obraId, usuarioId])
   @@index([usuarioId])
+  @@index([usuarioId, activo])
 }
 
 model Proveedor {

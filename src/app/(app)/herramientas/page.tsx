@@ -14,6 +14,8 @@ import { Sobrantes } from "@/components/herramientas/sobrantes";
 import { FiltroUbicacion } from "@/components/herramientas/filtro";
 import { vencimiento } from "@/lib/formato";
 import { VistaObra } from "@/components/herramientas/vista-obra";
+import { limiteDe } from "@/lib/pagina";
+import { CargarMas } from "@/components/ui/cargar-mas";
 
 export const metadata: Metadata = { title: "Herramientas" };
 
@@ -28,7 +30,7 @@ export default async function PaginaHerramientas({ searchParams }: { searchParam
   const tab: Pestana = sp.tab && sp.tab in PESTANAS ? (sp.tab as Pestana) : "maquinaria";
   const [c, ops] = await Promise.all([cifras(), opciones()]);
   const qs = (extra: Partial<P>) => {
-    const p = new URLSearchParams(Object.entries({ tab, q: sp.q, donde: sp.donde, ...extra }).filter(([, v]) => v) as [string, string][]);
+    const p = new URLSearchParams(Object.entries({ tab, q: sp.q, donde: sp.donde, vista: sp.vista === "deposito" ? "deposito" : undefined, ...extra }).filter(([, v]) => v) as [string, string][]);
     return `/herramientas?${p.toString()}`;
   };
 
@@ -64,16 +66,29 @@ export default async function PaginaHerramientas({ searchParams }: { searchParam
       <Pestanas items={(Object.keys(PESTANAS) as Pestana[]).map((k) => ({ href: qs({ tab: k }), etiqueta: PESTANAS[k], activa: k === tab }))} />
 
       {tab === "sobrantes" ? (
-        <Sobrantes lista={await sobrantes()} obras={ops.obras} editar={puede(u.rol, "sobrantes.editar")} />
+        <ListaSobrantes n={sp.n} obras={ops.obras} editar={puede(u.rol, "sobrantes.editar")} qs={qs} />
       ) : (
-        <Lista tab={tab} q={sp.q} donde={sp.donde} obras={ops.obras} qs={qs} />
+        <Lista tab={tab} q={sp.q} donde={sp.donde} n={sp.n} obras={ops.obras} qs={qs} />
       )}
     </div>
   );
 }
 
-async function Lista({ tab, q, donde, obras, qs }: { tab: Exclude<Pestana, "sobrantes">; q?: string; donde?: string; obras: { id: string; nombre: string }[]; qs: (e: Partial<P>) => string }) {
-  const filas = await listar({ tab, q, ubicacion: donde });
+async function ListaSobrantes({ n, obras, editar, qs }: { n?: string; obras: { id: string; nombre: string }[]; editar: boolean; qs: (e: Partial<P>) => string }) {
+  const { limite, siguiente } = await limiteDe(n);
+  const todos = await sobrantes(limite);
+  return (
+    <>
+      <Sobrantes lista={todos.slice(0, limite)} obras={obras} editar={editar} />
+      {todos.length > limite && <CargarMas href={qs({ n: String(siguiente) })} />}
+    </>
+  );
+}
+
+async function Lista({ tab, q, donde, n, obras, qs }: { tab: Exclude<Pestana, "sobrantes">; q?: string; donde?: string; n?: string; obras: { id: string; nombre: string }[]; qs: (e: Partial<P>) => string }) {
+  const { limite, siguiente } = await limiteDe(n);
+  const todas = await listar({ tab, q, ubicacion: donde, limite });
+  const filas = todas.slice(0, limite);
   return (
     <>
       <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_16rem]">
@@ -129,6 +144,7 @@ async function Lista({ tab, q, donde, obras, qs }: { tab: Exclude<Pestana, "sobr
           </div>
         </>
       )}
+      {todas.length > limite && <CargarMas href={qs({ n: String(siguiente) })} />}
     </>
   );
 }

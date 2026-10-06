@@ -20,6 +20,7 @@ const MODULOS = {
     detalles: ["/flota/[id]"],
   },
   avisos: { listas: ["/avisos", "/alertas", "/inicio"], detalles: [] as string[] },
+  usuarios: { listas: ["/usuarios", "/obras", "/alertas", "/actividad"], detalles: ["/obras/[id]", "/actividad/[id]"] },
 } as const;
 
 export type ModuloRevalidar = keyof typeof MODULOS;

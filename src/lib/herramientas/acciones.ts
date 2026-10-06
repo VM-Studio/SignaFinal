@@ -452,7 +452,7 @@ export async function pedirHerramienta(entrada: DatosPedirHerramienta): Promise<
     const puntos = await resolverPuntos(db, { ...origen, obraId: obra.id });
     const nombreH = h.tipoControl === "CANTIDAD" ? `${d.cantidad} ${h.nombre.toLowerCase()}` : h.nombre;
     const responsablesOrigen = desdeObra
-      ? await db.responsableObra.findMany({ where: { obraId: desdeObra.id, usuarioId: { not: yo.id } }, select: { usuario: { select: { id: true, nombre: true } } } })
+      ? await db.responsableObra.findMany({ where: { obraId: desdeObra.id, activo: true, usuarioId: { not: yo.id } }, select: { usuario: { select: { id: true, nombre: true } } } })
       : [];
 
     const pedido = await db.$transaction(async (tx) => {

@@ -8,12 +8,16 @@ import { textoEstado, textoParaCuando } from "@/lib/pedidos/presentacion";
 import { BotonLink } from "@/components/ui/boton";
 import { FilaLista, Insignia, Lista, Subtitulo, Titulo, Vacio } from "@/components/ui/basicos";
 import { hora } from "@/lib/formato";
+import { limiteDe } from "@/lib/pagina";
+import { CargarMas } from "@/components/ui/cargar-mas";
 
 export const metadata: Metadata = { title: "Entregas" };
 
-export default async function PaginaEntregas() {
+export default async function PaginaEntregas({ searchParams }: { searchParams: Promise<{ n?: string }> }) {
   await exigirPermiso("herramientas.mover");
-  const [pendientes, hoy] = await Promise.all([paraEntregar(), movimientosDeHoy()]);
+  const { limite, siguiente } = await limiteDe((await searchParams).n);
+  const [todos, hoy] = await Promise.all([paraEntregar(limite), movimientosDeHoy()]);
+  const pendientes = todos.slice(0, limite);
   return (
     <div className="mx-auto max-w-3xl">
       <Titulo siempre detalle="Lo que pidieron las obras y lo que se movió hoy." accion={<BotonLink href="/herramientas/escanear" icono={<ScanLine className="size-5" />}>Escanear</BotonLink>}>Entregas</Titulo>
@@ -36,6 +40,7 @@ export default async function PaginaEntregas() {
           })}
         </Lista>
       )}
+      {todos.length > limite && <CargarMas href={`/entregas?n=${siguiente}`} />}
       <Subtitulo>Movimientos de hoy</Subtitulo>
       {hoy.length === 0 ? (
         <Vacio titulo="Todavía no se movió nada hoy" />

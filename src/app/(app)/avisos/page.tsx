@@ -4,6 +4,8 @@ import { Bell } from "lucide-react";
 import { misAvisos } from "@/lib/avisos/consultas";
 import { exigirSesion } from "@/lib/auth/sesion";
 import { rutaPermitida } from "@/lib/permisos";
+import { limiteDe } from "@/lib/pagina";
+import { CargarMas } from "@/components/ui/cargar-mas";
 import { Insignia, Subtitulo, Titulo, Vacio } from "@/components/ui/basicos";
 import { BotonMarcarTodas, ItemAviso } from "@/components/avisos/item-aviso";
 import { cuando } from "@/lib/formato";
@@ -11,9 +13,12 @@ import { cuando } from "@/lib/formato";
 export const metadata: Metadata = { title: "Avisos" };
 
 /** Cada uno ve solo lo suyo: sus avisos personales y las alertas que lo tienen como destinatario. */
-export default async function PaginaAvisos() {
+export default async function PaginaAvisos({ searchParams }: { searchParams: Promise<{ n?: string }> }) {
   const u = await exigirSesion();
-  const { notificaciones, alertas: todas } = await misAvisos();
+  const { limite, siguiente } = await limiteDe((await searchParams).n);
+  const { notificaciones: todasNotif, alertas: todas } = await misAvisos(limite);
+  const hayMas = todasNotif.length > limite;
+  const notificaciones = todasNotif.slice(0, limite);
   // Una sola bandeja para quien no tiene /alertas (obra, chofer, depósito): sus alertas, arriba.
   const alertas = rutaPermitida(u.rol, "/alertas") ? [] : todas;
   const sinLeer = notificaciones.filter((n) => !n.leidaEn).length;
@@ -65,6 +70,7 @@ export default async function PaginaAvisos() {
           )}
         </>
       )}
+      {hayMas && <CargarMas href={`/avisos?n=${siguiente}`} />}
     </div>
   );
 }

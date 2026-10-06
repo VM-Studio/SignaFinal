@@ -6,7 +6,7 @@ import type { AlertaCalculada, Regla } from "../tipos";
 async function devolucionVencida(): Promise<AlertaCalculada[]> {
   const h = await db.herramienta.findMany({
     where: { activo: true, estado: "EN_OBRA", devolucionPrevista: { not: null } },
-    include: { obra: { select: { nombre: true, responsables: { select: { usuarioId: true } } } }, responsable: { select: { nombre: true } } },
+    include: { obra: { select: { nombre: true, responsables: { where: { activo: true }, select: { usuarioId: true } } } }, responsable: { select: { nombre: true } } },
   });
   return h.flatMap((x): AlertaCalculada[] => {
     const n = -diasHasta(x.devolucionPrevista!);

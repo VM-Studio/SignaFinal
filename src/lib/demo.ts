@@ -12,7 +12,7 @@ export async function usuariosDemo() {
   const usuarios = await db.usuario.findMany({
     where: { activo: true, email: { endsWith: "@signa.demo" } },
     orderBy: [{ rol: "asc" }, { nombre: "asc" }],
-    select: { nombre: true, email: true, rol: true, obrasACargo: { select: { obra: { select: { nombre: true } } }, orderBy: [{ principal: "desc" }, { creadoEn: "asc" }] } },
+    select: { nombre: true, email: true, rol: true, obrasACargo: { where: { activo: true }, select: { obra: { select: { nombre: true } } }, orderBy: [{ principal: "desc" }, { creadoEn: "asc" }] } },
   });
   // Para probar cada versión de la app de un toque: el rol y, para responsables, sus obras.
   return usuarios.map((u) => ({

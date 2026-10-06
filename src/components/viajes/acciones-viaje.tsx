@@ -195,15 +195,16 @@ export function BotonEtapa({ etapa, pedidoId, numero, vehiculo, kmActual, kmSali
       return <BotonIniciar {...base} vehiculo={vehiculo} kmActual={kmActual} irAlViaje={irAlViaje} bloqueado={bloqueado} />;
     case "HACIA_RETIRO":
       return <BotonLlegueRetiro {...base} />;
+    // Misma estructura en las dos etapas: si el GPS pasa el viaje a "en camino" mientras el chofer
+    // tiene abierta la hoja de "Llegué al destino", la hoja no se cierra.
     case "EN_RETIRO":
+    case "HACIA_DESTINO":
       return (
         <div className="flex flex-col gap-2">
           <BotonFinalizar {...base} obra={obra} kmSalida={kmSalida} />
-          <BotonSalgo {...base} />
+          {etapa === "EN_RETIRO" && <BotonSalgo {...base} />}
         </div>
       );
-    case "HACIA_DESTINO":
-      return <BotonFinalizar {...base} obra={obra} kmSalida={kmSalida} />;
     case "FINALIZADO":
       return null;
   }

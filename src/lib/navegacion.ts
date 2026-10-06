@@ -62,7 +62,7 @@ const NAV: Record<Rol, { barra: Clave[]; mas: GrupoClaves[] }> = {
   CAPATAZ: { barra: ["obras", "pedir", "viajesObra", "herramientas"], mas: [] },
   CHOFER: { barra: ["hoy", "solicitudes", "combustible"], mas: [{ titulo: null, claves: ["cuenta", "misAvisos"] }] },
   DEPOSITO: { barra: ["escanear", "herramientas", "entregas"], mas: [{ titulo: null, claves: ["inicio", "sobrantes", "etiquetas", "importar"] }] },
-  ADMINISTRACION: { barra: ["flota", "costos", "alertas"], mas: [{ titulo: null, claves: ["inicio", "agenda", "mantenimiento", "obras"] }] },
+  ADMINISTRACION: { barra: ["flota", "costos", "alertas"], mas: [{ titulo: null, claves: ["inicio", "agenda", "mantenimiento", "obras", "usuarios"] }] },
   DIRECCION: {
     barra: ["mapa", "solicitudes", "viajes"],
     mas: [

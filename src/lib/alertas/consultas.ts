@@ -9,9 +9,9 @@ async function alcance(u: UsuarioSesion): Promise<Prisma.AlertaWhereInput> {
   return filtroDestinatario(u);
 }
 
-export async function alertasAbiertas() {
+export async function alertasAbiertas(limite = 50) {
   const u = await exigirPermiso("alertas.ver");
-  return db.alerta.findMany({ where: { ...(await alcance(u)), estado: { not: "RESUELTA" } }, orderBy: [{ severidad: "desc" }, { creadaEn: "desc" }] });
+  return db.alerta.findMany({ where: { ...(await alcance(u)), estado: { not: "RESUELTA" } }, orderBy: [{ severidad: "desc" }, { creadaEn: "desc" }], take: limite + 1 });
 }
 
 export async function alertasResueltasRecientes() {

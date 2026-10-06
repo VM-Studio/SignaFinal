@@ -30,7 +30,7 @@ export type Fila = {
 };
 
 /** Listado por pestaña, con buscador (nombre o código) y filtro por ubicación ("deposito" o id de obra). */
-export async function listar({ tab, q, ubicacion }: { tab: Exclude<Pestana, "sobrantes">; q?: string; ubicacion?: string }): Promise<Fila[]> {
+export async function listar({ tab, q, ubicacion, limite = 50 }: { tab: Exclude<Pestana, "sobrantes">; q?: string; ubicacion?: string; limite?: number }): Promise<Fila[]> {
   await exigirPermiso("herramientas.ver");
   const where: Prisma.HerramientaWhereInput = {
     activo: true,
@@ -45,6 +45,7 @@ export async function listar({ tab, q, ubicacion }: { tab: Exclude<Pestana, "sob
   const filas = await db.herramienta.findMany({
     where,
     orderBy: [{ nombre: "asc" }, { codigo: "asc" }],
+    take: limite + 1,
     include: {
       categoria: { select: { nombre: true } },
       obra: { select: { nombre: true } },
@@ -75,7 +76,7 @@ export async function listar({ tab, q, ubicacion }: { tab: Exclude<Pestana, "sob
 export async function opciones() {
   await exigirPermiso("herramientas.ver");
   const [obrasConResponsables, personas, categorias, deposito] = await Promise.all([
-    db.obra.findMany({ where: { estado: "ACTIVA" }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true, responsables: { select: { usuarioId: true, principal: true }, orderBy: [{ principal: "desc" }, { creadoEn: "asc" }] } } }),
+    db.obra.findMany({ where: { estado: "ACTIVA" }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true, responsables: { where: { activo: true }, select: { usuarioId: true, principal: true }, orderBy: [{ principal: "desc" }, { creadoEn: "asc" }] } } }),
     db.usuario.findMany({ where: { activo: true, rol: { in: ["RESPONSABLE_OBRA", "CAPATAZ", "CHOFER", "DIRECCION", "DEPOSITO"] } }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true } }),
     db.categoriaHerramienta.findMany({ orderBy: { nombre: "asc" } }),
     db.ubicacion.findFirst({ where: { tipo: "DEPOSITO" }, select: { id: true, nombre: true } }),
@@ -93,7 +94,7 @@ export async function ficha(id: string) {
     where: { id },
     include: {
       categoria: true,
-      obra: { select: { id: true, nombre: true, responsables: { select: { usuarioId: true, principal: true }, orderBy: [{ principal: "desc" }, { creadoEn: "asc" }] } } },
+      obra: { select: { id: true, nombre: true, responsables: { where: { activo: true }, select: { usuarioId: true, principal: true }, orderBy: [{ principal: "desc" }, { creadoEn: "asc" }] } } },
       ubicacion: { select: { nombre: true } },
       responsable: { select: { id: true, nombre: true } },
       existencias: { include: { obra: { select: { id: true, nombre: true } }, ubicacion: { select: { nombre: true } } }, orderBy: { cantidad: "desc" } },
@@ -126,11 +127,12 @@ export async function ficha(id: string) {
 export type FichaHerramienta = NonNullable<Awaited<ReturnType<typeof ficha>>>;
 
 /** Para el depósito: lo que hay que entregar porque alguien lo pidió (y entra o está en la cola de viajes). */
-export async function paraEntregar() {
+export async function paraEntregar(limite = 50) {
   const u = await exigirPermiso("herramientas.mover");
   return db.pedidoViaje.findMany({
     where: conAlcance(u, { herramientaId: { not: null }, estado: { in: ["PENDIENTE", "TOMADO", "EN_VIAJE"] }, herramienta: { estado: { not: "EN_OBRA" } } }),
     orderBy: [{ prioridad: "desc" }, { paraCuando: "asc" }],
+    take: limite + 1,
     include: {
       herramienta: { select: { id: true, codigo: true, nombre: true, estado: true } },
       obra: { select: { nombre: true } },
@@ -158,9 +160,9 @@ export async function enReparacion() {
   return db.herramienta.findMany({ where: { activo: true, estado: "EN_REPARACION" }, select: { id: true, nombre: true, codigo: true, actualizadoEn: true } });
 }
 
-export async function sobrantes() {
+export async function sobrantes(limite = 50) {
   await exigirPermiso("sobrantes.ver");
-  const filas = await db.materialSobrante.findMany({ where: { bajaEn: null }, orderBy: [{ categoria: "asc" }, { descripcion: "asc" }], include: { obraOrigen: { select: { nombre: true } } } });
+  const filas = await db.materialSobrante.findMany({ where: { bajaEn: null }, orderBy: [{ categoria: "asc" }, { descripcion: "asc" }], take: limite + 1, include: { obraOrigen: { select: { nombre: true } } } });
   return filas.map((s) => ({ ...s, cantidad: Number(s.cantidad) }));
 }
 

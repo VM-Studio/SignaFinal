@@ -31,14 +31,14 @@ async function licencias(): Promise<AlertaCalculada[]> {
   const c = await db.usuario.findMany({ where: { rol: "CHOFER", activo: true }, select: { id: true, nombre: true, licenciaVencimiento: true } });
   return c.flatMap((x): AlertaCalculada[] => {
     if (!x.licenciaVencimiento) {
-      return [{ claveUnica: `LICENCIA:${x.id}`, regla: "LICENCIA", severidad: "AVISO", titulo: `${x.nombre}: falta cargar la licencia`, detalle: "Sin fecha de vencimiento no puede tomar viajes.", entidadTipo: "Usuario", entidadId: x.id, enlace: "/usuarios", usuarioId: x.id }];
+      return [{ claveUnica: `LICENCIA:${x.id}`, regla: "LICENCIA", severidad: "AVISO", titulo: `${x.nombre}: falta cargar la licencia`, detalle: "Sin fecha de vencimiento no puede tomar viajes.", entidadTipo: "Usuario", entidadId: x.id, enlace: `/usuarios?u=${x.id}`, usuarioId: x.id }];
     }
     const n = diasHasta(x.licenciaVencimiento);
     if (n > 30) return [];
     return [{
       claveUnica: `LICENCIA:${x.id}`, regla: "LICENCIA", severidad: n < 0 ? "CRITICA" : "AVISO",
       titulo: `Licencia de ${x.nombre}: ${venceTexto(n)}`, detalle: `Vence el ${fecha(x.licenciaVencimiento)}.${n < 0 ? " No puede manejar para la empresa." : ""}`,
-      entidadTipo: "Usuario", entidadId: x.id, enlace: "/usuarios", usuarioId: x.id,
+      entidadTipo: "Usuario", entidadId: x.id, enlace: `/usuarios?u=${x.id}`, usuarioId: x.id,
     }];
   });
 }

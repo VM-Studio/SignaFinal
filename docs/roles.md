@@ -22,6 +22,8 @@ materiales están en Lebane; Signa solo organiza los viajes, la flota y las herr
 - **Viajes**: todos los viajes de todos los choferes, en curso y terminados.
 - **Actividad**: cada acción de cada usuario en una lista, con filtros por persona, tipo de acción,
   obra y fecha, buscador y exportación a CSV. Una ficha por persona con su mes.
+- **Usuarios**: alta, rol, licencias, obras de cada responsable, desactivar. **Proveedores**: la
+  lista que viene de Lebane, con teléfono y "Cómo llegar".
 - **Seguimiento**: en cualquier viaje en curso ve el mapa con el camión y la hora estimada.
   En modo demo tiene el botón **"Demo: avanzar 1 km"** para mostrar el seguimiento en una reunión.
 - **Avisos**: una copia de los avisos de cada viaje (aceptado, salió, cargando, llegó, demoras)
@@ -116,9 +118,12 @@ alertas de vehículos o choferes, ni la actividad de los demás.
 ## Administración (oficina)
 
 - **Inicio**: vencimientos de documentación de los próximos 30 días y el costo del mes por obra.
-- **Barra**: Flota · Costos · Alertas · Más (Inicio, Agenda, Mantenimiento, Obras).
+- **Barra**: Flota · Costos · Alertas · Más (Inicio, Agenda, Mantenimiento, Obras, Usuarios).
 - Documentación de vehículos, mantenimiento, incidentes, costos por obra y por vehículo con
   exportación para Lebane.
+- **Usuarios**: alta de personas, rol, teléfono, licencia de los choferes y obras de cada
+  responsable. Para sacar a alguien se lo desactiva (no se borra nada). No puede dar de alta a
+  alguien de Dirección.
 
 **Alertas**: documentos por vencer o vencidos, licencias, service próximo, consumo de combustible
 anómalo, vehículos en movimiento fuera de horario o parados en viaje.

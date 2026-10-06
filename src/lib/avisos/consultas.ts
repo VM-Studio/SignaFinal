@@ -14,11 +14,11 @@ export async function contarAvisos() {
 }
 
 /** /avisos: los avisos de la persona (últimos 50) y las alertas que la tienen como destinataria. */
-export async function misAvisos() {
+export async function misAvisos(limite = 50) {
   const u = await exigirPermiso("avisos.ver");
   const [notificaciones, alertas] = await Promise.all([
     // No leídas primero, después las más nuevas.
-    db.notificacion.findMany({ where: { usuarioId: u.id }, orderBy: [{ leidaEn: { sort: "desc", nulls: "first" } }, { creadaEn: "desc" }], take: 60 }),
+    db.notificacion.findMany({ where: { usuarioId: u.id }, orderBy: [{ leidaEn: { sort: "desc", nulls: "first" } }, { creadaEn: "desc" }], take: limite + 1 }),
     db.alerta.findMany({ where: { ...filtroDestinatario(u), estado: { not: "RESUELTA" } }, orderBy: [{ severidad: "desc" }, { creadaEn: "desc" }], take: 50 }),
   ]);
   return { notificaciones, alertas };

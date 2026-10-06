@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { conAlcance, filtroObras } from "@/lib/alcance";
 
-const responsables = { select: { principal: true, usuario: { select: { nombre: true, telefono: true } } }, orderBy: [{ principal: "desc" as const }, { creadoEn: "asc" as const }] };
+const responsables = { where: { activo: true }, select: { principal: true, usuario: { select: { nombre: true, telefono: true } } }, orderBy: [{ principal: "desc" as const }, { creadoEn: "asc" as const }] };
 
 /** Las obras del usuario (las suyas si es responsable): pedidos activos y herramientas en la obra. */
 export async function listaObras() {

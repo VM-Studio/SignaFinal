@@ -14,7 +14,7 @@ import type { Rol } from "@prisma/client";
  * │                  │ /avisos /cuenta                                                              │
  * │ DEPOSITO         │ /inicio /escanear /herramientas/** /h/[codigo] /entregas /imprimir/**        │
  * │                  │ /avisos /cuenta                                                              │
- * │ ADMINISTRACION   │ /inicio /flota/** /costos /alertas /obras/** /avisos /cuenta                 │
+ * │ ADMINISTRACION   │ /inicio /flota/** /costos /alertas /obras/** /usuarios /avisos /cuenta       │
  * │ DIRECCION        │ todas las anteriores + /mapa/** /actividad /solicitudes/** /viajes           │
  * │                  │ /proveedores /usuarios /sobrantes                                            │
  * └──────────────────┴──────────────────────────────────────────────────────────────────────────────┘
@@ -75,7 +75,7 @@ const DEPOSITO: Entrada = {
 };
 
 const ADMINISTRACION: Entrada = {
-  rutas: ["/inicio", "/flota/**", "/costos", "/alertas", "/obras/**", "/avisos", "/cuenta"],
+  rutas: ["/inicio", "/flota/**", "/costos", "/alertas", "/obras/**", "/usuarios", "/avisos", "/cuenta"],
   acciones: [
     "pedidos.ver", "viajes.verTodos", "flota.ver", "flota.editar", "flota.documentacion", "flota.agenda", "combustible.cargar",
     "combustible.ver", "mantenimiento.ver", "mantenimiento.registrar", "incidentes.registrar", "herramientas.ver", "herramientas.editar",

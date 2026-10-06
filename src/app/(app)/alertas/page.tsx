@@ -8,6 +8,8 @@ import { Insignia, Subtitulo, Titulo, Vacio } from "@/components/ui/basicos";
 import { claseBoton } from "@/components/ui/boton";
 import { BotonRevisar, BotonVista } from "@/components/alertas/botones";
 import { cuando } from "@/lib/formato";
+import { limiteDe } from "@/lib/pagina";
+import { CargarMas } from "@/components/ui/cargar-mas";
 
 export const metadata: Metadata = { title: "Alertas" };
 
@@ -28,9 +30,12 @@ const RESOLVER: Record<string, string> = {
   PARADO_EN_VIAJE: "Ver en el mapa",
 };
 
-export default async function PaginaAlertas() {
+export default async function PaginaAlertas({ searchParams }: { searchParams: Promise<{ n?: string }> }) {
   const u = await exigirPermiso("alertas.ver");
-  const [abiertas, resueltas] = await Promise.all([alertasAbiertas(), alertasResueltasRecientes()]);
+  const { limite, siguiente } = await limiteDe((await searchParams).n);
+  const [todas, resueltas] = await Promise.all([alertasAbiertas(limite), alertasResueltasRecientes()]);
+  const hayMas = todas.length > limite;
+  const abiertas = todas.slice(0, limite);
   const criticas = abiertas.filter((a) => a.severidad === "CRITICA");
   const avisos = abiertas.filter((a) => a.severidad === "AVISO");
 
@@ -76,6 +81,7 @@ export default async function PaginaAlertas() {
           </section>
         ) : null,
       )}
+      {hayMas && <CargarMas href={`/alertas?n=${siguiente}`} />}
       {resueltas.length > 0 && (
         <section>
           <Subtitulo>Resueltas esta semana</Subtitulo>
