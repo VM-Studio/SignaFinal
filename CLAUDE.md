@@ -146,9 +146,10 @@ es, qrcode. PWA. Vercel + Postgres administrado.
 
 Negro, blanco y gris. Header y barra inferior negros; contenido sobre fondo claro. Color
 solo para estado: verde #1F7A4D ok, ámbar #B7791F aviso, rojo #B42318 crítico, siempre
-con texto. Tipografía Archivo. Botones mínimo 52px en celular. Sin gradientes ni sombras
-difusas. Splash negro con logo public/signalogo.png y barra fina, 1,8 s, una vez por
-sesión.
+con texto. Tipografía Inter (next/font). Botones mínimo 52px en celular. Sin gradientes ni
+sombras difusas. Splash de carga negro con public/loading.png centrado, barra fina del ancho
+del logo y porcentaje, 2,5 s: al abrir el sistema (una vez por sesión) y al ingresar. Login con
+public/inicio.png arriba del formulario.
 
 ## Integraciones (puntos de extensión)
 

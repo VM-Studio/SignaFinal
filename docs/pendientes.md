@@ -6,9 +6,9 @@ La app funciona completa con datos de demostración y simuladores. Para usarla d
 
 | Pieza | Estado hoy | Qué falta |
 |---|---|---|
-| **Claves VAPID (avisos push)** | Generadas para la demo y cargadas en Vercel (`VAPID_PUBLIC_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`). | Generar un par nuevo para producción (`npx web-push generate-vapid-keys`), cargarlo en Vercel y poner como `VAPID_SUBJECT` un mail o URL de la empresa. Al cambiar las claves, cada persona vuelve a tocar "Activar avisos en este celular". |
+| **Claves VAPID (avisos push)** | Par P-256 generado para esta app y cargado en Vercel (`VAPID_PUBLIC_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` = URL de la app). Sirven para producción. | Solo si se pasa a dominio propio: poner `VAPID_SUBJECT` con ese dominio o un mail de la empresa. No hace falta cambiar las claves (si se cambian, cada persona vuelve a activar los avisos). |
 | **Dominio** | `signa-final.vercel.app`. | Dominio propio (ej. `logistica.signa.com.ar`) en Vercel, `APP_URL` con ese dominio y volver a activar los avisos en los celulares (la suscripción es por dominio). |
-| **Cron de Vercel** | `vercel.json`: alertas y posiciones (diarios), resumen a choferes 7:00 (`0 10 * * *` UTC) y ETA cada minuto (`* * * * *`). | Confirmar que el plan de Vercel admite cron por minuto (Pro). Si no: cron externo cada minuto a `POST /api/jobs/eta` con `Authorization: Bearer <CRON_SECRET>`. Sin él, la hora estimada igual se recalcula con cada posición del teléfono; solo el aviso de demora depende de la próxima posición. |
+| **Cron de Vercel** | **Funcionando**: verificado en producción el 5/10 (`/api/jobs/eta` corrió 30 veces en 30 minutos, todas con 200). Resumen a choferes 7:00 (`0 10 * * *` UTC), alertas y posiciones diarios. | Nada. Si se cambia de plan de Vercel, revisar que siga admitiendo cron por minuto. |
 | **API de Lebane** | Mock con los datos de demo. | Ver punto 1. |
 | **API de Cusat** | Simulador (`MOCK`) + posiciones del teléfono del chofer (`TELEFONO`). | Ver punto 2. Cusat entra como otra fuente de `PosicionVehiculo` por `registrarPosicion()`. |
 | **Fotos** | Comprimidas en el teléfono y guardadas en Postgres. | Ver punto 3 (almacenamiento de objetos). |
