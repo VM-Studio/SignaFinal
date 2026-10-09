@@ -4,7 +4,7 @@ import { rutaPermitida } from "./permisos";
 export type Icono =
   | "inicio" | "pedidos" | "pedir" | "viajes" | "combustible" | "flota" | "mantenimiento" | "herramientas"
   | "escanear" | "entregas" | "sobrantes" | "mapa" | "alertas" | "obras" | "proveedores" | "usuarios" | "cuenta" | "mas"
-  | "agenda" | "costos" | "etiquetas" | "hoy" | "avisos" | "actividad" | "importar";
+  | "agenda" | "costos" | "etiquetas" | "hoy" | "avisos" | "actividad" | "importar" | "compras" | "habilitados" | "aprobaciones";
 
 export type Seccion = { href: string; titulo: string; icono: Icono; corto?: string };
 
@@ -16,6 +16,11 @@ export const SECCIONES = {
   pedir: { href: "/pedir", titulo: "Pedir un viaje", corto: "Pedir", icono: "pedir" },
   misPedidos: { href: "/mis-pedidos", titulo: "Mis pedidos", icono: "pedidos" },
   viajesObra: { href: "/viajes-en-curso", titulo: "Viajes", icono: "viajes" },
+  pedirMateriales: { href: "/pedir-materiales", titulo: "Pedir materiales", icono: "compras" },
+  // Compras
+  compras: { href: "/compras", titulo: "Pedidos de material", corto: "Pedidos", icono: "compras" },
+  habilitados: { href: "/habilitados", titulo: "Habilitados", icono: "habilitados" },
+  aprobaciones: { href: "/aprobaciones", titulo: "Aprobaciones", icono: "aprobaciones" },
   // Chofer
   hoy: { href: "/hoy", titulo: "Hoy", icono: "hoy" },
   solicitudes: { href: "/solicitudes", titulo: "Solicitudes", icono: "pedidos" },
@@ -58,7 +63,7 @@ type GrupoClaves = { titulo: string | null; claves: Clave[] };
  * Dirección ve todo: su "Más" va agrupado por tema.
  */
 const NAV: Record<Rol, { barra: Clave[]; mas: GrupoClaves[] }> = {
-  COMPRAS: { barra: [], mas: [] }, // se arma con el circuito de Compras
+  COMPRAS: { barra: ["compras", "habilitados", "proveedores"], mas: [{ titulo: null, claves: ["inicio", "misAvisos", "cuenta"] }] },
   RESPONSABLE_OBRA: { barra: ["obras", "pedir", "viajesObra", "herramientas"], mas: [] },
   CAPATAZ: { barra: ["obras", "pedir", "viajesObra", "herramientas"], mas: [] },
   CHOFER: { barra: ["hoy", "solicitudes", "combustible"], mas: [{ titulo: null, claves: ["cuenta", "misAvisos"] }] },
@@ -69,6 +74,7 @@ const NAV: Record<Rol, { barra: Clave[]; mas: GrupoClaves[] }> = {
     mas: [
       { titulo: null, claves: ["inicio"] },
       { titulo: "Pedidos y viajes", claves: ["pedir", "misPedidos", "viajesAObras"] },
+      { titulo: "Compras", claves: ["aprobaciones", "compras", "habilitados"] },
       { titulo: "Flota", claves: ["flota", "agenda", "mantenimiento", "combustible"] },
       { titulo: "Depósito", claves: ["herramientas", "deposito", "escanear", "entregas", "sobrantes", "etiquetas", "importar"] },
       { titulo: "Mapa", claves: ["historial"] },
@@ -105,6 +111,8 @@ export function tituloDeRuta(pathname: string): string {
   const todas = Object.values(SECCIONES) as Seccion[];
   const exacta = todas.find((s) => s.href === pathname);
   if (exacta) return exacta.titulo;
+  if (pathname.startsWith("/compras/") || pathname.startsWith("/mis-pedidos/material/")) return "Pedido de material";
+  if (pathname.startsWith("/proveedores/")) return "Proveedor";
   if (pathname.startsWith("/solicitudes/") || pathname.startsWith("/mis-pedidos/") || pathname.startsWith("/viaje/") || pathname.startsWith("/viajes-en-curso/")) return "Pedido";
   const prefijo = todas.filter((s) => pathname.startsWith(s.href + "/")).sort((a, b) => b.href.length - a.href.length)[0];
   return prefijo?.titulo ?? "SIGNA";

@@ -1,0 +1,183 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ArrowLeft, Clock, Phone, Truck } from "lucide-react";
+import { exigirSesion } from "@/lib/auth/sesion";
+import { detalleMaterial, proveedoresParaHabilitar } from "@/lib/materiales/consultas";
+import { seguimiento } from "@/lib/viajes/seguimiento";
+import { ESTADO_LISTO, ESTADO_MATERIAL, fraseMaterial, haceDias, MODO_ENTREGA, nroOC, ordenEstado, PASOS_MATERIAL, demorado } from "@/lib/materiales/presentacion";
+import { aFecha, cuando, fecha, hora, paraElDia, peso, plata } from "@/lib/formato";
+import { modoDemo } from "@/lib/demo";
+import { puede } from "@/lib/permisos";
+import { Insignia, Subtitulo, Tarjeta } from "@/components/ui/basicos";
+import { BotonLink } from "@/components/ui/boton";
+import { SeguimientoViaje } from "@/components/viajes/seguimiento-viaje";
+import {
+  BotonAprobadoEnPapel, BotonCancelarMaterial, BotonesAprobacion, BotonHabilitar, BotonPedirAprobacion, BotonRecibido, BotonTomarMaterial,
+} from "./acciones-material";
+
+/** Fecha sin hora (@db.Date): el mediodía argentino de ese día. */
+const delDia = (d: Date) => aFecha(d.toISOString().slice(0, 10), "12:00");
+
+/** Detalle de un pedido de material: el mismo para Compras (/compras/[id]) y para la obra (/mis-pedidos/material/[id]). */
+export async function DetalleMaterial({ id, vista }: { id: string; vista: "compras" | "obra" }) {
+  const u = await exigirSesion();
+  const p = await detalleMaterial(id);
+  if (!p) notFound();
+  const gestiona = vista === "compras" && p.gestiona;
+  const habilitable = gestiona && !p.completo && ["APROBADO", "LISTO_PARA_RETIRAR", "RETIRO_PEDIDO", "EN_CAMINO"].includes(p.estado);
+  const proveedores = habilitable ? await proveedoresParaHabilitar() : [];
+  const conViaje = p.materialesListos.filter((m) => m.pedidoViaje && m.estado !== "CANCELADO" && m.pedidoViaje.estado !== "CANCELADO" && m.pedidoViaje.estado !== "PENDIENTE");
+  const viajes = [...new Map(conViaje.map((m) => [m.pedidoViaje!.id, m.pedidoViaje!])).values()];
+  const seguimientos = (await Promise.all(viajes.map(async (v) => ({ v, s: await seguimiento(u, v.id) })))).filter((x) => x.s);
+
+  const listo = p.materialesListos.find((m) => m.estado === "LISTO" && m.modoEntrega === "RETIRA_CHOFER");
+  const enCamino = p.materialesListos.find((m) => m.estado === "EN_CAMINO")?.pedidoViaje?.viaje?.etaDestino;
+  const desde = p.cambios.at(-1)?.fecha ?? p.creadoEn;
+  const obraPuedePedir = vista === "obra" && puede(u.rol, "pedidos.crear");
+  const cancelaObra = vista === "obra" && p.esMio && p.estado === "SOLICITADO";
+  const cancelaCompras = gestiona && !["CANCELADO", "ENTREGADO"].includes(p.estado);
+  const recibibles = p.materialesListos.filter((m) => m.modoEntrega === "ENTREGA_PROVEEDOR" && m.estado === "EN_CAMINO");
+
+  // UN botón grande con lo que sigue.
+  let principal: React.ReactNode = null;
+  if (gestiona) {
+    if (p.estado === "SOLICITADO") principal = <BotonTomarMaterial id={p.id} />;
+    else if (p.estado === "EN_COMPRA") principal = <BotonPedirAprobacion id={p.id} ocInicial={p.ordenCompraNumero} />;
+    else if (p.estado === "ESPERANDO_APROBACION") principal = p.aprueba ? <BotonesAprobacion id={p.id} oc={p.ordenCompraNumero} /> : (
+      <>
+        <p className="flex min-h-[52px] items-center justify-center gap-2 rounded-[var(--radius-caja)] bg-aviso-fondo px-4 text-center font-bold text-aviso"><Clock className="size-5" /> Esperando al dueño</p>
+        <BotonAprobadoEnPapel id={p.id} />
+      </>
+    );
+    else if (habilitable) principal = <BotonHabilitar id={p.id} proveedores={proveedores} oc={p.ordenCompraNumero} descripcion={p.descripcion} otraParte={p.estado !== "APROBADO"} />;
+  } else if (obraPuedePedir && listo) {
+    principal = <BotonLink href={`/pedir/retiro?obra=${p.obraId}&material=${listo.id}`} ancho tamano="grande" icono={<Truck className="size-5" />}>Pedir el viaje</BotonLink>;
+  }
+  const acciones = [principal, ...recibibles.map((m) => (vista === "obra" || gestiona) && <BotonRecibido key={m.id} materialListoId={m.id} />), (cancelaObra || cancelaCompras) && <BotonCancelarMaterial key="c" id={p.id} />].filter(Boolean);
+
+  const volver = vista === "compras" ? { href: "/compras", titulo: "Pedidos de material" } : { href: "/mis-pedidos?tab=materiales", titulo: "Mis pedidos" };
+  const estado = ESTADO_MATERIAL[p.estado];
+  const pasoActual = ordenEstado(p.estado);
+
+  return (
+    <div className="mx-auto grid max-w-5xl gap-x-8 gap-y-5 lg:grid-cols-[1fr_360px]">
+      <header className="min-w-0 lg:col-start-1">
+        <Link href={volver.href} className="mb-2 hidden min-h-11 items-center gap-1 font-semibold text-suave lg:inline-flex"><ArrowLeft className="size-5" /> {volver.titulo}</Link>
+        <p className="text-sm font-semibold tracking-wider text-suave uppercase">Pedido de material {p.numero} · Obra {p.obra.nombre}</p>
+        <h1 className="mt-1 text-2xl leading-tight font-bold whitespace-pre-line lg:text-3xl">{p.descripcion}</h1>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {vista === "obra" ? (
+            <Insignia tono={listo ? "ok" : estado.tono}>{fraseMaterial(listo ? "LISTO_PARA_RETIRAR" : p.estado, { proveedor: listo?.proveedor.nombre, llega: enCamino ? hora(enCamino) : null })}</Insignia>
+          ) : (
+            <Insignia tono={estado.tono}>{estado.titulo}</Insignia>
+          )}
+          {p.prioridad === "URGENTE" && <Insignia tono="critico">Urgente</Insignia>}
+          {gestiona && demorado(p.estado, desde) && <Insignia tono="critico">Demorado: {haceDias(desde).replace("hace ", "")} en este paso</Insignia>}
+        </div>
+        {p.estado === "CANCELADO" && p.motivoCancelacion && <p className="mt-3 font-medium text-suave">Cancelado: {p.motivoCancelacion}</p>}
+      </header>
+
+      {acciones.length > 0 && (
+        <aside className="flex flex-col gap-2 lg:sticky lg:top-8 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start lg:rounded-[var(--radius-caja)] lg:border lg:border-linea lg:bg-papel lg:p-5">
+          {acciones}
+        </aside>
+      )}
+
+      <div className="min-w-0 lg:col-start-1">
+        <dl className="grid grid-cols-2 gap-3 rounded-[var(--radius-caja)] border border-linea bg-papel p-4 sm:grid-cols-3">
+          {[
+            ["Para cuándo", paraElDia(delDia(p.paraCuando)).replace(/^para /, "")],
+            ["Pidió", p.solicitante.nombre],
+            ["Compras", p.tomadoPor?.nombre ?? "Sin tomar"],
+            p.ordenCompraNumero ? ["Orden de compra", nroOC(p.ordenCompraNumero)!] : null,
+            p.monto != null && (gestiona || p.aprueba) ? ["Monto", plata(p.monto)] : null,
+            p.aprobadoPor ? ["Aprobó", `${p.aprobadoPor.nombre} · ${cuando(p.aprobadoEn)}`] : null,
+          ]
+            .filter((x): x is [string, string] => !!x)
+            .map(([k, v]) => (
+              <div key={k}>
+                <dt className="text-xs font-semibold tracking-wider text-suave uppercase">{k}</dt>
+                <dd className="mt-0.5 font-medium">{v}</dd>
+              </div>
+            ))}
+        </dl>
+        {p.observaciones && <p className="mt-3 rounded-[var(--radius-caja)] bg-papel px-4 py-3 text-suave">{p.observaciones}</p>}
+        {gestiona && p.solicitante.telefono && (
+          <a href={`tel:${p.solicitante.telefono.replace(/\s/g, "")}`} className="mt-2 inline-flex min-h-11 items-center gap-1.5 font-semibold underline"><Phone className="size-4" /> Llamar a {p.solicitante.nombre}</a>
+        )}
+
+        {p.materialesListos.length > 0 && (
+          <>
+            <Subtitulo>Habilitado para retirar</Subtitulo>
+            <ul className="flex flex-col gap-2">
+              {p.materialesListos.map((m) => (
+                <li key={m.id}>
+                  <Tarjeta className={`p-4 ${m.estado === "LISTO" ? "border-2 border-ok" : ""}`}>
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <p className="font-bold">{m.descripcion}</p>
+                      <Insignia tono={ESTADO_LISTO[m.estado].tono}>{m.modoEntrega === "ENTREGA_PROVEEDOR" && m.estado === "EN_CAMINO" ? "Lo trae el proveedor" : ESTADO_LISTO[m.estado].titulo}</Insignia>
+                    </div>
+                    <p className="mt-1 text-suave">{m.proveedor.nombre} · {m.proveedorDireccion}</p>
+                    <p className="text-sm text-suave">
+                      {[
+                        m.modoEntrega === "ENTREGA_PROVEEDOR" ? `${MODO_ENTREGA.ENTREGA_PROVEEDOR}${m.fechaEntregaEstimada ? ` el ${fecha(delDia(m.fechaEntregaEstimada))}` : ""}` : m.horarioRetiro && `Retiro: ${m.horarioRetiro}`,
+                        m.contactoRetiro && `Contacto: ${m.contactoRetiro}`,
+                        nroOC(m.ordenCompraNumero),
+                        m.pesoKg ? `hasta ${peso(m.pesoKg)}` : null,
+                        `habilitado ${haceDias(m.habilitadoEn)} por ${m.habilitadoPor.nombre}`,
+                        m.pedidoViaje && `viaje #${m.pedidoViaje.numero}${m.pedidoViaje.tomadoPor ? ` con ${m.pedidoViaje.tomadoPor.nombre}` : " (esperando chofer)"}`,
+                        m.entregadoEn && `entregado ${cuando(m.entregadoEn)}`,
+                      ].filter(Boolean).join(" · ")}
+                    </p>
+                  </Tarjeta>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        {seguimientos.map(({ v, s }) => (
+          <div key={v.id}>
+            <Subtitulo accion={vista === "obra" ? <Link href={`/mis-pedidos/${v.id}`} className="text-sm font-semibold underline">Ver el viaje</Link> : undefined}>Viaje #{v.numero}</Subtitulo>
+            <SeguimientoViaje pedidoId={v.id} inicial={s!} demo={modoDemo() && u.rol === "DIRECCION"} />
+          </div>
+        ))}
+
+        <Subtitulo>Línea de tiempo</Subtitulo>
+        <ol className="relative ml-2 border-l-2 border-linea pl-5">
+          {PASOS_MATERIAL.map((paso, i) => {
+            const hecho = p.estado !== "CANCELADO" && i <= pasoActual;
+            const cambio = [...p.cambios].reverse().find((c) => c.a === paso.estado);
+            return (
+              <li key={paso.estado} className="relative pb-4 last:pb-0">
+                <span aria-hidden className={`absolute top-1.5 -left-[27px] size-3 rounded-full border-2 ${hecho ? "border-negro bg-negro" : "border-linea-fuerte bg-papel"}`} />
+                <p className={hecho ? "font-semibold" : "text-apagado"}>{paso.titulo}</p>
+                {hecho && cambio && <p className="text-sm text-suave">{[cuando(cambio.fecha), cambio.usuario?.nombre, cambio.nota].filter(Boolean).join(" · ")}</p>}
+              </li>
+            );
+          })}
+          {p.estado === "CANCELADO" && (
+            <li className="relative">
+              <span aria-hidden className="absolute top-1.5 -left-[27px] size-3 rounded-full border-2 border-critico bg-critico" />
+              <p className="font-semibold text-critico">Cancelado{p.motivoCancelacion ? `: ${p.motivoCancelacion}` : ""}</p>
+              {p.cambios.at(-1) && <p className="text-sm text-suave">{cuando(p.cambios.at(-1)!.fecha)} · {p.cambios.at(-1)!.usuario?.nombre}</p>}
+            </li>
+          )}
+        </ol>
+        {/* Los rechazos y "aprobado en papel" quedan en el historial completo. */}
+        {gestiona && p.cambios.some((c) => c.nota?.startsWith("Rechazado")) && (
+          <>
+            <Subtitulo>Historial</Subtitulo>
+            <ul className="divide-y divide-linea rounded-[var(--radius-caja)] border border-linea bg-papel">
+              {p.cambios.map((c) => (
+                <li key={c.id} className="px-4 py-2 text-sm">
+                  <span className="font-semibold">{ESTADO_MATERIAL[c.a].titulo}</span> · {cuando(c.fecha)}{c.usuario ? ` · ${c.usuario.nombre}` : ""}{c.nota ? ` · ${c.nota}` : ""}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

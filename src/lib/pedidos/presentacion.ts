@@ -14,7 +14,7 @@ export const TIPOS_PARA_PEDIR: TipoPedido[] = [
 ];
 
 export const TIPO: Record<TipoPedido, { titulo: string; corto: string; detalle: string }> = {
-  RETIRO_PROVEEDOR: { titulo: "Retirar en un proveedor", corto: "Retiro", detalle: "Corralón, ferretería, orden de compra" },
+  RETIRO_PROVEEDOR: { titulo: "Retirar en un proveedor", corto: "Retiro", detalle: "Lo que Compras dejó listo para retirar" },
   TRASLADO_MAQUINARIA: { titulo: "Trasladar maquinaria", corto: "Maquinaria", detalle: "Hormigonera, andamio, generador…" },
   TRASLADO_HERRAMIENTAS: { titulo: "Trasladar herramientas", corto: "Herramientas", detalle: "Del depósito o de otra obra" },
   LLEVAR_A_OBRA: { titulo: "Llevar algo a la obra", corto: "Llevar", detalle: "Desde el depósito, la base u otra obra" },

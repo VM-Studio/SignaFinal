@@ -8,8 +8,9 @@ import { REGLAS_PEDIDOS } from "./reglas/pedidos";
 import { REGLAS_FLOTA } from "./reglas/flota";
 import { REGLAS_HERRAMIENTAS } from "./reglas/herramientas";
 import { REGLAS_CUSAT } from "./reglas/cusat";
+import { REGLAS_MATERIALES } from "./reglas/materiales";
 
-export const REGLAS: Regla[] = [...REGLAS_PEDIDOS, ...REGLAS_FLOTA, ...REGLAS_HERRAMIENTAS, ...REGLAS_CUSAT];
+export const REGLAS: Regla[] = [...REGLAS_PEDIDOS, ...REGLAS_FLOTA, ...REGLAS_HERRAMIENTAS, ...REGLAS_CUSAT, ...REGLAS_MATERIALES];
 
 /**
  * Corre las reglas (todas o las de algunos módulos), hace upsert por claveUnica y

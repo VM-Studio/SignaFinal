@@ -51,3 +51,60 @@ export const TEXTO = {
     cuerpo: viajes.map((v) => `${v.salida ? hora(v.salida) : "Sin hora"} ${queLleva(v.descripcion)} → ${v.destino}`).join(" · "),
   }),
 };
+
+/** "OC 3141", "#3141" o "3141" → "OC #3141". */
+export const oc = (n: string | null | undefined) => (n ? `OC #${n.replace(/^\s*(OC)?\s*#?\s*/i, "")}` : "la OC");
+
+type M = { que: string; obra: string };
+
+/** Avisos del circuito de Compras (pedidos de material). */
+export const TEXTO_MATERIAL = {
+  nuevo: (quien: string, p: M & { para: string; urgente: boolean }) => ({
+    titulo: p.urgente ? "Pedido de material urgente" : "Pedido de material nuevo",
+    cuerpo: `${quien} pidió ${queLleva(p.que)} para Obra ${p.obra}, ${p.para}.${p.urgente ? " La obra se para sin esto." : ""}`,
+  }),
+  tomado: (comprador: string, p: M) => ({
+    titulo: "Compras tomó tu pedido",
+    cuerpo: `${comprador} está comprando tu ${queLleva(p.que)} para Obra ${p.obra}.`,
+  }),
+  paraAprobar: (p: M & { oc: string | null; monto: string | null }) => ({
+    titulo: `${oc(p.oc)} para aprobar`,
+    cuerpo: `${oc(p.oc)}${p.monto ? ` de ${p.monto}` : ""} para Obra ${p.obra} espera tu aprobación (${queLleva(p.que)}).`,
+  }),
+  esperando: (p: M) => ({
+    titulo: "Tu pedido espera la aprobación del dueño",
+    cuerpo: `Compras armó la orden de compra de tu ${queLleva(p.que)} para Obra ${p.obra}. Falta que la apruebe el dueño.`,
+  }),
+  aprobado: (p: M & { oc: string | null; enPapel?: boolean }) => ({
+    titulo: `Aprobado: ${queLleva(p.que)}`,
+    cuerpo: `${p.enPapel ? "El dueño aprobó en papel" : "El dueño aprobó"} ${oc(p.oc)} de ${queLleva(p.que)} para Obra ${p.obra}. Falta que el proveedor lo tenga.`,
+  }),
+  rechazado: (p: M & { oc: string | null; motivo: string }) => ({
+    titulo: `${oc(p.oc)} rechazada`,
+    cuerpo: `El dueño rechazó ${oc(p.oc)} de ${queLleva(p.que)} para Obra ${p.obra}. Motivo: ${p.motivo}. Vuelve a "En compra".`,
+  }),
+  listo: (p: M & { proveedor: string; horario: string | null }) => ({
+    titulo: `Listo para retirar: ${queLleva(p.que)}`,
+    cuerpo: `Tu ${queLleva(p.que)} para Obra ${p.obra} está listo para retirar en ${p.proveedor}${p.horario ? ` (${p.horario})` : ""}. Pedí el viaje cuando lo necesites.`,
+  }),
+  loLlevaElProveedor: (p: M & { proveedor: string; cuando: string | null }) => ({
+    titulo: `${p.proveedor} lleva tu ${queLleva(p.que)}`,
+    cuerpo: `${p.proveedor} entrega tu ${queLleva(p.que)} en Obra ${p.obra}${p.cuando ? ` ${p.cuando}` : ""}. No hace falta pedir viaje.`,
+  }),
+  enCamino: (p: M & { chofer: string; proveedor: string }) => ({
+    titulo: `En camino: ${queLleva(p.que)}`,
+    cuerpo: `${p.chofer} salió a retirar tu ${queLleva(p.que)} en ${p.proveedor} para Obra ${p.obra}.`,
+  }),
+  entregado: (p: M & { completo: boolean }) => ({
+    titulo: `Entregado: ${queLleva(p.que)}`,
+    cuerpo: `Llegó a Obra ${p.obra}: ${queLleva(p.que)}.${p.completo ? " El pedido está completo." : " Falta habilitar el resto del pedido."}`,
+  }),
+  vuelveAListo: (p: M & { proveedor: string; motivo: string }) => ({
+    titulo: `Sin retirar: ${queLleva(p.que)}`,
+    cuerpo: `${p.motivo}: ${queLleva(p.que)} para Obra ${p.obra} vuelve a estar listo para retirar en ${p.proveedor}.`,
+  }),
+  cancelado: (quien: string, p: M & { motivo: string }) => ({
+    titulo: `Pedido de material cancelado`,
+    cuerpo: `${quien} canceló el pedido de ${queLleva(p.que)} para Obra ${p.obra}. Motivo: ${p.motivo}.`,
+  }),
+};

@@ -17,11 +17,12 @@ import { notificar } from "@/lib/notificaciones";
 import { avisarUrgente } from "./avisos";
 import { TEXTO } from "@/lib/notificaciones/textos";
 import { FRANJA } from "./presentacion";
+import { alCambiarElViaje } from "@/lib/materiales/circuito";
 
 /** Refresca pantallas y reevalúa las alertas del módulo (resuelve solas las que ya no aplican). */
 const refrescar = () => {
-  revalidar("pedidos", "herramientas");
-  reevaluar("pedidos");
+  revalidar("pedidos", "herramientas", "materiales");
+  reevaluar("pedidos", "materiales");
 };
 const vacio = (v: unknown) => (v === "" || v === null ? undefined : v);
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -49,7 +50,8 @@ const esquemaPedido = z
     ocurridoEn: z.coerce.date().optional(),
   })
   .superRefine((d, ctx) => {
-    if (d.tipo === "RETIRO_PROVEEDOR" && d.origenTipo !== "PROVEEDOR") ctx.addIssue({ code: "custom", message: "Elegí el proveedor." });
+    // Regla (CLAUDE.md, "Materiales y Compras"): el retiro en proveedor solo se pide desde lo que habilitó Compras.
+    if (d.tipo === "RETIRO_PROVEEDOR") ctx.addIssue({ code: "custom", message: "El retiro en proveedor se pide desde los materiales que habilitó Compras: Pedir → Retiro en proveedor." });
     if (d.tipo === "TRASLADO_PERSONAS" && !d.cantidadPersonas) ctx.addIssue({ code: "custom", message: "¿Cuántas personas?" });
     if (d.franja === "HORA_EXACTA" && !d.hora) ctx.addIssue({ code: "custom", message: "Poné la hora." });
     if (d.origenTipo === "OBRA" && d.origenId === d.obraId && d.tipo !== "RETIRO_ESCOMBROS") {
@@ -148,6 +150,7 @@ export async function deshacerPedido(pedidoId: string): Promise<Resultado> {
       data: { estado: "CANCELADO", motivoCancelacion: "Se deshizo al pedirlo", canceladoEn: new Date() },
     });
     if (!r.count) throw new ErrorNegocio("Ya no se puede deshacer.");
+    await db.$transaction((tx) => alCambiarElViaje(tx, pedidoId, "CANCELADO", yo.id));
     await auditar(db, { usuarioId: yo.id, accion: "pedido.deshacer", entidadId: pedidoId, resumen: `${yo.nombre} deshizo ${await describirPedido(db, pedidoId)}`, antes: { estado: "PENDIENTE" }, despues: { estado: "CANCELADO" } });
     refrescar();
     return null;
@@ -206,6 +209,7 @@ export async function tomarPedido(entrada: DatosTomar): Promise<Resultado<{ nume
       const salidaEstimada = salidaPara(pedido.paraCuando, d.salida, d.saleHoy);
       const viaje = { vehiculoId: vehiculo.id, choferId: yo.id, ...conEtapa("PROGRAMADO"), salidaEstimada, ordenRuta: await siguienteEnRuta(tx, yo.id) };
       await tx.viaje.upsert({ where: { pedidoId: pedido.id }, create: { pedidoId: pedido.id, ...viaje }, update: viaje });
+      await alCambiarElViaje(tx, pedido.id, "TOMADO", yo.id);
       await auditar(tx, {
         usuarioId: yo.id, accion: "pedido.tomar", entidadId: pedido.id,
         resumen: `${yo.nombre} aceptó ${await describirPedido(tx, pedido.id)} con ${vehiculo.nombre}`,
@@ -235,6 +239,7 @@ export async function soltarPedido(pedidoId: string): Promise<Resultado<{ vehicu
       if (!soltado.count) throw new ErrorNegocio("Ya no se puede soltar: el viaje empezó o el pedido cambió.");
       const viaje = await tx.viaje.findUnique({ where: { pedidoId } });
       if (viaje) await tx.viaje.update({ where: { pedidoId }, data: { estado: "CANCELADO", ordenRuta: null } });
+      await alCambiarElViaje(tx, pedidoId, "LIBERADO", yo.id);
       const p = await tx.pedidoViaje.findUniqueOrThrow({ where: { id: pedidoId }, select: { numero: true, solicitanteId: true } });
       await notificar(p.solicitanteId, "PEDIDO_SOLTADO", { ...TEXTO.soltado(yo.nombre), enlace: `/mis-pedidos/${pedidoId}`, datos: { pedidoId } }, { tx, copiaDireccion: true });
       await auditar(tx, { usuarioId: yo.id, accion: "pedido.soltar", entidadId: pedidoId, resumen: `${yo.nombre} soltó ${await describirPedido(tx, pedidoId)}: vuelve a las solicitudes`, antes: { estado: "TOMADO", chofer: yo.nombre }, despues: { estado: "PENDIENTE" } });
@@ -271,6 +276,7 @@ export async function cancelarPedido(pedidoId: string, motivo: string): Promise<
       });
       if (!r.count) throw new ErrorNegocio("El pedido cambió mientras lo cancelabas.");
       await tx.viaje.updateMany({ where: { pedidoId, estado: "PROGRAMADO" }, data: { estado: "CANCELADO", ordenRuta: null } });
+      await alCambiarElViaje(tx, pedidoId, "CANCELADO", yo.id);
       // Si ya lo había aceptado un chofer, que sepa que no tiene que ir.
       if (pedido.tomadoPorId && pedido.tomadoPorId !== yo.id) {
         await notificar(pedido.tomadoPorId, "PEDIDO_CANCELADO", {
@@ -301,6 +307,8 @@ export async function deshacerCancelacion(pedidoId: string): Promise<Resultado> 
         data: { estado: vuelveA, motivoCancelacion: null, canceladoEn: null, ...(vuelveA === "PENDIENTE" ? { tomadoPorId: null, tomadoEn: null } : {}) },
       });
       if (vuelveA === "TOMADO") await tx.viaje.updateMany({ where: { pedidoId, estado: "CANCELADO" }, data: conEtapa("PROGRAMADO") });
+      // El material que se iba a retirar vuelve a "retiro pedido".
+      await alCambiarElViaje(tx, pedidoId, "TOMADO", yo.id);
       await auditar(tx, { usuarioId: yo.id, accion: "pedido.deshacerCancelacion", entidadId: pedidoId, resumen: `${yo.nombre} deshizo la cancelación de ${await describirPedido(tx, pedidoId)}`, antes: { estado: "CANCELADO" }, despues: { estado: vuelveA } });
     });
     refrescar();
@@ -330,6 +338,7 @@ export async function reasignarPedido(entrada: DatosReasignar): Promise<Resultad
       const salidaEstimada = salidaPara(pedido.paraCuando, d.salida);
       const viaje = { vehiculoId: vehiculo.id, choferId: d.choferId, ...conEtapa("PROGRAMADO"), salidaEstimada, ordenRuta: await siguienteEnRuta(tx, d.choferId) };
       await tx.viaje.upsert({ where: { pedidoId: pedido.id }, create: { pedidoId: pedido.id, ...viaje }, update: viaje });
+      await alCambiarElViaje(tx, pedido.id, "TOMADO", yo.id);
       await auditar(tx, {
         usuarioId: yo.id, accion: "pedido.reasignar", entidadId: pedido.id,
         resumen: `${yo.nombre} le pasó ${await describirPedido(tx, pedido.id)} a ${chofer.nombre}${pedido.tomadoPor ? ` (lo tenía ${pedido.tomadoPor.nombre})` : ""}`,

@@ -29,6 +29,10 @@ export const DESTINATARIOS: Record<string, { roles: Rol[]; personas: Rol[] }> = 
   DEVOLUCION_VENCIDA: { roles: ["DIRECCION", "DEPOSITO"], personas: OBRA }, // + quien la tiene y los responsables de la obra
   MAQUINA_OBRA_PARADA: { roles: ["DIRECCION", "DEPOSITO"], personas: [] },
   MANT_MAQUINA: { roles: ["DIRECCION", "DEPOSITO"], personas: [] },
+  // Materiales y Compras
+  MATERIAL_SIN_RETIRAR: { roles: ["DIRECCION", "COMPRAS"], personas: OBRA }, // + el que pidió y los responsables de la obra
+  MATERIAL_DEMORADO: { roles: ["DIRECCION", "COMPRAS"], personas: [] },
+  APROBACION_DEMORADA: { roles: ["DIRECCION"], personas: [] },
 };
 
 const SIN_REGLA = { roles: ["DIRECCION"] as Rol[], personas: [] as Rol[] };

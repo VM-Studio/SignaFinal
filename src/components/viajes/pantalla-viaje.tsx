@@ -63,6 +63,17 @@ export function PantallaViaje({ d }: { d: Datos }) {
             {tramo.estimada && <span className="block text-sm font-normal text-suave">Distancia aproximada (sin ruteo).</span>}
           </p>
         )}
+        {!aDestino && d.retiro && (d.retiro.horario || d.retiro.contacto || d.retiro.oc) && (
+          <dl className="mt-3 grid gap-1 rounded-[var(--radius-caja)] bg-fondo px-3 py-2 text-[17px]">
+            {d.retiro.horario && <div className="flex gap-2"><dt className="font-bold">Horario:</dt><dd>{d.retiro.horario}</dd></div>}
+            {d.retiro.contacto && (
+              <div className="flex gap-2"><dt className="font-bold">Contacto:</dt>
+                <dd>{/(\d[\d\s-]{6,}\d)/.test(d.retiro.contacto) ? <a className="font-semibold underline" href={`tel:${d.retiro.contacto.match(/(\d[\d\s-]{6,}\d)/)![1].replace(/[\s-]/g, "")}`}>{d.retiro.contacto}</a> : d.retiro.contacto}</dd>
+              </div>
+            )}
+            {d.retiro.oc && <div className="flex gap-2"><dt className="font-bold">OC:</dt><dd>{d.retiro.oc}</dd></div>}
+          </dl>
+        )}
         {etapa !== "FINALIZADO" && (
           <a href={maps} target="_blank" rel="noopener" className={claseBoton("secundario", "grande", true, "mt-4")}>
             <Navigation className="size-5" /> Abrir en Google Maps

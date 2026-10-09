@@ -7,7 +7,7 @@ export type AlertaCalculada = {
   severidad: Severidad;
   titulo: string;
   detalle: string;
-  entidadTipo: "PedidoViaje" | "Viaje" | "Vehiculo" | "DocumentoVehiculo" | "Usuario" | "Herramienta" | "CargaCombustible";
+  entidadTipo: "PedidoViaje" | "Viaje" | "Vehiculo" | "DocumentoVehiculo" | "Usuario" | "Herramienta" | "CargaCombustible" | "PedidoMaterial" | "MaterialListo";
   entidadId: string;
   enlace: string;
   obraId?: string | null;
@@ -17,6 +17,6 @@ export type AlertaCalculada = {
 };
 
 /** Módulos: después de cada acción se reevalúan solo las reglas del módulo afectado. */
-export type Modulo = "pedidos" | "flota" | "herramientas" | "cusat";
+export type Modulo = "pedidos" | "flota" | "herramientas" | "cusat" | "materiales";
 
 export type Regla = { nombre: string; modulo: Modulo; evaluar: () => Promise<AlertaCalculada[]> };

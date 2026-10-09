@@ -34,6 +34,13 @@ export function TarjetaChofer({ t, href, accion, destacada = false }: { t: Tarje
         <p className="text-xs font-bold tracking-wider text-suave uppercase">Retirar en</p>
         <p className="text-lg leading-snug font-bold">{t.retirar.nombre}</p>
         <p className="text-[15px] text-suave">{t.retirar.direccion}</p>
+        {t.retiro && (t.retiro.horario || t.retiro.contacto || t.retiro.oc) && (
+          <dl className="mt-2 grid gap-1 rounded-[var(--radius-caja)] border-2 border-negro px-3 py-2 text-[15px]">
+            {t.retiro.horario && <div className="flex gap-2"><dt className="font-bold">Horario:</dt><dd>{t.retiro.horario}</dd></div>}
+            {t.retiro.contacto && <div className="flex gap-2"><dt className="font-bold">Contacto:</dt><dd>{t.retiro.contacto}</dd></div>}
+            {t.retiro.oc && <div className="flex gap-2"><dt className="font-bold">OC:</dt><dd>{t.retiro.oc}</dd></div>}
+          </dl>
+        )}
       </div>
       <div className="mt-2.5">
         <p className="text-xs font-bold tracking-wider text-suave uppercase">Entregar en</p>

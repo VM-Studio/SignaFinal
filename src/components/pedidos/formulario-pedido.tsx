@@ -33,8 +33,6 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
   const [tipo, setTipo] = useState<TipoPedido>();
   // Detalles
   const [obraId, setObraId] = useState(unaObra);
-  const [proveedorId, setProveedorId] = useState("");
-  const [oc, setOc] = useState("");
   const [que, setQue] = useState("");
   const [pesoKg, setPesoKg] = useState("");
   const [desde, setDesde] = useState<Lugar>();
@@ -73,6 +71,8 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
   }, [datos.herramientas, busqueda, tipo, esTraslado]);
 
   function elegirTipo(t: TipoPedido) {
+    // El retiro en proveedor se pide desde lo que habilitó Compras.
+    if (t === "RETIRO_PROVEEDOR") return router.push(`/pedir/retiro${obraId ? `?obra=${obraId}` : ""}`);
     setTipo(t);
     setError(undefined);
     setDesde(undefined);
@@ -95,11 +95,6 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
     if (!obraId) return "Elegí la obra.";
     const base = { tipo: tipo as DatosPedido["tipo"], obraId, prioridad, franja, hora: franja === "HORA_EXACTA" ? hora : undefined, dia: diaElegido === "hoy" ? hoy : diaElegido === "manana" ? sumarDias(hoy, 1) : fecha };
     switch (tipo) {
-      case "RETIRO_PROVEEDOR":
-        if (!proveedorId) return "Elegí el proveedor.";
-        if (que.trim().length < 3) return "Contá qué se retira.";
-        if (!pesoKg) return "Elegí el peso aproximado.";
-        return { ...base, origenTipo: "PROVEEDOR", origenId: proveedorId, ordenCompraLebane: oc, descripcion: que, pesoKg };
       case "TRASLADO_MAQUINARIA":
       case "TRASLADO_HERRAMIENTAS":
       case "LLEVAR_A_OBRA":
@@ -228,32 +223,6 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
           <h2 className="flex items-center gap-2 text-2xl font-bold">
             <IconoTipo tipo={tipo} className="size-7" /> Detalles
           </h2>
-
-          {tipo === "RETIRO_PROVEEDOR" && (
-            <>
-              <Campo etiqueta="Proveedor" htmlFor="prov">
-                <Selector id="prov" value={proveedorId} onChange={(e) => setProveedorId(e.target.value)}>
-                  <option value="">Elegí el proveedor</option>
-                  {datos.proveedores.map((p) => (
-                    <option key={p.id} value={p.id}>{p.nombre}</option>
-                  ))}
-                </Selector>
-              </Campo>
-              <div className="grid grid-cols-[1fr_8rem] gap-3">
-                <Campo etiqueta="¿Qué se retira?" htmlFor="que">
-                  <Entrada id="que" value={que} onChange={(e) => setQue(e.target.value)} maxLength={240} placeholder="Ej.: hierro del 10, 40 barras" />
-                </Campo>
-                <Campo etiqueta="OC Lebane" htmlFor="oc">
-                  <Entrada id="oc" value={oc} onChange={(e) => setOc(e.target.value)} maxLength={40} placeholder="Opcional" />
-                </Campo>
-              </div>
-              <div>
-                <p className="mb-2 text-sm font-semibold">Peso aproximado</p>
-                <Opciones nombre="Peso" columnas={4} valor={pesoKg} onElegir={setPesoKg} opciones={PESOS.map((p) => ({ valor: String(p.kg), titulo: p.titulo }))} />
-              </div>
-              {obraDestino}
-            </>
-          )}
 
           {esTraslado && (
             <>

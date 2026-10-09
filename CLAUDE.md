@@ -78,7 +78,8 @@ Reglas de visibilidad (se verifican en el servidor, en cada query y cada action)
 - CHOFER: Hoy · Solicitudes · Combustible · Más
 - DEPOSITO: Escanear · Herramientas · Entregas · Más
 - ADMINISTRACION: Flota · Costos · Alertas · Más
-- DIRECCION: Mapa · Solicitudes · Viajes · Más (y en Más: todo lo demás)
+- COMPRAS: Pedidos · Habilitados · Proveedores · Más
+- DIRECCION: Mapa · Solicitudes · Viajes · Más (y en Más: todo lo demás, con Aprobaciones)
 Cuenta y cerrar sesión viven en el avatar del header, no en la barra.
 Escritorio (1024px+): barra lateral negra de 240px con las mismas entradas del rol.
 

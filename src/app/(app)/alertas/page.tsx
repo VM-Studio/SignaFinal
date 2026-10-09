@@ -28,6 +28,9 @@ const RESOLVER: Record<string, string> = {
   MANT_MAQUINA: "Registrar mantenimiento",
   FUERA_HORARIO: "Ver en el mapa",
   PARADO_EN_VIAJE: "Ver en el mapa",
+  MATERIAL_SIN_RETIRAR: "Ver el material",
+  MATERIAL_DEMORADO: "Ver el pedido",
+  APROBACION_DEMORADA: "Aprobar",
 };
 
 export default async function PaginaAlertas({ searchParams }: { searchParams: Promise<{ n?: string }> }) {

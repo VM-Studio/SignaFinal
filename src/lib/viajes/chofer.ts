@@ -27,27 +27,36 @@ export type Tarjeta = {
   km: number | null;
   kmActual: number;
   kmSalida: number | null;
+  /** Retiro de material habilitado por Compras: horario, contacto y OC, bien visibles. */
+  retiro: { horario: string | null; contacto: string | null; oc: string | null } | null;
 };
 
 const seleccion = {
   id: true, numero: true, descripcion: true, paraCuando: true, pesoKg: true, necesitaCamion: true, prioridad: true,
-  origenNombre: true, origenDireccion: true, destinoNombre: true, destinoDireccion: true,
+  origenNombre: true, origenDireccion: true, destinoNombre: true, destinoDireccion: true, esRetiroMaterial: true, ordenCompraLebane: true,
+  materialesListos: { where: { estado: { not: "CANCELADO" } }, select: { descripcion: true, horarioRetiro: true, contactoRetiro: true, ordenCompraNumero: true } },
   solicitante: { select: { nombre: true } },
   viaje: { select: { etapa: true, estado: true, salidaEstimada: true, kmSalida: true, kmLlegada: true, llegadaReal: true, vehiculo: { select: { nombre: true, kmActual: true } } } },
 } satisfies Prisma.PedidoViajeSelect;
 
+const juntar = (xs: (string | null)[]) => [...new Set(xs.filter((x): x is string => !!x))].join(" / ") || null;
+
 function tarjeta(p: Prisma.PedidoViajeGetPayload<{ select: typeof seleccion }>): Tarjeta {
   const v = p.viaje && p.viaje.estado !== "CANCELADO" ? p.viaje : null;
+  const ml = p.esRetiroMaterial ? p.materialesListos : [];
   return {
     pedidoId: p.id, numero: p.numero,
     fecha: v?.etapa === "FINALIZADO" && v.llegadaReal ? v.llegadaReal : v?.salidaEstimada ?? p.paraCuando,
     retirar: { nombre: p.origenNombre, direccion: p.origenDireccion },
     entregar: { nombre: p.destinoNombre, direccion: p.destinoDireccion },
-    que: p.descripcion, pidio: p.solicitante.nombre, pesoKg: p.pesoKg, necesitaCamion: p.necesitaCamion, urgente: p.prioridad === "URGENTE",
+    que: ml.length ? ml.map((m) => m.descripcion).join(" + ") : p.descripcion, pidio: p.solicitante.nombre, pesoKg: p.pesoKg, necesitaCamion: p.necesitaCamion, urgente: p.prioridad === "URGENTE",
     vehiculo: v?.vehiculo.nombre ?? null, etapa: v?.etapa ?? null,
     km: v?.kmLlegada != null && v.kmSalida != null ? v.kmLlegada - v.kmSalida : null,
     kmActual: v?.vehiculo.kmActual ?? 0,
     kmSalida: v?.kmSalida ?? null,
+    retiro: p.esRetiroMaterial
+      ? { horario: juntar(ml.map((m) => m.horarioRetiro)), contacto: juntar(ml.map((m) => m.contactoRetiro)), oc: juntar(ml.map((m) => m.ordenCompraNumero?.replace(/^\s*(OC)?\s*#?\s*/i, "") ?? null)) ?? p.ordenCompraLebane }
+      : null,
   };
 }
 
@@ -123,6 +132,7 @@ export async function pantallaViaje(pedidoId: string) {
     where: conAlcance(u, { id: pedidoId, tomadoPorId: u.id }),
     include: {
       solicitante: { select: { nombre: true } },
+      materialesListos: { where: { estado: { not: "CANCELADO" } }, select: { descripcion: true, horarioRetiro: true, contactoRetiro: true, ordenCompraNumero: true } },
       viaje: {
         include: {
           vehiculo: { select: { nombre: true, patente: true, kmActual: true, baseId: true } },
@@ -148,7 +158,11 @@ export async function pantallaViaje(pedidoId: string) {
         })
       : null;
   return {
-    pedidoId: p.id, numero: p.numero, que: p.descripcion, pidio: p.solicitante.nombre, pesoKg: p.pesoKg,
+    pedidoId: p.id, numero: p.numero, pidio: p.solicitante.nombre, pesoKg: p.pesoKg,
+    que: p.esRetiroMaterial && p.materialesListos.length ? p.materialesListos.map((m) => m.descripcion).join(" + ") : p.descripcion,
+    retiro: p.esRetiroMaterial
+      ? { horario: juntar(p.materialesListos.map((m) => m.horarioRetiro)), contacto: juntar(p.materialesListos.map((m) => m.contactoRetiro)), oc: juntar(p.materialesListos.map((m) => m.ordenCompraNumero?.replace(/^\s*(OC)?\s*#?\s*/i, "") ?? null)) ?? p.ordenCompraLebane }
+      : null,
     etapa: v.etapa, vehiculo: v.vehiculo.nombre, patente: v.vehiculo.patente, kmActual: v.vehiculo.kmActual, kmSalida: v.kmSalida,
     salidaEstimada: v.salidaEstimada, etaRetiro: v.etaRetiro, etaDestino: v.etaDestino,
     retirar: { nombre: p.origenNombre, direccion: p.origenDireccion, ...origenDe(p) },

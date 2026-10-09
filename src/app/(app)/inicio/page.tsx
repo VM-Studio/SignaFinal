@@ -20,6 +20,9 @@ import { BotonLink } from "@/components/ui/boton";
 import { Cifra, Esqueleto, FilaLista, Insignia, Lista, Subtitulo, Vacio } from "@/components/ui/basicos";
 import { DOCUMENTO } from "@/lib/etiquetas";
 import { cuando, fecha, finDelDia, plata, vencimiento } from "@/lib/formato";
+import { cuantasParaAprobar, listosEnMisObras, resumenCompras } from "@/lib/materiales/consultas";
+import { ColaMateriales } from "@/components/materiales/lista-materiales";
+import { PackageOpen, ShoppingCart, Stamp } from "lucide-react";
 
 export const metadata: Metadata = { title: "Inicio" };
 
@@ -35,6 +38,7 @@ export default async function Inicio() {
         {(u.rol === "RESPONSABLE_OBRA" || u.rol === "CAPATAZ") && <InicioObra />}
         {u.rol === "DEPOSITO" && <InicioDeposito />}
         {u.rol === "ADMINISTRACION" && <InicioAdministracion />}
+        {u.rol === "COMPRAS" && <InicioCompras />}
       </Suspense>
       {u.rol === "DIRECCION" && <InicioDireccion />}
     </div>
@@ -44,13 +48,24 @@ export default async function Inicio() {
 // ───────────────────── Responsable de obra / Capataz ─────────────────────
 
 async function InicioObra() {
-  const [mios, enMisObras] = await Promise.all([misPedidosDeHoy(), viajesAMisObrasHoy()]);
+  const [mios, enMisObras, listos] = await Promise.all([misPedidosDeHoy(), viajesAMisObrasHoy(), listosEnMisObras()]);
   return (
     <div className="grid gap-x-8 lg:grid-cols-2 [&>section]:min-w-0">
       <section>
         <BotonLink href="/pedir" ancho tamano="grande" icono={<PlusCircle className="size-6" />} className="min-h-[88px] text-xl">
           Pedir un viaje
         </BotonLink>
+        {/* Lo que Compras dejó listo es lo único que le pide una acción. */}
+        {listos > 0 && (
+          <Link href="/pedir/retiro" className="mt-3 flex min-h-16 items-center gap-3 rounded-[var(--radius-caja)] border-2 border-ok bg-ok-fondo px-4 py-3 font-bold text-ok">
+            <PackageOpen className="size-6 shrink-0" />
+            <span className="flex-1">{listos === 1 ? "1 material listo para retirar" : `${listos} materiales listos para retirar`}</span>
+            <span className="underline">Pedir el viaje</span>
+          </Link>
+        )}
+        <Link href="/pedir-materiales" className="mt-2 flex min-h-[52px] items-center justify-center gap-2 rounded-[var(--radius-caja)] border-2 border-negro bg-papel font-semibold">
+          <ShoppingCart className="size-5" /> Pedir materiales a Compras
+        </Link>
         <Subtitulo accion={<Link href="/mis-pedidos" className="text-sm font-semibold underline">Ver todos</Link>}>Mis pedidos de hoy</Subtitulo>
         {mios.length === 0 ? <Vacio titulo="No pediste nada para hoy">Lo que pidas aparece acá con su estado.</Vacio> : <ListaPedidos filas={mios} base="/mis-pedidos" />}
       </section>
@@ -151,6 +166,9 @@ async function InicioDeposito() {
 function InicioDireccion() {
   return (
     <div>
+      <Suspense fallback={null}>
+        <AprobacionesPendientes />
+      </Suspense>
       <Suspense fallback={<Esqueleto className="h-[340px]" />}>
         <MapaDireccion />
       </Suspense>
@@ -158,6 +176,19 @@ function InicioDireccion() {
         <CifrasDireccion />
       </Suspense>
     </div>
+  );
+}
+
+/** Lo que el dueño tiene que hacer: aprobar órdenes de compra. */
+async function AprobacionesPendientes() {
+  const n = await cuantasParaAprobar();
+  if (!n) return null;
+  return (
+    <Link href="/aprobaciones" className="mb-3 flex min-h-16 items-center gap-3 rounded-[var(--radius-caja)] border-2 border-aviso bg-aviso-fondo px-4 py-3 font-bold text-aviso">
+      <Stamp className="size-6 shrink-0" />
+      <span className="flex-1">{n === 1 ? "1 orden de compra espera tu aprobación" : `${n} órdenes de compra esperan tu aprobación`}</span>
+      <span className="underline">Aprobar</span>
+    </Link>
   );
 }
 
@@ -173,6 +204,31 @@ async function CifrasDireccion() {
       <Link href="/viajes"><Cifra etiqueta="Viajes en curso" valor={r.enViaje} /></Link>
       <Link href="/alertas"><Cifra etiqueta="Alertas críticas" valor={r.criticas} tono={r.criticas ? "critico" : "ok"} /></Link>
       <Link href="/actividad"><Cifra etiqueta="Acciones de hoy" valor={acciones} /></Link>
+    </div>
+  );
+}
+
+// ───────────────────────────── Compras ─────────────────────────────
+
+async function InicioCompras() {
+  const r = await resumenCompras();
+  return (
+    <div className="grid gap-x-8 lg:grid-cols-2 [&>section]:min-w-0">
+      <section>
+        <BotonLink href="/compras" ancho tamano="grande" icono={<ShoppingCart className="size-6" />} className="min-h-[88px] text-xl">
+          {r.nuevos.length ? `Pedidos nuevos: ${r.nuevos.length}` : "Pedidos de material"}
+        </BotonLink>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Link href="/compras?p=en-compra"><Cifra etiqueta="En compra" valor={r.enCompra} /></Link>
+          <Link href="/compras?p=esperando"><Cifra etiqueta="Esperan al dueño" valor={r.esperando} tono={r.esperando ? "aviso" : undefined} /></Link>
+          <Link href="/compras?p=aprobados"><Cifra etiqueta="Aprobados" valor={r.aprobados} detalle="falta el proveedor" /></Link>
+          <Link href="/habilitados"><Cifra etiqueta="Sin retirar +3 días" valor={r.sinRetirar} tono={r.sinRetirar ? "critico" : "ok"} /></Link>
+        </div>
+      </section>
+      <section>
+        <Subtitulo accion={<Link href="/compras" className="text-sm font-semibold underline">Ver la cola</Link>}>Demorados</Subtitulo>
+        {r.demorados.length === 0 ? <Vacio titulo="Nada demorado">Todo está dentro de los tiempos.</Vacio> : <ColaMateriales filas={r.demorados.slice(0, 6)} compacta />}
+      </section>
     </div>
   );
 }

@@ -7,7 +7,7 @@ import type { Rol } from "@prisma/client";
  * ┌──────────────────┬──────────────────────────────────────────────────────────────────────────────┐
  * │ Rol              │ Rutas                                                                        │
  * ├──────────────────┼──────────────────────────────────────────────────────────────────────────────┤
- * │ RESPONSABLE_OBRA │ /inicio /obras /obras/[id] /pedir /pedir/** /mis-pedidos /mis-pedidos/[id]   │
+ * │ RESPONSABLE_OBRA │ /inicio /obras /obras/[id] /pedir /pedir/** /pedir-materiales /mis-pedidos/** │
  * │ CAPATAZ          │ /viajes-en-curso /viajes-en-curso/[id] /herramientas /herramientas/[id]       │
  * │                  │ /h/[codigo] /avisos /cuenta                                                  │
  * │ CHOFER           │ /inicio /hoy /solicitudes /solicitudes/[id] /viaje/[id] /combustible         │
@@ -15,8 +15,10 @@ import type { Rol } from "@prisma/client";
  * │ DEPOSITO         │ /inicio /escanear /herramientas/** /h/[codigo] /entregas /imprimir/**        │
  * │                  │ /avisos /cuenta                                                              │
  * │ ADMINISTRACION   │ /inicio /flota/** /costos /alertas /obras/** /usuarios /avisos /cuenta       │
+ * │ COMPRAS          │ /inicio /compras /compras/** /habilitados /proveedores /proveedores/[id]     │
+ * │                  │ /avisos /cuenta                                                              │
  * │ DIRECCION        │ todas las anteriores + /mapa/** /actividad /solicitudes/** /viajes           │
- * │                  │ /proveedores /usuarios /sobrantes                                            │
+ * │                  │ /proveedores /usuarios /sobrantes /aprobaciones                              │
  * └──────────────────┴──────────────────────────────────────────────────────────────────────────────┘
  * (/h/[codigo] es el QR pegado en cada herramienta; /imprimir/** son las etiquetas A4.)
  *
@@ -37,6 +39,8 @@ export const ACCIONES = [
   // Depósito
   "herramientas.ver", "herramientas.solicitar", "herramientas.mover", "herramientas.devolver", "herramientas.editar",
   "herramientas.mantenimiento", "sobrantes.ver", "sobrantes.editar",
+  // Materiales y Compras: pedir (obra), gestionar (Compras), aprobar (el dueño)
+  "materiales.pedir", "materiales.gestionar", "materiales.aprobar",
   // Mapa, alertas, costos, actividad
   "mapa.ver", "alertas.ver", "avisos.ver", "costos.ver", "costos.exportar", "actividad.ver",
   // Configuración
@@ -49,12 +53,12 @@ type Entrada = { rutas: readonly string[]; acciones: readonly Permiso[] };
 
 const OBRA: Entrada = {
   rutas: [
-    "/inicio", "/obras", "/obras/[id]", "/pedir", "/pedir/**", "/mis-pedidos", "/mis-pedidos/[id]",
+    "/inicio", "/obras", "/obras/[id]", "/pedir", "/pedir/**", "/pedir-materiales", "/mis-pedidos", "/mis-pedidos/[id]", "/mis-pedidos/material/[id]",
     "/viajes-en-curso", "/viajes-en-curso/[id]", "/herramientas", "/herramientas/[id]", "/h/[codigo]", "/avisos", "/cuenta",
   ],
   acciones: [
     "pedidos.ver", "pedidos.crear", "pedidos.cancelarPropios", "herramientas.ver", "herramientas.solicitar", "herramientas.devolver",
-    "sobrantes.ver", "alertas.ver", "avisos.ver", "obras.ver", "proveedores.ver",
+    "materiales.pedir", "sobrantes.ver", "alertas.ver", "avisos.ver", "obras.ver", "proveedores.ver",
   ],
 };
 
@@ -84,12 +88,18 @@ const ADMINISTRACION: Entrada = {
   ],
 };
 
+// Compras: la cola de pedidos de material, lo habilitado para retirar y los proveedores.
+const COMPRAS: Entrada = {
+  rutas: ["/inicio", "/compras", "/compras/**", "/habilitados", "/proveedores", "/proveedores/[id]", "/avisos", "/cuenta"],
+  acciones: ["materiales.gestionar", "proveedores.ver", "obras.ver", "alertas.ver", "avisos.ver"],
+};
+
 // Dirección ve TODO: todas las rutas de los demás roles más las propias.
 const DIRECCION: Entrada = {
   rutas: [
     ...new Set([
-      ...OBRA.rutas, ...CHOFER.rutas, ...DEPOSITO.rutas, ...ADMINISTRACION.rutas,
-      "/mapa/**", "/actividad", "/actividad/[id]", "/solicitudes/**", "/viajes", "/proveedores", "/usuarios", "/sobrantes",
+      ...OBRA.rutas, ...CHOFER.rutas, ...DEPOSITO.rutas, ...ADMINISTRACION.rutas, ...COMPRAS.rutas,
+      "/aprobaciones", "/mapa/**", "/actividad", "/actividad/[id]", "/solicitudes/**", "/viajes", "/proveedores", "/usuarios", "/sobrantes",
     ]),
   ],
   acciones: [
@@ -98,13 +108,8 @@ const DIRECCION: Entrada = {
     "mantenimiento.registrar", "incidentes.registrar", "herramientas.ver", "herramientas.solicitar", "herramientas.mover", "herramientas.editar",
     "herramientas.mantenimiento", "sobrantes.ver", "sobrantes.editar", "mapa.ver", "alertas.ver", "avisos.ver", "costos.ver",
     "costos.exportar", "actividad.ver", "obras.ver", "proveedores.ver", "usuarios.gestionar",
+    "materiales.pedir", "materiales.gestionar", "materiales.aprobar",
   ],
-};
-
-// Compras: rutas y acciones completas en el prompt 2 del circuito de Compras.
-const COMPRAS: Entrada = {
-  rutas: ["/inicio", "/avisos", "/cuenta"],
-  acciones: ["alertas.ver", "avisos.ver"],
 };
 
 export const MATRIZ: Record<Rol, Entrada> = {
@@ -139,6 +144,7 @@ export function rutaPermitida(rol: Rol, ruta: string): boolean {
 
 /** Roles que ven todas las obras. Responsable de obra: solo las suyas. */
 export function veTodasLasObras(rol: Rol) {
+  // (Compras ve los pedidos de material de todas las obras.)
   return rol !== "RESPONSABLE_OBRA";
 }
 
@@ -156,6 +162,9 @@ export function rutaNueva(rol: Rol, ruta: string): string | null {
   if (ruta === "/viajes" && obra) return "/viajes-en-curso";
   if (ruta === "/mantenimiento") return "/flota/mantenimiento";
   if (ruta === "/alertas" && !rutaPermitida(rol, "/alertas")) return "/avisos";
+  // Enlace neutro de un pedido de material (avisos y alertas): a la pantalla de cada rol.
+  const material = ruta.match(/^\/materiales\/([^/]+)$/);
+  if (material) return rutaPermitida(rol, "/compras/[id]") ? `/compras/${material[1]}` : `/mis-pedidos/material/${material[1]}`;
   return null;
 }
 

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Navigation, Phone, Store } from "lucide-react";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { db } from "@/lib/db";
@@ -32,7 +33,7 @@ export default async function PaginaProveedores({ searchParams }: { searchParams
           {filas.slice(0, limite).map((p) => (
             <li key={p.id} className="flex items-center gap-3 px-4 py-3">
               <div className="min-w-0 flex-1">
-                <p className="font-semibold">{p.nombre}</p>
+                <Link href={`/proveedores/${p.id}`} className="font-semibold underline-offset-2 hover:underline">{p.nombre}</Link>
                 <p className="text-sm text-suave">{p.direccion}, {p.localidad}</p>
                 <p className="text-sm text-suave">{p._count.pedidos ? `${p._count.pedidos} ${p._count.pedidos === 1 ? "viaje" : "viajes"} en los últimos 30 días` : "Sin viajes en los últimos 30 días"}</p>
               </div>

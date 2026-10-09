@@ -19,6 +19,10 @@ const MODULOS = {
     listas: ["/inicio", "/flota", "/flota/agenda", "/flota/mantenimiento", "/combustible", "/costos", "/alertas"],
     detalles: ["/flota/[id]"],
   },
+  materiales: {
+    listas: ["/inicio", "/compras", "/habilitados", "/aprobaciones", "/mis-pedidos", "/pedir", "/avisos", "/alertas"],
+    detalles: ["/compras/[id]", "/mis-pedidos/material/[id]"],
+  },
   avisos: { listas: ["/avisos", "/alertas", "/inicio"], detalles: [] as string[] },
   usuarios: { listas: ["/usuarios", "/obras", "/alertas", "/actividad"], detalles: ["/obras/[id]", "/actividad/[id]"] },
 } as const;

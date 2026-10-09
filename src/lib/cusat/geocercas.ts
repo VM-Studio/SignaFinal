@@ -5,6 +5,7 @@ import type { PosicionCusat } from "./tipos";
 import { auditar } from "@/lib/auditoria";
 import { describirPedido } from "@/lib/pedidos/reglas";
 import { conEtapa } from "@/lib/viajes/etapas";
+import { alCambiarElViaje } from "@/lib/materiales/circuito";
 
 const SALIDA_DE_BASE_M = 300;
 
@@ -62,6 +63,7 @@ export async function aplicarGeocercas(posiciones: PosicionCusat[]) {
       });
       if (!r.count) return;
       await tx.pedidoViaje.update({ where: { id: programado.pedidoId }, data: { estado: "EN_VIAJE" } });
+      await alCambiarElViaje(tx, programado.pedidoId, "EN_VIAJE", null);
       await tx.vehiculo.update({ where: { id: p.vehiculoId }, data: { estado: "EN_VIAJE" } });
       const v = await tx.vehiculo.findUnique({ where: { id: p.vehiculoId }, select: { nombre: true } });
       await auditar(tx, {

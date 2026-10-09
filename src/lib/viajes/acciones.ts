@@ -17,11 +17,12 @@ import { finDelDia, hora } from "@/lib/formato";
 import { guardarArchivo } from "@/lib/archivos";
 import { km as fmtKm } from "@/lib/formato";
 import { alLlegarElViaje } from "@/lib/herramientas/servicio";
+import { alCambiarElViaje } from "@/lib/materiales/circuito";
 
 /** Refresca pantallas y reevalúa las alertas del módulo (resuelve solas las que ya no aplican). */
 const refrescar = () => {
-  revalidar("pedidos", "flota", "herramientas");
-  reevaluar("pedidos", "flota", "herramientas");
+  revalidar("pedidos", "flota", "herramientas", "materiales");
+  reevaluar("pedidos", "flota", "herramientas", "materiales");
 };
 const vacio = (v: unknown) => (v === "" || v === null ? undefined : v);
 
@@ -97,6 +98,7 @@ export async function iniciarViaje(entrada: DatosInicio): Promise<Resultado<{ ve
         enlace: `/mis-pedidos/${viaje.pedido.id}`, datos: { pedidoId: viaje.pedido.id, distanciaM: aRetiro.distanciaM, eta: etaDestino.toISOString() },
       }, { tx, copiaDireccion: true });
       await tx.pedidoViaje.update({ where: { id: d.pedidoId }, data: { estado: "EN_VIAJE" } });
+      await alCambiarElViaje(tx, d.pedidoId, "EN_VIAJE", yo.id);
       await tx.vehiculo.update({ where: { id: vehiculo.id }, data: { estado: "EN_VIAJE", kmActual: d.kmSalida } });
       await auditar(tx, { usuarioId: yo.id, accion: "viaje.iniciar", entidadId: d.pedidoId, resumen: `${yo.nombre} salió con ${vehiculo.nombre} para ${await describirPedido(tx, d.pedidoId)}`, antes: { estado: "TOMADO" }, despues: { estado: "EN_VIAJE", kmSalida: d.kmSalida, vehiculo: vehiculo.nombre } });
       return { vehiculo: vehiculo.nombre };
@@ -215,6 +217,7 @@ export async function finalizarViaje(entrada: DatosFin): Promise<Resultado<Resul
         },
       });
       await tx.pedidoViaje.update({ where: { id: d.pedidoId }, data: { estado: "ENTREGADO" } });
+      await alCambiarElViaje(tx, d.pedidoId, "ENTREGADO", yo.id);
       // Si el viaje llevaba una máquina o herramienta y nadie registró la entrega, queda en la obra.
       if (viaje.pedido.herramientaId) {
         await alLlegarElViaje(tx, { usuarioId: yo.id, viajeId: viaje.id, herramientaId: viaje.pedido.herramientaId, obraId: viaje.pedido.obraId, recibidoPorId: (await responsablePrincipal(tx, viaje.pedido.obraId))?.id ?? null });
