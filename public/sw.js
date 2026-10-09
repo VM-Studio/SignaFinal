@@ -2,7 +2,7 @@
  * Estáticos: primero caché. Pantallas: primero red; sin señal, la última versión guardada.
  * Nada de /api ni Server Actions se guarda en caché.
  */
-const VERSION = "signa-v6";
+const VERSION = "signa-v7";
 const ESTATICOS = `${VERSION}-estaticos`;
 const PANTALLAS = `${VERSION}-pantallas`;
 
@@ -68,6 +68,8 @@ self.addEventListener("push", (e) => {
       lang: "es-AR",
       data: { enlace: d.enlace || "/avisos" },
       tag: d.tag,
+      // Si reemplaza a otra con el mismo tag, igual suena y vibra.
+      renotify: !!d.tag,
     }),
   );
 });

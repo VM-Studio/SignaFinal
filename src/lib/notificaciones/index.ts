@@ -34,9 +34,17 @@ function vapid() {
  * Manda una push a cada teléfono activo del usuario, en paralelo y con 5 s de límite cada una.
  * 404/410: la suscripción murió y se desactiva sola. Devuelve a cuántos teléfonos llegó.
  */
-export async function pushA(usuarioId: string, contenido: { titulo: string; cuerpo: string; enlace: string | null; tag: string }) {
+/**
+ * Modo prueba de avisos (MODO_DEMO=true, o AVISOS_A_TODOS=true): cada aviso de cualquier usuario
+ * llega con push a TODOS los celulares y navegadores activados, diciendo para quién es. Sirve para
+ * probar la app con una sola persona que entra con distintos usuarios. AVISOS_A_TODOS=false lo apaga.
+ */
+export const avisosATodos = () => (process.env.AVISOS_A_TODOS ?? process.env.MODO_DEMO) === "true";
+
+export async function pushA(usuarioId: string | null, contenido: { titulo: string; cuerpo: string; enlace: string | null; tag: string }) {
   if (!vapid()) return { enviadas: 0, telefonos: 0, sinClaves: true };
-  const subs = await db.suscripcionPush.findMany({ where: { usuarioId, activa: true } });
+  // usuarioId null: todos los dispositivos activados (modo prueba).
+  const subs = await db.suscripcionPush.findMany({ where: { activa: true, ...(usuarioId ? { usuarioId } : {}) } });
   const cuerpo = JSON.stringify({ ...contenido, enlace: contenido.enlace ?? "/avisos" });
   const r = await Promise.allSettled(
     subs.map((s) => webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, cuerpo, { TTL: 3600, urgency: "high", timeout: TIMEOUT_PUSH_MS })),
@@ -52,10 +60,33 @@ export async function pushA(usuarioId: string, contenido: { titulo: string; cuer
   return { enviadas: r.filter((x) => x.status === "fulfilled").length, telefonos: subs.length, sinClaves: false };
 }
 
+/** Modo prueba: eventos ya mandados (una sola push por evento aunque sea para varios). */
+const yaMandados = new Map<string, number>();
+
 async function enviarPush(notificacionId: string) {
-  const n = await db.notificacion.findUnique({ where: { id: notificacionId } });
+  const n = await db.notificacion.findUnique({ where: { id: notificacionId }, include: { usuario: { select: { nombre: true } } } });
   if (!n) return; // la transacción no se confirmó
-  const { enviadas } = await pushA(n.usuarioId, { titulo: n.titulo, cuerpo: n.cuerpo, enlace: n.enlace, tag: n.id });
+  if (!avisosATodos()) {
+    const { enviadas } = await pushA(n.usuarioId, { titulo: n.titulo, cuerpo: n.cuerpo, enlace: n.enlace, tag: n.id });
+    if (enviadas) await db.notificacion.update({ where: { id: n.id }, data: { enviadaPushEn: new Date() } });
+    return;
+  }
+  // Modo prueba: a TODOS los dispositivos, una vez por evento, diciendo para quiénes es.
+  const entidad = (n.datos as { entidad?: string } | null)?.entidad;
+  const clave = entidad ? `${n.tipo}:${entidad}` : n.id;
+  const ahora = Date.now();
+  for (const [k, t] of yaMandados) if (ahora - t > 60_000) yaMandados.delete(k);
+  if (yaMandados.has(clave)) return;
+  yaMandados.set(clave, ahora);
+  const para = entidad
+    ? await db.notificacion.findMany({
+        where: { tipo: n.tipo, creadaEn: { gte: new Date(n.creadaEn.getTime() - 5_000) }, datos: { path: ["entidad"], equals: entidad } },
+        select: { usuario: { select: { nombre: true } } },
+      })
+    : [{ usuario: n.usuario }];
+  const nombres = [...new Set(para.map((x) => x.usuario.nombre))];
+  const quienes = nombres.length <= 1 ? nombres.join("") : `${nombres.slice(0, -1).join(", ")} y ${nombres.at(-1)}`;
+  const { enviadas } = await pushA(null, { titulo: `Para ${quienes} · ${n.titulo}`, cuerpo: n.cuerpo, enlace: n.enlace, tag: clave });
   if (enviadas) await db.notificacion.update({ where: { id: n.id }, data: { enviadaPushEn: new Date() } });
 }
 
@@ -89,6 +120,6 @@ export async function notificar(usuarioId: string, tipo: TipoNotificacion, c: Co
     data: { usuarioId, tipo, titulo: c.titulo, cuerpo: c.cuerpo, enlace: c.enlace ?? null, datos: (c.datos ?? undefined) as Prisma.InputJsonValue | undefined },
     select: { id: true },
   });
-  if (o.push !== false) despues(() => enviarPush(n.id));
+  if (o.push !== false || avisosATodos()) despues(() => enviarPush(n.id));
   return n.id;
 }
