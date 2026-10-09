@@ -85,7 +85,7 @@ export async function crearPedido(entrada: DatosPedido): Promise<Resultado<Respu
 
     // Peso: tiene que haber un vehículo de la cola que lo pueda llevar.
     if (d.pesoKg) {
-      const max = (await db.vehiculo.aggregate({ where: { activo: true, entraEnCola: true }, _max: { capacidadCargaKg: true } }))._max.capacidadCargaKg ?? 0;
+      const max = (await db.vehiculo.aggregate({ where: { activo: true }, _max: { capacidadCargaKg: true } }))._max.capacidadCargaKg ?? 0;
       if (d.pesoKg > max) throw new ErrorNegocio(`Ningún vehículo carga más de ${max.toLocaleString("es-AR")} kg. Partilo en dos pedidos.`);
     }
 

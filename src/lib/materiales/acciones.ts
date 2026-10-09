@@ -296,7 +296,7 @@ export async function habilitarRetiro(entrada: DatosHabilitar): Promise<Resultad
       if (p.completo) throw new ErrorNegocio("Ya se habilitó todo este pedido.");
       const prov = await tx.proveedor.findUnique({ where: { id: d.proveedorId } });
       if (!prov) throw new ErrorNegocio("Ese proveedor no existe.");
-      const max = (await tx.vehiculo.aggregate({ where: { activo: true, entraEnCola: true }, _max: { capacidadCargaKg: true } }))._max.capacidadCargaKg ?? 0;
+      const max = (await tx.vehiculo.aggregate({ where: { activo: true }, _max: { capacidadCargaKg: true } }))._max.capacidadCargaKg ?? 0;
       if (d.modo === "RETIRA_CHOFER" && d.pesoKg > max) throw new ErrorNegocio(`Ningún vehículo carga más de ${max.toLocaleString("es-AR")} kg. Habilitalo en dos partes.`);
 
       const ml = await tx.materialListo.create({
@@ -383,7 +383,7 @@ export async function pedirRetiro(entrada: DatosRetiro): Promise<Resultado<{ ped
     if (!obra || obra.estado !== "ACTIVA") throw new ErrorNegocio("Esa obra no está activa.");
     if (!(await esObraDelUsuario(yo, obra.id))) throw new ErrorNegocio(`No sos responsable de Obra ${obra.nombre}.`);
     const paraCuando = aFecha(d.dia, d.franja === "HORA_EXACTA" ? d.hora! : FRANJA[d.franja].hora);
-    const max = (await db.vehiculo.aggregate({ where: { activo: true, entraEnCola: true }, _max: { capacidadCargaKg: true } }))._max.capacidadCargaKg ?? 0;
+    const max = (await db.vehiculo.aggregate({ where: { activo: true }, _max: { capacidadCargaKg: true } }))._max.capacidadCargaKg ?? 0;
 
     const creados = await db.$transaction(async (tx) => {
       const ml = await tx.materialListo.findMany({ where: { id: { in: d.materiales } }, include: { proveedor: { select: { nombre: true } }, pedidoViaje: { select: { id: true, estado: true } } } });

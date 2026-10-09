@@ -130,10 +130,10 @@ export async function vehiculosParaTomar(p: { pesoKg: number | null; necesitaCam
   const u = choferId ? await exigirPermiso("pedidos.reasignar") : await exigirPermiso("pedidos.tomar");
   const lista = await vehiculosPara(p, choferId ?? u.id);
   return lista
-    .map(({ vehiculo: v, apto, motivo }) => ({
+    .map(({ vehiculo: v, apto, motivo, aviso }) => ({
       id: v.id,
       nombre: v.nombre,
-      detalle: `${v.patente} · carga ${v.capacidadCargaKg >= 1000 ? `${v.capacidadCargaKg / 1000} tn` : `${v.capacidadCargaKg} kg`}`,
+      detalle: aviso ?? `${v.patente}${v.capacidadCargaKg ? ` · carga ${v.capacidadCargaKg >= 1000 ? `${v.capacidadCargaKg / 1000} tn` : `${v.capacidadCargaKg} kg`}` : ""}`,
       apto,
       motivo,
     }))

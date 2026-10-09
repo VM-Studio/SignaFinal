@@ -23,8 +23,11 @@ const conDocumentos = {
 
 export type VehiculoConDocs = Prisma.VehiculoGetPayload<{ include: typeof conDocumentos }>;
 
-/** ¿Sirve este vehículo para este pedido? Si no, el motivo en palabras. */
-export function aptitud(v: VehiculoConDocs, pedido: { pesoKg: number | null; necesitaCamion: boolean }): { apto: boolean; motivo?: string } {
+/**
+ * ¿Se puede usar este vehículo? Solo se bloquea si está en otro viaje, en el taller, fuera de
+ * servicio o sin seguro/VTV vigentes. Si es chico o no es camión, se puede igual: va como aviso.
+ */
+export function aptitud(v: VehiculoConDocs, pedido: { pesoKg: number | null; necesitaCamion: boolean }): { apto: boolean; motivo?: string; aviso?: string } {
   // Vigente hasta el día de vencimiento inclusive (comparación por día, hora argentina).
   const vencido = (f: Date) => diaISO(f) < diaISO();
   const doc = (t: "SEGURO" | "VTV") =>
@@ -38,23 +41,21 @@ export function aptitud(v: VehiculoConDocs, pedido: { pesoKg: number | null; nec
   if (vencido(seguro.vencimiento)) return { apto: false, motivo: "Seguro vencido" };
   if (vtv && vtv.vencimiento && vencido(vtv.vencimiento)) return { apto: false, motivo: "VTV vencida" };
   if (!vtv?.vencimiento) return { apto: false, motivo: "Sin VTV cargada" };
-  if (pedido.necesitaCamion && v.tipo !== "CAMION") return { apto: false, motivo: "Hace falta camión" };
-  if (pedido.pesoKg && pedido.pesoKg > v.capacidadCargaKg) return { apto: false, motivo: `Muy chico para ${peso(pedido.pesoKg)}` };
   if (v.estado === "EN_VIAJE" || v.viajes.length) return { apto: false, motivo: `En viaje${v.viajes[0] ? ` con ${v.viajes[0].chofer.nombre}` : ""}` };
+  if (pedido.necesitaCamion && v.tipo !== "CAMION") return { apto: true, aviso: "Ojo: el pedido es para camión" };
+  if (pedido.pesoKg && v.capacidadCargaKg && pedido.pesoKg > v.capacidadCargaKg) return { apto: true, aviso: `Ojo: carga hasta ${peso(v.capacidadCargaKg)} y el pedido es de ${peso(pedido.pesoKg)}` };
   return { apto: true };
 }
 
-/** Vehículos de la cola (entraEnCola) y el propio del chofer, cada uno con si sirve y por qué no. */
+/** Todos los vehículos activos, cada uno con si se puede usar (y por qué no) o con un aviso. */
 export async function vehiculosPara(pedido: { pesoKg: number | null; necesitaCamion: boolean }, choferId: string, cliente: Cliente = db) {
+  void choferId;
   const vehiculos = await cliente.vehiculo.findMany({
-    where: { activo: true, OR: [{ entraEnCola: true }, { asignadoAId: choferId }] },
+    where: { activo: true },
     include: conDocumentos,
     orderBy: [{ tipo: "asc" }, { capacidadCargaKg: "desc" }],
   });
-  return vehiculos
-    // Si el pedido supera 3 tn, solo aparecen los camiones que alcanzan.
-    .filter((v) => !(pedido.pesoKg && pedido.pesoKg > 3000 && (v.tipo !== "CAMION" || v.capacidadCargaKg < pedido.pesoKg)))
-    .map((v) => ({ vehiculo: v, ...aptitud(v, pedido) }));
+  return vehiculos.map((v) => ({ vehiculo: v, ...aptitud(v, pedido) }));
 }
 
 export async function vehiculoParaPedido(vehiculoId: string, cliente: Cliente = db) {
@@ -68,7 +69,6 @@ export async function validarChoferYVehiculo(tx: Prisma.TransactionClient, chofe
   if (!licenciaVigente(chofer)) throw new ErrorNegocio(`La licencia de ${chofer.nombre} está vencida o sin cargar. No puede manejar para la empresa.`);
   const v = await vehiculoParaPedido(vehiculoId, tx);
   if (!v) throw new ErrorNegocio("No existe ese vehículo.");
-  if (!v.entraEnCola && v.asignadoAId !== choferId) throw new ErrorNegocio(`${v.nombre} no se usa para pedidos.`);
   const a = aptitud(v, pedido);
   if (!a.apto && !(opciones.permitirEnViaje && a.motivo?.startsWith("En viaje"))) {
     throw new ErrorNegocio(`No se puede usar ${v.nombre}: ${a.motivo?.toLowerCase()}.`);

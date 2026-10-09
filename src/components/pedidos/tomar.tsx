@@ -41,8 +41,6 @@ export function BotonTomar({ pedidoId, numero, vehiculos, ancho = false, tamano 
   const aptos = vehiculos.filter((v) => v.apto);
   const [abierta, setAbierta] = useState(false);
   const [vehiculoId, setVehiculoId] = useState(aptos.length === 1 ? aptos[0].id : "");
-  const [cuando, setCuando] = useState<"ahora" | "hora" | "elegir">("ahora");
-  const [elegida, setElegida] = useState(horaSugerida);
   const [error, setError] = useState<string>();
   const [enviando, setEnviando] = useState(false);
   const aviso = useAviso();
@@ -51,9 +49,8 @@ export function BotonTomar({ pedidoId, numero, vehiculos, ancho = false, tamano 
   async function confirmar() {
     setEnviando(true);
     setError(undefined);
-    const salida = cuando === "ahora" ? hhmm(new Date()) : cuando === "hora" ? hhmm(new Date(Date.now() + 3_600_000)) : elegida;
-    // Sin señal se guarda en el teléfono con la hora real y se manda solo al volver.
-    const datos = { pedidoId, vehiculoId, salida, saleHoy: cuando !== "elegir", ocurridoEn: new Date().toISOString() };
+    // Sale ahora: no se pregunta. Sin señal se guarda en el teléfono con la hora real y se manda solo al volver.
+    const datos = { pedidoId, vehiculoId, salida: hhmm(new Date()), saleHoy: true, ocurridoEn: new Date().toISOString() };
     const r = await enviarOGuardar({ id: crypto.randomUUID(), tipo: "pedido.aceptar", pedidoId, descripcion: `Aceptar el pedido ${numero}`, datos }, () => tomarPedido(datos));
     setEnviando(false);
     if (r.estado === "error") {
@@ -67,7 +64,7 @@ export function BotonTomar({ pedidoId, numero, vehiculos, ancho = false, tamano 
       return;
     }
     aviso({
-      mensaje: `Aceptaste el pedido ${r.datos.numero}. Salís ${r.datos.salida} con ${r.datos.vehiculo}.`,
+      mensaje: `Aceptaste el pedido ${r.datos.numero} con ${r.datos.vehiculo}.`,
       deshacer: async () => {
         const x = await soltarPedido(pedidoId);
         if (!x.ok) aviso({ mensaje: x.error, tono: "error" });
@@ -86,11 +83,8 @@ export function BotonTomar({ pedidoId, numero, vehiculos, ancho = false, tamano 
         <div className="flex flex-col gap-4">
           <p className="font-semibold">¿Con qué vehículo?</p>
           <ElegirVehiculo vehiculos={vehiculos} valor={vehiculoId} onElegir={setVehiculoId} />
-          <p className="font-semibold">¿Cuándo salís?</p>
-          <Opciones nombre="Salida" columnas={3} valor={cuando} onElegir={(v) => setCuando(v as typeof cuando)} opciones={[{ valor: "ahora", titulo: "Ahora" }, { valor: "hora", titulo: "En 1 h" }, { valor: "elegir", titulo: "Elegir" }]} />
-          {cuando === "elegir" && <Entrada aria-label="Hora de salida" type="time" value={elegida} onChange={(e) => setElegida(e.target.value)} />}
           <MensajeError>{error}</MensajeError>
-          <Boton ancho tamano="grande" disabled={!vehiculoId || (cuando === "elegir" && !elegida)} cargando={enviando} onClick={confirmar}>
+          <Boton ancho tamano="grande" disabled={!vehiculoId} cargando={enviando} onClick={confirmar}>
             Confirmar
           </Boton>
         </div>

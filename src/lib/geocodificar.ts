@@ -33,11 +33,12 @@ export async function geocodificar(direccion: string, localidad: string): Promis
   const ciudad = localidad.split(",")[0].trim();
   const enc = encodeURIComponent;
 
-  const candidatos = [
-    ...(await buscar(`street=${enc(m ? `${m[2]} ${m[1]}` : calle)}&city=${enc(ciudad)}`)),
-    ...(await new Promise<Resultado[]>((ok) => setTimeout(() => buscar(`q=${enc(`${calle}, ${localidad}, Buenos Aires`)}`).then(ok), 1_100))),
-  ];
   const lugar = sinAcentos(ciudad);
+  const candidatos = await buscar(`street=${enc(m ? `${m[2]} ${m[1]}` : calle)}&city=${enc(ciudad)}`);
+  // La búsqueda libre solo si la estructurada no encontró nada en esa localidad (Nominatim: 1 consulta por segundo).
+  if (!candidatos.some((r) => sinAcentos(r.display_name).includes(lugar))) {
+    candidatos.push(...(await new Promise<Resultado[]>((ok) => setTimeout(() => buscar(`q=${enc(`${calle}, ${localidad}, Buenos Aires`)}`).then(ok), 1_100))));
+  }
   const puntaje = (r: Resultado) => {
     const t = sinAcentos(r.display_name);
     return (m && t.startsWith(`${m[2]},`) ? 2 : 0) + (t.includes(lugar) ? 4 : 0);

@@ -69,6 +69,27 @@ async function limpiar(db: PrismaClient) {
   await db.$executeRawUnsafe(`ALTER SEQUENCE IF EXISTS "PedidoMaterial_numero_seq" RESTART WITH 1`).catch(() => {});
 }
 
+/** Aviso que llevan el seguro y la VTV de mentira, para encontrarlos y reemplazarlos. */
+export const NOTA_PROVISORIA = "PROVISORIO: reemplazar por el real";
+
+/**
+ * Seguro y VTV vigentes PROVISORIOS (un año) para cada vehículo que no tenga, así se pueden usar
+ * mientras se carga la documentación real en Flota. No toca los documentos ya cargados.
+ */
+export async function documentosProvisorios(db: PrismaClient) {
+  const vence = new Date(Date.now() + 365 * 86_400_000);
+  const vehiculos = await db.vehiculo.findMany({ where: { activo: true }, select: { id: true, nombre: true, documentos: { select: { tipo: true } } } });
+  const creados: string[] = [];
+  for (const v of vehiculos) {
+    for (const tipo of ["SEGURO", "VTV"] as const) {
+      if (v.documentos.some((d) => d.tipo === tipo)) continue;
+      await db.documentoVehiculo.create({ data: { vehiculoId: v.id, tipo, vencimiento: vence, notas: NOTA_PROVISORIA } });
+      creados.push(`${v.nombre}: ${tipo}`);
+    }
+  }
+  return creados;
+}
+
 export async function cargarDatosBase(db: PrismaClient) {
   await limpiar(db);
 
@@ -78,7 +99,9 @@ export async function cargarDatosBase(db: PrismaClient) {
   for (const u of USUARIOS) {
     const email = `${u.email}@signa.demo`;
     const ya = await db.usuario.findUnique({ where: { email }, select: { id: true } });
-    const x = ya ?? (await db.usuario.create({ data: { nombre: u.nombre, email, rol: u.rol, telefono: u.telefono ?? null, licenciaCategoria: u.licenciaCategoria ?? null, passwordHash }, select: { id: true } }));
+    // Choferes nuevos: licencia con vencimiento PROVISORIO (un año) para que puedan aceptar viajes; se corrige en Usuarios.
+    const licencia = u.rol === "CHOFER" ? { licenciaCategoria: u.licenciaCategoria ?? null, licenciaVencimiento: new Date(Date.now() + 365 * 86_400_000) } : {};
+    const x = ya ?? (await db.usuario.create({ data: { nombre: u.nombre, email, rol: u.rol, telefono: u.telefono ?? null, ...licencia, passwordHash }, select: { id: true } }));
     usuarios.set(u.email, x.id);
   }
 
@@ -105,6 +128,7 @@ export async function cargarDatosBase(db: PrismaClient) {
     { nombre: "Kangoo LL", patente: "AF399OP", tipo: "CAMIONETA", marca: "Renault", modelo: "Kangoo (larga)", anio: 2023, capacidadCargaKg: 800, kmActual: 0, costoKm: D(390), baseId: base.id, cusatNombre: "KANGOO LL", entraEnCola: false },
   ];
   for (const v of flota) await db.vehiculo.create({ data: v });
+  await documentosProvisorios(db);
 
   // ─────────────────── Herramientas: todo en el depósito ───────────────────
   const categorias = new Map<string, string>();
@@ -136,6 +160,7 @@ export async function cargarDatosBase(db: PrismaClient) {
     Usuario: await db.usuario.count(),
     Ubicacion: await db.ubicacion.count(),
     Vehiculo: await db.vehiculo.count(),
+    "Seguro y VTV provisorios": await db.documentoVehiculo.count({ where: { notas: NOTA_PROVISORIA } }),
     CategoriaHerramienta: await db.categoriaHerramienta.count(),
     Herramienta: await db.herramienta.count(),
     "Unidades en depósito": INVENTARIO_HERRAMIENTAS.reduce((s, h) => s + h.cantidad, 0),
