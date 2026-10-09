@@ -1,21 +1,15 @@
 /**
- * Carga inicial / reinicio de los datos de demostración.
- * Los datos están en src/lib/demo/datos.ts (también los usa el botón de reinicio).
- * Se corre con la condición "react-server" para poder usar el evaluador de alertas.
+ * Carga los DATOS BASE (src/lib/base/datos.ts): usuarios con su rol, base y depósito, los seis
+ * vehículos reales y el inventario de herramientas en el depósito. Borra todo lo demás.
+ * Lo mismo hace el botón "Dejar solo los datos base" (Mi cuenta, con MODO_DEMO) y scripts/cargar-base.ts.
  */
 import { PrismaClient } from "@prisma/client";
-import { cargarDatosDemo } from "../src/lib/demo/datos";
-import { evaluarAlertas } from "../src/lib/alertas";
+import { cargarDatosBase } from "../src/lib/base/datos";
 
 const db = new PrismaClient();
 
-cargarDatosDemo(db)
-  .then(async (conteo) => {
-    const alertas = await evaluarAlertas();
-    console.table({ ...conteo, "Alertas activas": alertas.activas });
-    const porEstado = await db.pedidoViaje.groupBy({ by: ["estado"], _count: { _all: true } });
-    console.log("Pedidos por estado:", Object.fromEntries(porEstado.map((p) => [p.estado, p._count._all])));
-  })
+cargarDatosBase(db)
+  .then((conteo) => console.table(conteo))
   .catch((e) => {
     console.error(e);
     process.exit(1);

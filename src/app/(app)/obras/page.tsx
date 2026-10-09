@@ -3,17 +3,25 @@ import type { Metadata } from "next";
 import { Building2, ChevronRight } from "lucide-react";
 import { listaObras } from "@/lib/obras/consultas";
 import { Insignia, Titulo, Vacio } from "@/components/ui/basicos";
+import { exigirSesion } from "@/lib/auth/sesion";
+import { puede } from "@/lib/permisos";
+import { db } from "@/lib/db";
+import { NuevaObra } from "@/components/obras/nueva-obra";
 
 export const metadata: Metadata = { title: "Obras" };
 
 /** Mis obras: nombre, dirección y dos números (pedidos activos y herramientas en la obra). */
 export default async function PaginaObras() {
-  const obras = await listaObras();
+  const [obras, u] = await Promise.all([listaObras(), exigirSesion()]);
+  const carga = puede(u.rol, "obras.cargar");
+  const responsables = carga ? await db.usuario.findMany({ where: { rol: "RESPONSABLE_OBRA", activo: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true } }) : [];
   return (
     <div className="mx-auto max-w-3xl">
-      <Titulo>Obras</Titulo>
+      <Titulo siempre={carga} accion={carga ? <NuevaObra responsables={responsables} /> : undefined}>Obras</Titulo>
       {obras.length === 0 ? (
-        <Vacio icono={<Building2 className="size-10" />} titulo="No tenés obras asignadas">Pedile a la oficina que te asigne tus obras.</Vacio>
+        carga
+          ? <Vacio icono={<Building2 className="size-10" />} titulo="Todavía no hay obras">Cargá la primera con “Nueva obra”. Después, en Usuarios, se le asignan más responsables.</Vacio>
+          : <Vacio icono={<Building2 className="size-10" />} titulo="No tenés obras asignadas">Pedile a la oficina que te asigne tus obras.</Vacio>
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
           {obras.map((o) => (

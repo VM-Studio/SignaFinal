@@ -44,7 +44,7 @@ export const ACCIONES = [
   // Mapa, alertas, costos, actividad
   "mapa.ver", "rastreo.configurar", "alertas.ver", "avisos.ver", "costos.ver", "costos.exportar", "actividad.ver",
   // Configuración
-  "obras.ver", "proveedores.ver", "usuarios.gestionar",
+  "obras.ver", "obras.cargar", "proveedores.ver", "proveedores.cargar", "usuarios.gestionar",
 ] as const;
 
 export type Permiso = (typeof ACCIONES)[number];
@@ -79,19 +79,19 @@ const DEPOSITO: Entrada = {
 };
 
 const ADMINISTRACION: Entrada = {
-  rutas: ["/inicio", "/flota/**", "/costos", "/alertas", "/obras/**", "/usuarios", "/avisos", "/cuenta"],
+  rutas: ["/inicio", "/flota/**", "/costos", "/alertas", "/obras/**", "/proveedores", "/proveedores/[id]", "/usuarios", "/avisos", "/cuenta"],
   acciones: [
     "pedidos.ver", "viajes.verTodos", "flota.ver", "flota.editar", "flota.documentacion", "flota.agenda", "combustible.cargar",
     "combustible.ver", "mantenimiento.ver", "mantenimiento.registrar", "incidentes.registrar", "herramientas.ver", "herramientas.editar",
     "herramientas.mantenimiento", "sobrantes.ver", "sobrantes.editar", "alertas.ver", "avisos.ver", "costos.ver", "costos.exportar",
-    "obras.ver", "proveedores.ver", "usuarios.gestionar",
+    "obras.ver", "obras.cargar", "proveedores.ver", "proveedores.cargar", "usuarios.gestionar",
   ],
 };
 
 // Compras: la cola de pedidos de material, lo habilitado para retirar y los proveedores.
 const COMPRAS: Entrada = {
   rutas: ["/inicio", "/compras", "/compras/**", "/habilitados", "/proveedores", "/proveedores/[id]", "/avisos", "/cuenta"],
-  acciones: ["materiales.gestionar", "proveedores.ver", "obras.ver", "alertas.ver", "avisos.ver"],
+  acciones: ["materiales.gestionar", "proveedores.ver", "proveedores.cargar", "obras.ver", "alertas.ver", "avisos.ver"],
 };
 
 // Dirección ve TODO: todas las rutas de los demás roles más las propias.
@@ -108,7 +108,7 @@ const DIRECCION: Entrada = {
     "mantenimiento.registrar", "incidentes.registrar", "herramientas.ver", "herramientas.solicitar", "herramientas.mover", "herramientas.editar",
     "herramientas.mantenimiento", "sobrantes.ver", "sobrantes.editar", "mapa.ver", "alertas.ver", "avisos.ver", "costos.ver",
     "costos.exportar", "actividad.ver", "obras.ver", "proveedores.ver", "usuarios.gestionar",
-    "materiales.pedir", "materiales.gestionar", "materiales.aprobar", "rastreo.configurar",
+    "materiales.pedir", "materiales.gestionar", "materiales.aprobar", "rastreo.configurar", "obras.cargar", "proveedores.cargar",
   ],
 };
 

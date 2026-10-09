@@ -211,6 +211,14 @@ borran. Vehiculo.cusatNombre guarda el nombre tal cual aparece en Cusat.
   mock, el simulador. Vehiculo.idCusat se completa al emparejar (patente o cusatNombre).
   Sincroniza cada minuto (/api/cusat/sincronizar) y cada 20 s mientras alguien mira el mapa.
 
+## Datos base (lo único fijo)
+
+La app no tiene datos de demostración. src/lib/base/ define lo que queda siempre: usuarios con
+su rol, base Martínez y Depósito Florida, los seis vehículos reales y el inventario de herramientas
+(todo en el depósito). prisma/seed.ts, scripts/cargar-base.ts y el botón "Dejar solo los datos
+base" cargan eso y borran el resto. Obras y proveedores se cargan a mano desde la app (Nueva obra,
+Nuevo proveedor) mientras no haya API de Lebane; las coordenadas se buscan por la dirección.
+
 ## Forma de trabajar
 
 - Una tarea por vez. Leer el código existente antes de tocarlo; adaptar, no duplicar.

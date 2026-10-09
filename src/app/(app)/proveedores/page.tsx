@@ -6,13 +6,16 @@ import { db } from "@/lib/db";
 import { limiteDe } from "@/lib/pagina";
 import { Buscador } from "@/components/ui/campos";
 import { Titulo, Vacio } from "@/components/ui/basicos";
+import { puede } from "@/lib/permisos";
+import { NuevoProveedor } from "@/components/proveedores/nuevo-proveedor";
 import { CargarMas } from "@/components/ui/cargar-mas";
 
 export const metadata: Metadata = { title: "Proveedores" };
 
 /** Corralones y proveedores donde se retira. Vienen de Lebane: acá solo se consultan. */
 export default async function PaginaProveedores({ searchParams }: { searchParams: Promise<{ q?: string; n?: string }> }) {
-  await exigirPermiso("proveedores.ver");
+  const u = await exigirPermiso("proveedores.ver");
+  const carga = puede(u.rol, "proveedores.cargar");
   const { q, n } = await searchParams;
   const { limite, siguiente } = await limiteDe(n);
   const desde = new Date(Date.now() - 30 * 86_400_000);
@@ -24,10 +27,10 @@ export default async function PaginaProveedores({ searchParams }: { searchParams
   });
   return (
     <div className="mx-auto max-w-3xl">
-      <Titulo detalle="Vienen de Lebane: los datos se corrigen allá, no acá.">Proveedores</Titulo>
+      <Titulo siempre={carga} accion={carga ? <NuevoProveedor /> : undefined} detalle="Mientras no haya conexión con Lebane, se cargan acá.">Proveedores</Titulo>
       <div className="mb-3"><Buscador accion="/proveedores" valor={q} placeholder="Buscar por nombre o localidad" /></div>
       {filas.length === 0 ? (
-        <Vacio icono={<Store className="size-10" />} titulo={q ? `Ningún proveedor con "${q}"` : "Todavía no hay proveedores cargados"} />
+        <Vacio icono={<Store className="size-10" />} titulo={q ? `Ningún proveedor con "${q}"` : "Todavía no hay proveedores cargados"}>{!q && carga ? "Cargá el primero con “Nuevo proveedor”." : null}</Vacio>
       ) : (
         <ul className="divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
           {filas.slice(0, limite).map((p) => (
