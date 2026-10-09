@@ -177,28 +177,34 @@ enum EstadoVehiculo {
 }
 
 model Vehiculo {
-  id               String         @id @default(cuid())
-  nombre           String
-  patente          String         @unique
-  tipo             TipoVehiculo
-  marca            String
-  modelo           String
-  anio             Int
-  capacidadCargaKg Int            @default(0)
-  kmActual         Int            @default(0)
-  horasMotor       Int?
-  costoKm          Decimal        @db.Decimal(12, 2)
-  estado           EstadoVehiculo @default(DISPONIBLE)
-  entraEnCola      Boolean        @default(true)
-  asignadoAId      String?
-  baseId           String?
-  idCusat          String?        @unique
+  id                   String         @id @default(cuid())
+  nombre               String
+  patente              String         @unique
+  tipo                 TipoVehiculo
+  marca                String
+  modelo               String
+  anio                 Int
+  capacidadCargaKg     Int            @default(0)
+  kmActual             Int            @default(0)
+  horasMotor           Int?
+  costoKm              Decimal        @db.Decimal(12, 2)
+  estado               EstadoVehiculo @default(DISPONIBLE)
+  entraEnCola          Boolean        @default(true)
+  asignadoAId          String?
+  baseId               String?
+  idCusat              String?        @unique
   // El nombre tal cual aparece en Cusat ("MERCEDES 710"): para emparejar si la patente no alcanza.
-  cusatNombre      String?
-  fotoUrl          String?
-  activo           Boolean        @default(true)
-  creadoEn         DateTime       @default(now())
-  actualizadoEn    DateTime       @updatedAt
+  cusatNombre          String?
+  // Última posición conocida (Cusat o teléfono): el mapa la lee de acá sin tocar PosicionVehiculo.
+  ultimaLat            Float?
+  ultimaLng            Float?
+  ultimaFechaGps       DateTime?
+  ultimaVelocidad      Float?
+  ultimaDireccionTexto String?
+  fotoUrl              String?
+  activo               Boolean        @default(true)
+  creadoEn             DateTime       @default(now())
+  actualizadoEn        DateTime       @updatedAt
 
   asignadoA      Usuario?                @relation("VehiculoAsignadoA", fields: [asignadoAId], references: [id])
   usuarioPropio  Usuario?                @relation("VehiculoPropio")
@@ -910,4 +916,12 @@ model MaterialListo {
   @@index([obraId, estado])
   @@index([pedidoMaterialId])
   @@index([pedidoViajeId])
+}
+
+/// Estado de procesos del sistema (clave → valor): última sincronización con Cusat, último error,
+/// vehículos de Cusat sin enlazar, días de historial ya guardados.
+model EstadoSistema {
+  clave         String   @id
+  valor         Json
+  actualizadoEn DateTime @updatedAt
 }

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, History, Radio, Route, X } from "lucide-react";
 import { Insignia } from "@/components/ui/basicos";
 import { Boton } from "@/components/ui/boton";
-import { cuando, diaISO, hace, hora } from "@/lib/formato";
+import { cuando, diaISO, haceSeg, hora } from "@/lib/formato";
 import type { DatosMapa, ParadaNumerada, PuntoRastro, VehiculoMapa } from "@/lib/mapa/consultas";
 import { COLOR_ESTADO } from "./colores";
 
@@ -20,6 +20,19 @@ function Punto({ estado }: { estado: VehiculoMapa["estado"] }) {
   return <span aria-hidden className="inline-block size-3 shrink-0 rounded-full" style={{ background: COLOR_ESTADO[estado] }} />;
 }
 
+const VIEJO_MS = 10 * 60_000;
+const esViejo = (v: VehiculoMapa) => Date.now() - new Date(v.fecha).getTime() > VIEJO_MS;
+
+/** "hace 48 seg" que avanza solo, como en la app de Cusat. */
+function Hace({ fecha }: { fecha: string }) {
+  const [, setT] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => setT((x) => x + 1), 5_000);
+    return () => window.clearInterval(t);
+  }, []);
+  return <>{haceSeg(fecha)}</>;
+}
+
 function Lista({ datos, onElegir }: { datos: DatosMapa; onElegir: (id: string) => void }) {
   const orden = [...datos.vehiculos].sort((a, b) => Number(b.estado === "EN_VIAJE") - Number(a.estado === "EN_VIAJE") || a.nombre.localeCompare(b.nombre));
   return (
@@ -30,9 +43,12 @@ function Lista({ datos, onElegir }: { datos: DatosMapa; onElegir: (id: string) =
             <Punto estado={v.estado} />
             <span className="min-w-0 flex-1">
               <span className="block font-bold">{v.nombre}</span>
-              <span className="block truncate text-sm text-suave">{v.viaje ? `${v.chofer} → Obra ${v.viaje.obra}` : v.chofer ?? ESTADO[v.estado].t}</span>
+              <span className="block truncate text-sm text-suave">{v.viaje ? `${v.chofer} → Obra ${v.viaje.obra}` : v.direccion ?? v.chofer ?? ESTADO[v.estado].t}</span>
             </span>
-            <span className="shrink-0 text-sm font-semibold tabular-nums">{v.velocidad > 0 ? `${v.velocidad} km/h` : "Quieto"}</span>
+            <span className="shrink-0 text-right text-sm font-semibold tabular-nums">
+              {v.velocidad > 0 ? `${v.velocidad} km/h` : "Quieto"}
+              <span className={`block text-xs ${esViejo(v) ? "text-critico" : "font-normal text-suave"}`}><Hace fecha={v.fecha} /></span>
+            </span>
           </button>
         </li>
       ))}
@@ -57,7 +73,8 @@ function Tarjeta({ v, recorrido, cargando, onRecorrido, onCerrar }: { v: Vehicul
         <div><dt className="text-xs font-semibold tracking-wider text-suave uppercase">Velocidad</dt><dd className="font-medium tabular-nums">{v.velocidad} km/h</dd></div>
         <div className="col-span-2"><dt className="text-xs font-semibold tracking-wider text-suave uppercase">Viaje actual</dt><dd className="font-medium">{v.viaje ? <Link href={`/solicitudes/${v.viaje.pedidoId}`} className="underline">{v.viaje.descripcion}</Link> : "Sin viaje"}</dd></div>
         {v.viaje && <div className="col-span-2"><dt className="text-xs font-semibold tracking-wider text-suave uppercase">Obra destino</dt><dd className="font-medium">Obra {v.viaje.obra}{v.viaje.llegoPorGps ? " · ya llegó (GPS)" : ""}</dd></div>}
-        <div className="col-span-2"><dt className="text-xs font-semibold tracking-wider text-suave uppercase">Última actualización</dt><dd className="font-medium">{hora(v.fecha)} · {hace(v.fecha)}</dd></div>
+        {v.direccion && <div className="col-span-2"><dt className="text-xs font-semibold tracking-wider text-suave uppercase">Dónde está</dt><dd className="font-medium">{v.direccion}</dd></div>}
+        <div className="col-span-2"><dt className="text-xs font-semibold tracking-wider text-suave uppercase">Último reporte</dt><dd className={`font-medium ${esViejo(v) ? "text-critico" : ""}`}>{hora(v.fecha)} · <Hace fecha={v.fecha} />{esViejo(v) ? " · posición vieja" : ""}</dd></div>
       </dl>
       <Boton ancho variante={recorrido ? "secundario" : "primario"} cargando={cargando} icono={<Route className="size-5" />} onClick={onRecorrido}>
         {recorrido ? "Ocultar recorrido" : "Ver recorrido de hoy"}

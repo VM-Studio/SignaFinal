@@ -5,7 +5,7 @@ import L from "leaflet";
 import { Circle, MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap } from "react-leaflet";
 import { useEffect, useRef } from "react";
 import type { DatosMapa, ParadaNumerada, PuntoRastro } from "@/lib/mapa/consultas";
-import { iconoLugar, iconoObra, iconoParada, iconoVehiculo } from "./iconos";
+import { iconoLugar, iconoObra, iconoParada, iconoVehiculo, VIEJO_MS } from "./iconos";
 
 function Encuadre({ datos, elegido, recorrido }: { datos: DatosMapa; elegido?: string; recorrido?: { paradas: ParadaNumerada[]; rastro: PuntoRastro[] } | null }) {
   const mapa = useMap();
@@ -55,7 +55,7 @@ export default function MapaLeaflet({ datos, elegido, onElegir, recorrido }: {
         </Marker>
       ))}
       {datos.vehiculos.map((v) => (
-        <Marker key={v.id} position={[v.lat, v.lng]} icon={iconoVehiculo(v, v.id === elegido)} zIndexOffset={v.id === elegido ? 3000 : v.estado === "EN_VIAJE" ? 1500 : 1000} eventHandlers={{ click: () => onElegir?.(v.id) }} />
+        <Marker key={v.id} position={[v.lat, v.lng]} icon={iconoVehiculo(v, v.id === elegido, Date.now() - new Date(v.fecha).getTime() > VIEJO_MS)} zIndexOffset={v.id === elegido ? 3000 : v.estado === "EN_VIAJE" ? 1500 : 1000} eventHandlers={{ click: () => onElegir?.(v.id) }} />
       ))}
       <Encuadre datos={datos} elegido={elegido} recorrido={recorrido} />
     </MapContainer>

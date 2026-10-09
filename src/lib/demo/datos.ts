@@ -57,6 +57,7 @@ async function limpiar() {
   await db.herramienta.deleteMany();
   await db.categoriaHerramienta.deleteMany();
   await db.posicionVehiculo.deleteMany();
+  await db.estadoSistema.deleteMany({ where: { clave: { startsWith: "cusat." } } });
   await db.viaje.deleteMany();
   await db.materialListo.deleteMany();
   await db.cambioEstadoMaterial.deleteMany();
@@ -101,14 +102,14 @@ export async function cargarDatosDemo(cliente: PrismaClient) {
   // ────────────────────────── Ubicaciones ──────────────────────────
   const base = await db.ubicacion.create({
     // Donde Cusat muestra los camiones parados (Triunfo Argentino / Granada y Maestro).
-    data: { nombre: "Base de camiones Martínez", tipo: "BASE_VEHICULOS", direccion: "Triunfo Argentino y Granada, Martínez, San Isidro", latitud: -34.4986, longitud: -58.5236 }, // confirmar coordenadas
+    data: { nombre: "Base de camiones Martínez", tipo: "BASE_VEHICULOS", direccion: "Triunfo Argentino y Granada, Martínez, San Isidro", latitud: -34.49902, longitud: -58.54408 }, // coordenadas de Cusat (9/10/2026)
   });
   // El depósito de herramientas y maquinaria son dos terrenos; las herramientas viven en el Terreno 1.
   const depo = await db.ubicacion.create({
     data: { nombre: "Terreno 1", tipo: "DEPOSITO", direccion: "Av. Bernardo Ader 1600, Munro", latitud: -34.5286, longitud: -58.5266 }, // confirmar dirección
   });
   await db.ubicacion.create({
-    data: { nombre: "Terreno 2", tipo: "DEPOSITO", direccion: "Granada y Maestro, Martínez", latitud: -34.4979, longitud: -58.5249 }, // confirmar dirección
+    data: { nombre: "Terreno 2", tipo: "DEPOSITO", direccion: "Granada y Maestro, Martínez", latitud: -34.4987, longitud: -58.5446 }, // confirmar dirección
   });
 
   // ──────────────────────────── Obras ────────────────────────────
@@ -622,6 +623,9 @@ export async function cargarDatosDemo(cliente: PrismaClient) {
   await habilitar(pmDurlock, boulogne, { descripcion: "Placas de durlock 12,5 mm, 40 u. + perfiles", pesoKg: 950, cuando: haceDias(2, 11), horario: "Lun a vie 8 a 17", contacto: "Marcelo · 11 4737-5050", estado: "ENTREGADO", pedidoViajeId: retiroDurlock.id, entregadoEn: haceDias(1, 11) }); // confirmar
 
   await db.$executeRaw`SELECT setval(pg_get_serial_sequence('"PedidoViaje"', 'numero'), (SELECT MAX("numero") FROM "PedidoViaje"))`;
+  // Última posición de cada vehículo (lo que lee el mapa), tomada de la última posición guardada.
+  await db.$executeRaw`UPDATE "Vehiculo" v SET "ultimaLat" = p."latitud", "ultimaLng" = p."longitud", "ultimaFechaGps" = p."fecha", "ultimaVelocidad" = p."velocidad"
+    FROM (SELECT DISTINCT ON ("vehiculoId") * FROM "PosicionVehiculo" ORDER BY "vehiculoId", "fecha" DESC) p WHERE p."vehiculoId" = v."id"`;
   await db.$executeRaw`SELECT setval(pg_get_serial_sequence('"PedidoMaterial"', 'numero'), (SELECT MAX("numero") FROM "PedidoMaterial"))`;
 
   // ────────────────── Avisos de Daniela (viaje de ayer) ──────────────────

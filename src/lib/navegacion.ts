@@ -4,7 +4,7 @@ import { rutaPermitida } from "./permisos";
 export type Icono =
   | "inicio" | "pedidos" | "pedir" | "viajes" | "combustible" | "flota" | "mantenimiento" | "herramientas"
   | "escanear" | "entregas" | "sobrantes" | "mapa" | "alertas" | "obras" | "proveedores" | "usuarios" | "cuenta" | "mas"
-  | "agenda" | "costos" | "etiquetas" | "hoy" | "avisos" | "actividad" | "importar" | "compras" | "habilitados" | "aprobaciones";
+  | "agenda" | "costos" | "etiquetas" | "hoy" | "avisos" | "actividad" | "importar" | "compras" | "habilitados" | "aprobaciones" | "rastreo";
 
 export type Seccion = { href: string; titulo: string; icono: Icono; corto?: string };
 
@@ -44,6 +44,7 @@ export const SECCIONES = {
   viajes: { href: "/viajes", titulo: "Viajes", icono: "viajes" },
   viajesAObras: { href: "/viajes-en-curso", titulo: "Viajes hacia obras", icono: "viajes" },
   historial: { href: "/mapa/historial", titulo: "Recorridos del día", icono: "mapa" },
+  rastreo: { href: "/configuracion/rastreo", titulo: "Rastreo (Cusat)", icono: "rastreo" },
   actividad: { href: "/actividad", titulo: "Actividad", icono: "actividad" },
   proveedores: { href: "/proveedores", titulo: "Proveedores", icono: "proveedores" },
   usuarios: { href: "/usuarios", titulo: "Usuarios", icono: "usuarios" },
@@ -77,7 +78,7 @@ const NAV: Record<Rol, { barra: Clave[]; mas: GrupoClaves[] }> = {
       { titulo: "Compras", claves: ["aprobaciones", "compras", "habilitados"] },
       { titulo: "Flota", claves: ["flota", "agenda", "mantenimiento", "combustible"] },
       { titulo: "Depósito", claves: ["herramientas", "deposito", "escanear", "entregas", "sobrantes", "etiquetas", "importar"] },
-      { titulo: "Mapa", claves: ["historial"] },
+      { titulo: "Mapa", claves: ["historial", "rastreo"] },
       { titulo: "Alertas", claves: ["alertas", "avisos"] },
       { titulo: "Actividad", claves: ["actividad"] },
       { titulo: "Costos", claves: ["costos"] },

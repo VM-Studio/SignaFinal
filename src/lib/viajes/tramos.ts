@@ -94,6 +94,13 @@ export async function registrarPosicion(
       precisionM: o.precisionM ?? null, velocidad: o.velocidadKmh ?? 0, rumbo: o.rumbo ?? 0, motorEncendido: true, fecha: ahora,
     },
   });
+  // El mapa lee la última posición del vehículo. Cusat manda: el teléfono la pisa solo si Cusat no reportó en 2 minutos.
+  if (o.fuente === "TELEFONO") {
+    await db.vehiculo.updateMany({
+      where: { id: v.vehiculoId, OR: [{ ultimaFechaGps: null }, { ultimaFechaGps: { lt: new Date(ahora.getTime() - 120_000) } }] },
+      data: { ultimaLat: aqui.lat, ultimaLng: aqui.lng, ultimaFechaGps: ahora, ultimaVelocidad: o.velocidadKmh ?? 0, ultimaDireccionTexto: null },
+    });
+  }
   let etapa = v.etapa;
   // Se fue del punto de retiro sin tocar "Salgo": lo hace el GPS.
   if (etapa === "EN_RETIRO" && distancia(aqui, origenDe(v.pedido)) > SALIDA_RETIRO_M) {

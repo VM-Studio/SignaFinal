@@ -3,7 +3,10 @@ import type { TipoUbicacion } from "@prisma/client";
 
 /** Marcadores propios (SVG en línea). Color por estado: verde en viaje, gris disponible, negro taller. */
 
-import { COLOR_ESTADO } from "./colores";
+import { COLOR_ESTADO, COLOR_VIEJO } from "./colores";
+
+/** Más de 10 minutos sin reportar: el vehículo se pinta gris (la posición puede no ser la de ahora). */
+export const VIEJO_MS = 10 * 60_000;
 
 const FIGURA = {
   CAMION: '<path d="M2 6h12v9H2z"/><path d="M14 9h4.5l3.5 3.5V15h-8z"/><circle cx="6.5" cy="17" r="2"/><circle cx="17.5" cy="17" r="2"/>',
@@ -14,8 +17,8 @@ const FIGURA = {
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
-export function iconoVehiculo(v: { nombre: string; tipo: keyof typeof FIGURA; estado: keyof typeof COLOR_ESTADO; rumbo: number; velocidad: number }, elegido: boolean) {
-  const color = COLOR_ESTADO[v.estado];
+export function iconoVehiculo(v: { nombre: string; tipo: keyof typeof FIGURA; estado: keyof typeof COLOR_ESTADO; rumbo: number; velocidad: number }, elegido: boolean, viejo = false) {
+  const color = viejo ? COLOR_VIEJO : COLOR_ESTADO[v.estado];
   const flecha = v.velocidad > 0 ? `<div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%) rotate(${v.rumbo}deg);transform-origin:50% 27px;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:8px solid ${color}"></div>` : "";
   return L.divIcon({
     className: "",

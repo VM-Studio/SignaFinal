@@ -4,10 +4,14 @@ import { tokenValido } from "@/lib/cron/token";
 
 export const dynamic = "force-dynamic";
 
-/** Ruta vieja del job de posiciones: hace lo mismo que /api/cusat/sincronizar. */
+/**
+ * Sincronización con Cusat. Protegida con CRON_SECRET ("Authorization: Bearer …").
+ * POST desde cron-job.org (docs/cusat/cron.md); GET para Vercel Cron.
+ */
 async function correr(req: NextRequest) {
   if (!tokenValido(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  return NextResponse.json(await sincronizar());
+  const r = await sincronizar();
+  return NextResponse.json(r, { status: r.ok ? 200 : 502 });
 }
 
 export const POST = correr;

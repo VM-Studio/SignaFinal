@@ -1,11 +1,19 @@
 import "server-only";
-import type { ClienteCusat } from "./tipos";
+import type { FuenteCusat, ModoCusat } from "./tipos";
 import { CusatMock } from "./mock";
-import { CusatApi } from "./api";
+import { CusatView } from "./cusatView";
 
 export type * from "./tipos";
 
-/** Punto de entrada único: la API real si está configurada; si no, el simulador. */
-export function clienteCusat(): ClienteCusat {
-  return process.env.CUSAT_API_URL ? new CusatApi(process.env.CUSAT_API_URL, process.env.CUSAT_API_KEY) : new CusatMock();
+/** CUSAT_MODO=cusatview usa la web real de Cusat (con CUSAT_WEB_USER y CUSAT_WEB_PASS); si no, el simulador. */
+export function modoCusat(): ModoCusat {
+  return process.env.CUSAT_MODO === "cusatview" && process.env.CUSAT_WEB_USER && process.env.CUSAT_WEB_PASS ? "cusatview" : "mock";
+}
+
+let fuente: FuenteCusat | null = null;
+
+/** Punto de entrada único al rastreo. */
+export function fuenteCusat(): FuenteCusat {
+  if (!fuente || fuente.modo !== modoCusat()) fuente = modoCusat() === "cusatview" ? new CusatView() : new CusatMock();
+  return fuente;
 }

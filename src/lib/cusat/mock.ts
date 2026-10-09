@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { largo, puntoEn, type Punto } from "@/lib/geo";
-import type { ClienteCusat, PosicionCusat } from "./tipos";
+import type { FuenteCusat, PosicionExterna, Prueba, PuntoHistorial, Resultado } from "./tipos";
 import { paradasDe } from "./rutas";
 
 /**
@@ -42,61 +42,81 @@ async function enViaje(viaje: { salidaReal: Date | null; vehiculo: { baseId: str
   return { punto, rumbo, velocidad: parado || llego ? 0 : 28, motor: !llego };
 }
 
-export class CusatMock implements ClienteCusat {
-  readonly origen = "mock" as const;
+/**
+ * Simulador con el mismo contrato que Cusat View. idExterno = id del vehículo (no hace falta emparejar).
+ * Simula todos los vehículos activos, tengan o no equipo.
+ */
+export class CusatMock implements FuenteCusat {
+  readonly modo = "mock" as const;
 
-  async obtenerPosicionesActuales(): Promise<PosicionCusat[]> {
-    const ahora = new Date();
-    const vehiculos = await db.vehiculo.findMany({
-      where: { activo: true, idCusat: { not: null } },
-      select: {
-        id: true, baseId: true,
-        base: { select: { latitud: true, longitud: true } },
-        viajes: { where: { estado: "EN_CURSO" }, take: 1, include: incluir },
-        posiciones: { orderBy: { fecha: "desc" }, take: 1 },
-      },
-    });
-    const baseGeneral = await db.ubicacion.findFirst({ where: { tipo: "BASE_VEHICULOS" } });
-    const out: PosicionCusat[] = [];
-    for (const v of vehiculos) {
-      const viaje = v.viajes[0];
-      if (viaje) {
-        const s = await enViaje(viaje, ahora);
-        out.push({ vehiculoId: v.id, latitud: s.punto.lat, longitud: s.punto.lng, velocidad: s.velocidad, rumbo: s.rumbo, motorEncendido: s.motor, fecha: ahora });
-        continue;
+  async obtenerPosicionesActuales(): Promise<Resultado<PosicionExterna[]>> {
+    try {
+      const ahora = new Date();
+      const vehiculos = await db.vehiculo.findMany({
+        where: { activo: true },
+        select: {
+          id: true, nombre: true, patente: true, baseId: true, ultimaLat: true, ultimaLng: true,
+          base: { select: { latitud: true, longitud: true } },
+          viajes: { where: { estado: "EN_CURSO" }, take: 1, include: incluir },
+          posiciones: { orderBy: { fecha: "desc" }, take: 1 },
+        },
+      });
+      const baseGeneral = await db.ubicacion.findFirst({ where: { tipo: "BASE_VEHICULOS" } });
+      const out: PosicionExterna[] = [];
+      for (const v of vehiculos) {
+        const comun = { idExterno: v.id, nombre: v.nombre, patente: v.patente, direccionTexto: null, fechaGps: ahora };
+        const viaje = v.viajes[0];
+        if (viaje) {
+          const s = await enViaje(viaje, ahora);
+          out.push({ ...comun, latitud: s.punto.lat, longitud: s.punto.lng, velocidadKmh: s.velocidad, rumbo: s.rumbo, motorEncendido: s.motor });
+          continue;
+        }
+        // Sin viaje: donde se lo vio por última vez; si nunca, en su base.
+        const ult = v.posiciones[0];
+        const lat = ult?.latitud ?? v.ultimaLat ?? v.base?.latitud ?? baseGeneral?.latitud;
+        const lng = ult?.longitud ?? v.ultimaLng ?? v.base?.longitud ?? baseGeneral?.longitud;
+        if (lat == null || lng == null) continue;
+        out.push({ ...comun, latitud: lat, longitud: lng, velocidadKmh: 0, rumbo: 0, motorEncendido: false });
       }
-      // Sin viaje: en su base; sin base, donde se lo vio por última vez.
-      const ult = v.posiciones[0];
-      const lat = v.base?.latitud ?? ult?.latitud ?? baseGeneral?.latitud;
-      const lng = v.base?.longitud ?? ult?.longitud ?? baseGeneral?.longitud;
-      if (lat == null || lng == null) continue;
-      out.push({ vehiculoId: v.id, latitud: lat, longitud: lng, velocidad: 0, rumbo: 0, motorEncendido: false, fecha: ahora });
+      return { ok: true, datos: out };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
     }
-    return out;
   }
 
   /** Recorrido simulado: cada 2 minutos, en viaje si había uno en ese momento; si no, en la base. */
-  async obtenerHistorial(vehiculoId: string, desde: Date, hasta: Date): Promise<PosicionCusat[]> {
-    const fin = new Date(Math.min(hasta.getTime(), Date.now()));
-    const [v, viajes] = await Promise.all([
-      db.vehiculo.findUnique({ where: { id: vehiculoId }, select: { base: { select: { latitud: true, longitud: true } } } }),
-      db.viaje.findMany({
-        where: { vehiculoId, salidaReal: { lt: fin }, OR: [{ llegadaReal: null }, { llegadaReal: { gt: desde } }], estado: { in: ["EN_CURSO", "FINALIZADO"] } },
-        include: incluir,
-        orderBy: { salidaReal: "asc" },
-      }),
-    ]);
-    const out: PosicionCusat[] = [];
-    for (let t = desde.getTime(); t <= fin.getTime(); t += 2 * 60_000) {
-      const instante = new Date(t);
-      const viaje = viajes.find((x) => x.salidaReal! <= instante && (!x.llegadaReal || x.llegadaReal >= instante));
-      if (viaje) {
-        const s = await enViaje(viaje, instante);
-        out.push({ vehiculoId, latitud: s.punto.lat, longitud: s.punto.lng, velocidad: s.velocidad, rumbo: s.rumbo, motorEncendido: s.motor, fecha: instante });
-      } else if (v?.base) {
-        out.push({ vehiculoId, latitud: v.base.latitud, longitud: v.base.longitud, velocidad: 0, rumbo: 0, motorEncendido: false, fecha: instante });
+  async obtenerHistorial(vehiculoId: string, desde: Date, hasta: Date): Promise<Resultado<PuntoHistorial[]>> {
+    try {
+      const fin = new Date(Math.min(hasta.getTime(), Date.now()));
+      const [v, viajes] = await Promise.all([
+        db.vehiculo.findUnique({ where: { id: vehiculoId }, select: { base: { select: { latitud: true, longitud: true } } } }),
+        db.viaje.findMany({
+          where: { vehiculoId, salidaReal: { lt: fin }, OR: [{ llegadaReal: null }, { llegadaReal: { gt: desde } }], estado: { in: ["EN_CURSO", "FINALIZADO"] } },
+          include: incluir,
+          orderBy: { salidaReal: "asc" },
+        }),
+      ]);
+      const out: PuntoHistorial[] = [];
+      for (let t = desde.getTime(); t <= fin.getTime(); t += 2 * 60_000) {
+        const fecha = new Date(t);
+        const viaje = viajes.find((x) => x.salidaReal! <= fecha && (!x.llegadaReal || x.llegadaReal >= fecha));
+        if (viaje) {
+          const s = await enViaje(viaje, fecha);
+          out.push({ latitud: s.punto.lat, longitud: s.punto.lng, velocidadKmh: s.velocidad, fecha });
+        } else if (v?.base) out.push({ latitud: v.base.latitud, longitud: v.base.longitud, velocidadKmh: 0, fecha });
       }
+      return { ok: true, datos: out };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
     }
-    return out;
+  }
+
+  async probar(): Promise<Prueba> {
+    const t = Date.now();
+    const r = await this.obtenerPosicionesActuales();
+    return {
+      modo: this.modo,
+      pasos: [{ paso: "Simulador", ok: r.ok, detalle: r.ok ? `${r.datos.length} vehículos simulados (CUSAT_MODO=mock)` : r.error, ms: Date.now() - t }],
+    };
   }
 }

@@ -2,38 +2,39 @@ import "server-only";
 import { db } from "@/lib/db";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { aFecha, diaISO, sumarDias } from "@/lib/formato";
-import { capturarPosiciones } from "@/lib/cusat/captura";
-import { clienteCusat } from "@/lib/cusat";
+import { sincronizarSiHaceFalta } from "@/lib/cusat/sincronizar";
+import { modoCusat, type ModoCusat } from "@/lib/cusat";
+import { kmDelDia, paradasDelDia, rastroDelDia, type ParadaDetectada } from "@/lib/cusat/historial";
 import { paradasDe, type Parada } from "@/lib/cusat/rutas";
 import type { TipoUbicacion } from "@prisma/client";
 import { viajesVisibles } from "@/lib/alcance";
 
 export type VehiculoMapa = {
   id: string; nombre: string; tipo: "CAMION" | "CAMIONETA" | "AUTO" | "MAQUINA"; estado: "DISPONIBLE" | "EN_VIAJE" | "EN_TALLER" | "FUERA_DE_SERVICIO";
-  patente: string; lat: number; lng: number; velocidad: number; rumbo: number; fecha: string;
+  patente: string; lat: number; lng: number; velocidad: number; rumbo: number;
+  /** Fecha GPS de la última posición (la pantalla muestra "hace 48 seg" y lo pone gris pasados 10 minutos). */
+  fecha: string;
+  direccion: string | null;
   chofer: string | null;
   viaje: { pedidoId: string; descripcion: string; obra: string; llegoPorGps: boolean } | null;
 };
 export type ObraMapa = { id: string; nombre: string; lat: number; lng: number; radio: number };
 export type LugarMapa = { id: string; nombre: string; lat: number; lng: number; tipo: TipoUbicacion };
-export type DatosMapa = { vehiculos: VehiculoMapa[]; obras: ObraMapa[]; lugares: LugarMapa[]; origen: "mock" | "api"; actualizado: string; sinGps: string[] };
+export type DatosMapa = { vehiculos: VehiculoMapa[]; obras: ObraMapa[]; lugares: LugarMapa[]; origen: ModoCusat; actualizado: string; sinGps: string[] };
 
-/** Estado del mapa. Antes de leer, pide posiciones nuevas si las últimas tienen más de un minuto. */
+/** Estado del mapa: la última posición de cada vehículo (Vehiculo.ultima*). Antes, sincroniza con Cusat si hace falta. */
 export async function datosMapa(): Promise<DatosMapa> {
   await exigirPermiso("mapa.ver");
-  try {
-    await capturarPosiciones();
-  } catch (e) {
-    console.error("No se pudieron capturar posiciones", e);
-  }
+  await sincronizarSiHaceFalta(); // nunca lanza
   const [vehiculos, obras, lugares] = await Promise.all([
     db.vehiculo.findMany({
       where: { activo: true },
       orderBy: [{ tipo: "asc" }, { nombre: "asc" }],
       select: {
-        id: true, nombre: true, tipo: true, estado: true, patente: true, idCusat: true,
+        id: true, nombre: true, tipo: true, estado: true, patente: true,
+        ultimaLat: true, ultimaLng: true, ultimaFechaGps: true, ultimaVelocidad: true, ultimaDireccionTexto: true,
         asignadoA: { select: { nombre: true } },
-        posiciones: { orderBy: { fecha: "desc" }, take: 1 },
+        posiciones: { orderBy: { fecha: "desc" }, take: 1, select: { rumbo: true } },
         viajes: { where: { estado: "EN_CURSO" }, take: 1, select: { llegadaReal: true, chofer: { select: { nombre: true } }, pedido: { select: { id: true, descripcion: true, obra: { select: { nombre: true } } } } } },
       },
     }),
@@ -42,38 +43,27 @@ export async function datosMapa(): Promise<DatosMapa> {
   ]);
   return {
     vehiculos: vehiculos.flatMap((v): VehiculoMapa[] => {
-      const p = v.posiciones[0];
-      if (!p) return [];
+      if (v.ultimaLat == null || v.ultimaLng == null || !v.ultimaFechaGps) return [];
       const viaje = v.viajes[0];
       return [{
         id: v.id, nombre: v.nombre, tipo: v.tipo, estado: v.estado, patente: v.patente,
-        lat: p.latitud, lng: p.longitud, velocidad: Math.round(p.velocidad), rumbo: p.rumbo, fecha: p.fecha.toISOString(),
+        lat: v.ultimaLat, lng: v.ultimaLng, velocidad: Math.round(v.ultimaVelocidad ?? 0), rumbo: v.posiciones[0]?.rumbo ?? 0,
+        fecha: v.ultimaFechaGps.toISOString(), direccion: v.ultimaDireccionTexto,
         chofer: viaje?.chofer.nombre ?? v.asignadoA?.nombre ?? null,
         viaje: viaje ? { pedidoId: viaje.pedido.id, descripcion: viaje.pedido.descripcion, obra: viaje.pedido.obra.nombre, llegoPorGps: !!viaje.llegadaReal } : null,
       }];
     }),
     obras: obras.map((o) => ({ id: o.id, nombre: o.nombre, lat: o.latitud, lng: o.longitud, radio: o.radioGeocercaM })),
     lugares: lugares.map((l) => ({ id: l.id, nombre: l.nombre, lat: l.latitud, lng: l.longitud, tipo: l.tipo })),
-    origen: clienteCusat().origen,
+    origen: modoCusat(),
     actualizado: new Date().toISOString(),
-    sinGps: vehiculos.filter((v) => !v.posiciones.length).map((v) => v.nombre),
+    sinGps: vehiculos.filter((v) => v.ultimaLat == null).map((v) => v.nombre),
   };
 }
 
 export type ParadaNumerada = Parada & { numero: number; viaje: string };
-export type PuntoRastro = { lat: number; lng: number; fecha: string; velocidad: number };
-
-async function rastroDelDia(vehiculoId: string, dia: string): Promise<PuntoRastro[]> {
-  const desde = aFecha(dia);
-  const hasta = aFecha(sumarDias(dia, 1));
-  let pos = (await db.posicionVehiculo.findMany({ where: { vehiculoId, fecha: { gte: desde, lt: hasta } }, orderBy: { fecha: "asc" } })).map((p) => ({ lat: p.latitud, lng: p.longitud, fecha: p.fecha.toISOString(), velocidad: p.velocidad }));
-  // Pocos puntos guardados (el cron no corrió todo el día): se completa con el historial del adaptador.
-  if (pos.length < 10) {
-    const h = await clienteCusat().obtenerHistorial(vehiculoId, desde, hasta);
-    if (h.length > pos.length) pos = h.map((p) => ({ lat: p.latitud, lng: p.longitud, fecha: p.fecha.toISOString(), velocidad: p.velocidad }));
-  }
-  return pos;
-}
+export type { PuntoRastro, ParadaDetectada } from "@/lib/cusat/historial";
+import type { PuntoRastro } from "@/lib/cusat/historial";
 
 /** "Ver recorrido de hoy": la ruta planificada (paradas numeradas) y el rastro real. */
 export async function recorridoDelDia(vehiculoId: string, dia = diaISO()) {
@@ -98,11 +88,36 @@ export async function recorridoDelDia(vehiculoId: string, dia = diaISO()) {
   return { paradas, rastro: await rastroDelDia(vehiculoId, dia) };
 }
 
-/** /mapa/historial: vehículos para elegir y el recorrido completo de un día. */
+export type ViajeDelDia = { pedidoId: string; numero: number; descripcion: string; obra: string; desde: string; hasta: string };
+
+/**
+ * /mapa/historial: el recorrido real de un vehículo en un día (Cusat), sus paradas (más de 5 minutos
+ * quieto), los km y los viajes del sistema de ese día para superponerlos.
+ */
 export async function historial(vehiculoId: string | undefined, dia: string) {
-  await exigirPermiso("mapa.ver");
-  const vehiculos = await db.vehiculo.findMany({ where: { activo: true, idCusat: { not: null } }, orderBy: [{ tipo: "asc" }, { nombre: "asc" }], select: { id: true, nombre: true } });
-  if (!vehiculoId) return { vehiculos, rastro: [] as PuntoRastro[], paradas: [] as ParadaNumerada[] };
-  const r = await recorridoDelDia(vehiculoId, dia);
-  return { vehiculos, ...r };
+  const u = await exigirPermiso("mapa.ver");
+  const vehiculos = await db.vehiculo.findMany({
+    where: { activo: true, ...(modoCusat() === "cusatview" ? { idCusat: { not: null } } : {}) },
+    orderBy: [{ tipo: "asc" }, { nombre: "asc" }],
+    select: { id: true, nombre: true },
+  });
+  const vacio = { vehiculos, rastro: [] as PuntoRastro[], paradas: [] as ParadaDetectada[], km: 0, viajes: [] as ViajeDelDia[] };
+  if (!vehiculoId) return vacio;
+  const desde = aFecha(dia);
+  const hasta = aFecha(sumarDias(dia, 1));
+  const [rastro, viajes] = await Promise.all([
+    rastroDelDia(vehiculoId, dia),
+    db.viaje.findMany({
+      where: { ...viajesVisibles(u), vehiculoId, salidaReal: { lt: hasta }, OR: [{ llegadaReal: null }, { llegadaReal: { gte: desde } }], estado: { in: ["EN_CURSO", "FINALIZADO"] } },
+      orderBy: { salidaReal: "asc" },
+      select: { salidaReal: true, llegadaReal: true, pedido: { select: { id: true, numero: true, descripcion: true, obra: { select: { nombre: true } } } } },
+    }),
+  ]);
+  return {
+    vehiculos, rastro, km: kmDelDia(rastro), paradas: await paradasDelDia(rastro),
+    viajes: viajes.map((v) => ({
+      pedidoId: v.pedido.id, numero: v.pedido.numero, descripcion: v.pedido.descripcion, obra: v.pedido.obra.nombre,
+      desde: v.salidaReal!.toISOString(), hasta: (v.llegadaReal ?? new Date()).toISOString(),
+    })),
+  };
 }

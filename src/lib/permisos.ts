@@ -42,7 +42,7 @@ export const ACCIONES = [
   // Materiales y Compras: pedir (obra), gestionar (Compras), aprobar (el dueño)
   "materiales.pedir", "materiales.gestionar", "materiales.aprobar",
   // Mapa, alertas, costos, actividad
-  "mapa.ver", "alertas.ver", "avisos.ver", "costos.ver", "costos.exportar", "actividad.ver",
+  "mapa.ver", "rastreo.configurar", "alertas.ver", "avisos.ver", "costos.ver", "costos.exportar", "actividad.ver",
   // Configuración
   "obras.ver", "proveedores.ver", "usuarios.gestionar",
 ] as const;
@@ -99,7 +99,7 @@ const DIRECCION: Entrada = {
   rutas: [
     ...new Set([
       ...OBRA.rutas, ...CHOFER.rutas, ...DEPOSITO.rutas, ...ADMINISTRACION.rutas, ...COMPRAS.rutas,
-      "/aprobaciones", "/mapa/**", "/actividad", "/actividad/[id]", "/solicitudes/**", "/viajes", "/proveedores", "/usuarios", "/sobrantes",
+      "/aprobaciones", "/configuracion/rastreo", "/mapa/**", "/actividad", "/actividad/[id]", "/solicitudes/**", "/viajes", "/proveedores", "/usuarios", "/sobrantes",
     ]),
   ],
   acciones: [
@@ -108,7 +108,7 @@ const DIRECCION: Entrada = {
     "mantenimiento.registrar", "incidentes.registrar", "herramientas.ver", "herramientas.solicitar", "herramientas.mover", "herramientas.editar",
     "herramientas.mantenimiento", "sobrantes.ver", "sobrantes.editar", "mapa.ver", "alertas.ver", "avisos.ver", "costos.ver",
     "costos.exportar", "actividad.ver", "obras.ver", "proveedores.ver", "usuarios.gestionar",
-    "materiales.pedir", "materiales.gestionar", "materiales.aprobar",
+    "materiales.pedir", "materiales.gestionar", "materiales.aprobar", "rastreo.configurar",
   ],
 };
 

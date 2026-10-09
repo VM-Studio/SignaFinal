@@ -86,6 +86,13 @@ export function hace(d: Date | string) {
   return `hace ${n} día${n === 1 ? "" : "s"}`;
 }
 
+/** Como la app de Cusat: "hace 48 seg", "hace 3 min", "hace 2 h", "hace 4 días". */
+export function haceSeg(d: Date | string, ahora = Date.now()) {
+  const s = Math.max(0, Math.round((ahora - new Date(d).getTime()) / 1000));
+  if (s < 60) return `hace ${s} seg`;
+  return hace(d);
+}
+
 /** "3/10" en hora argentina. */
 export const diaMes = (d: Date | string) => diaISO(d).split("-").slice(1).reverse().map(Number).join("/");
 

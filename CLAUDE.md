@@ -207,9 +207,9 @@ borran. Vehiculo.cusatNombre guarda el nombre tal cual aparece en Cusat.
 
 - Lebane: lib/lebane, interfaz para obras, proveedores y órdenes de compra. Mock hasta
   tener la API. Obra.idLebane.
-- Cusat: lib/cusat, posiciones actuales e historial. Mock. Vehiculo.idCusat. Cuando
-  exista, es una segunda fuente de PosicionVehiculo (fuente CUSAT) junto al teléfono
-  del chofer (fuente TELEFONO).
+- Cusat: lib/cusat (ver "Rastreo" y docs/cusat/). CUSAT_MODO=cusatview usa la web real;
+  mock, el simulador. Vehiculo.idCusat se completa al emparejar (patente o cusatNombre).
+  Sincroniza cada minuto (/api/cusat/sincronizar) y cada 20 s mientras alguien mira el mapa.
 
 ## Forma de trabajar
 

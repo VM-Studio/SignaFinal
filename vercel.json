@@ -1,11 +1,25 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["gru1"],
+  "regions": [
+    "gru1"
+  ],
   "buildCommand": "prisma generate && prisma migrate deploy && next build",
   "crons": [
-    { "path": "/api/alertas/evaluar", "schedule": "0 10 * * *" },
-    { "path": "/api/posiciones", "schedule": "0 11 * * *" },
-    { "path": "/api/jobs/resumen-choferes", "schedule": "0 10 * * *" },
-    { "path": "/api/jobs/eta", "schedule": "* * * * *" }
+    {
+      "path": "/api/alertas/evaluar",
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/jobs/resumen-choferes",
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/jobs/eta",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cusat/sincronizar",
+      "schedule": "* * * * *"
+    }
   ]
 }
