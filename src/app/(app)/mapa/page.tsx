@@ -12,7 +12,7 @@ export default async function PaginaMapa({ searchParams }: { searchParams: Promi
   const [datos, { vehiculo }] = await Promise.all([datosMapa(), searchParams]); // verifica mapa.ver
   return (
     <div>
-      <Titulo detalle="Se actualiza solo cada 30 segundos." accion={<Link href="/mapa/historial" className={claseBoton("secundario", "chico")}><History className="size-4" /> Historial</Link>}>Mapa</Titulo>
+      <Titulo accion={<Link href="/mapa/historial" className={claseBoton("secundario")}><History /> Historial</Link>}>Mapa</Titulo>
       <MapaEnVivo inicial={datos} elegidoInicial={vehiculo} />
     </div>
   );

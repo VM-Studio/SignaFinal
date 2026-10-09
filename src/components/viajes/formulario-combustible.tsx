@@ -65,10 +65,10 @@ export function FormularioCombustible({ vehiculos, preseleccion, vehiculoEnViaje
       )}
       <div className="grid grid-cols-2 gap-3">
         <Campo etiqueta="Litros" htmlFor="litros">
-          <Entrada id="litros" inputMode="decimal" value={litros} onChange={(e) => setLitros(e.target.value.replace(/[^\d.,]/g, ""))} className="text-xl font-bold tabular-nums" />
+          <Entrada id="litros" inputMode="decimal" value={litros} onChange={(e) => setLitros(e.target.value.replace(/[^\d.,]/g, ""))} className="text-xl font-semibold tabular-nums" />
         </Campo>
         <Campo etiqueta="Pagaste ($)" htmlFor="monto">
-          <Entrada id="monto" inputMode="decimal" value={monto} onChange={(e) => setMonto(e.target.value.replace(/[^\d.,]/g, ""))} className="text-xl font-bold tabular-nums" />
+          <Entrada id="monto" inputMode="decimal" value={monto} onChange={(e) => setMonto(e.target.value.replace(/[^\d.,]/g, ""))} className="text-xl font-semibold tabular-nums" />
         </Campo>
       </div>
       <CampoFoto etiqueta="Foto del ticket" valor={foto} onCambio={setFoto} />
@@ -76,7 +76,7 @@ export function FormularioCombustible({ vehiculos, preseleccion, vehiculoEnViaje
         <Entrada id="km-carga" inputMode="numeric" value={kmTablero} onChange={(e) => setKm(e.target.value.replace(/\D/g, ""))} />
       </Campo>
       <MensajeError>{error}</MensajeError>
-      <Boton ancho tamano="grande" disabled={!vehiculoId || !litros || !monto} cargando={enviando} onClick={guardar} icono={<Fuel className="size-5" />}>
+      <Boton ancho tamano="grande" disabled={!vehiculoId || !litros || !monto} cargando={enviando} onClick={guardar} icono={<Fuel />}>
         Registrar carga
       </Boton>
       <p className="flex items-center gap-1.5 text-sm text-suave"><CloudOff className="size-4" /> Sin señal se guarda en el teléfono y se manda después.</p>

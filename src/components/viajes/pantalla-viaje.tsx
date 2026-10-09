@@ -11,6 +11,7 @@ import { TarjetaChofer } from "./tarjeta-chofer";
 import { haceSeg, hora, km, peso } from "@/lib/formato";
 import { metros, minutos } from "@/lib/rutas";
 import type { PantallaViaje as Datos } from "@/lib/viajes/chofer";
+import { useEscritorio } from "@/components/ui/escritorio";
 import { BotonEtapa, BotonLlegueDestino, BotonLlegueRetiro, BotonSalgo, ConfirmarLlegada } from "./acciones-viaje";
 import { PendienteEnvio } from "./pendiente-envio";
 import { useAlCambiar } from "@/components/layout/avisos-en-vivo";
@@ -18,7 +19,7 @@ import { BotonSoltar } from "@/components/pedidos/acciones-detalle";
 
 const MapaTramo = dynamic(() => import("@/components/mapa/mapa-tramo"), {
   ssr: false,
-  loading: () => <div className="grid h-full place-items-center bg-[#e9e9e5] text-suave">Cargando mapa…</div>,
+  loading: () => <div className="grid h-full place-items-center bg-fondo text-sm text-suave">Cargando mapa…</div>,
 });
 
 /** Mientras la pantalla está abierta, se refresca para ver lo que detectó el GPS. */
@@ -51,116 +52,122 @@ export function PantallaViaje({ d }: { d: Datos }) {
   const tramo = d.tramo && (d.tramo.hacia === "retiro") === aRetiro ? d.tramo : null;
   const maps = (p: { lat: number; lng: number }) => `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=driving`;
   const eta = etapa === "HACIA_RETIRO" ? d.etaRetiro : etapa === "HACIA_DESTINO" || etapa === "EN_RETIRO" ? d.etaDestino : null;
-  // El mapa va debajo de la tarjeta (lo primero que se lee es a dónde va) y no antes de salir.
-  const mapa = tramo && (etapa === "HACIA_RETIRO" || etapa === "HACIA_DESTINO" || etapa === "EN_RETIRO") && (
-    <div className="relative isolate h-[200px] overflow-hidden rounded-[var(--radius-caja)] border border-linea">
-      <MapaTramo geometria={tramo.geometria} desde={tramo.desde} hasta={tramo.hasta} nombreHasta={punto.nombre} />
-    </div>
-  );
+  // Celular: el mapa va debajo de la tarjeta (lo primero que se lee es a dónde va) y no antes de salir.
+  // Escritorio: a la derecha, a todo el alto, siempre que haya tramo.
+  const escritorio = useEscritorio();
+  const conMapa = tramo && (etapa === "HACIA_RETIRO" || etapa === "HACIA_DESTINO" || etapa === "EN_RETIRO");
+  const mapaTramo = tramo && <MapaTramo geometria={tramo.geometria} desde={tramo.desde} hasta={tramo.hasta} nombreHasta={punto.nombre} />;
+  const mapa = !escritorio && conMapa && <div className="relative isolate h-[200px] overflow-hidden rounded-[var(--radius-caja)] border border-linea">{mapaTramo}</div>;
   const distancia = tramo && (
-    <p className="mt-3 text-xl font-bold tabular-nums">
+    <p className="mt-4 text-[15px] font-medium tabular-nums">
       {metros(tramo.distanciaM)} · {minutos(tramo.duracionS)}
-      {eta && <span className="font-semibold text-suave"> · llegás {hora(eta)}</span>}
-      {tramo.estimada && <span className="block text-sm font-normal text-suave">Distancia aproximada (sin ruteo).</span>}
+      {eta && <> · llegás {hora(eta)}</>}
+      {tramo.estimada && <span className="block text-[12px] font-normal text-suave">Distancia aproximada (sin ruteo).</span>}
     </p>
   );
   const abrirMaps = (p: { lat: number; lng: number }) => (
-    <a href={maps(p)} target="_blank" rel="noopener" className={claseBoton("secundario", "grande", true, "mt-4")}>
-      <Navigation className="size-5" /> Abrir en Google Maps
+    <a href={maps(p)} target="_blank" rel="noopener" className={claseBoton("secundario", "normal", false, "mt-3 w-full lg:w-auto")}>
+      <Navigation /> Abrir en Google Maps
     </a>
   );
   const telefono = d.retiro?.contacto?.match(/(\d[\d\s-]{6,}\d)/)?.[1];
   const datosRetiro = d.retiro && (d.retiro.horario || d.retiro.contacto || d.retiro.oc) && (
-    <dl className="mt-3 grid gap-1 rounded-[var(--radius-caja)] bg-fondo px-3 py-2 text-[17px]">
-      {d.retiro.horario && <div className="flex gap-2"><dt className="font-bold">Horario:</dt><dd>{d.retiro.horario}</dd></div>}
+    <dl className="mt-3 grid gap-1 rounded-md bg-fondo px-3 py-2 text-sm">
+      {d.retiro.horario && <div className="flex gap-2"><dt className="text-suave">Horario</dt><dd>{d.retiro.horario}</dd></div>}
       {d.retiro.contacto && (
-        <div className="flex gap-2"><dt className="font-bold">Preguntar por:</dt>
-          <dd>{telefono ? <a className="font-semibold underline" href={`tel:${telefono.replace(/[\s-]/g, "")}`}>{d.retiro.contacto}</a> : d.retiro.contacto}</dd>
+        <div className="flex gap-2"><dt className="text-suave">Preguntar por</dt>
+          <dd>{telefono ? <a className="font-medium underline" href={`tel:${telefono.replace(/[\s-]/g, "")}`}>{d.retiro.contacto}</a> : d.retiro.contacto}</dd>
         </div>
       )}
-      {d.retiro.oc && <div className="flex gap-2"><dt className="font-bold">OC:</dt><dd>{d.retiro.oc}</dd></div>}
+      {d.retiro.oc && <div className="flex gap-2"><dt className="text-suave">OC</dt><dd>{d.retiro.oc}</dd></div>}
     </dl>
   );
+  /** A dónde va: etiqueta de 11px, destino a 22px, dirección gris. En el celular es la tarjeta del viaje en curso. */
+  const destino = (etiqueta: string, nombre: string, direccion: string, resto?: React.ReactNode) => (
+    <section className="rounded-[var(--radius-caja)] border border-linea bg-papel p-4 lg:border-0 lg:bg-transparent lg:p-0">
+      <p className="etiqueta">{etiqueta}</p>
+      <p className="mt-1 text-2xl leading-7 font-semibold">{nombre}</p>
+      <p className="mt-0.5 text-sm text-suave">{direccion}</p>
+      {resto}
+    </section>
+  );
 
-  return (
-    <div className="mx-auto flex max-w-xl flex-col gap-3">
-      <Link href="/hoy" className="inline-flex min-h-11 items-center gap-1 font-semibold text-suave"><ArrowLeft className="size-5" /> Hoy</Link>
+  const columna = (
+    <div className="flex flex-col gap-3 lg:gap-4">
+      <Link href="/hoy" className="inline-flex min-h-10 items-center gap-1 self-start text-sm font-medium text-suave hover:text-tinta lg:min-h-8"><ArrowLeft className="size-4" /> Hoy</Link>
 
       {/* El GPS detectó una llegada: el chofer la confirma o la niega. */}
       {d.confirmar && etapa === d.etapa && <ConfirmarLlegada pedidoId={d.pedidoId} lugar={d.confirmar.lugar} />}
 
       {(etapa === "PROGRAMADO" || etapa === "HACIA_RETIRO") && (
         <>
-          <section className="rounded-[var(--radius-caja)] border-[3px] border-negro bg-papel p-4">
-            <p className="text-sm font-bold tracking-wider text-suave uppercase">{etapa === "PROGRAMADO" ? "Primero vas a" : "Vas a"}</p>
-            <p className="mt-1 text-2xl leading-tight font-bold">{d.retirar.nombre}</p>
-            <p className="text-lg text-suave">{d.retirar.direccion}</p>
-            {datosRetiro}
-            {etapa === "HACIA_RETIRO" ? (
-              <>
-                {distancia}
-                {abrirMaps(d.retirar)}
-              </>
-            ) : (
-              d.salidaEstimada && <p className="mt-2 text-suave">Salida estimada {hora(d.salidaEstimada)} · km actual {km(d.kmActual)}</p>
-            )}
-          </section>
+          {destino(etapa === "PROGRAMADO" ? "Primero vas a" : "Vas a", d.retirar.nombre, d.retirar.direccion, (
+            <>
+              {datosRetiro}
+              {etapa === "HACIA_RETIRO" ? (
+                <>
+                  {distancia}
+                  {abrirMaps(d.retirar)}
+                </>
+              ) : (
+                d.salidaEstimada && <p className="mt-3 text-sm text-suave">Salida estimada {hora(d.salidaEstimada)} · km actual {km(d.kmActual)}</p>
+              )}
+            </>
+          ))}
           {mapa}
         </>
       )}
 
       {etapa === "EN_RETIRO" && (
         <>
-          <section className="flex gap-3 rounded-[var(--radius-caja)] border-[3px] border-negro bg-papel p-4">
-            <PackageOpen className="mt-1 size-7 shrink-0" />
+          <section className="flex gap-3 rounded-[var(--radius-caja)] border border-linea bg-papel p-4">
+            <PackageOpen className="mt-0.5 size-5 shrink-0" />
             <div>
-              <p className="text-2xl leading-tight font-bold">Cargando en {d.retirar.nombre}</p>
-              <p className="mt-1 text-suave">Cuando salgas no toques nada: el GPS se da cuenta solo.</p>
+              <p className="text-lg leading-6 font-semibold">Cargando en {d.retirar.nombre}</p>
+              <p className="mt-1 text-sm text-suave">Cuando salgas no toques nada: el GPS se da cuenta solo.</p>
             </div>
           </section>
           {mapa}
-          <section className="rounded-[var(--radius-caja)] border border-linea bg-papel p-4">
-            <p className="text-sm font-bold tracking-wider text-suave uppercase">Después vas a</p>
-            <p className="mt-1 text-xl leading-tight font-bold">{d.entregar.nombre}</p>
-            <p className="text-suave">{d.entregar.direccion}</p>
-            {distancia}
-            {abrirMaps(d.entregar)}
-          </section>
+          {destino("Después vas a", d.entregar.nombre, d.entregar.direccion, (
+            <>
+              {distancia}
+              {abrirMaps(d.entregar)}
+            </>
+          ))}
         </>
       )}
 
       {etapa === "HACIA_DESTINO" && (
         <>
-          <section className="rounded-[var(--radius-caja)] border-[3px] border-negro bg-papel p-4">
-            <p className="text-sm font-bold tracking-wider text-suave uppercase">Vas a entregar a</p>
-            <p className="mt-1 text-2xl leading-tight font-bold">{d.entregar.nombre}</p>
-            <p className="text-lg text-suave">{d.entregar.direccion}</p>
-            {distancia}
-            {abrirMaps(d.entregar)}
-          </section>
+          {destino("Vas a entregar a", d.entregar.nombre, d.entregar.direccion, (
+            <>
+              {distancia}
+              {abrirMaps(d.entregar)}
+            </>
+          ))}
           {mapa}
         </>
       )}
 
       {etapa === "EN_DESTINO" && (
-        <section className="flex gap-3 rounded-[var(--radius-caja)] border-[3px] border-ok bg-ok-fondo p-4">
-          <Flag className="mt-1 size-7 shrink-0 text-ok" />
+        <section className="flex gap-3 rounded-[var(--radius-caja)] bg-ok-fondo p-4">
+          <Flag className="mt-0.5 size-5 shrink-0 text-ok" />
           <div>
-            <p className="text-2xl leading-tight font-bold">Llegaste a {d.entregar.nombre}</p>
-            <p className="mt-1">Cuando descargues, tocá <b>Viaje terminado</b> y anotá los km.</p>
+            <p className="text-lg leading-6 font-semibold">Llegaste a {d.entregar.nombre}</p>
+            <p className="mt-1 text-sm">Cuando descargues, tocá <b>Viaje terminado</b> y anotá los km.</p>
           </div>
         </section>
       )}
 
       {etapa === "FINALIZADO" && (
         <>
-          <div className="flex gap-3 rounded-[var(--radius-caja)] border-2 border-ok bg-ok-fondo p-4">
-            <CheckCircle2 className="size-7 shrink-0 text-ok" />
-            <p className="text-lg font-bold">Viaje terminado.{d.kmRecorridos != null ? ` ${km(d.kmRecorridos)}.` : ""} {d.pidio} ya sabe que llegó.</p>
+          <div className="flex gap-3 rounded-[var(--radius-caja)] bg-ok-fondo p-4">
+            <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-ok" />
+            <p className="font-medium">Viaje terminado.{d.kmRecorridos != null ? ` ${km(d.kmRecorridos)}.` : ""} {d.pidio} ya sabe que llegó.</p>
           </div>
           {d.siguiente ? (
             <>
-              <p className="mt-2 text-sm font-bold tracking-wider text-suave uppercase">Siguiente</p>
+              <p className="mt-2 etiqueta">Siguiente</p>
               <ul><TarjetaChofer t={d.siguiente} href={`/viaje/${d.siguiente.pedidoId}`} destacada accion={<BotonLink href={`/viaje/${d.siguiente.pedidoId}`} ancho tamano="grande">Ir al siguiente</BotonLink>} /></ul>
             </>
           ) : (
@@ -184,10 +191,11 @@ export function PantallaViaje({ d }: { d: Datos }) {
       {etapa === "EN_RETIRO" && <BotonSalgo {...base} />}
       {(etapa === "HACIA_DESTINO" || etapa === "EN_RETIRO") && <BotonLlegueDestino {...base} />}
 
-      <section className="rounded-[var(--radius-caja)] border border-linea bg-papel p-4 text-[17px]">
-        <p className="font-bold">{d.que}</p>
-        <p className="text-suave">Pidió {d.pidio}{d.pesoKg ? ` · hasta ${peso(d.pesoKg)}` : ""} · {d.vehiculo} ({d.patente})</p>
-        {aRetiro && <p className="mt-2"><span className="text-sm font-bold tracking-wider text-suave uppercase">Después: </span>{d.entregar.nombre} · {d.entregar.direccion}</p>}
+      <section className="rounded-[var(--radius-caja)] border border-linea bg-papel p-4">
+        <p className="etiqueta">Pedido {d.numero}</p>
+        <p className="mt-1 font-medium">{d.que}</p>
+        <p className="mt-0.5 text-sm text-suave">Pidió {d.pidio}{d.pesoKg ? ` · hasta ${peso(d.pesoKg)}` : ""} · {d.vehiculo} ({d.patente})</p>
+        {aRetiro && <p className="mt-2 text-sm"><span className="text-suave">Después: </span>{d.entregar.nombre} · {d.entregar.direccion}</p>}
       </section>
 
       {etapa === "PROGRAMADO" && <BotonSoltar pedidoId={d.pedidoId} numero={d.numero} />}
@@ -195,14 +203,30 @@ export function PantallaViaje({ d }: { d: Datos }) {
       {d.senal && etapa !== "FINALIZADO" && etapa !== "PROGRAMADO" && <Senal s={d.senal} />}
     </div>
   );
+
+  // Escritorio: columna de 400px con la información y el mapa a la derecha, a todo el alto.
+  return (
+    <div className="lg:-m-6 lg:grid lg:h-[calc(100dvh-48px)] lg:grid-cols-[400px_1fr]">
+      <div className="lg:overflow-y-auto lg:border-r lg:border-linea lg:bg-papel lg:p-6">{columna}</div>
+      {escritorio && (
+        <div className="relative isolate hidden lg:block">
+          {mapaTramo ?? (
+            <div className="grid h-full place-items-center bg-fondo text-sm text-suave">
+              {etapa === "PROGRAMADO" ? "El recorrido aparece cuando inicies el viaje." : "Sin recorrido para mostrar."}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** Al pie, chico: de dónde sale la posición y hace cuánto. */
 function Senal({ s }: { s: NonNullable<Datos["senal"]> }) {
   if (s.sinSenal || !s.fecha) {
-    return <p suppressHydrationWarning className="flex items-center justify-center gap-1.5 pb-2 text-sm font-semibold text-critico"><WifiOff className="size-4" /> Sin señal: usá los botones</p>;
+    return <p suppressHydrationWarning className="flex items-center gap-1.5 pb-2 text-[11px] font-medium text-critico"><WifiOff className="size-3.5" /> Sin señal: usá los botones</p>;
   }
   const Icono = s.fuente === "TELEFONO" ? Smartphone : Satellite;
   const fuente = s.fuente === "TELEFONO" ? "GPS del teléfono" : s.fuente === "CUSAT" ? "GPS Cusat" : "GPS simulado";
-  return <p suppressHydrationWarning className="flex items-center justify-center gap-1.5 pb-2 text-sm text-suave"><Icono className="size-4" /> {fuente} {haceSeg(s.fecha)}</p>;
+  return <p suppressHydrationWarning className="flex items-center gap-1.5 pb-2 text-[11px] text-suave"><Icono className="size-3.5" /> {fuente} {haceSeg(s.fecha)}</p>;
 }

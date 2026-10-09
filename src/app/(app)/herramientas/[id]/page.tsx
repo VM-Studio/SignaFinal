@@ -5,7 +5,8 @@ import { ArrowLeft, Pencil, Printer, Wrench } from "lucide-react";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { enlacePedido, puede } from "@/lib/permisos";
 import { db } from "@/lib/db";
-import { ficha, opciones } from "@/lib/herramientas/consultas";
+import { ficha, listar, opciones } from "@/lib/herramientas/consultas";
+import { ListaDetalle } from "@/components/ui/lista-detalle";
 import { CONDICION, ESTADO, MOVIMIENTO, type Accion } from "@/lib/herramientas/presentacion";
 import { svgQR } from "@/lib/herramientas/qr";
 import { Insignia, Subtitulo, Tarjeta, Vacio } from "@/components/ui/basicos";
@@ -28,6 +29,8 @@ export default async function FichaHerramienta({ params, searchParams }: { param
   const a = (await searchParams).accion;
   const [h, ops] = await Promise.all([ficha(id), opciones()]);
   if (!h) notFound();
+  const tabLista = h.tipoControl === "CANTIDAD" ? "cantidad" : h.esMaquina ? "maquinaria" : "herramientas";
+  const lista = await listar({ tab: tabLista, limite: 200 });
 
   const qr = await svgQR(h.codigo);
   const cantidad = h.tipoControl === "CANTIDAD";
@@ -39,17 +42,23 @@ export default async function FichaHerramienta({ params, searchParams }: { param
   const proxMant = h.proximoMantenimiento ? vencimiento(h.proximoMantenimiento) : null;
 
   return (
-    <div className="mx-auto grid max-w-5xl gap-x-8 gap-y-5 lg:grid-cols-[1fr_340px]">
-      <header className="min-w-0 lg:col-start-1">
-        <Link href="/herramientas" className="mb-2 hidden min-h-11 items-center gap-1 font-semibold text-suave lg:inline-flex"><ArrowLeft className="size-5" /> Herramientas</Link>
+    <ListaDetalle
+      titulo={tabLista === "cantidad" ? "Por cantidad" : tabLista === "maquinaria" ? "Maquinaria" : "Herramientas"}
+      verTodo={`/herramientas?tab=${tabLista}`}
+      activo={h.id}
+      items={lista.map((x) => ({ id: x.id, href: `/herramientas/${x.id}`, titulo: x.nombre, detalle: `${x.codigo} · ${x.donde}`, derecha: x.vencida ? <Insignia tono="critico">Vencida</Insignia> : undefined }))}
+    >
+    <div className="grid gap-x-6 gap-y-4 xl:grid-cols-[1fr_320px]">
+      <header className="min-w-0 xl:col-start-1">
+        <Link href="/herramientas" className="mb-2 hidden min-h-8 items-center gap-1 text-sm font-medium text-suave hover:text-tinta lg:inline-flex"><ArrowLeft className="size-4" /> Herramientas</Link>
         <div className="flex gap-4">
           {h.fotoUrl && (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={h.fotoUrl} alt={h.nombre} className="size-24 shrink-0 rounded-[var(--radius-caja)] border border-linea object-cover lg:size-32" />
           )}
           <div className="min-w-0">
-            <p className="text-sm font-semibold tracking-wider text-suave uppercase tabular-nums">{h.codigo} · {h.categoria.nombre}{h.esMaquina ? " · Máquina" : ""}</p>
-            <h1 className="text-3xl leading-tight font-bold tracking-tight">{h.nombre}</h1>
+            <p className="etiqueta tabular-nums">{h.codigo} · {h.categoria.nombre}{h.esMaquina ? " · Máquina" : ""}</p>
+            <h1 className="mt-1 text-[22px] leading-7 font-semibold">{h.nombre}</h1>
             <div className="mt-2 flex flex-wrap gap-2">
               {!cantidad && <Insignia tono={ESTADO[h.estado].tono}>{ESTADO[h.estado].texto}</Insignia>}
               {!cantidad && <Insignia tono={CONDICION[h.condicion].tono}>Condición {CONDICION[h.condicion].texto.toLowerCase()}</Insignia>}
@@ -59,7 +68,7 @@ export default async function FichaHerramienta({ params, searchParams }: { param
         </div>
       </header>
 
-      <aside className="flex flex-col gap-3 lg:sticky lg:top-8 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
+      <aside className="flex flex-col gap-3 xl:sticky xl:top-[72px] xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:self-start">
         <AccionesHerramienta
           accionInicial={a && (ACCIONES as string[]).includes(a) ? (a as Accion) : null}
           d={{
@@ -75,7 +84,7 @@ export default async function FichaHerramienta({ params, searchParams }: { param
         <Tarjeta className="flex items-center gap-4 p-4">
           <div className="size-24 shrink-0 [&>svg]:h-full [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: qr }} />
           <div className="min-w-0">
-            <p className="text-lg font-bold tabular-nums">{h.codigo}</p>
+            <p className="text-lg font-semibold tabular-nums">{h.codigo}</p>
             <p className="text-sm text-suave">Escaneá para abrir esta ficha.</p>
             {puede(u.rol, "herramientas.editar") && (
               <Link href={`/imprimir/etiquetas?ids=${h.id}`} target="_blank" className={claseBoton("secundario", "chico", false, "mt-2")}><Printer className="size-4" /> Imprimir etiqueta</Link>
@@ -84,17 +93,17 @@ export default async function FichaHerramienta({ params, searchParams }: { param
         </Tarjeta>
       </aside>
 
-      <div className="min-w-0 lg:col-start-1">
+      <div className="min-w-0 xl:col-start-1">
         <Tarjeta className="p-4">
-          <p className="text-xs font-semibold tracking-wider text-suave uppercase">Dónde está</p>
+          <p className="etiqueta">Dónde está</p>
           {cantidad ? (
             <ul className="mt-1">
-              <li className="flex justify-between py-1.5 font-bold"><span>Depósito</span><span className="tabular-nums">{enDeposito}</span></li>
+              <li className="flex justify-between py-1.5 font-semibold"><span>Depósito</span><span className="tabular-nums">{enDeposito}</span></li>
               {enObras.map((e) => <li key={e.obraId} className="flex justify-between border-t border-linea py-1.5"><span>Obra {e.obra}</span><span className="tabular-nums">{e.cantidad}</span></li>)}
             </ul>
           ) : (
             <>
-              <p className="mt-1 text-2xl font-bold">
+              <p className="mt-1 text-2xl font-semibold">
                 {h.estado === "EN_OBRA" ? `Obra ${h.obra?.nombre}` : h.estado === "DISPONIBLE" ? h.ubicacion?.nombre ?? "Depósito" : h.estado === "EN_REPARACION" ? "En el taller" : h.estado === "EXTRAVIADA" ? "No se sabe dónde está" : "Dada de baja"}
               </p>
               {h.responsable && <p className="text-suave">La tiene {h.responsable.nombre}</p>}
@@ -115,12 +124,12 @@ export default async function FichaHerramienta({ params, searchParams }: { param
             ["Mantenimiento", h.mantenimientoCadaDias ? `Cada ${h.mantenimientoCadaDias} días` : "Sin plan"],
             ["Próximo mantenimiento", h.proximoMantenimiento ? `${fecha(h.proximoMantenimiento)}${proxMant && proxMant.dias <= 15 ? ` (${proxMant.texto.toLowerCase()})` : ""}` : "—"],
           ] as [string, string][]).map(([k, v]) => (
-            <div key={k}><dt className="text-xs font-semibold tracking-wider text-suave uppercase">{k}</dt><dd className="mt-0.5 font-medium">{v}</dd></div>
+            <div key={k}><dt className="etiqueta">{k}</dt><dd className="mt-0.5 font-medium">{v}</dd></div>
           ))}
         </dl>
         {puede(u.rol, "herramientas.editar") && h.activo && (
           <div className="mt-2">
-            <ConHoja titulo={`Editar ${h.nombre}`} etiqueta="Editar datos" variante="fantasma" tamano="chico" icono={<Pencil className="size-4" />}>
+            <ConHoja titulo={`Editar ${h.nombre}`} etiqueta="Editar datos" variante="fantasma" tamano="chico" icono={<Pencil />}>
               <FormularioHerramienta
                 categorias={ops.categorias.map((c) => c.nombre)}
                 inicial={{ id: h.id, nombre: h.nombre, categoria: h.categoria.nombre, esMaquina: h.esMaquina, tipoControl: h.tipoControl, marca: h.marca ?? "", modelo: h.modelo ?? "", nroSerie: h.nroSerie ?? "", valorCompra: h.valorCompra != null ? String(h.valorCompra) : "", mantenimientoCadaDias: h.mantenimientoCadaDias ? String(h.mantenimientoCadaDias) : "", fotoUrl: h.fotoUrl }}
@@ -139,7 +148,7 @@ export default async function FichaHerramienta({ params, searchParams }: { param
               const hacia = m.haciaObra ? `Obra ${m.haciaObra.nombre}` : m.haciaUbicacion?.nombre;
               return (
                 <li key={m.id} className="relative pb-4 last:pb-0">
-                  <span aria-hidden className="absolute top-1.5 -left-[27px] size-3 rounded-full border-2 border-negro bg-negro" />
+                  <span aria-hidden className="absolute top-1.5 -left-[27px] size-3 rounded-full border border-tinta bg-tinta" />
                   <p className="font-semibold">
                     {MOVIMIENTO[m.tipo]}
                     {cantidad ? ` · ${m.cantidad}` : ""}
@@ -170,12 +179,12 @@ export default async function FichaHerramienta({ params, searchParams }: { param
             ) : (
               <ul className="divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
                 {h.mantenimientos.map((m) => (
-                  <li key={m.id} className="flex min-h-16 items-center gap-3 px-4 py-3">
+                  <li key={m.id} className="flex min-h-14 items-center gap-3 px-4 py-2 lg:min-h-11">
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold">{m.descripcion}</p>
                       <p className="text-sm text-suave">{fecha(m.fecha)}{m.taller ? ` · ${m.taller}` : ""} · {m.registradoPor.nombre}</p>
                     </div>
-                    <p className="font-bold tabular-nums">{plata(m.costo)}</p>
+                    <p className="font-semibold tabular-nums">{plata(m.costo)}</p>
                   </li>
                 ))}
               </ul>
@@ -185,5 +194,6 @@ export default async function FichaHerramienta({ params, searchParams }: { param
         )}
       </div>
     </div>
+    </ListaDetalle>
   );
 }

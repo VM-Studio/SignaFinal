@@ -35,7 +35,7 @@ export default async function PaginaAvisos({ searchParams }: { searchParams: Pro
   }
   const item = "block rounded-[var(--radius-caja)] border border-linea bg-papel p-4";
   return (
-    <div className="mx-auto max-w-2xl">
+    <div>
       <Titulo siempre accion={<BotonMarcarTodas hay={sinLeer} />}>Avisos</Titulo>
       {notificaciones.length + alertas.length === 0 ? (
         <Vacio icono={<Bell className="size-10" />} titulo="No tenés avisos">Cuando pase algo con tus pedidos o tus cosas, te avisamos acá.</Vacio>
@@ -55,7 +55,7 @@ export default async function PaginaAvisos({ searchParams }: { searchParams: Pro
                       <p className="mt-1 text-[15px] text-suave">{a.detalle}</p>
                     </>
                   );
-                  return <li key={a.id}>{a.enlace ? <Link href={a.enlace} className={`${item} hover:bg-fondo/60`}>{contenido}</Link> : <div className={item}>{contenido}</div>}</li>;
+                  return <li key={a.id}>{a.enlace ? <Link href={a.enlace} className={`${item} hover:bg-hover`}>{contenido}</Link> : <div className={item}>{contenido}</div>}</li>;
                 })}
               </ul>
             </>

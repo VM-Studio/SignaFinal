@@ -19,8 +19,8 @@ export default async function PaginaEntregas({ searchParams }: { searchParams: P
   const [todos, hoy] = await Promise.all([paraEntregar(limite), movimientosDeHoy()]);
   const pendientes = todos.slice(0, limite);
   return (
-    <div className="mx-auto max-w-3xl">
-      <Titulo siempre detalle="Lo que pidieron las obras y lo que se movió hoy." accion={<BotonLink href="/herramientas/escanear" icono={<ScanLine className="size-5" />}>Escanear</BotonLink>}>Entregas</Titulo>
+    <div>
+      <Titulo siempre detalle="Lo que pidieron las obras y lo que se movió hoy." accion={<BotonLink href="/herramientas/escanear" icono={<ScanLine />}>Escanear</BotonLink>}>Entregas</Titulo>
       <Subtitulo>Para entregar</Subtitulo>
       {pendientes.length === 0 ? (
         <Vacio icono={<PackageCheck className="size-8" />} titulo="Nada pedido por ahora">Cuando una obra pida una máquina o herramienta, aparece acá.</Vacio>
@@ -48,8 +48,8 @@ export default async function PaginaEntregas({ searchParams }: { searchParams: P
         <Lista>
           {hoy.map((m) => (
             <li key={m.id}>
-              <Link href={`/herramientas/${m.herramienta.id}`} className="flex min-h-16 items-center gap-3 px-4 py-3 hover:bg-fondo">
-                <span className="w-12 shrink-0 font-bold tabular-nums">{hora(m.fecha)}</span>
+              <Link href={`/herramientas/${m.herramienta.id}`} className="flex min-h-14 items-center gap-3 px-4 py-2 lg:min-h-11 hover:bg-hover">
+                <span className="w-12 shrink-0 font-semibold tabular-nums">{hora(m.fecha)}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-semibold">{m.herramienta.nombre}{m.cantidad > 1 ? ` × ${m.cantidad}` : ""}</span>
                   <span className="block truncate text-sm text-suave">

@@ -10,7 +10,7 @@ export default async function PaginaRetiro({ searchParams }: { searchParams: Pro
   const { obra, material } = await searchParams;
   const datos = await datosRetiro(); // verifica pedidos.crear
   return (
-    <div className="mx-auto max-w-xl">
+    <div className="max-w-xl">
       <h1 className="sr-only">Retiro en proveedor</h1>
       {datos.obras.length === 0 ? (
         <Vacio titulo="No tenés obras a cargo">Pedile a la oficina que te asigne tus obras para poder pedir viajes.</Vacio>

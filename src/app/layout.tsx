@@ -1,10 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Archivo } from "next/font/google";
 import { Splash, scriptSplash } from "@/components/splash/splash";
 import { RegistrarSW } from "@/components/layout/registrar-sw";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+const archivo = Archivo({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-archivo", display: "swap" });
 
 export const metadata: Metadata = {
   title: { default: "Signa · Logística", template: "%s · Signa" },
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#000000",
+  themeColor: "#0a0a0a",
   colorScheme: "light",
   width: "device-width",
   initialScale: 1,
@@ -37,7 +37,7 @@ export const viewport: Viewport = {
 
 export default function LayoutRaiz({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="es-AR" className={inter.variable} style={{ backgroundColor: "#000000" }} suppressHydrationWarning>
+    <html lang="es-AR" className={archivo.variable} style={{ backgroundColor: "#0a0a0a" }} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: scriptSplash }} />
       </head>

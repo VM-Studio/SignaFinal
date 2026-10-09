@@ -21,22 +21,22 @@ export function Sobrantes({ lista, obras, editar }: { lista: Sobrante[]; obras: 
   const [usando, setUsando] = useState<Sobrante | null>(null);
   return (
     <div>
-      {editar && <div className="mb-3"><Boton icono={<Plus className="size-5" />} onClick={() => setAlta(true)}>Agregar sobrante</Boton></div>}
+      {editar && <div className="mb-3"><Boton icono={<Plus />} onClick={() => setAlta(true)}>Agregar sobrante</Boton></div>}
       {(["ELECTRICO", "SANITARIO", "OTRO"] as const).map((c) => {
         const items = lista.filter((s) => s.categoria === c);
         if (!items.length) return null;
         return (
           <section key={c} className="mb-5">
-            <h2 className="mb-2 text-sm font-bold tracking-wider text-suave uppercase">{CAT[c]}</h2>
+            <h2 className="mb-2 etiqueta">{CAT[c]}</h2>
             <ul className="divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
               {items.map((s) => (
-                <li key={s.id} className="flex min-h-16 items-center gap-3 px-4 py-3">
+                <li key={s.id} className="flex min-h-14 items-center gap-3 px-4 py-2 lg:min-h-11">
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold">{s.descripcion}</p>
                     <p className="text-sm text-suave">{s.obraOrigen ? `Sobró de Obra ${s.obraOrigen.nombre} · ` : ""}{cuando(s.fecha)}</p>
                   </div>
-                  <p className="text-lg font-bold tabular-nums">{num(s.cantidad)} <span className="text-sm font-medium text-suave">{s.unidad}</span></p>
-                  {editar && <button onClick={() => setUsando(s)} aria-label={`Usar ${s.descripcion}`} className="grid size-11 place-items-center rounded-md border-2 border-negro"><Minus className="size-5" /></button>}
+                  <p className="text-lg font-semibold tabular-nums">{num(s.cantidad)} <span className="text-sm font-medium text-suave">{s.unidad}</span></p>
+                  {editar && <button onClick={() => setUsando(s)} aria-label={`Usar ${s.descripcion}`} className="grid size-11 place-items-center rounded-md border border-linea"><Minus className="size-5" /></button>}
                 </li>
               ))}
             </ul>
@@ -75,7 +75,7 @@ function Alta({ obras, cerrar }: { obras: { id: string; nombre: string }[]; cerr
         </Selector>
       </Campo>
       <MensajeError>{error}</MensajeError>
-      <Boton ancho tamano="grande" cargando={enviando} onClick={async () => {
+      <Boton ancho cargando={enviando} onClick={async () => {
         setEnviando(true);
         const r = await agregarSobrante({ ...d, categoria: d.categoria as "OTRO" });
         setEnviando(false);
@@ -102,7 +102,7 @@ function Usar({ s, cerrar }: { s: Sobrante; cerrar: () => void }) {
       {!todo && <Campo etiqueta={`¿Cuánto se usó? (${s.unidad})`} htmlFor="us-cant"><Entrada id="us-cant" inputMode="decimal" value={cant} onChange={(e) => setCant(e.target.value.replace(",", "."))} /></Campo>}
       <Campo etiqueta="¿Para qué? (opcional)" htmlFor="us-mot"><Entrada id="us-mot" value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={120} placeholder="Ej.: se llevó a Obra Chubut" /></Campo>
       <MensajeError>{error}</MensajeError>
-      <Boton ancho tamano="grande" cargando={enviando} disabled={!todo && !cant} onClick={async () => {
+      <Boton ancho cargando={enviando} disabled={!todo && !cant} onClick={async () => {
         setEnviando(true);
         const r = await usarSobrante(s.id, todo ? null : Number(cant), motivo);
         setEnviando(false);

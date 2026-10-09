@@ -27,7 +27,7 @@ export default async function PaginaMantenimiento() {
     })
     .sort((a, b) => Number(b.vencido) - Number(a.vencido) || Number(b.cerca) - Number(a.cerca) || (a.faltan ?? 1e9) - (b.faltan ?? 1e9));
   return (
-    <div className="mx-auto max-w-4xl">
+    <div>
       <Titulo detalle="Lo que viene y lo último que se hizo. Para registrar, entrá a la ficha del vehículo.">Mantenimiento</Titulo>
       <Subtitulo>Próximos</Subtitulo>
       {proximos.length === 0 ? (
@@ -51,7 +51,7 @@ export default async function PaginaMantenimiento() {
       ) : (
         <Lista>
           {recientes.map((m) => (
-            <FilaLista key={m.id} href={`/flota/${m.vehiculo.id}?tab=mantenimiento`} titulo={`${m.vehiculo.nombre} · ${TIPO[m.tipo]}`} detalle={`${fecha(m.fecha)} · ${m.descripcion}`} derecha={<span className="font-bold tabular-nums">{plata(Number(m.costo))}</span>} />
+            <FilaLista key={m.id} href={`/flota/${m.vehiculo.id}?tab=mantenimiento`} titulo={`${m.vehiculo.nombre} · ${TIPO[m.tipo]}`} detalle={`${fecha(m.fecha)} · ${m.descripcion}`} derecha={<span className="font-semibold tabular-nums">{plata(Number(m.costo))}</span>} />
           ))}
         </Lista>
       )}

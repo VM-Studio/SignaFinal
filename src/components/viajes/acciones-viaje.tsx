@@ -51,14 +51,14 @@ export function BotonIniciar({ pedidoId, numero, vehiculo, kmActual, irAlViaje =
   if (bloqueado) return <p className="rounded-[var(--radius-caja)] bg-fondo px-4 py-3 font-semibold">{bloqueado}</p>;
   return (
     <>
-      <Boton ancho tamano="grande" icono={<Play className="size-6" />} onClick={() => setAbierta(true)} className="min-h-[64px] text-xl">Iniciar viaje</Boton>
+      <Boton ancho tamano="grande" icono={<Play />} onClick={() => setAbierta(true)}>Iniciar viaje</Boton>
       <Hoja abierta={abierta} onCerrar={() => setAbierta(false)} titulo={`Salir con ${vehiculo}`}>
         <div className="flex flex-col gap-4">
           <Campo etiqueta="Km del tablero" htmlFor={`km-${pedidoId}`} ayuda={`Último registrado: ${km(kmActual)}. Corregilo si no coincide.`}>
-            <Entrada id={`km-${pedidoId}`} inputMode="numeric" value={valor} onChange={(e) => setValor(soloNumeros(e.target.value))} className="text-3xl font-bold tabular-nums" />
+            <Entrada id={`km-${pedidoId}`} inputMode="numeric" value={valor} onChange={(e) => setValor(soloNumeros(e.target.value))} className="text-2xl font-semibold tabular-nums lg:text-2xl" />
           </Campo>
           <MensajeError>{error}</MensajeError>
-          <Boton ancho tamano="grande" disabled={!valor} cargando={enviando} onClick={salir} icono={<Play className="size-5" />}>Salir ahora</Boton>
+          <Boton ancho tamano="grande" disabled={!valor} cargando={enviando} onClick={salir} icono={<Play />}>Salir ahora</Boton>
         </div>
       </Hoja>
     </>
@@ -109,9 +109,9 @@ export function ConfirmarLlegada({ pedidoId, lugar }: { pedidoId: string; lugar:
     router.refresh();
   }
   return (
-    <section className="rounded-[var(--radius-caja)] border-[3px] border-ok bg-ok-fondo p-4">
-      <p className="text-sm font-bold tracking-wider text-ok uppercase">El GPS te ubicó</p>
-      <p className="mt-1 text-2xl leading-tight font-bold">Llegaste a {lugar}</p>
+    <section className="rounded-[var(--radius-caja)] border border-ok/15 bg-ok-fondo p-4">
+      <p className="etiqueta !text-ok">El GPS te ubicó</p>
+      <p className="mt-1 text-2xl leading-tight font-semibold">Llegaste a {lugar}</p>
       <div className="mt-4 grid grid-cols-2 gap-2">
         <Boton tamano="grande" cargando={enviando === "si"} onClick={() => responder(true)}>Sí, estoy acá</Boton>
         <Boton tamano="grande" variante="secundario" cargando={enviando === "no"} onClick={() => responder(false)}>No, todavía no</Boton>
@@ -163,20 +163,20 @@ export function BotonFinalizar({ pedidoId, numero, obra, kmSalida, onGuardadoLoc
 
   return (
     <>
-      <Boton ancho tamano="grande" icono={<Flag className="size-6" />} onClick={() => setAbierta(true)} className="min-h-[64px] text-xl">Viaje terminado</Boton>
+      <Boton ancho tamano="grande" icono={<Flag />} onClick={() => setAbierta(true)}>Viaje terminado</Boton>
       <Hoja abierta={abierta} onCerrar={cerrar} titulo={terminado ? "Viaje terminado" : `Llegada a ${obra}`}>
         <div>
           {terminado === "guardado" ? (
             <div className="flex flex-col items-center gap-3 py-6 text-center">
               <CloudOff className="size-10" />
-              <p className="text-lg font-bold">Llegada guardada en el teléfono</p>
+              <p className="text-lg font-semibold">Llegada guardada en el teléfono</p>
               <p className="text-suave">Está pendiente de envío. Se manda sola cuando vuelva la señal.</p>
               <Boton ancho onClick={cerrar}>Listo</Boton>
             </div>
           ) : (
             <div className="flex flex-col gap-4">
               <Campo etiqueta="Km del tablero al llegar" htmlFor={`kml-${pedidoId}`} ayuda={kmSalida != null ? `Saliste con ${km(kmSalida)}` : undefined}>
-                <Entrada id={`kml-${pedidoId}`} inputMode="numeric" value={kmLlegada} onChange={(e) => setKmLlegada(soloNumeros(e.target.value))} placeholder={kmSalida != null ? String(kmSalida) : ""} className="text-3xl font-bold tabular-nums" autoFocus />
+                <Entrada id={`kml-${pedidoId}`} inputMode="numeric" value={kmLlegada} onChange={(e) => setKmLlegada(soloNumeros(e.target.value))} placeholder={kmSalida != null ? String(kmSalida) : ""} className="text-2xl font-semibold tabular-nums lg:text-2xl" autoFocus />
               </Campo>
               {recorridos != null && recorridos >= 0 && <p className="-mt-2 font-semibold">{km(recorridos)} recorridos</p>}
               <Campo etiqueta="Peajes ($, opcional)" htmlFor={`peajes-${pedidoId}`}>
@@ -187,7 +187,7 @@ export function BotonFinalizar({ pedidoId, numero, obra, kmSalida, onGuardadoLoc
                 <AreaTexto id={`obs-${pedidoId}`} rows={2} value={obs} onChange={(e) => setObs(e.target.value)} maxLength={500} />
               </Campo>
               <MensajeError>{error}</MensajeError>
-              <Boton ancho tamano="grande" disabled={!kmLlegada} cargando={enviando} onClick={llegar} icono={<Flag className="size-5" />}>Terminar viaje</Boton>
+              <Boton ancho tamano="grande" disabled={!kmLlegada} cargando={enviando} onClick={llegar} icono={<Flag />}>Terminar viaje</Boton>
             </div>
           )}
         </div>
@@ -211,7 +211,7 @@ export function BotonEtapa({ etapa, pedidoId, numero, vehiculo, kmActual, kmSali
     case "HACIA_RETIRO":
     case "EN_RETIRO":
     case "HACIA_DESTINO":
-      return irAlViaje ? <BotonLink href={`/viaje/${pedidoId}`} ancho tamano="grande" icono={<Navigation className="size-6" />} className="min-h-[64px] text-xl">Abrir el viaje</BotonLink> : null;
+      return irAlViaje ? <BotonLink href={`/viaje/${pedidoId}`} ancho tamano="grande" icono={<Navigation />}>Abrir el viaje</BotonLink> : null;
     case "EN_DESTINO":
       return <BotonFinalizar {...base} obra={obra} kmSalida={kmSalida} />;
     case "FINALIZADO":

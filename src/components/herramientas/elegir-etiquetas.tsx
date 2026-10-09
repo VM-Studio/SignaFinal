@@ -33,14 +33,14 @@ export function ElegirEtiquetas({ items }: { items: Item[] }) {
           <li key={i.id}>
             <label className="flex min-h-14 cursor-pointer items-center gap-3 px-4">
               <input type="checkbox" checked={elegidas.has(i.id)} onChange={() => cambiar(i.id)} className="size-6 accent-negro" />
-              <span className="w-24 shrink-0 font-bold tabular-nums">{i.codigo}</span>
+              <span className="w-24 shrink-0 font-semibold tabular-nums">{i.codigo}</span>
               <span className="min-w-0 flex-1 truncate">{i.nombre}</span>
               <span className="hidden text-sm text-suave sm:block">{i.categoria}</span>
             </label>
           </li>
         ))}
       </ul>
-      <Boton ancho tamano="grande" disabled={!elegidas.size} icono={<Printer className="size-5" />} onClick={() => window.open(`/imprimir/etiquetas?ids=${[...elegidas].join(",")}`, "_blank")}>
+      <Boton ancho disabled={!elegidas.size} icono={<Printer />} onClick={() => window.open(`/imprimir/etiquetas?ids=${[...elegidas].join(",")}`, "_blank")}>
         Generar hoja A4 ({elegidas.size} etiqueta{elegidas.size === 1 ? "" : "s"})
       </Boton>
     </div>

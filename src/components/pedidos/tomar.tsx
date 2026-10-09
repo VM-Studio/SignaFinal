@@ -76,7 +76,7 @@ export function BotonTomar({ pedidoId, numero, vehiculos, ancho = false, tamano 
 
   return (
     <>
-      <Boton ancho={ancho} tamano={tamano} icono={<Hand className="size-5" />} onClick={() => { setError(undefined); setAbierta(true); }} className={tamano === "grande" ? "min-h-[64px] text-xl" : undefined}>
+      <Boton ancho={ancho} tamano={tamano} icono={<Hand />} onClick={() => { setError(undefined); setAbierta(true); }}>
         Aceptar
       </Boton>
       <Hoja abierta={abierta} onCerrar={() => setAbierta(false)} titulo={`Aceptar pedido ${numero}`}>

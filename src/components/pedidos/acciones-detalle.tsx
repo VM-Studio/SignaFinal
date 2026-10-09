@@ -40,7 +40,7 @@ export function BotonCancelar({ pedidoId }: { pedidoId: string }) {
 
   return (
     <>
-      <Boton variante="peligro" ancho icono={<XCircle className="size-5" />} onClick={() => setAbierta(true)}>Cancelar pedido</Boton>
+      <Boton variante="peligro" ancho icono={<XCircle />} onClick={() => setAbierta(true)}>Cancelar pedido</Boton>
       <Hoja abierta={abierta} onCerrar={() => setAbierta(false)} titulo="¿Por qué se cancela?">
         <div className="flex flex-col gap-3">
           <Opciones
@@ -51,7 +51,7 @@ export function BotonCancelar({ pedidoId }: { pedidoId: string }) {
           />
           {motivo === "otro" && <Entrada aria-label="Motivo" value={otro} onChange={(e) => setOtro(e.target.value)} maxLength={200} placeholder="Contá por qué" autoFocus />}
           <MensajeError>{error}</MensajeError>
-          <Boton variante="peligro" ancho tamano="grande" disabled={!motivo || (motivo === "otro" && otro.trim().length < 3)} cargando={enviando} onClick={confirmar}>
+          <Boton variante="peligro" ancho disabled={!motivo || (motivo === "otro" && otro.trim().length < 3)} cargando={enviando} onClick={confirmar}>
             Cancelar pedido
           </Boton>
         </div>
@@ -70,7 +70,7 @@ export function BotonSoltar({ pedidoId, numero }: { pedidoId: string; numero: nu
       variante="secundario"
       ancho
       cargando={enviando}
-      icono={<Undo2 className="size-5" />}
+      icono={<Undo2 />}
       onClick={async () => {
         setEnviando(true);
         const r = await soltarPedido(pedidoId);

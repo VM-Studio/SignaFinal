@@ -1,27 +1,67 @@
 @import "tailwindcss";
 
-/* SIGNA — negro, blanco y gris. Color solo para estado y siempre con texto. */
+/*
+ * SIGNA — sistema visual (CLAUDE.md, "Diseño visual"). Todo sale de acá:
+ * grilla de 8px, grises fríos, bordes de 1px, Archivo 13px en escritorio y 15px en celular.
+ * Color solo para estado y siempre con texto.
+ */
 @theme {
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
 
-  --color-negro: #000000;
-  --color-carbon: #1c1c1c;
-  --color-tinta: #171717;
-  --color-fondo: #f3f3f1;
+  --color-negro: #0a0a0a; /* solo header de celular, barra lateral y botón primario */
+  --color-carbon: #262626;
+  --color-tinta: #111827;
+  --color-fondo: #fafafa;
   --color-papel: #ffffff;
-  --color-linea: #dededa;
-  --color-linea-fuerte: #c4c4bf;
-  --color-suave: #6b6b66;
-  --color-apagado: #9a9a94;
+  --color-hover: #f9fafb;
+  --color-linea: #e5e7eb;
+  --color-linea-fuerte: #d1d5db; /* solo foco o selección */
+  --color-suave: #6b7280;
+  --color-apagado: #9ca3af; /* solo texto de 11px no esencial e íconos */
 
   --color-ok: #1f7a4d;
-  --color-ok-fondo: #e7f2ec;
+  --color-ok-fondo: rgb(31 122 77 / 0.08);
   --color-aviso: #b7791f;
-  --color-aviso-fondo: #fbf1e1;
+  --color-aviso-fondo: rgb(183 121 31 / 0.08);
   --color-critico: #b42318;
-  --color-critico-fondo: #fbe9e7;
+  --color-critico-fondo: rgb(180 35 24 / 0.08);
 
-  --radius-caja: 10px;
+  /* Escala: 11 · 13 · 15 · 18 · 22 · 28. "base" y "lg" bajan un paso en escritorio. */
+  --text-xs: 11px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 20px;
+  --text-base: 15px;
+  --text-base--line-height: 22px;
+  --text-lg: 18px;
+  --text-lg--line-height: 24px;
+  --text-xl: 18px;
+  --text-xl--line-height: 24px;
+  --text-2xl: 22px;
+  --text-2xl--line-height: 28px;
+  --text-3xl: 22px;
+  --text-3xl--line-height: 28px;
+  --text-4xl: 28px;
+  --text-4xl--line-height: 32px;
+  --text-5xl: 28px;
+  --text-5xl--line-height: 32px;
+
+  /* Solo 400, 500 y 600: "bold" también es 600. */
+  --font-weight-bold: 600;
+  --font-weight-extrabold: 600;
+  --font-weight-black: 600;
+
+  --radius-caja: 8px; /* tarjetas; componentes: rounded-md (6px) */
+  --shadow-flotante: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --text-base: 13px;
+    --text-base--line-height: 20px;
+    --text-lg: 15px;
+    --text-lg--line-height: 22px;
+  }
 }
 
 @layer base {
@@ -32,23 +72,37 @@
     text-size-adjust: 100%;
   }
   body {
-    @apply text-tinta antialiased;
-    font-feature-settings: "tnum" 1, "cv11" 1;
+    @apply text-base text-tinta antialiased;
+    font-feature-settings: "tnum" 1;
   }
-  /* Títulos de Inter un poco más cerrados, como en interfaces de producto. */
   h1,
   h2,
   h3 {
-    letter-spacing: -0.015em;
+    letter-spacing: -0.01em;
+  }
+  b,
+  strong {
+    font-weight: 600;
   }
   :focus-visible {
-    outline: 3px solid var(--color-negro);
-    outline-offset: 2px;
+    outline: 2px solid var(--color-tinta);
+    outline-offset: 1px;
   }
   input,
   select,
   textarea {
     font-size: 16px; /* sin zoom automático en iOS */
+  }
+  @media (min-width: 1024px) {
+    input,
+    select,
+    textarea {
+      font-size: 13px;
+    }
+  }
+  /* Íconos de lucide: trazo 1,75 en toda la app. */
+  svg.lucide {
+    stroke-width: 1.75;
   }
   /* Sin animaciones salvo el splash. */
   *,
@@ -56,6 +110,52 @@
   *::after {
     transition: none !important;
     animation: none !important;
+  }
+}
+
+/* Tablas de escritorio: filas de 44px, encabezado de 11px, hover suave, sin zebra. */
+@layer components {
+  .tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .tabla th {
+    height: 36px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--color-linea);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-suave);
+    text-align: left;
+    white-space: nowrap;
+  }
+  .tabla td {
+    height: 44px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--color-linea);
+    vertical-align: middle;
+  }
+  .tabla tbody tr:hover {
+    background: var(--color-hover);
+  }
+  .tabla tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  .tabla .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Etiqueta de 11px en mayúsculas (lo único en mayúsculas). */
+  .etiqueta {
+    font-size: 11px;
+    line-height: 16px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-suave);
   }
 }
 

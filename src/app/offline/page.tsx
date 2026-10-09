@@ -8,7 +8,7 @@ export default function SinConexion() {
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center gap-5 bg-negro px-6 text-center text-white">
       <Image src="/signalogo.png" alt="Signa" width={180} height={68} priority className="h-auto w-[180px]" />
-      <h1 className="text-2xl font-bold">Sin conexión</h1>
+      <h1 className="text-2xl font-semibold">Sin conexión</h1>
       <p className="max-w-sm text-white/70">
         Esta pantalla todavía no se abrió en este teléfono. Las que ya usaste funcionan sin señal, y lo que cargues (pedidos, salidas, llegadas, combustible) se guarda y se manda solo.
       </p>

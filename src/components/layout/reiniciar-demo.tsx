@@ -13,12 +13,12 @@ export function ReiniciarDemo() {
   const [error, setError] = useState<string>();
   return (
     <>
-      <Boton variante="secundario" ancho icono={<RotateCcw className="size-5" />} onClick={() => setAbierta(true)}>Dejar solo los datos base</Boton>
+      <Boton variante="secundario" ancho icono={<RotateCcw />} onClick={() => setAbierta(true)}>Dejar solo los datos base</Boton>
       <Hoja abierta={abierta} onCerrar={() => setAbierta(false)} titulo="Dejar solo los datos base">
         <div className="flex flex-col gap-4">
           <p>Se borra <b>todo lo cargado</b>: obras, proveedores, pedidos, viajes, materiales, avisos y la documentación de los vehículos. Quedan los usuarios, los seis vehículos y las herramientas en el depósito. No se puede deshacer.</p>
           <MensajeError>{error}</MensajeError>
-          <Boton variante="peligro" ancho tamano="grande" cargando={enviando} onClick={async () => {
+          <Boton variante="peligro" ancho cargando={enviando} onClick={async () => {
             setEnviando(true);
             try {
               const r = await fetch("/api/demo/reiniciar", { method: "POST" });

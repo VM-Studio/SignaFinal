@@ -25,7 +25,7 @@ export default async function PaginaHabilitados({ searchParams }: { searchParams
   const { limite, siguiente } = await limiteDe(n);
   const { filas, hayMas, cuantos } = await habilitados(pestana.estado, limite);
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <Titulo>Habilitados para retirar</Titulo>
       <Pestanas items={PESTANAS.map((x) => ({ href: x.clave === "listos" ? "/habilitados" : `/habilitados?p=${x.clave}`, etiqueta: `${x.titulo}${cuantos[x.estado] ? ` (${cuantos[x.estado]})` : ""}`, activa: x.clave === pestana.clave }))} />
       {filas.length === 0 ? (
@@ -41,7 +41,7 @@ export default async function PaginaHabilitados({ searchParams }: { searchParams
               `Entregado ${cuando(m.entregadoEn)}`;
             return (
               <li key={m.id}>
-                <Link href={`/compras/${m.pedidoMaterial.id}`} className={`flex min-h-16 items-center gap-3 px-4 py-3 hover:bg-fondo ${rojo ? "border-l-4 border-critico" : ""}`}>
+                <Link href={`/compras/${m.pedidoMaterial.id}`} className={`flex min-h-14 items-center gap-3 px-4 py-2 lg:min-h-11 hover:bg-hover ${rojo ? "" : ""}`}>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold">{m.descripcion}</p>
                     <p className="truncate text-sm text-suave">Obra {m.obra.nombre} · {m.proveedor.nombre}{m.pesoKg ? ` · hasta ${peso(m.pesoKg)}` : ""} · pidió {m.pedidoMaterial.solicitante.nombre}</p>

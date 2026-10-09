@@ -14,10 +14,10 @@ export const metadata: Metadata = { title: "Mi cuenta" };
 export default async function PaginaCuenta() {
   const u = await exigirSesion();
   return (
-    <div className="mx-auto max-w-md">
+    <div className="max-w-xl">
       <Titulo>Mi cuenta</Titulo>
       <Tarjeta className="p-5">
-        <p className="text-xl font-bold">{u.nombre}</p>
+        <p className="text-xl font-semibold">{u.nombre}</p>
         <p className="text-suave">{ROL[u.rol]}</p>
         <p className="mt-1 text-suave">{u.email}</p>
       </Tarjeta>
@@ -29,7 +29,7 @@ export default async function PaginaCuenta() {
         </div>
       )}
       <FormularioSalir className="mt-6">
-        <Boton variante="peligro" ancho icono={<LogOut className="size-5" />}>Cerrar sesión</Boton>
+        <Boton variante="peligro" ancho icono={<LogOut />}>Cerrar sesión</Boton>
       </FormularioSalir>
     </div>
   );

@@ -143,20 +143,20 @@ export function EstadoPush() {
   const todoOk = items?.every((c) => c.ok !== false);
   return (
     <div className="rounded-[var(--radius-caja)] border border-linea bg-papel p-4">
-      <p className="flex items-center gap-2 font-semibold"><BellRing className="size-5" /> Avisos en este dispositivo</p>
+      <p className="flex items-center gap-2 font-semibold"><BellRing className="size-4" /> Avisos en este dispositivo</p>
       {!items ? (
         <p className="mt-2 flex items-center gap-2 text-sm text-suave"><Loader2 className="size-4 animate-spin" /> Revisando…</p>
       ) : (
         <ul className="mt-3 flex flex-col gap-2">
           {items.map((c) => (
             <li key={c.titulo} className="flex gap-2">
-              <span aria-hidden className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-full ${c.ok === true ? "bg-ok text-white" : c.ok === false ? "bg-critico text-white" : "bg-black/10 text-suave"}`}>
-                {c.ok === true ? <Check className="size-3.5" strokeWidth={3} /> : c.ok === false ? <X className="size-3.5" strokeWidth={3} /> : <span className="text-xs">?</span>}
+              <span aria-hidden className={`mt-0.5 grid size-4 shrink-0 place-items-center ${c.ok === true ? "text-ok" : c.ok === false ? "text-critico" : "text-suave"}`}>
+                {c.ok === true ? <Check className="size-4" strokeWidth={2.25} /> : c.ok === false ? <X className="size-4" strokeWidth={2.25} /> : <span className="text-xs">?</span>}
               </span>
               <div className="min-w-0 text-sm">
-                <p className="font-semibold">{c.titulo}<span className="sr-only">{c.ok === true ? ": bien" : c.ok === false ? ": falta" : ": sin datos"}</span></p>
+                <p className="font-medium">{c.titulo}<span className="sr-only">{c.ok === true ? ": bien" : c.ok === false ? ": falta" : ": sin datos"}</span></p>
                 {c.detalle && <p className="text-suave">{c.detalle}</p>}
-                {c.accion && <button onClick={c.accion.hacer} className="mt-1 min-h-11 font-semibold underline">{c.accion.texto}</button>}
+                {c.accion && <button onClick={c.accion.hacer} className="mt-1 min-h-9 font-medium underline">{c.accion.texto}</button>}
               </div>
             </li>
           ))}
@@ -164,16 +164,16 @@ export function EstadoPush() {
       )}
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <Boton variante={todoOk ? "secundario" : "primario"} cargando={trabajando === "activar"} onClick={activar}>Activar avisos</Boton>
-        <Boton variante={todoOk ? "primario" : "secundario"} cargando={trabajando === "prueba"} icono={<Send className="size-4" />} onClick={probar}>Enviarme una prueba</Boton>
+        <Boton variante={todoOk ? "primario" : "secundario"} cargando={trabajando === "prueba"} icono={<Send />} onClick={probar}>Enviarme una prueba</Boton>
       </div>
       {prueba && (
-        <div role="status" className={`mt-3 rounded-[var(--radius-caja)] border-2 p-3 text-sm ${prueba.ok ? "border-ok bg-ok-fondo" : "border-critico bg-critico-fondo"}`}>
-          <p className="font-semibold">{prueba.texto}</p>
+        <div role="status" className={`mt-3 rounded-md p-3 text-sm ${prueba.ok ? "bg-ok-fondo" : "bg-critico-fondo"}`}>
+          <p className="font-medium">{prueba.texto}</p>
           {prueba.resultado && (
             <ul className="mt-2 flex flex-col gap-1">
               {prueba.resultado.resultados.map((x, i) => (
                 <li key={i}>
-                  <b>{x.equipo}</b> ({x.servicio}): {x.ok ? `enviada (${x.codigo})` : <span className="text-critico">falló — {x.motivo}</span>}
+                  <span className="font-medium">{x.equipo}</span> ({x.servicio}): {x.ok ? `enviada (${x.codigo})` : <span className="text-critico">falló — {x.motivo}</span>}
                 </li>
               ))}
             </ul>

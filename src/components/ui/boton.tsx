@@ -2,24 +2,24 @@ import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 
 export type Variante = "primario" | "secundario" | "peligro" | "fantasma" | "claro";
+/** chico: 32px · normal: 48px celular / 36px escritorio · grande: 52px, solo la acción principal del chofer. */
 export type Tamano = "chico" | "normal" | "grande";
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-[var(--radius-caja)] font-semibold select-none text-center disabled:pointer-events-none disabled:opacity-40";
+  "inline-flex items-center justify-center gap-2 rounded-md font-medium select-none text-center whitespace-nowrap disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-5 lg:[&_svg]:size-4 [&_svg]:shrink-0";
 
 const variantes: Record<Variante, string> = {
   primario: "bg-negro text-white hover:bg-carbon",
-  secundario: "border-2 border-negro bg-papel text-negro hover:bg-fondo",
-  peligro: "border-2 border-critico bg-papel text-critico hover:bg-critico-fondo",
-  fantasma: "text-negro hover:bg-black/5",
+  secundario: "border border-linea bg-papel text-tinta hover:bg-hover",
+  peligro: "border border-linea bg-papel text-critico hover:bg-critico-fondo",
+  fantasma: "text-tinta hover:bg-black/[0.04]",
   claro: "bg-white text-negro hover:bg-white/90",
 };
 
-// Mínimo 52px de alto en celular; "chico" solo para acciones secundarias de escritorio.
 const tamanos: Record<Tamano, string> = {
-  chico: "min-h-11 px-3 text-sm",
-  normal: "min-h-[52px] px-5 text-base",
-  grande: "min-h-[72px] px-6 text-lg",
+  chico: "min-h-9 px-3 text-sm lg:min-h-8",
+  normal: "min-h-12 px-4 text-[15px] lg:min-h-9 lg:px-3 lg:text-[13px]",
+  grande: "min-h-[52px] px-5 text-[15px] font-semibold",
 };
 
 export function claseBoton(v: Variante = "primario", t: Tamano = "normal", ancho = false, extra = "") {

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { historial } from "@/lib/mapa/consultas";
 import { Titulo } from "@/components/ui/basicos";
-import { Selector } from "@/components/ui/campos";
+import { Fecha, Selector } from "@/components/ui/campos";
+import { ColumnaMapa } from "@/components/ui/columna-mapa";
 import { claseBoton } from "@/components/ui/boton";
-import { Reproductor } from "@/components/mapa/reproductor";
+import { Reproductor, SinMapa } from "@/components/mapa/reproductor";
 import { VolverAlMapa } from "@/components/mapa/mapa-en-vivo";
 import { diaISO } from "@/lib/formato";
 
@@ -14,19 +15,24 @@ export default async function PaginaHistorial({ searchParams }: { searchParams: 
   const dia = sp.dia && /^\d{4}-\d{2}-\d{2}$/.test(sp.dia) ? sp.dia : diaISO();
   const h = await historial(sp.vehiculo, dia); // verifica mapa.ver
   const nombre = h.vehiculos.find((v) => v.id === sp.vehiculo)?.nombre;
-  return (
-    <div className="mx-auto max-w-5xl">
-      <VolverAlMapa />
-      <Titulo siempre detalle="Recorrido real de Cusat: paradas, km del día y los viajes del sistema. Se puede reproducir.">Historial</Titulo>
-      <form className="mb-4 grid gap-2 sm:grid-cols-[1fr_12rem_auto]" action="/mapa/historial">
-        <Selector name="vehiculo" defaultValue={sp.vehiculo ?? ""} aria-label="Vehículo">
-          <option value="">Elegí el vehículo</option>
-          {h.vehiculos.map((v) => <option key={v.id} value={v.id}>{v.nombre}</option>)}
-        </Selector>
-        <input type="date" name="dia" defaultValue={dia} max={diaISO()} aria-label="Día" className="min-h-[52px] rounded-[var(--radius-caja)] border-2 border-linea bg-papel px-3" />
+  const cabecera = (
+    <>
+      <div>
+        <VolverAlMapa />
+        <Titulo detalle="Recorrido real de Cusat: paradas, km del día y los viajes del sistema. Se puede reproducir.">Historial</Titulo>
+      </div>
+      <form className="grid grid-cols-[1fr_auto] gap-2" action="/mapa/historial">
+        <div className="col-span-2">
+          <Selector name="vehiculo" defaultValue={sp.vehiculo ?? ""} aria-label="Vehículo">
+            <option value="">Elegí el vehículo</option>
+            {h.vehiculos.map((v) => <option key={v.id} value={v.id}>{v.nombre}</option>)}
+          </Selector>
+        </div>
+        <Fecha name="dia" defaultValue={dia} max={diaISO()} aria-label="Día" />
         <button className={claseBoton("primario")}>Ver</button>
       </form>
-      {sp.vehiculo && <Reproductor key={`${sp.vehiculo}-${dia}`} nombre={nombre ?? ""} rastro={h.rastro} paradas={h.paradas} km={h.km} viajes={h.viajes} />}
-    </div>
+    </>
   );
+  if (!sp.vehiculo) return <ColumnaMapa arriba={cabecera} mapa={<SinMapa />} />;
+  return <Reproductor key={`${sp.vehiculo}-${dia}`} cabecera={cabecera} nombre={nombre ?? ""} rastro={h.rastro} paradas={h.paradas} km={h.km} viajes={h.viajes} />;
 }

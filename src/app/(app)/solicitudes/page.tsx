@@ -7,7 +7,7 @@ import { cola, FILTROS, miRuta, opcionesReasignar, vehiculosParaTomar, type Filt
 import { textoParaCuando, TIPO } from "@/lib/pedidos/presentacion";
 import { BotonLink } from "@/components/ui/boton";
 import { Insignia, Pestanas, Subtitulo, Titulo, Vacio } from "@/components/ui/basicos";
-import { EstadoPedido, FilaPedido } from "@/components/pedidos/fila-pedido";
+import { EstadoPedido, FilaPedido, FilasPedido } from "@/components/pedidos/fila-pedido";
 import { IconoTipo } from "@/components/pedidos/iconos";
 import { BotonReasignar, BotonTomar } from "@/components/pedidos/tomar";
 import { RutaDelDia } from "@/components/pedidos/ruta-del-dia";
@@ -41,13 +41,13 @@ async function VistaChofer({ filtro: f, n }: { filtro?: string; n?: string }) {
   const { limite, siguiente } = await limiteDe(n);
   const { lista, hayMas } = await solicitudesPendientes(filtro, limite);
   return (
-    <div className="mx-auto max-w-xl">
+    <div>
       <MarcarSolicitudesVistas />
       <Pestanas items={(Object.keys(FILTROS_SOLICITUDES) as FiltroSolicitudes[]).map((k) => ({ href: k === "todas" ? "/solicitudes" : `/solicitudes?filtro=${k}`, etiqueta: FILTROS_SOLICITUDES[k], activa: k === filtro }))} />
       {lista.length === 0 ? (
         <Vacio icono={<ListOrdered className="size-10" />} titulo="No hay solicitudes pendientes">Cuando alguien de obra pida un viaje, aparece acá.</Vacio>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
           {lista.map((t) => (
             <TarjetaChofer key={t.pedidoId} t={t} href={`/solicitudes/${t.pedidoId}`} accion={<BotonTomar pedidoId={t.pedidoId} numero={t.numero} vehiculos={t.vehiculos} ancho tamano="grande" />} />
           ))}
@@ -83,7 +83,7 @@ async function VistaDireccion({ searchParams }: { searchParams: Promise<{ filtro
     <div>
       <Titulo
         detalle="Urgentes primero, después por fecha pedida."
-        accion={puede(u.rol, "pedidos.crear") ? <BotonLink href="/pedir" icono={<PlusCircle className="size-5" />}>Pedir un viaje</BotonLink> : undefined}
+        accion={puede(u.rol, "pedidos.crear") ? <BotonLink href="/pedir" icono={<PlusCircle />}>Pedir un viaje</BotonLink> : undefined}
       >
         Solicitudes
       </Titulo>
@@ -120,17 +120,17 @@ async function VistaDireccion({ searchParams }: { searchParams: Promise<{ filtro
       ) : (
         <>
           {/* Celular: filas táctiles */}
-          <ul className="flex flex-col gap-2 lg:hidden">
+          <FilasPedido>
             {pedidos.map((p) => (
               <FilaPedido key={p.id} p={p} accion={tomar(p)} />
             ))}
-          </ul>
+          </FilasPedido>
 
           {/* Escritorio: tabla */}
           <div className="hidden overflow-x-auto rounded-[var(--radius-caja)] border border-linea bg-papel lg:block">
-            <table className="w-full text-left text-[15px]">
-              <thead className="border-b border-linea text-xs tracking-wider text-suave uppercase">
-                <tr className="[&>th]:px-4 [&>th]:py-3 [&>th]:font-semibold">
+            <table className="tabla">
+              <thead>
+                <tr>
                   <th>Tipo</th>
                   <th>Qué</th>
                   <th>Desde → Obra</th>
@@ -140,27 +140,27 @@ async function VistaDireccion({ searchParams }: { searchParams: Promise<{ filtro
                   {conAccion && <th />}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-linea">
+              <tbody>
                 {pedidos.map((p) => (
-                  <tr key={p.id} className={`hover:bg-fondo/60 [&>td]:px-4 [&>td]:py-3 ${p.prioridad === "URGENTE" && p.estado === "PENDIENTE" ? "bg-critico-fondo/40" : ""}`}>
+                  <tr key={p.id}>
                     <td>
                       <span className="flex items-center gap-2 whitespace-nowrap">
                         <IconoTipo tipo={p.tipo} />
                         {TIPO[p.tipo].corto}
                       </span>
                     </td>
-                    <td className="max-w-sm">
-                      <Link href={`/solicitudes/${p.id}`} className="line-clamp-2 font-semibold hover:underline">{p.descripcion}</Link>
+                    <td className="max-w-sm py-2">
+                      <Link href={`/solicitudes/${p.id}`} className="line-clamp-1 font-medium hover:underline">{p.descripcion}</Link>
                       {p.prioridad === "URGENTE" && p.estado === "PENDIENTE" && <Insignia tono="critico" className="mt-1">Urgente</Insignia>}
                     </td>
                     <td>
-                      <span className="block text-suave">{p.origen.nombre}</span>
-                      <span className="font-medium">Obra {p.obra.nombre}</span>
+                      <span className="block truncate">Obra {p.obra.nombre}</span>
+                      <span className="block truncate text-[12px] text-suave">desde {p.origen.nombre}</span>
                     </td>
                     <td className="whitespace-nowrap">{textoParaCuando(p.paraCuando, p.franja)}</td>
                     <td>{p.solicitante.nombre}</td>
                     <td><EstadoPedido p={p} /></td>
-                    {conAccion && <td className="text-right">{tomar(p)}</td>}
+                    {conAccion && <td className="num">{tomar(p)}</td>}
                   </tr>
                 ))}
               </tbody>

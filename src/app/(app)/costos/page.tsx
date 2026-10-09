@@ -1,3 +1,4 @@
+import { claseCampo } from "@/components/ui/campos";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Download } from "lucide-react";
@@ -41,19 +42,24 @@ export default async function PaginaCostos({ searchParams }: { searchParams: Pro
     <div>
       <Titulo siempre detalle={`Del ${fecha(aFecha(p.desdeISO, "12:00"))} al ${fecha(aFecha(p.hastaISO, "12:00"))}`}>Costos</Titulo>
 
-      <form action="/costos" className="mb-4 flex flex-wrap items-end gap-2">
-        {meses().map((m) => (
-          <Link key={m.desde} href={`/costos?${new URLSearchParams({ desde: m.desde, hasta: m.hasta, ver })}`} className={`grid min-h-11 place-items-center rounded-md px-4 text-sm font-semibold capitalize ${p.desdeISO === m.desde && p.hastaISO === m.hasta ? "bg-negro text-white" : "border border-linea bg-papel"}`}>
-            {m.etiqueta}
-          </Link>
-        ))}
+      <form action="/costos" className="mb-6 flex flex-wrap items-end gap-2">
+        <nav className="flex gap-0.5 rounded-md border border-linea bg-black/[0.03] p-0.5">
+          {meses().map((m) => {
+            const activo = p.desdeISO === m.desde && p.hastaISO === m.hasta;
+            return (
+              <Link key={m.desde} href={`/costos?${new URLSearchParams({ desde: m.desde, hasta: m.hasta, ver })}`} aria-current={activo ? "page" : undefined} className={`grid min-h-10 place-items-center rounded-[5px] px-3 text-sm font-medium capitalize lg:min-h-7 ${activo ? "bg-papel text-tinta shadow-[0_0_0_1px_var(--color-linea)]" : "text-suave hover:text-tinta"}`}>
+                {m.etiqueta}
+              </Link>
+            );
+          })}
+        </nav>
         <input type="hidden" name="ver" value={ver} />
-        <label className="flex flex-col text-xs font-semibold text-suave">Desde<input type="date" name="desde" defaultValue={p.desdeISO} className="mt-1 min-h-11 rounded-md border-2 border-linea bg-papel px-2 text-base text-tinta" /></label>
-        <label className="flex flex-col text-xs font-semibold text-suave">Hasta<input type="date" name="hasta" defaultValue={p.hastaISO} className="mt-1 min-h-11 rounded-md border-2 border-linea bg-papel px-2 text-base text-tinta" /></label>
-        <button className={claseBoton("secundario", "chico")}>Ver período</button>
+        <label className="flex flex-col gap-1 text-[12px] font-medium text-suave">Desde<input type="date" name="desde" defaultValue={p.desdeISO} className={`${claseCampo} w-40`} /></label>
+        <label className="flex flex-col gap-1 text-[12px] font-medium text-suave">Hasta<input type="date" name="hasta" defaultValue={p.hastaISO} className={`${claseCampo} w-40`} /></label>
+        <button className={claseBoton("secundario")}>Ver período</button>
       </form>
 
-      <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
+      <div className="mb-6 grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
         <Cifra etiqueta="Viajes a obras" valor={plata(tViajes)} detalle={`${tN} viajes · ${km(tKm)}`} />
         <Cifra etiqueta="Combustible" valor={plata(tComb)} />
         <Cifra etiqueta="Mantenimiento e incidentes" valor={plata(tMant)} />
@@ -75,23 +81,23 @@ export default async function PaginaCostos({ searchParams }: { searchParams: Pro
           <Vacio titulo="Sin viajes ni combustible imputado en el período" />
         ) : (
           <div className="overflow-x-auto rounded-[var(--radius-caja)] border border-linea bg-papel">
-            <table className="w-full min-w-[720px] text-left text-[15px]">
-              <thead className="border-b border-linea text-xs tracking-wider text-suave uppercase">
-                <tr className="[&>th]:px-4 [&>th]:py-3"><th>Obra</th><th>Código Lebane</th><th className="text-right">Viajes</th><th className="text-right">Km</th><th className="text-right">Costo de viajes</th><th className="text-right">Combustible</th><th className="text-right">Total</th></tr>
+            <table className="tabla min-w-[720px]">
+              <thead>
+                <tr><th>Obra</th><th>Código Lebane</th><th className="num">Viajes</th><th className="num">Km</th><th className="num">Costo de viajes</th><th className="num">Combustible</th><th className="num">Total</th></tr>
               </thead>
-              <tbody className="divide-y divide-linea">
+              <tbody>
                 {obras.map((o) => (
-                  <tr key={o.obraId} className="[&>td]:px-4 [&>td]:py-3">
-                    <td className="font-semibold">
+                  <tr key={o.obraId}>
+                    <td className="font-medium">
                       Obra {o.obra}
-                      <div className="mt-1 h-1.5 w-40 rounded-full bg-fondo"><div className="h-full rounded-full bg-negro" style={{ width: `${(o.total / maxObra) * 100}%` }} /></div>
+                      <div className="mt-1 h-1.5 w-40 rounded-full bg-fondo"><div className="h-full rounded-full bg-tinta" style={{ width: `${(o.total / maxObra) * 100}%` }} /></div>
                     </td>
                     <td className="text-suave tabular-nums">{o.idLebane ?? "—"}</td>
-                    <td className="text-right tabular-nums">{o.viajes}</td>
-                    <td className="text-right tabular-nums">{km(o.km)}</td>
-                    <td className="text-right tabular-nums">{plata(o.costoViajes)}</td>
-                    <td className="text-right tabular-nums">{plata(o.combustible)} <span className="block text-xs text-suave">{o.litros ? litros(o.litros) : ""}</span></td>
-                    <td className="text-right font-bold tabular-nums">{plata(o.total)}</td>
+                    <td className="num">{o.viajes}</td>
+                    <td className="num">{km(o.km)}</td>
+                    <td className="num">{plata(o.costoViajes)}</td>
+                    <td className="num">{plata(o.combustible)} <span className="block text-xs text-suave">{o.litros ? litros(o.litros) : ""}</span></td>
+                    <td className="num font-medium">{plata(o.total)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -100,21 +106,21 @@ export default async function PaginaCostos({ searchParams }: { searchParams: Pro
         )
       ) : (
         <div className="overflow-x-auto rounded-[var(--radius-caja)] border border-linea bg-papel">
-          <table className="w-full min-w-[860px] text-left text-[15px]">
-            <thead className="border-b border-linea text-xs tracking-wider text-suave uppercase">
-              <tr className="[&>th]:px-4 [&>th]:py-3"><th>Vehículo</th><th className="text-right">Viajes</th><th className="text-right">Km</th><th className="text-right">Costo de viajes</th><th className="text-right">Combustible</th><th className="text-right">Mantenim.</th><th className="text-right">Incidentes</th><th className="text-right">Costo real/km</th></tr>
+          <table className="tabla min-w-[860px]">
+            <thead>
+              <tr><th>Vehículo</th><th className="num">Viajes</th><th className="num">Km</th><th className="num">Costo de viajes</th><th className="num">Combustible</th><th className="num">Mantenim.</th><th className="num">Incidentes</th><th className="num">Costo real/km</th></tr>
             </thead>
-            <tbody className="divide-y divide-linea">
+            <tbody>
               {vehiculos.map((v) => (
-                <tr key={v.vehiculoId} className="[&>td]:px-4 [&>td]:py-3">
-                  <td className="font-semibold"><Link href={`/flota/${v.vehiculoId}`} className="hover:underline">{v.vehiculo}</Link><span className="block text-xs font-normal text-suave">{v.patente}</span></td>
-                  <td className="text-right tabular-nums">{v.viajes}</td>
-                  <td className="text-right tabular-nums">{km(v.km)}</td>
-                  <td className="text-right tabular-nums">{plata(v.costoViajes)}</td>
-                  <td className="text-right tabular-nums">{plata(v.combustible)}</td>
-                  <td className="text-right tabular-nums">{plata(v.mantenimiento)}</td>
-                  <td className="text-right tabular-nums">{plata(v.incidentes)}</td>
-                  <td className="text-right font-bold tabular-nums">{v.costoPorKm != null ? plata(v.costoPorKm) : "—"}</td>
+                <tr key={v.vehiculoId}>
+                  <td className="font-medium"><Link href={`/flota/${v.vehiculoId}`} className="hover:underline">{v.vehiculo}</Link><span className="block text-[11px] font-normal text-suave">{v.patente}</span></td>
+                  <td className="num">{v.viajes}</td>
+                  <td className="num">{km(v.km)}</td>
+                  <td className="num">{plata(v.costoViajes)}</td>
+                  <td className="num">{plata(v.combustible)}</td>
+                  <td className="num">{plata(v.mantenimiento)}</td>
+                  <td className="num">{plata(v.incidentes)}</td>
+                  <td className="num font-medium">{v.costoPorKm != null ? plata(v.costoPorKm) : "—"}</td>
                 </tr>
               ))}
             </tbody>

@@ -145,7 +145,7 @@ function Entregar({ d, cerrar }: { d: DatosAcciones; cerrar: () => void }) {
         <Fechas etiqueta="¿Cuándo vuelve?" valor={vuelve} onCambio={setVuelve} />
       )}
       <MensajeError>{error}</MensajeError>
-      <Boton ancho tamano="grande" disabled={!obraId || !recibe} cargando={enviando} onClick={async () => {
+      <Boton ancho disabled={!obraId || !recibe} cargando={enviando} onClick={async () => {
         setEnviando(true);
         const r = await entregar({ herramientaId: d.herramienta.id, obraId, recibidoPorId: recibe, devolucionPrevista: cantidad ? undefined : vuelve, cantidad: cant });
         setEnviando(false);
@@ -185,14 +185,14 @@ function Devolver({ d, cerrar }: { d: DatosAcciones; cerrar: () => void }) {
         <Opciones nombre="Condición" columnas={3} valor={condicion} onElegir={setCondicion} opciones={CONDICIONES} />
       </div>
       {condicion === "MALA" && !cantidad && (
-        <label className="flex min-h-[56px] items-center justify-between gap-3 rounded-[var(--radius-caja)] border-2 border-critico bg-critico-fondo px-4 text-critico">
+        <label className="flex min-h-12 lg:min-h-10 items-center justify-between gap-3 rounded-[var(--radius-caja)] border border-critico/15 bg-critico-fondo px-4 text-critico">
           <span className="font-semibold">Mandarla directo a reparación</span>
           <input type="checkbox" checked={reparar} onChange={(e) => setReparar(e.target.checked)} className="size-6 accent-critico" />
         </label>
       )}
       <Campo etiqueta="Observaciones (opcional)" htmlFor="dev-obs"><Entrada id="dev-obs" value={obs} onChange={(e) => setObs(e.target.value)} maxLength={300} /></Campo>
       <MensajeError>{error}</MensajeError>
-      <Boton ancho tamano="grande" disabled={cantidad && !desde} cargando={enviando} onClick={async () => {
+      <Boton ancho disabled={cantidad && !desde} cargando={enviando} onClick={async () => {
         setEnviando(true);
         const r = await devolver({ herramientaId: d.herramienta.id, condicion: condicion as "BUENA", desdeObraId: desde, cantidad: cant, observaciones: obs, aReparacion: reparar });
         setEnviando(false);
@@ -240,7 +240,7 @@ function Transferir({ d, cerrar }: { d: DatosAcciones; cerrar: () => void }) {
         <Fechas etiqueta="¿Cuándo vuelve?" valor={vuelve} onCambio={setVuelve} />
       )}
       <MensajeError>{error}</MensajeError>
-      <Boton ancho tamano="grande" disabled={!hacia || !recibe || (cantidad && !desde)} cargando={enviando} onClick={async () => {
+      <Boton ancho disabled={!hacia || !recibe || (cantidad && !desde)} cargando={enviando} onClick={async () => {
         setEnviando(true);
         const r = await transferir({ herramientaId: d.herramienta.id, haciaObraId: hacia, recibidoPorId: recibe, desdeObraId: desde, cantidad: cant, devolucionPrevista: cantidad ? undefined : vuelve });
         setEnviando(false);
@@ -267,7 +267,7 @@ function Volvio({ d, cerrar }: { d: DatosAcciones; cerrar: () => void }) {
         <Campo etiqueta="Taller" htmlFor="vu-taller"><Entrada id="vu-taller" value={taller} onChange={(e) => setTaller(e.target.value)} maxLength={80} /></Campo>
       </div>
       <MensajeError>{error}</MensajeError>
-      <Boton ancho tamano="grande" cargando={enviando} onClick={async () => {
+      <Boton ancho cargando={enviando} onClick={async () => {
         setEnviando(true);
         const r = await volvioDeReparacion({ herramientaId: d.herramienta.id, condicion: condicion as "BUENA", descripcion, costo, taller });
         setEnviando(false);
@@ -296,7 +296,7 @@ function Mantenimiento({ d, cerrar }: { d: DatosAcciones; cerrar: () => void }) 
         <Entrada id="mh-cada" inputMode="numeric" value={cada} onChange={(e) => setCada(e.target.value.replace(/\D/g, ""))} placeholder="90" />
       </Campo>
       <MensajeError>{error}</MensajeError>
-      <Boton ancho tamano="grande" disabled={descripcion.trim().length < 3} cargando={enviando} onClick={async () => {
+      <Boton ancho disabled={descripcion.trim().length < 3} cargando={enviando} onClick={async () => {
         setEnviando(true);
         const r = await registrarMantenimiento({ herramientaId: d.herramienta.id, fecha, descripcion, costo, cadaDias: cada });
         setEnviando(false);
@@ -336,7 +336,7 @@ function ConMotivo({ cerrar, etiqueta, boton, opciones, accion, mensaje, opciona
         </>
       )}
       <MensajeError>{error}</MensajeError>
-      <Boton ancho tamano="grande" variante={peligro ? "peligro" : "primario"} disabled={!opcional && motivo.trim().length < 3} cargando={enviando} onClick={async () => {
+      <Boton ancho variante={peligro ? "peligro" : "primario"} disabled={!opcional && motivo.trim().length < 3} cargando={enviando} onClick={async () => {
         setEnviando(true);
         const r = await accion(motivo);
         setEnviando(false);

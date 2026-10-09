@@ -9,6 +9,7 @@ import { Bell, LogOut, UserCircle2 } from "lucide-react";
 import { tituloDeRuta, type Grupo, type Seccion } from "@/lib/navegacion";
 import { FormularioSalir } from "@/components/layout/salir";
 import { Hoja } from "@/components/ui/hoja";
+import { claseBoton } from "@/components/ui/boton";
 import { ICONOS } from "./iconos";
 import { EstadoPush } from "./estado-push";
 import { useHaySolicitudesNuevas } from "@/components/pedidos/solicitudes-vistas";
@@ -36,13 +37,9 @@ function seccionActiva(hrefs: string[], ruta: string) {
   return candidatas.sort((a, b) => b.length - a.length)[0];
 }
 
-function Contador({ n, claro = false }: { n: number; claro?: boolean }) {
+function Contador({ n }: { n: number }) {
   if (!n) return null;
-  return (
-    <span className={`rounded-full px-1.5 text-[11px] leading-[18px] font-bold tabular-nums ${claro ? "bg-white text-negro" : "bg-critico text-white"}`}>
-      {n > 99 ? "99+" : n}
-    </span>
-  );
+  return <span className="rounded-full bg-critico px-1 text-[10px] leading-4 font-semibold text-white tabular-nums">{n > 99 ? "99+" : n}</span>;
 }
 
 /** Hoja del avatar: quién soy, mis obras, avisos push, mi cuenta y cerrar sesión. */
@@ -51,25 +48,25 @@ function HojaPerfil({ perfil, abierta, onCerrar }: { perfil: Perfil; abierta: bo
     <Hoja abierta={abierta} onCerrar={onCerrar} titulo="Mi cuenta">
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
-          <div className="grid size-14 shrink-0 place-items-center rounded-full bg-negro text-xl font-bold text-white">{perfil.nombre.slice(0, 1)}</div>
+          <div className="grid size-10 shrink-0 place-items-center rounded-full bg-black/[0.06] font-semibold">{perfil.nombre.slice(0, 1)}</div>
           <div className="min-w-0">
-            <p className="truncate text-lg font-bold">{perfil.nombre}</p>
-            <p className="text-suave">{perfil.rol}</p>
+            <p className="truncate font-semibold">{perfil.nombre}</p>
+            <p className="text-sm text-suave">{perfil.rol}</p>
           </div>
         </div>
         {perfil.obras && (
           <div>
-            <p className="text-xs font-bold tracking-wider text-suave uppercase">Obras asignadas</p>
-            <p className="mt-1 font-medium">{perfil.obras}</p>
+            <p className="etiqueta">Obras asignadas</p>
+            <p className="mt-1">{perfil.obras}</p>
           </div>
         )}
         <EstadoPush />
-        <Link href="/cuenta" onClick={onCerrar} className="flex min-h-[52px] items-center gap-3 rounded-[var(--radius-caja)] border border-linea bg-papel px-4 font-semibold">
-          <UserCircle2 className="size-5" /> Mi cuenta y contraseña
+        <Link href="/cuenta" onClick={onCerrar} className={claseBoton("secundario", "normal", true, "justify-start")}>
+          <UserCircle2 /> Mi cuenta y contraseña
         </Link>
         <FormularioSalir>
-          <button className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[var(--radius-caja)] border-2 border-critico font-bold text-critico">
-            <LogOut className="size-5" /> Cerrar sesión
+          <button className={claseBoton("peligro", "normal", true, "justify-start")}>
+            <LogOut /> Cerrar sesión
           </button>
         </FormularioSalir>
       </div>
@@ -77,23 +74,35 @@ function HojaPerfil({ perfil, abierta, onCerrar }: { perfil: Perfil; abierta: bo
   );
 }
 
+function Campana({ className, iconos }: { className: string; iconos: string }) {
+  const avisos = useCantidadAvisos(); // en vivo (avisos-en-vivo.tsx)
+  return (
+    <Link href="/avisos" aria-label={`Avisos${avisos ? `: ${avisos} sin ver` : ""}`} className={`relative grid shrink-0 place-items-center rounded-md ${className}`}>
+      <Bell className={iconos} />
+      {avisos > 0 && (
+        <span className="absolute top-0.5 right-0">
+          <Contador n={avisos} />
+        </span>
+      )}
+    </Link>
+  );
+}
+
 // ─────────────────────────── Escritorio ───────────────────────────
 
-export function BarraLateral({ grupos, perfil }: { grupos: Grupo[]; perfil: Perfil }) {
-  const avisos = useCantidadAvisos(); // en vivo (avisos-en-vivo.tsx)
+export function BarraLateral({ grupos }: { grupos: Grupo[] }) {
   const [destino, ir] = useDestino();
-  const [abierta, setAbierta] = useState(false);
   const activa = seccionActiva(grupos.flatMap((g) => g.items.map((i) => i.href)), destino);
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col bg-negro text-white lg:flex">
-      <Link href="/inicio" className="block px-5 pt-6 pb-5" aria-label="Inicio">
-        <Image src="/signalogo.png" alt="SIGNA · Cultura en desarrollos" width={200} height={75} priority className="h-auto w-[200px]" />
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-[232px] flex-col bg-negro text-white lg:flex">
+      <Link href="/inicio" className="flex h-16 shrink-0 items-center px-5" aria-label="Inicio">
+        <Image src="/signalogo.png" alt="SIGNA · Cultura en desarrollos" width={120} height={45} priority className="h-auto w-[120px]" />
       </Link>
-      <nav className="flex-1 overflow-y-auto px-3 pb-4" aria-label="Principal">
+      <nav className="flex-1 overflow-y-auto px-3 pt-2 pb-4" aria-label="Principal">
         {grupos.map((g, i) => (
-          <div key={g.titulo ?? i} className="mt-4 first:mt-0">
-            {g.titulo && <p className="px-3 pb-1 text-[11px] font-bold tracking-wider text-white/40 uppercase">{g.titulo}</p>}
-            <ul className="flex flex-col gap-0.5">
+          <div key={g.titulo ?? i} className="mt-5 first:mt-0">
+            {g.titulo && <p className="px-2 pb-1 text-[11px] font-medium tracking-[0.06em] text-white/45 uppercase">{g.titulo}</p>}
+            <ul className="flex flex-col gap-px">
               {g.items.map((s) => {
                 const Icono = ICONOS[s.icono];
                 const esActiva = activa === s.href.split("?")[0];
@@ -103,10 +112,10 @@ export function BarraLateral({ grupos, perfil }: { grupos: Grupo[]; perfil: Perf
                       href={s.href}
                       onClick={(e) => ir(s.href, e)}
                       aria-current={esActiva ? "page" : undefined}
-                      className={`flex min-h-11 items-center gap-3 rounded-md px-3 text-[15px] font-medium ${esActiva ? "bg-white text-negro" : "text-white/75 hover:bg-white/10 hover:text-white active:bg-white/20"}`}
+                      className={`flex h-8 items-center gap-2.5 rounded-md px-2 text-[13px] ${esActiva ? "bg-white/10 font-medium text-white" : "text-white/70 hover:bg-white/[0.06] hover:text-white"}`}
                     >
-                      <Icono className="size-5 shrink-0" />
-                      <span className="flex-1">{s.titulo}</span>
+                      <Icono className="size-4 shrink-0" />
+                      <span className="flex-1 truncate">{s.titulo}</span>
                     </Link>
                   </li>
                 );
@@ -115,53 +124,50 @@ export function BarraLateral({ grupos, perfil }: { grupos: Grupo[]; perfil: Perf
           </div>
         ))}
       </nav>
-      <div className="flex items-center gap-2 border-t border-white/10 px-3 py-3">
-        <button onClick={() => setAbierta(true)} className="flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1.5 text-left hover:bg-white/10" aria-label="Mi cuenta">
-          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-white/10 font-bold">{perfil.nombre.slice(0, 1)}</span>
-          <span className="min-w-0">
-            <span className="block truncate font-semibold">{perfil.nombre}</span>
-            <span className="block truncate text-sm text-white/60">{perfil.rol}</span>
-          </span>
-        </button>
-        <Link href="/avisos" aria-label={`Avisos${avisos ? `: ${avisos} sin ver` : ""}`} className="relative grid size-10 shrink-0 place-items-center rounded-md text-white/75 hover:bg-white/10 hover:text-white">
-          <Bell className="size-5" />
-          {avisos > 0 && <span className="absolute -top-0.5 -right-0.5"><Contador n={avisos} /></span>}
-        </Link>
-      </div>
-      <HojaPerfil perfil={perfil} abierta={abierta} onCerrar={() => setAbierta(false)} />
     </aside>
+  );
+}
+
+/**
+ * Header blanco de 48px del escritorio. A la izquierda, el nombre de la sección (si la página
+ * tiene <Titulo>, lo tapa con su título y sus acciones); a la derecha, la campana y el avatar.
+ */
+export function HeaderEscritorio({ perfil }: { perfil: Perfil }) {
+  const pathname = usePathname();
+  const [abierta, setAbierta] = useState(false);
+  return (
+    <header className="fixed top-0 right-0 left-[232px] z-20 hidden h-12 items-center gap-1 border-b border-linea bg-papel pr-4 pl-6 lg:flex">
+      <p className="min-w-0 flex-1 truncate text-[22px] leading-7 font-semibold">{tituloDeRuta(pathname)}</p>
+      <Campana className="size-8 text-suave hover:bg-black/[0.04] hover:text-tinta" iconos="size-4" />
+      <button onClick={() => setAbierta(true)} aria-label={`Mi cuenta: ${perfil.nombre}`} title={`${perfil.nombre} · ${perfil.rol}`} className="grid size-8 place-items-center rounded-md hover:bg-black/[0.04]">
+        <span className="grid size-6 place-items-center rounded-full bg-negro text-[11px] font-semibold text-white">{perfil.nombre.slice(0, 1)}</span>
+      </button>
+      <HojaPerfil perfil={perfil} abierta={abierta} onCerrar={() => setAbierta(false)} />
+    </header>
   );
 }
 
 // ─────────────────────────── Celular ───────────────────────────
 
 export function HeaderMovil({ perfil }: { perfil: Perfil }) {
-  const avisos = useCantidadAvisos(); // en vivo (avisos-en-vivo.tsx)
   const pathname = usePathname();
   const [abierta, setAbierta] = useState(false);
   const titulo = pathname === "/inicio" ? "" : tituloDeRuta(pathname);
   return (
     <header className="pt-segura sticky top-0 z-30 bg-negro text-white lg:hidden">
-      <div className="flex h-14 items-center gap-2 px-3">
-        <Link href="/inicio" aria-label="Inicio" className="flex min-h-11 shrink-0 items-center px-1">
-          <Image src="/signalogo.png" alt="SIGNA" width={88} height={33} priority className="h-auto w-[88px]" />
+      <div className="flex h-[52px] items-center gap-2 pr-1 pl-4">
+        <Link href="/inicio" aria-label="Inicio" className="flex h-11 shrink-0 items-center">
+          <Image src="/signalogo.png" alt="SIGNA" width={72} height={27} priority className="h-auto w-[72px]" />
         </Link>
         {titulo && (
           <>
-            <span aria-hidden className="h-6 w-px bg-white/20" />
-            <p className="min-w-0 flex-1 truncate text-[17px] font-semibold">{titulo}</p>
+            <span aria-hidden className="mx-1 h-5 w-px bg-white/20" />
+            <p className="min-w-0 flex-1 truncate text-[15px] font-medium">{titulo}</p>
           </>
         )}
-        <Link href="/avisos" aria-label={`Avisos${avisos ? `: ${avisos} sin ver` : ""}`} className="relative ml-auto grid size-11 shrink-0 place-items-center rounded-md">
-          <Bell className="size-6" />
-          {avisos > 0 && (
-            <span className="absolute top-1 right-0.5">
-              <Contador n={avisos} />
-            </span>
-          )}
-        </Link>
+        <Campana className="ml-auto size-11" iconos="size-5" />
         <button onClick={() => setAbierta(true)} aria-label="Mi cuenta" className="grid size-11 shrink-0 place-items-center">
-          <span className="grid size-8 place-items-center rounded-full bg-white text-sm font-bold text-negro">{perfil.nombre.slice(0, 1)}</span>
+          <span className="grid size-7 place-items-center rounded-full bg-white text-[13px] font-semibold text-negro">{perfil.nombre.slice(0, 1)}</span>
         </button>
       </div>
       <HojaPerfil perfil={perfil} abierta={abierta} onCerrar={() => setAbierta(false)} />
@@ -188,11 +194,10 @@ export function BarraInferior({ items, mas: grupos, conSalir = false, nuevas }: 
             const esActiva = activa === s.href.split("?")[0];
             return (
               <li key={s.href}>
-                <Link href={s.href} onClick={(e) => ir(s.href, e)} aria-current={esActiva ? "page" : undefined} className={`relative flex h-16 flex-col items-center justify-center gap-1 text-[12px] font-semibold active:bg-white/10 ${esActiva ? "text-white" : "text-white/55"}`}>
-                  {esActiva && <span aria-hidden className="absolute inset-x-5 top-0 h-[3px] rounded-b bg-white" />}
+                <Link href={s.href} onClick={(e) => ir(s.href, e)} aria-current={esActiva ? "page" : undefined} className={`relative flex h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium active:bg-white/10 ${esActiva ? "text-white" : "text-white/55"}`}>
                   <span className="relative">
-                    <Icono className="size-6" strokeWidth={esActiva ? 2.5 : 2} />
-                    {nuevas?.href === s.href && hayNuevas && <span aria-label="Hay nuevas" className="absolute -top-1 -right-2 size-3 rounded-full border-2 border-negro bg-critico" />}
+                    <Icono className="size-[22px]" strokeWidth={esActiva ? 2 : 1.75} />
+                    {nuevas?.href === s.href && hayNuevas && <span aria-label="Hay nuevas" className="absolute -top-0.5 -right-1 size-2 rounded-full bg-critico ring-2 ring-negro" />}
                   </span>
                   {s.titulo}{nuevas?.href === s.href && hayNuevas && <span className="sr-only"> (hay nuevas)</span>}
                 </Link>
@@ -201,9 +206,8 @@ export function BarraInferior({ items, mas: grupos, conSalir = false, nuevas }: 
           })}
           {mas.length > 0 && (
             <li>
-              <button onClick={() => setAbierto(true)} aria-expanded={abierto} className={`relative flex h-16 w-full flex-col items-center justify-center gap-1 text-[12px] font-semibold ${masActivo ? "text-white" : "text-white/55"}`}>
-                {masActivo && <span aria-hidden className="absolute inset-x-5 top-0 h-[3px] rounded-b bg-white" />}
-                <MasIcono className="size-6" />
+              <button onClick={() => setAbierto(true)} aria-expanded={abierto} className={`relative flex h-14 w-full flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${masActivo ? "text-white" : "text-white/55"}`}>
+                <MasIcono className="size-[22px]" />
                 Más
               </button>
             </li>
@@ -216,14 +220,14 @@ export function BarraInferior({ items, mas: grupos, conSalir = false, nuevas }: 
           <div className="flex flex-col gap-4">
             {grupos.map((g, i) => (
               <section key={g.titulo ?? i}>
-                {g.titulo && <p className="mb-1.5 px-1 text-xs font-bold tracking-wider text-suave uppercase">{g.titulo}</p>}
+                {g.titulo && <p className="etiqueta mb-1 px-1">{g.titulo}</p>}
                 <ul className="flex flex-col divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
                   {g.items.map((s) => {
                     const Icono = ICONOS[s.icono];
                     return (
                       <li key={s.href}>
-                        <Link href={s.href} onClick={(e) => { ir(s.href, e); setAbierto(false); }} className="flex min-h-14 items-center gap-3 px-4 text-[17px] font-semibold active:bg-fondo">
-                          <Icono className="size-6" />
+                        <Link href={s.href} onClick={(e) => { ir(s.href, e); setAbierto(false); }} className="flex min-h-14 items-center gap-3 px-4 text-[15px] font-medium active:bg-fondo">
+                          <Icono className="size-5 text-suave" />
                           {s.titulo}
                         </Link>
                       </li>
@@ -234,8 +238,8 @@ export function BarraInferior({ items, mas: grupos, conSalir = false, nuevas }: 
             ))}
             {conSalir && (
               <FormularioSalir>
-                <button className="flex min-h-14 w-full items-center gap-3 rounded-[var(--radius-caja)] border border-linea bg-papel px-4 text-[17px] font-semibold text-critico">
-                  <LogOut className="size-6" /> Cerrar sesión
+                <button className="flex min-h-14 w-full items-center gap-3 rounded-[var(--radius-caja)] border border-linea bg-papel px-4 text-[15px] font-medium text-critico">
+                  <LogOut className="size-5" /> Cerrar sesión
                 </button>
               </FormularioSalir>
             )}

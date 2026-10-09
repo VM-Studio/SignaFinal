@@ -33,7 +33,7 @@ export function NuevoProveedor() {
 
   return (
     <>
-      <Boton icono={<PlusCircle className="size-5" />} onClick={() => setAbierta(true)}>Nuevo proveedor</Boton>
+      <Boton icono={<PlusCircle />} onClick={() => setAbierta(true)}>Nuevo proveedor</Boton>
       <Hoja abierta={abierta} onCerrar={() => setAbierta(false)} titulo="Nuevo proveedor">
         <div className="flex flex-col gap-4">
           <Campo etiqueta="Nombre" htmlFor="p-nombre"><Entrada {...campo("nombre")} maxLength={80} autoFocus placeholder="Corralón San Martín" /></Campo>
@@ -41,7 +41,7 @@ export function NuevoProveedor() {
           <Campo etiqueta="Localidad" htmlFor="p-localidad" ayuda="Con la dirección se ubica solo en el mapa."><Entrada {...campo("localidad")} maxLength={80} placeholder="Florida" /></Campo>
           <Campo etiqueta="Teléfono (opcional)" htmlFor="p-telefono"><Entrada {...campo("telefono")} maxLength={40} inputMode="tel" /></Campo>
           <MensajeError>{error}</MensajeError>
-          <Boton ancho tamano="grande" cargando={enviando} disabled={!d.nombre.trim() || !d.direccion.trim() || !d.localidad.trim()} onClick={guardar}>Cargar el proveedor</Boton>
+          <Boton ancho cargando={enviando} disabled={!d.nombre.trim() || !d.direccion.trim() || !d.localidad.trim()} onClick={guardar}>Cargar el proveedor</Boton>
         </div>
       </Hoja>
     </>

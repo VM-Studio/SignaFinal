@@ -10,7 +10,7 @@ const etiqueta = (texto: string, negro: boolean) =>
     className: "",
     iconSize: [0, 0],
     html: `<div style="transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center">
-      <span style="font:700 12px/1 var(--font-inter),system-ui;background:${negro ? "#000" : "#fff"};color:${negro ? "#fff" : "#000"};border:2px solid #000;padding:3px 6px;border-radius:4px;white-space:nowrap">${texto.replace(/[<>&]/g, "")}</span>
+      <span style="font:600 12px/1 var(--font-archivo),system-ui;background:${negro ? "#000" : "#fff"};color:${negro ? "#fff" : "#000"};border:1px solid #111827;padding:3px 6px;border-radius:4px;white-space:nowrap">${texto.replace(/[<>&]/g, "")}</span>
       <span style="width:2px;height:8px;background:#000"></span></div>`,
   });
 

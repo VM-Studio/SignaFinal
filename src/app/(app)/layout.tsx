@@ -8,7 +8,7 @@ import { obrasDelUsuario } from "@/lib/alcance";
 import { contarAvisos } from "@/lib/avisos/consultas";
 import { tengoViajeEnCurso, ultimaSolicitud } from "@/lib/viajes/chofer";
 import { SeguimientoChofer } from "@/components/viajes/seguimiento-chofer";
-import { BarraInferior, BarraLateral, HeaderMovil } from "@/components/layout/navegacion";
+import { BarraInferior, BarraLateral, HeaderEscritorio, HeaderMovil } from "@/components/layout/navegacion";
 import { ProveedorAvisos } from "@/components/ui/avisos";
 import { IndicadorConexion } from "@/components/layout/conexion";
 import { AvisosEnVivo } from "@/components/layout/avisos-en-vivo";
@@ -37,13 +37,14 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
   return (
     <ProveedorAvisos>
       <AvisosEnVivo inicial={avisos}>
-      <BarraLateral grupos={gruposEscritorio(u.rol)} perfil={perfil} />
-      <div className="flex min-h-dvh flex-col bg-fondo lg:pl-60">
+      <BarraLateral grupos={gruposEscritorio(u.rol)} />
+      <div className="flex min-h-dvh flex-col bg-fondo lg:pt-12 lg:pl-[232px]">
         <HeaderMovil perfil={perfil} />
-        <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-20 lg:top-0">
+        <HeaderEscritorio perfil={perfil} />
+        <div className="sticky top-[calc(52px+env(safe-area-inset-top))] z-20 lg:top-12">
           <IndicadorConexion />
         </div>
-        <main className="w-full flex-1 px-4 pt-4 pb-28 lg:p-8">{children}</main>
+        <main className="w-full min-w-0 flex-1 px-4 pt-4 pb-[calc(56px+24px+env(safe-area-inset-bottom))] lg:p-6">{children}</main>
       </div>
       <BarraInferior items={barraInferior(u.rol)} mas={menuMas(u.rol)} conSalir={chofer} nuevas={chofer ? { href: "/solicitudes", ultima: ultima?.toISOString() ?? null } : undefined} />
       {/* Mientras el chofer está en viaje, el teléfono manda su posición aunque navegue. */}

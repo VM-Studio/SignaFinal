@@ -31,7 +31,7 @@ export default async function PaginaUsuarios({ searchParams }: { searchParams: P
   });
   const href = (r?: Rol) => `/usuarios${r ? `?rol=${r}` : ""}`;
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <Titulo detalle="Quién entra a la app, con qué rol y qué obras tiene. Para sacar a alguien se lo desactiva: no se borra nada.">Usuarios</Titulo>
       <Pestanas items={[{ href: href(), etiqueta: "Todos", activa: !rol }, ...ROLES.map((r) => ({ href: href(r), etiqueta: ROL[r], activa: rol === r }))]} />
       <div className="mb-3"><Buscador accion="/usuarios" valor={sp.q} placeholder="Buscar por nombre o email" ocultos={{ rol }} /></div>

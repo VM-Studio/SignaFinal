@@ -57,9 +57,9 @@ export function FormularioPedirHerramienta({ h, obras, cerrar }: { h: Herramient
   if (duplicado) {
     return (
       <div className="flex flex-col gap-4">
-        <div className="flex gap-3 rounded-[var(--radius-caja)] border-2 border-aviso bg-aviso-fondo p-4">
+        <div className="flex gap-3 rounded-[var(--radius-caja)] border border-aviso/15 bg-aviso-fondo p-4">
           <Copy className="mt-0.5 size-6 shrink-0 text-aviso" />
-          <p className="text-lg font-bold">{duplicado.mensaje}</p>
+          <p className="text-lg font-semibold">{duplicado.mensaje}</p>
         </div>
         {igual ? (
           <>
@@ -67,11 +67,11 @@ export function FormularioPedirHerramienta({ h, obras, cerrar }: { h: Herramient
               <AreaTexto id="ph-motivo" rows={2} maxLength={200} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ej.: hacen falta dos para la losa" />
             </Campo>
             <MensajeError>{error}</MensajeError>
-            <Boton ancho tamano="grande" disabled={motivo.trim().length < 3} cargando={enviando} onClick={() => enviar(true)}>Pedir igual</Boton>
+            <Boton ancho disabled={motivo.trim().length < 3} cargando={enviando} onClick={() => enviar(true)}>Pedir igual</Boton>
           </>
         ) : (
           <>
-            <Boton ancho tamano="grande" onClick={() => { cerrar(); router.push(duplicado.visible ? `/mis-pedidos/${duplicado.id}` : "/mis-pedidos"); }}>Ver ese pedido</Boton>
+            <Boton ancho onClick={() => { cerrar(); router.push(duplicado.visible ? `/mis-pedidos/${duplicado.id}` : "/mis-pedidos"); }}>Ver ese pedido</Boton>
             <Boton ancho variante="secundario" onClick={() => setIgual(true)}>Pedir igual</Boton>
           </>
         )}
@@ -105,7 +105,7 @@ export function FormularioPedirHerramienta({ h, obras, cerrar }: { h: Herramient
         </Campo>
       )}
       <MensajeError>{error}</MensajeError>
-      <Boton ancho tamano="grande" disabled={!obraId} cargando={enviando} onClick={() => enviar(false)}>
+      <Boton ancho disabled={!obraId} cargando={enviando} onClick={() => enviar(false)}>
         La necesito en {obra ? `Obra ${obra.nombre}` : "la obra"}
       </Boton>
     </div>
@@ -117,7 +117,7 @@ export function BotonPedirHerramienta({ h, obras, etiqueta = "Pedir" }: { h: Her
   const [abierta, setAbierta] = useState(false);
   return (
     <>
-      <Boton tamano="chico" onClick={() => setAbierta(true)}>{etiqueta}</Boton>
+      <Boton variante="secundario" tamano="chico" onClick={() => setAbierta(true)}>{etiqueta}</Boton>
       <Hoja abierta={abierta} onCerrar={() => setAbierta(false)} titulo={`Pedir ${h.nombre}`}>
         <div>
           <FormularioPedirHerramienta h={h} obras={obras} cerrar={() => setAbierta(false)} />

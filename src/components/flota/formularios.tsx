@@ -92,7 +92,7 @@ export function FormularioVehiculo({ inicial, personas, bases }: { inicial: Vehi
         <Campo etiqueta="Costo por km ($)" htmlFor="v-costoKm" ayuda="Costo del viaje = km × este valor + peajes."><Entrada {...campo("costoKm")} inputMode="decimal" /></Campo>
       </>
       <>
-        <label className="flex min-h-[56px] cursor-pointer items-center justify-between gap-4 rounded-[var(--radius-caja)] border-2 border-linea bg-papel px-4">
+        <label className="flex min-h-12 lg:min-h-10 cursor-pointer items-center justify-between gap-4 rounded-[var(--radius-caja)] border border-linea bg-papel px-4">
           <span>
             <span className="block font-semibold">Entra en la cola de pedidos</span>
             <span className="block text-sm text-suave">Apagado para camionetas personales o del interior.</span>
@@ -136,7 +136,7 @@ export function FormularioDocumento({ vehiculoId, tipoInicial }: { vehiculoId: s
       <CampoFoto etiqueta="Archivo (foto o PDF)" valor={archivo} onCambio={setArchivo} />
       <Campo etiqueta="Notas" htmlFor="doc-notas"><Entrada id="doc-notas" value={notas} onChange={(e) => setNotas(e.target.value)} maxLength={200} placeholder="Ej.: póliza 778812, Federación Patronal" /></Campo>
       <MensajeError>{error}</MensajeError>
-      <Boton ancho tamano="grande" disabled={!tipo} cargando={enviando} onClick={async () => {
+      <Boton ancho disabled={!tipo} cargando={enviando} onClick={async () => {
         setEnviando(true);
         const r = await guardarDocumento({ vehiculoId, tipo: tipo as DatosDocumento["tipo"], vencimiento: vence, notas, archivo: archivo ?? undefined });
         setEnviando(false);
@@ -210,7 +210,7 @@ export function FormularioIncidente({ vehiculoId }: { vehiculoId: string }) {
       </div>
       <Campo etiqueta="Detalle" htmlFor="i-desc"><AreaTexto id="i-desc" rows={2} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} maxLength={400} /></Campo>
       <MensajeError>{error}</MensajeError>
-      <Boton ancho tamano="grande" disabled={!tipo || descripcion.trim().length < 3} cargando={enviando} onClick={async () => {
+      <Boton ancho disabled={!tipo || descripcion.trim().length < 3} cargando={enviando} onClick={async () => {
         setEnviando(true);
         const r = await registrarIncidente({ vehiculoId, tipo: tipo as DatosIncidente["tipo"], fecha, descripcion, monto });
         setEnviando(false);

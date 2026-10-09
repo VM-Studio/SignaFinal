@@ -18,9 +18,9 @@ export default async function PaginaPersona({ params, searchParams }: { params: 
   if (!r) redirect("/actividad");
   const chofer = r.usuario.rol === "CHOFER";
   return (
-    <div className="mx-auto max-w-4xl">
+    <div>
       <Link href="/actividad" className="mb-2 inline-flex min-h-11 items-center gap-1 font-semibold text-suave"><ArrowLeft className="size-5" /> Actividad</Link>
-      <h1 className="text-2xl font-bold lg:text-3xl">{r.usuario.nombre}</h1>
+      <h1 className="text-2xl font-semibold lg:text-3xl">{r.usuario.nombre}</h1>
       <p className="text-suave">{ROL[r.usuario.rol]}{r.usuario.telefono ? ` · ${r.usuario.telefono}` : ""}{r.usuario.activo ? "" : " · desactivado"}</p>
       <Subtitulo>Este mes</Subtitulo>
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">

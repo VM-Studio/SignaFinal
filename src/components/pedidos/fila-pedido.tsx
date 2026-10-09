@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Insignia } from "@/components/ui/basicos";
-import { textoEstado, textoParaCuando, TIPO } from "@/lib/pedidos/presentacion";
+import { textoEstado, textoParaCuando } from "@/lib/pedidos/presentacion";
 import type { PedidoPlano } from "@/lib/pedidos/consultas";
 import { IconoTipo } from "./iconos";
 
@@ -10,35 +10,33 @@ export function EstadoPedido({ p }: { p: PedidoPlano }) {
   return <Insignia tono={e.tono}>{e.texto}</Insignia>;
 }
 
-/** Fila táctil del celular: tipo con ícono, qué, obra, para cuándo, quién pidió y estado. */
+/** Fila del celular (sin tarjeta, borde inferior): tipo, qué, de dónde a qué obra, para cuándo, quién pidió y estado. */
 export function FilaPedido({ p, accion }: { p: PedidoPlano; accion?: ReactNode }) {
   const urgente = p.prioridad === "URGENTE" && p.estado === "PENDIENTE";
   return (
-    <li className={`overflow-hidden rounded-[var(--radius-caja)] border bg-papel ${urgente ? "border-2 border-critico" : "border-linea"}`}>
-      <div className="flex items-stretch">
-        <Link href={`/solicitudes/${p.id}`} className="flex min-w-0 flex-1 gap-3 p-4 hover:bg-fondo/60">
-          <span className="grid size-10 shrink-0 place-items-center rounded-md bg-fondo">
-            <IconoTipo tipo={p.tipo} className="size-5" />
+    <li className="flex items-stretch">
+      <Link href={`/solicitudes/${p.id}`} className="flex min-w-0 flex-1 gap-3 px-4 py-3 active:bg-hover">
+        <IconoTipo tipo={p.tipo} className="mt-0.5 size-5 shrink-0 text-suave" />
+        <span className="min-w-0 flex-1">
+          <span className="line-clamp-2 block leading-snug font-medium">{p.descripcion}</span>
+          <span className="mt-0.5 block truncate text-sm text-suave">
+            {p.origen.nombre} → Obra {p.obra.nombre}
           </span>
-          <span className="min-w-0 flex-1">
-            <span className="flex flex-wrap items-center gap-1.5 text-xs font-semibold tracking-wider text-suave uppercase">
-              {TIPO[p.tipo].corto}
-              {urgente && <Insignia tono="critico" className="normal-case tracking-normal">Urgente</Insignia>}
-            </span>
-            <span className="mt-0.5 line-clamp-2 block leading-snug font-bold">{p.descripcion}</span>
-            <span className="mt-0.5 block text-[15px]">
-              {p.origen.nombre} → Obra {p.obra.nombre}
-            </span>
-            <span className="mt-1 block text-sm text-suave">
-              {textoParaCuando(p.paraCuando, p.franja)} · {p.solicitante.nombre}
-            </span>
-            <span className="mt-2 block">
-              <EstadoPedido p={p} />
-            </span>
+          <span className="block truncate text-sm text-suave">
+            {textoParaCuando(p.paraCuando, p.franja)} · {p.solicitante.nombre}
           </span>
-        </Link>
-        {accion && <div className="flex shrink-0 items-center border-l border-linea p-3">{accion}</div>}
-      </div>
+          <span className="mt-1.5 flex flex-wrap gap-1.5">
+            <EstadoPedido p={p} />
+            {urgente && <Insignia tono="critico">Urgente</Insignia>}
+          </span>
+        </span>
+      </Link>
+      {accion && <div className="flex shrink-0 items-center pr-4">{accion}</div>}
     </li>
   );
+}
+
+/** Contenedor de filas del celular: de borde a borde, separadas por una línea. */
+export function FilasPedido({ children }: { children: ReactNode }) {
+  return <ul className="-mx-4 divide-y divide-linea border-y border-linea bg-papel lg:hidden">{children}</ul>;
 }

@@ -40,8 +40,8 @@ export function BotonesRastreo() {
   return (
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <Boton tamano="grande" variante="secundario" cargando={probando} icono={<PlugZap className="size-5" />} onClick={probar}>Probar conexión</Boton>
-        <Boton tamano="grande" cargando={sincronizando} icono={<RefreshCw className="size-5" />} onClick={sincronizar}>Sincronizar ahora</Boton>
+        <Boton variante="secundario" cargando={probando} icono={<PlugZap />} onClick={probar}>Probar conexión</Boton>
+        <Boton cargando={sincronizando} icono={<RefreshCw />} onClick={sincronizar}>Sincronizar ahora</Boton>
       </div>
       <MensajeError>{error}</MensajeError>
       {prueba && (

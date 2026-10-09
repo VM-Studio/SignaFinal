@@ -14,9 +14,9 @@ const HASTA_H = 21;
 const HORAS = Array.from({ length: HASTA_H - DESDE_H }, (_, i) => DESDE_H + i);
 
 const COLOR = {
-  EN_CURSO: "bg-negro text-white border-negro",
-  PROGRAMADO: "bg-papel text-tinta border-negro border-dashed",
-  FINALIZADO: "bg-ok-fondo text-ok border-ok",
+  EN_CURSO: "bg-tinta/[0.08] text-tinta border-tinta/30",
+  PROGRAMADO: "bg-papel text-tinta border-linea border-dashed",
+  FINALIZADO: "bg-ok-fondo text-ok border-ok/30",
   CANCELADO: "bg-fondo text-suave border-linea",
 } as const;
 const TEXTO = { EN_CURSO: "En curso", PROGRAMADO: "Programado", FINALIZADO: "Terminado", CANCELADO: "Cancelado" } as const;
@@ -75,10 +75,10 @@ export default async function PaginaAgenda({ searchParams }: { searchParams: Pro
                       key={x.id}
                       href={ver(x.pedidoId, v.id)}
                       title={`${x.descripcion} → Obra ${x.obra} · ${x.chofer} · ${hora(x.inicio)}–${hora(x.fin)}`}
-                      className={`absolute top-2 bottom-2 z-20 overflow-hidden rounded-md border-2 px-2 py-1 text-xs leading-tight ${COLOR[x.estado]}`}
+                      className={`absolute top-2 bottom-2 z-20 overflow-hidden rounded-md border px-2 py-1 text-xs leading-tight ${COLOR[x.estado]}`}
                       style={{ left: `${izq * 100}%`, width: `max(${(der - izq) * 100}%, 64px)` }}
                     >
-                      <span className="block truncate font-bold">{hora(x.inicio)} · Obra {x.obra}</span>
+                      <span className="block truncate font-semibold">{hora(x.inicio)} · Obra {x.obra}</span>
                       <span className="block truncate">{x.chofer} · {x.descripcion}</span>
                     </Link>
                   );
@@ -94,7 +94,7 @@ export default async function PaginaAgenda({ searchParams }: { searchParams: Pro
         {filas.map((v) => (
           <section key={v.id}>
             <div className="mb-1.5 flex items-center justify-between gap-2">
-              <Link href={`/flota/${v.id}`} className="font-bold">{v.nombre}</Link>
+              <Link href={`/flota/${v.id}`} className="font-semibold">{v.nombre}</Link>
               <Insignia tono={ESTADO_VEHICULO[v.estado].tono}>{ESTADO_VEHICULO[v.estado].texto}</Insignia>
             </div>
             {v.viajes.length === 0 ? (
@@ -103,8 +103,8 @@ export default async function PaginaAgenda({ searchParams }: { searchParams: Pro
               <ul className="divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
                 {v.viajes.map((x) => (
                   <li key={x.id}>
-                    <Link href={ver(x.pedidoId, v.id)} className="flex min-h-16 items-center gap-3 px-4 py-3">
-                      <span className="w-12 shrink-0 font-bold tabular-nums">{hora(x.inicio)}</span>
+                    <Link href={ver(x.pedidoId, v.id)} className="flex min-h-14 items-center gap-3 px-4 py-2 lg:min-h-11">
+                      <span className="w-12 shrink-0 font-semibold tabular-nums">{hora(x.inicio)}</span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-semibold">Obra {x.obra}</span>
                         <span className="block truncate text-sm text-suave">{x.chofer} · {x.descripcion}</span>

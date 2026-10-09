@@ -44,7 +44,7 @@ export function CampoFoto({ etiqueta, valor, onCambio }: { etiqueta: string; val
           type="button"
           onClick={() => input.current?.click()}
           disabled={procesando}
-          className="flex min-h-[52px] items-center justify-center gap-2 rounded-[var(--radius-caja)] border-2 border-dashed border-linea-fuerte bg-papel font-semibold disabled:opacity-50"
+          className="flex min-h-12 lg:min-h-9 items-center justify-center gap-2 rounded-[var(--radius-caja)] border border-dashed border-linea-fuerte bg-papel font-semibold disabled:opacity-50"
         >
           <Camera className="size-5" /> {procesando ? "Procesando…" : "Sacar foto"}
         </button>

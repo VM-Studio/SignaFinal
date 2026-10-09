@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Importar herramientas" };
 export default async function PaginaImportar() {
   await exigirPermiso("herramientas.editar");
   return (
-    <div className="mx-auto max-w-4xl">
+    <div>
       <Titulo siempre detalle="Alta masiva desde una planilla. Ves todo antes de cargar; si una fila tiene error, no se carga nada.">Importar herramientas</Titulo>
       <ImportarCSV />
     </div>

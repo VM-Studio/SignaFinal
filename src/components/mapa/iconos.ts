@@ -27,7 +27,7 @@ export function iconoVehiculo(v: { nombre: string; tipo: keyof typeof FIGURA; es
       <div style="position:relative;width:38px;height:38px;border-radius:10px;background:${color};border:${elegido ? "3px solid #B7791F" : "2px solid #fff"};box-shadow:0 0 0 1px ${color};display:grid;place-items:center">${flecha}
         <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff" stroke="none">${FIGURA[v.tipo]}</svg>
       </div>
-      <span style="font:700 12px/1.1 var(--font-inter),system-ui;background:#fff;color:#000;border:1px solid #000;border-radius:4px;padding:1px 4px;white-space:nowrap">${esc(v.nombre)}</span>
+      <span style="font:600 12px/1.1 var(--font-archivo),system-ui;background:#fff;color:#000;border:1px solid #e5e7eb;border-radius:4px;padding:1px 4px;white-space:nowrap">${esc(v.nombre)}</span>
     </div>`,
   });
 }
@@ -38,7 +38,7 @@ export function iconoObra(nombre: string) {
     iconSize: [0, 0],
     html: `<div style="transform:translate(-14px,-14px);display:flex;align-items:center;gap:4px">
       <svg width="28" height="28" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" fill="#fff" stroke="#000" stroke-width="2"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2" stroke="#000" stroke-width="2"/><path d="M10 21v-3h4v3" stroke="#000" stroke-width="2" fill="none"/></svg>
-      <span style="font:600 12px/1 var(--font-inter),system-ui;background:rgba(255,255,255,.92);padding:2px 4px;border-radius:4px;white-space:nowrap">${esc(nombre)}</span></div>`,
+      <span style="font:600 12px/1 var(--font-archivo),system-ui;background:rgba(255,255,255,.92);padding:2px 4px;border-radius:4px;white-space:nowrap">${esc(nombre)}</span></div>`,
   });
 }
 
@@ -53,7 +53,7 @@ export function iconoLugar(nombre: string, tipo: TipoUbicacion) {
     iconSize: [0, 0],
     html: `<div style="transform:translate(-15px,-15px);display:flex;align-items:center;gap:4px">
       <svg width="30" height="30" viewBox="0 0 24 24">${figura}</svg>
-      <span style="font:700 12px/1 var(--font-inter),system-ui;background:#000;color:#fff;padding:3px 5px;border-radius:4px;white-space:nowrap">${esc(nombre)}</span></div>`,
+      <span style="font:600 12px/1 var(--font-archivo),system-ui;background:#000;color:#fff;padding:3px 5px;border-radius:4px;white-space:nowrap">${esc(nombre)}</span></div>`,
   });
 }
 
@@ -61,6 +61,6 @@ export function iconoParada(numero: number) {
   return L.divIcon({
     className: "",
     iconSize: [0, 0],
-    html: `<div style="transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;background:#000;color:#fff;border:2px solid #fff;display:grid;place-items:center;font:800 13px/1 var(--font-inter),system-ui">${numero}</div>`,
+    html: `<div style="transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;background:#000;color:#fff;border:2px solid #fff;display:grid;place-items:center;font:600 13px/1 var(--font-archivo),system-ui">${numero}</div>`,
   });
 }

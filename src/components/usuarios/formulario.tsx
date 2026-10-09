@@ -75,7 +75,7 @@ export function FormularioUsuario({ inicial, obras, puedeDireccion, esYo, cerrar
             const tiene = u.obras.includes(o.id);
             const principal = tiene && (u.obraPrincipal || u.obras[0]) === o.id;
             return (
-              <div key={o.id} className={`flex min-h-[48px] items-center gap-3 rounded-[var(--radius-caja)] border px-3 ${tiene ? "border-negro bg-papel" : "border-linea"}`}>
+              <div key={o.id} className={`flex min-h-[48px] items-center gap-3 rounded-[var(--radius-caja)] border px-3 ${tiene ? "border-linea bg-papel" : "border-linea"}`}>
                 <label className="flex flex-1 items-center gap-3 font-medium">
                   <input type="checkbox" className="size-5 accent-negro" checked={tiene} onChange={() => cambiar("obras", tiene ? u.obras.filter((x) => x !== o.id) : [...u.obras, o.id])} />
                   Obra {o.nombre}
@@ -95,7 +95,7 @@ export function FormularioUsuario({ inicial, obras, puedeDireccion, esYo, cerrar
         <Entrada id="u-pass" type="text" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
       </Campo>
       <MensajeError>{error}</MensajeError>
-      <Boton ancho tamano="grande" cargando={enviando} onClick={guardar}>{u.id ? "Guardar" : "Dar de alta"}</Boton>
+      <Boton ancho cargando={enviando} onClick={guardar}>{u.id ? "Guardar" : "Dar de alta"}</Boton>
       {u.id && !esYo && (
         <Boton ancho variante={u.activo ? "peligro" : "secundario"} cargando={enviando} onClick={() => activar(!u.activo)}>
           {u.activo ? "Desactivar (no se borra nada)" : "Volver a activar"}

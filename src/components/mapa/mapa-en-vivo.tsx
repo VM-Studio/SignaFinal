@@ -5,19 +5,20 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, History, Radio, Route, X } from "lucide-react";
 import { Insignia } from "@/components/ui/basicos";
-import { Boton } from "@/components/ui/boton";
+import { Boton, claseBoton } from "@/components/ui/boton";
 import { cuando, diaISO, haceSeg, hora } from "@/lib/formato";
 import type { DatosMapa, ParadaNumerada, PuntoRastro, VehiculoMapa } from "@/lib/mapa/consultas";
 import { COLOR_ESTADO } from "./colores";
+import { useEscritorio } from "@/components/ui/escritorio";
 
-const MapaLeaflet = dynamic(() => import("./mapa-leaflet"), { ssr: false, loading: () => <div className="grid h-full w-full place-items-center bg-[#e9e9e5] text-suave">Cargando mapa…</div> });
+const MapaLeaflet = dynamic(() => import("./mapa-leaflet"), { ssr: false, loading: () => <div className="grid h-full w-full place-items-center bg-fondo text-sm text-suave">Cargando mapa…</div> });
 
 const CADA_MS = 30_000;
 const ESTADO = { EN_VIAJE: { t: "En viaje", tono: "ok" }, DISPONIBLE: { t: "Disponible", tono: "neutro" }, EN_TALLER: { t: "En el taller", tono: "activo" }, FUERA_DE_SERVICIO: { t: "Fuera de servicio", tono: "activo" } } as const;
 type Recorrido = { paradas: ParadaNumerada[]; rastro: PuntoRastro[] };
 
 function Punto({ estado }: { estado: VehiculoMapa["estado"] }) {
-  return <span aria-hidden className="inline-block size-3 shrink-0 rounded-full" style={{ background: COLOR_ESTADO[estado] }} />;
+  return <span aria-hidden className="inline-block size-2 shrink-0 rounded-full" style={{ background: COLOR_ESTADO[estado] }} />;
 }
 
 const VIEJO_MS = 10 * 60_000;
@@ -39,15 +40,15 @@ function Lista({ datos, onElegir }: { datos: DatosMapa; onElegir: (id: string) =
     <ul className="divide-y divide-linea">
       {orden.map((v) => (
         <li key={v.id}>
-          <button onClick={() => onElegir(v.id)} className="flex min-h-16 w-full items-center gap-3 px-4 py-2 text-left hover:bg-fondo">
+          <button onClick={() => onElegir(v.id)} className="flex min-h-14 w-full items-center gap-3 px-4 py-2 lg:min-h-11 text-left hover:bg-hover">
             <Punto estado={v.estado} />
             <span className="min-w-0 flex-1">
-              <span className="block font-bold">{v.nombre}</span>
+              <span className="block font-medium">{v.nombre}</span>
               <span className="block truncate text-sm text-suave">{v.viaje ? `${v.chofer} → Obra ${v.viaje.obra}` : v.direccion ?? v.chofer ?? ESTADO[v.estado].t}</span>
             </span>
-            <span className="shrink-0 text-right text-sm font-semibold tabular-nums">
+            <span className="shrink-0 text-right text-sm tabular-nums">
               {v.velocidad > 0 ? `${v.velocidad} km/h` : "Quieto"}
-              <span className={`block text-xs ${esViejo(v) ? "text-critico" : "font-normal text-suave"}`}><Hace fecha={v.fecha} /></span>
+              <span className={`block text-[11px] ${esViejo(v) ? "text-critico" : "text-suave"}`}><Hace fecha={v.fecha} /></span>
             </span>
           </button>
         </li>
@@ -62,35 +63,35 @@ function Tarjeta({ v, recorrido, cargando, onRecorrido, onCerrar }: { v: Vehicul
     <div className="flex flex-col gap-3 p-4">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="text-xl font-bold">{v.nombre}</p>
+          <p className="text-lg font-semibold">{v.nombre}</p>
           <p className="text-sm text-suave">{v.patente}</p>
         </div>
-        <button onClick={onCerrar} aria-label="Cerrar" className="grid size-11 place-items-center rounded-md hover:bg-black/5"><X className="size-5" /></button>
+        <button onClick={onCerrar} aria-label="Cerrar" className="grid size-10 place-items-center rounded-md text-suave hover:bg-black/[0.04] lg:size-8"><X className="size-4" /></button>
       </div>
       <Insignia tono={ESTADO[v.estado].tono} className="w-fit">{ESTADO[v.estado].t}</Insignia>
-      <dl className="grid grid-cols-2 gap-3 text-[15px]">
-        <div><dt className="text-xs font-semibold tracking-wider text-suave uppercase">Chofer</dt><dd className="font-medium">{v.chofer ?? "—"}</dd></div>
-        <div><dt className="text-xs font-semibold tracking-wider text-suave uppercase">Velocidad</dt><dd className="font-medium tabular-nums">{v.velocidad} km/h</dd></div>
-        <div className="col-span-2"><dt className="text-xs font-semibold tracking-wider text-suave uppercase">Viaje actual</dt><dd className="font-medium">{v.viaje ? <Link href={`/solicitudes/${v.viaje.pedidoId}`} className="underline">{v.viaje.descripcion}</Link> : "Sin viaje"}</dd></div>
-        {v.viaje && <div className="col-span-2"><dt className="text-xs font-semibold tracking-wider text-suave uppercase">Obra destino</dt><dd className="font-medium">Obra {v.viaje.obra}{v.viaje.llegoPorGps ? " · ya llegó (GPS)" : ""}</dd></div>}
-        {v.direccion && <div className="col-span-2"><dt className="text-xs font-semibold tracking-wider text-suave uppercase">Dónde está</dt><dd className="font-medium">{v.direccion}</dd></div>}
-        <div className="col-span-2"><dt className="text-xs font-semibold tracking-wider text-suave uppercase">Último reporte</dt><dd className={`font-medium ${esViejo(v) ? "text-critico" : ""}`}>{hora(v.fecha)} · <Hace fecha={v.fecha} />{esViejo(v) ? " · posición vieja" : ""}</dd></div>
+      <dl className="grid grid-cols-2 gap-3 text-sm">
+        <div><dt className="etiqueta">Chofer</dt><dd className="font-medium">{v.chofer ?? "—"}</dd></div>
+        <div><dt className="etiqueta">Velocidad</dt><dd className="font-medium tabular-nums">{v.velocidad} km/h</dd></div>
+        <div className="col-span-2"><dt className="etiqueta">Viaje actual</dt><dd className="font-medium">{v.viaje ? <Link href={`/solicitudes/${v.viaje.pedidoId}`} className="underline">{v.viaje.descripcion}</Link> : "Sin viaje"}</dd></div>
+        {v.viaje && <div className="col-span-2"><dt className="etiqueta">Obra destino</dt><dd className="font-medium">Obra {v.viaje.obra}{v.viaje.llegoPorGps ? " · ya llegó (GPS)" : ""}</dd></div>}
+        {v.direccion && <div className="col-span-2"><dt className="etiqueta">Dónde está</dt><dd className="font-medium">{v.direccion}</dd></div>}
+        <div className="col-span-2"><dt className="etiqueta">Último reporte</dt><dd className={`font-medium ${esViejo(v) ? "text-critico" : ""}`}>{hora(v.fecha)} · <Hace fecha={v.fecha} />{esViejo(v) ? " · posición vieja" : ""}</dd></div>
       </dl>
-      <Boton ancho variante={recorrido ? "secundario" : "primario"} cargando={cargando} icono={<Route className="size-5" />} onClick={onRecorrido}>
+      <Boton ancho variante={recorrido ? "secundario" : "primario"} cargando={cargando} icono={<Route />} onClick={onRecorrido}>
         {recorrido ? "Ocultar recorrido" : "Ver recorrido de hoy"}
       </Boton>
       {recorrido && (
         <div className="rounded-[var(--radius-caja)] bg-fondo p-3 text-sm">
-          <p className="mb-1 flex items-center gap-3 font-semibold">
-            <span className="inline-block h-0 w-6 border-t-[3px] border-dashed border-black" /> Planificado
-            <span className="inline-block h-0 w-6 border-t-[4px] border-ok" /> Real ({recorrido.rastro.length} puntos)
+          <p className="mb-1 flex items-center gap-3 font-medium">
+            <span className="inline-block h-0 w-6 border-t-2 border-dashed border-tinta" /> Planificado
+            <span className="inline-block h-0 w-6 border-t-2 border-ok" /> Real ({recorrido.rastro.length} puntos)
           </p>
           {recorrido.paradas.length === 0 ? <p className="text-suave">Sin viajes hoy.</p> : (
             <ol className="mt-1 flex flex-col gap-1">
-              {recorrido.paradas.map((p) => <li key={p.numero}><span className="font-bold">{p.numero}.</span> {p.nombre}</li>)}
+              {recorrido.paradas.map((p) => <li key={p.numero}><span className="font-medium">{p.numero}.</span> {p.nombre}</li>)}
             </ol>
           )}
-          <Link href={`/mapa/historial?vehiculo=${v.id}&dia=${diaISO()}`} className="mt-2 inline-flex min-h-11 items-center gap-1 font-semibold underline"><History className="size-4" /> Reproducir el día</Link>
+          <Link href={`/mapa/historial?vehiculo=${v.id}&dia=${diaISO()}`} className="mt-2 inline-flex min-h-9 items-center gap-1 font-medium underline"><History className="size-4" /> Reproducir el día</Link>
         </div>
       )}
     </div>
@@ -103,6 +104,7 @@ export function MapaEnVivo({ inicial, elegidoInicial, compacto = false }: { inic
   const [elegido, setElegido] = useState<string | undefined>(elegidoInicial);
   const [recorrido, setRecorrido] = useState<Recorrido | null>(null);
   const [cargando, setCargando] = useState(false);
+  const escritorio = useEscritorio();
   const [alto, setAlto] = useState(120); // hoja inferior del celular (px)
   const arrastre = useRef<{ y: number; alto: number } | null>(null);
 
@@ -135,7 +137,7 @@ export function MapaEnVivo({ inicial, elegidoInicial, compacto = false }: { inic
 
   const panel = v ? <Tarjeta v={v} recorrido={recorrido} cargando={cargando} onRecorrido={alternarRecorrido} onCerrar={() => { setElegido(undefined); setRecorrido(null); }} /> : <Lista datos={datos} onElegir={elegir} />;
   const insignia = (
-    <span className="pointer-events-none absolute top-3 left-3 z-[500] flex items-center gap-1.5 rounded-md bg-negro px-2.5 py-1.5 text-xs font-semibold text-white">
+    <span className="pointer-events-none absolute top-3 left-3 z-[500] flex h-7 items-center gap-1.5 rounded-md border border-linea bg-papel px-2 text-[12px] font-medium text-tinta shadow-[var(--shadow-flotante)]">
       <Radio className="size-3.5" /> {datos.origen === "mock" ? "Simulado · Cusat sin conectar" : "Cusat en vivo"} · {hora(datos.actualizado)}
     </span>
   );
@@ -145,53 +147,61 @@ export function MapaEnVivo({ inicial, elegidoInicial, compacto = false }: { inic
       <div className="relative isolate h-[46dvh] overflow-hidden rounded-[var(--radius-caja)] border border-linea lg:h-[56dvh]">
         <MapaLeaflet datos={datos} elegido={elegido} onElegir={elegir} />
         {insignia}
-        <Link href="/mapa" className="absolute right-3 bottom-3 z-[500] rounded-md bg-negro px-3 py-2 text-sm font-semibold text-white">Abrir mapa</Link>
+        <Link href="/mapa" className={claseBoton("secundario", "chico", false, "absolute right-3 bottom-3 z-[500] shadow-[var(--shadow-flotante)]")}>Abrir mapa</Link>
       </div>
     );
   }
 
-  return (
-    <>
-      {/* Escritorio */}
-      <div className="hidden h-[calc(100dvh-8rem)] gap-4 lg:flex">
-        <div className="relative isolate flex-1 overflow-hidden rounded-[var(--radius-caja)] border border-linea">
-          <MapaLeaflet datos={datos} elegido={elegido} onElegir={elegir} recorrido={recorrido} />
-          {insignia}
-        </div>
-        <aside className="w-[340px] shrink-0 overflow-y-auto rounded-[var(--radius-caja)] border border-linea bg-papel">{panel}</aside>
-      </div>
+  const enViaje = datos.vehiculos.filter((x) => x.estado === "EN_VIAJE").length;
+  const resumen = `${enViaje} en viaje · ${datos.vehiculos.length} con GPS · se actualiza cada 30 s`;
 
-      {/* Celular: pantalla completa y hoja inferior deslizable */}
-      <div className="fixed inset-x-0 top-[calc(3.5rem+env(safe-area-inset-top))] bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 lg:hidden">
-        <div className="absolute inset-0 isolate">
+  // Escritorio: columna de 400px con la lista o el vehículo elegido, y el mapa a la derecha a todo el alto.
+  if (escritorio) {
+    return (
+      <div className="-m-6 grid h-[calc(100dvh-48px)] grid-cols-[400px_1fr]">
+        <aside className="flex min-h-0 flex-col border-r border-linea bg-papel">
+          {!v && <p className="shrink-0 border-b border-linea px-4 py-3 text-[12px] text-suave">{resumen}</p>}
+          <div className="flex-1 overflow-y-auto">{panel}</div>
+        </aside>
+        <div className="relative isolate">
           <MapaLeaflet datos={datos} elegido={elegido} onElegir={elegir} recorrido={recorrido} />
           {insignia}
         </div>
-        <div className="absolute inset-x-0 bottom-0 z-[600] flex flex-col rounded-t-2xl border-t border-linea bg-papel" style={{ height: alto }}>
-          <div
-            role="separator"
-            aria-label="Deslizar para ver más"
-            className="flex h-8 shrink-0 cursor-grab touch-none items-center justify-center"
-            onPointerDown={(e) => { arrastre.current = { y: e.clientY, alto }; (e.target as HTMLElement).setPointerCapture(e.pointerId); }}
-            onPointerMove={(e) => { if (arrastre.current) setAlto(Math.min(window.innerHeight * 0.8, Math.max(72, arrastre.current.alto + arrastre.current.y - e.clientY))); }}
-            onPointerUp={() => {
-              arrastre.current = null;
-              const h = window.innerHeight;
-              const puntos = [96, Math.round(h * 0.45), Math.round(h * 0.75)];
-              setAlto((a) => puntos.reduce((m, p) => (Math.abs(p - a) < Math.abs(m - a) ? p : m), puntos[0]));
-            }}
-            onClick={() => setAlto((a) => (a < 200 ? Math.round(window.innerHeight * 0.45) : 96))}
-          >
-            <span className="h-1.5 w-10 rounded-full bg-black/25" />
-          </div>
-          {!v && <p className="shrink-0 px-4 pb-1 text-sm font-semibold text-suave">{datos.vehiculos.filter((x) => x.estado === "EN_VIAJE").length} en viaje · {datos.vehiculos.length} con GPS · {cuando(datos.actualizado)}</p>}
-          <div className="flex-1 overflow-y-auto">{panel}</div>
-        </div>
       </div>
-    </>
+    );
+  }
+
+  // Celular: pantalla completa y hoja inferior deslizable.
+  return (
+    <div className="fixed inset-x-0 top-[calc(52px+env(safe-area-inset-top))] bottom-[calc(56px+env(safe-area-inset-bottom))] z-10">
+      <div className="absolute inset-0 isolate">
+        <MapaLeaflet datos={datos} elegido={elegido} onElegir={elegir} recorrido={recorrido} />
+        {insignia}
+      </div>
+      <div className="absolute inset-x-0 bottom-0 z-[600] flex flex-col rounded-t-xl border-t border-linea bg-papel shadow-[var(--shadow-flotante)]" style={{ height: alto }}>
+        <div
+          role="separator"
+          aria-label="Deslizar para ver más"
+          className="flex h-7 shrink-0 cursor-grab touch-none items-center justify-center"
+          onPointerDown={(e) => { arrastre.current = { y: e.clientY, alto }; (e.target as HTMLElement).setPointerCapture(e.pointerId); }}
+          onPointerMove={(e) => { if (arrastre.current) setAlto(Math.min(window.innerHeight * 0.8, Math.max(72, arrastre.current.alto + arrastre.current.y - e.clientY))); }}
+          onPointerUp={() => {
+            arrastre.current = null;
+            const h = window.innerHeight;
+            const puntos = [96, Math.round(h * 0.45), Math.round(h * 0.75)];
+            setAlto((a) => puntos.reduce((m, p) => (Math.abs(p - a) < Math.abs(m - a) ? p : m), puntos[0]));
+          }}
+          onClick={() => setAlto((a) => (a < 200 ? Math.round(window.innerHeight * 0.45) : 96))}
+        >
+          <span className="h-1 w-9 rounded-full bg-black/15" />
+        </div>
+        {!v && <p className="shrink-0 px-4 pb-1 text-[12px] text-suave">{enViaje} en viaje · {datos.vehiculos.length} con GPS · {cuando(datos.actualizado)}</p>}
+        <div className="flex-1 overflow-y-auto">{panel}</div>
+      </div>
+    </div>
   );
 }
 
 export function VolverAlMapa() {
-  return <Link href="/mapa" className="inline-flex min-h-11 items-center gap-1 font-semibold text-suave"><ArrowLeft className="size-5" /> Mapa</Link>;
+  return <Link href="/mapa" className="inline-flex min-h-10 items-center gap-1 text-sm font-medium text-suave hover:text-tinta lg:min-h-8"><ArrowLeft className="size-4" /> Mapa</Link>;
 }

@@ -1,3 +1,4 @@
+import { claseCampo } from "@/components/ui/campos";
 import type { Metadata } from "next";
 import { Activity, Download } from "lucide-react";
 import { actividad, opcionesFiltro, TIPOS_ACCION, type FiltrosActividad, type TipoAccion } from "@/lib/actividad/consultas";
@@ -28,15 +29,15 @@ const query = (f: FiltrosActividad, extra: Record<string, string | number | unde
   return s ? `?${s}` : "";
 };
 
-const campo = "min-h-[44px] rounded-[var(--radius-caja)] border border-linea bg-papel px-3 text-[15px]";
+const campo = claseCampo;
 
 /** Todo lo que hizo cada usuario (solo Dirección). */
 export default async function PaginaActividad({ searchParams }: { searchParams: Promise<P> }) {
   const f = filtrosDe(await searchParams);
   const [{ filas, total, pagina, paginas }, ops] = await Promise.all([actividad(f), opcionesFiltro()]);
   return (
-    <div className="mx-auto max-w-4xl">
-      <Titulo detalle="Cada acción de cada usuario, lo último primero." accion={<a href={`/api/actividad/exportar${query(f)}`} className={claseBoton("secundario")}><Download className="size-5" /> Exportar CSV</a>}>
+    <div>
+      <Titulo detalle="Cada acción de cada usuario, lo último primero." accion={<a href={`/api/actividad/exportar${query(f)}`} className={claseBoton("secundario")}><Download /> Exportar CSV</a>}>
         Actividad
       </Titulo>
       <form action="/actividad" className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-6">
@@ -55,7 +56,7 @@ export default async function PaginaActividad({ searchParams }: { searchParams: 
         </select>
         <input type="date" name="desde" defaultValue={f.desde} aria-label="Desde" className={campo} />
         <input type="date" name="hasta" defaultValue={f.hasta} aria-label="Hasta" className={campo} />
-        <Boton className="col-span-2 lg:col-span-1">Filtrar</Boton>
+        <Boton variante="secundario" className="col-span-2 lg:col-span-1">Filtrar</Boton>
       </form>
       {filas.length === 0 ? (
         <Vacio icono={<Activity className="size-10" />} titulo="Sin actividad con esos filtros" />

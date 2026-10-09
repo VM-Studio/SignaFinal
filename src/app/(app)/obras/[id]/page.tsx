@@ -29,15 +29,15 @@ export default async function PaginaObra({ params, searchParams }: { params: Pro
   const maps = `https://www.google.com/maps/dir/?api=1&destination=${o.latitud},${o.longitud}`;
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <Link href="/obras" className="mb-2 hidden min-h-11 items-center gap-1 font-semibold text-suave lg:inline-flex">
         <ArrowLeft className="size-5" /> Obras
       </Link>
       <header className="mb-4">
-        <h1 className="text-2xl font-bold lg:text-3xl">Obra {o.nombre}</h1>
+        <h1 className="text-2xl font-semibold lg:text-3xl">Obra {o.nombre}</h1>
         <p className="mt-1 text-suave">{o.direccion}, {o.localidad}{o.estado !== "ACTIVA" ? " · pausada" : ""}</p>
         {puede(u.rol, "pedidos.crear") && o.estado === "ACTIVA" && (
-          <BotonLink href={`/pedir?obra=${o.id}`} className="mt-3" icono={<PlusCircle className="size-5" />}>Pedir un viaje para esta obra</BotonLink>
+          <BotonLink href={`/pedir?obra=${o.id}`} className="mt-3" icono={<PlusCircle />}>Pedir un viaje para esta obra</BotonLink>
         )}
       </header>
 
@@ -71,12 +71,12 @@ export default async function PaginaObra({ params, searchParams }: { params: Pro
       {tab === "datos" && (
         <div className="flex flex-col gap-4">
           <div className="rounded-[var(--radius-caja)] border border-linea bg-papel p-4">
-            <p className="text-xs font-bold tracking-wider text-suave uppercase">Dirección</p>
+            <p className="etiqueta">Dirección</p>
             <p className="mt-1 text-lg font-semibold">{o.direccion}, {o.localidad}</p>
             <a href={maps} target="_blank" rel="noopener" className={claseBoton("primario", "normal", true, "mt-3")}><Navigation className="size-5" /> Abrir en Maps</a>
           </div>
           <div className="rounded-[var(--radius-caja)] border border-linea bg-papel p-4">
-            <p className="text-xs font-bold tracking-wider text-suave uppercase">Responsables</p>
+            <p className="etiqueta">Responsables</p>
             <ul className="mt-2 flex flex-col gap-2">
               {o.responsables.map((r) => (
                 <li key={r.usuario.nombre} className="flex items-center justify-between gap-3">

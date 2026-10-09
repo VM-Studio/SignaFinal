@@ -27,7 +27,7 @@ export default async function PaginaHoy({ searchParams }: { searchParams: Promis
   const { tarjetas, total, paginas } = await viajesDelChofer(vista, { q: sp.q, pagina });
 
   return (
-    <div className="mx-auto max-w-xl">
+    <div>
       <Pestanas items={[
         { href: "/hoy", etiqueta: "Hoy", activa: vista === "hoy" },
         { href: "/hoy?vista=proximos", etiqueta: "Próximos", activa: vista === "proximos" },
@@ -59,7 +59,7 @@ export default async function PaginaHoy({ searchParams }: { searchParams: Promis
 function Hoy({ tarjetas }: { tarjetas: Tarjeta[] }) {
   if (tarjetas.length === 0) {
     return (
-      <Vacio icono={<Route className="size-10" />} titulo="No tenés viajes para hoy" accion={<BotonLink href="/solicitudes" icono={<ListOrdered className="size-5" />}>Ver solicitudes</BotonLink>}>
+      <Vacio icono={<Route className="size-10" />} titulo="No tenés viajes para hoy" accion={<BotonLink href="/solicitudes" icono={<ListOrdered />}>Ver solicitudes</BotonLink>}>
         Aceptá una solicitud y aparece acá.
       </Vacio>
     );

@@ -145,12 +145,40 @@ es, qrcode. PWA. Vercel + Postgres administrado.
 
 ## Diseño visual
 
-Negro, blanco y gris. Header y barra inferior negros; contenido sobre fondo claro. Color
-solo para estado: verde #1F7A4D ok, ámbar #B7791F aviso, rojo #B42318 crítico, siempre
-con texto. Tipografía Inter (next/font). Botones mínimo 52px en celular. Sin gradientes ni
-sombras difusas. Splash de carga negro con public/loading.png centrado, barra fina del ancho
-del logo y porcentaje, 2,5 s: al abrir el sistema (una vez por sesión) y al ingresar. Login con
-public/inicio.png arriba del formulario.
+Fino y profesional, como Linear, Vercel o Notion: mucho blanco, bordes de 1px grises, tipografía
+ajustada y el contenido usando todo el ancho. Nada de bordes gruesos ni bloques centrados. Todo
+sale de un solo lugar: src/app/globals.css (tokens) y src/components/ui (componentes).
+
+- Grilla de 8px. Espaciados solo de 4, 8, 12, 16, 24, 32, 48.
+- Colores: página #FAFAFA; superficies #FFFFFF; bordes #E5E7EB (1px, nunca más grueso); borde fuerte
+  #D1D5DB solo para foco o selección; texto #111827, secundario #6B7280, terciario #9CA3AF (solo
+  texto de 11px no esencial). Negro #0A0A0A solo en header de celular, barra lateral y botón
+  primario. Estado: verde #1F7A4D, ámbar #B7791F, rojo #B42318, como texto o punto de 8px al lado
+  del texto, con fondo al 8% en insignias. Siempre con palabras. Nada más de color.
+- Tipografía Archivo (next/font): 13px base en escritorio, 15px en celular. Escala 11 (meta), 13
+  (cuerpo), 15 (cuerpo celular / énfasis), 18 (título de sección), 22 (título de página), 28
+  (número destacado). Pesos 400, 500 y 600; nunca 700. Mayúsculas solo en etiquetas de 11px con
+  tracking. Los campos van a 16px en celular (si no, iPhone hace zoom).
+- Radios: 6px componentes, 8px tarjetas, 999 insignias. Sin sombras, salvo menús y hojas
+  (0 4px 16px rgba(0,0,0,.08)).
+- Botones: primario negro 36px (escritorio) / 48px (celular); 52px solo la acción principal del
+  chofer. Secundario blanco con borde 1px. Terciario solo texto.
+- Campos: 36px / 44px, borde 1px, foco con borde #111827 y anillo suave, etiqueta de 12px gris.
+- Tablas (escritorio): filas de 44px, borde inferior 1px, encabezado de 11px en mayúsculas gris,
+  hover #F9FAFB, números a la derecha, sin zebra.
+- Tarjetas: borde 1px, sin sombra, padding 16; agrupan, no destacan.
+- Insignia: punto de color + texto, alto 22, fondo suave.
+- Íconos lucide: 16px escritorio, 20px celular, trazo 1,75.
+- Escritorio (1024px+): barra lateral negra de 232px (logo a 120px, ítems de 32px a 13px, activo con
+  blanco al 10%); header blanco de 48px con el título de la página (22px, 600), acciones de 36px,
+  campana y avatar; contenido con padding 24 y sin max-width. Lista + detalle: lista de 380px a la
+  izquierda y detalle a la derecha. Mapa: columna de 400px con la información y el mapa a la
+  derecha ocupando todo el alto.
+- Celular: header negro de 52px (logo chico, título, campana); barra inferior de 56px (íconos de
+  22px, etiqueta de 11px); contenido con padding 16; listas como filas de 56-64px con borde inferior,
+  sin tarjeta por fila. Tarjeta solo para la acción principal del inicio y el viaje en curso.
+- Splash de carga negro con public/loading.png centrado, barra fina y porcentaje, 2,5 s: al abrir
+  el sistema (una vez por sesión) y al ingresar. Login con public/inicio.png arriba del formulario.
 
 ## Materiales y Compras (circuito nuevo)
 

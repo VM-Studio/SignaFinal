@@ -17,7 +17,7 @@ import { BotonEtapa } from "@/components/viajes/acciones-viaje";
 import { MapaEnVivo } from "@/components/mapa/mapa-en-vivo";
 import { ListaPedidos, ListaViajes } from "@/components/pedidos/lista-pedidos";
 import { BotonLink } from "@/components/ui/boton";
-import { Cifra, Esqueleto, FilaLista, Insignia, Lista, Subtitulo, Vacio } from "@/components/ui/basicos";
+import { AccionPrincipal, Cifra, Esqueleto, FilaLista, Insignia, Lista, Llamado, Subtitulo, Titulo, Vacio } from "@/components/ui/basicos";
 import { DOCUMENTO } from "@/lib/etiquetas";
 import { cuando, fecha, finDelDia, plata, vencimiento } from "@/lib/formato";
 import { cuantasParaAprobar, listosEnMisObras, resumenCompras } from "@/lib/materiales/consultas";
@@ -30,10 +30,10 @@ export const metadata: Metadata = { title: "Inicio" };
 export default async function Inicio() {
   const u = await exigirSesion();
   return (
-    <div className="mx-auto max-w-3xl lg:max-w-none">
-      <h1 className="mb-4 text-2xl font-bold lg:text-3xl">Hola, {u.nombre}</h1>
+    <div>
+      <Titulo siempre>Hola, {u.nombre}</Titulo>
       {/* El saludo sale al instante; cada bloque llega cuando está listo. */}
-      <Suspense fallback={<EsqueletoLista filas={4} ancho="max-w-none" />}>
+      <Suspense fallback={<EsqueletoLista filas={4} />}>
         {u.rol === "CHOFER" && <InicioChofer />}
         {(u.rol === "RESPONSABLE_OBRA" || u.rol === "CAPATAZ") && <InicioObra />}
         {u.rol === "DEPOSITO" && <InicioDeposito />}
@@ -50,27 +50,23 @@ export default async function Inicio() {
 async function InicioObra() {
   const [mios, enMisObras, listos] = await Promise.all([misPedidosDeHoy(), viajesAMisObrasHoy(), listosEnMisObras()]);
   return (
-    <div className="grid gap-x-8 lg:grid-cols-2 [&>section]:min-w-0">
+    <div className="grid gap-x-6 lg:grid-cols-2 [&>section]:min-w-0">
       <section>
-        <BotonLink href="/pedir" ancho tamano="grande" icono={<PlusCircle className="size-6" />} className="min-h-[88px] text-xl">
-          Pedir un viaje
-        </BotonLink>
+        <AccionPrincipal href="/pedir" icono={<PlusCircle />} titulo="Pedir un viaje" detalle="Retiro en un proveedor, herramientas o personas a tu obra." boton="Pedir un viaje" />
         {/* Lo que Compras dejó listo es lo único que le pide una acción. */}
         {listos > 0 && (
-          <Link href="/pedir/retiro" className="mt-3 flex min-h-16 items-center gap-3 rounded-[var(--radius-caja)] border-2 border-ok bg-ok-fondo px-4 py-3 font-bold text-ok">
-            <PackageOpen className="size-6 shrink-0" />
-            <span className="flex-1">{listos === 1 ? "1 material listo para retirar" : `${listos} materiales listos para retirar`}</span>
-            <span className="underline">Pedir el viaje</span>
-          </Link>
+          <div className="mt-2">
+            <Llamado href="/pedir/retiro" icono={<PackageOpen />} tono="ok" enlace="Pedir el viaje">
+              {listos === 1 ? "1 material listo para retirar" : `${listos} materiales listos para retirar`}
+            </Llamado>
+          </div>
         )}
-        <Link href="/pedir-materiales" className="mt-2 flex min-h-[52px] items-center justify-center gap-2 rounded-[var(--radius-caja)] border-2 border-negro bg-papel font-semibold">
-          <ShoppingCart className="size-5" /> Pedir materiales a Compras
-        </Link>
-        <Subtitulo accion={<Link href="/mis-pedidos" className="text-sm font-semibold underline">Ver todos</Link>}>Mis pedidos de hoy</Subtitulo>
+        <BotonLink href="/pedir-materiales" variante="secundario" ancho icono={<ShoppingCart />} className="mt-2">Pedir materiales a Compras</BotonLink>
+        <Subtitulo accion={<Link href="/mis-pedidos" className="text-sm font-medium underline">Ver todos</Link>}>Mis pedidos de hoy</Subtitulo>
         {mios.length === 0 ? <Vacio titulo="No pediste nada para hoy">Lo que pidas aparece acá con su estado.</Vacio> : <ListaPedidos filas={mios} base="/mis-pedidos" />}
       </section>
       <section>
-        <Subtitulo accion={<Link href="/viajes-en-curso" className="text-sm font-semibold underline">Ver viajes</Link>}>En mis obras hoy</Subtitulo>
+        <Subtitulo accion={<Link href="/viajes-en-curso" className="text-sm font-medium underline">Ver viajes</Link>}>En mis obras hoy</Subtitulo>
         {enMisObras.length === 0 ? (
           <Vacio titulo="Ningún viaje aceptado hacia tus obras hoy" />
         ) : (
@@ -88,7 +84,8 @@ async function InicioChofer() {
   const enCurso = tarjetas.find((t) => t.etapa && ETAPAS_EN_CURSO.includes(t.etapa));
   const aceptados = tarjetas.filter((t) => t !== enCurso);
   return (
-    <div className="lg:max-w-xl">
+    <div className="grid gap-x-6 lg:grid-cols-2 [&>*]:min-w-0">
+      <section>
       {enCurso ? (
         <>
           <Subtitulo>Mi viaje en curso</Subtitulo>
@@ -97,14 +94,14 @@ async function InicioChofer() {
               <BotonEtapa etapa={enCurso.etapa!} pedidoId={enCurso.pedidoId} numero={enCurso.numero} vehiculo={enCurso.vehiculo ?? ""} kmActual={enCurso.kmActual} kmSalida={enCurso.kmSalida} obra={enCurso.entregar.nombre} irAlViaje />
             } />
           </ul>
-          <BotonLink href="/solicitudes" variante="secundario" ancho className="mt-4">Solicitudes pendientes: {pendientes}</BotonLink>
+          <BotonLink href="/solicitudes" variante="secundario" ancho className="mt-3">Solicitudes pendientes: {pendientes}</BotonLink>
         </>
       ) : (
-        <BotonLink href="/solicitudes" ancho tamano="grande" icono={<ListOrdered className="size-6" />} className="min-h-[88px] text-xl">
-          Solicitudes pendientes: {pendientes}
-        </BotonLink>
+        <AccionPrincipal href="/solicitudes" icono={<ListOrdered />} titulo={pendientes === 1 ? "1 solicitud pendiente" : `${pendientes} solicitudes pendientes`} detalle="Aceptá un viaje para empezar." boton="Ver solicitudes" />
       )}
-      <Subtitulo accion={aceptados.length > 2 ? <Link href="/hoy" className="text-sm font-semibold underline">Ver todos</Link> : undefined}>Aceptados para hoy</Subtitulo>
+      </section>
+      <section>
+      <Subtitulo accion={aceptados.length > 2 ? <Link href="/hoy" className="text-sm font-medium underline">Ver todos</Link> : undefined}>Aceptados para hoy</Subtitulo>
       {aceptados.length === 0 ? (
         <Vacio titulo="No tenés viajes aceptados para hoy">Aceptá una solicitud para empezar.</Vacio>
       ) : (
@@ -112,6 +109,7 @@ async function InicioChofer() {
           {aceptados.slice(0, 2).map((t) => <TarjetaChofer key={t.pedidoId} t={t} href={`/viaje/${t.pedidoId}`} />)}
         </ul>
       )}
+      </section>
     </div>
   );
 }
@@ -123,12 +121,10 @@ async function InicioDeposito() {
   const fin = finDelDia().getTime();
   const paraPreparar = pedidas.filter((p) => p.estado === "TOMADO" && p.paraCuando.getTime() <= fin);
   return (
-    <div className="grid gap-x-8 lg:grid-cols-2 [&>section]:min-w-0">
+    <div className="grid gap-x-6 lg:grid-cols-2 [&>section]:min-w-0">
       <section>
-        <BotonLink href="/herramientas/escanear" ancho tamano="grande" icono={<ScanLine className="size-7" />} className="min-h-[104px] text-xl">
-          Escanear
-        </BotonLink>
-        <Subtitulo accion={<Link href="/entregas" className="text-sm font-semibold underline">Ver todo</Link>}>Para preparar hoy</Subtitulo>
+        <AccionPrincipal href="/herramientas/escanear" icono={<ScanLine />} titulo="Escanear una herramienta" detalle="Entregar, devolver o ver dónde está." boton="Escanear" />
+        <Subtitulo accion={<Link href="/entregas" className="text-sm font-medium underline">Ver todo</Link>}>Para preparar hoy</Subtitulo>
         {paraPreparar.length === 0 ? (
           <Vacio titulo="Nada aceptado para hoy">Cuando un chofer acepte un traslado de herramientas, aparece acá para prepararlo.</Vacio>
         ) : (
@@ -184,11 +180,11 @@ async function AprobacionesPendientes() {
   const n = await cuantasParaAprobar();
   if (!n) return null;
   return (
-    <Link href="/aprobaciones" className="mb-3 flex min-h-16 items-center gap-3 rounded-[var(--radius-caja)] border-2 border-aviso bg-aviso-fondo px-4 py-3 font-bold text-aviso">
-      <Stamp className="size-6 shrink-0" />
-      <span className="flex-1">{n === 1 ? "1 orden de compra espera tu aprobación" : `${n} órdenes de compra esperan tu aprobación`}</span>
-      <span className="underline">Aprobar</span>
-    </Link>
+    <div className="mb-3">
+      <Llamado href="/aprobaciones" icono={<Stamp />} tono="aviso" enlace="Aprobar">
+        {n === 1 ? "1 orden de compra espera tu aprobación" : `${n} órdenes de compra esperan tu aprobación`}
+      </Llamado>
+    </div>
   );
 }
 
@@ -213,11 +209,9 @@ async function CifrasDireccion() {
 async function InicioCompras() {
   const r = await resumenCompras();
   return (
-    <div className="grid gap-x-8 lg:grid-cols-2 [&>section]:min-w-0">
+    <div className="grid gap-x-6 lg:grid-cols-2 [&>section]:min-w-0">
       <section>
-        <BotonLink href="/compras" ancho tamano="grande" icono={<ShoppingCart className="size-6" />} className="min-h-[88px] text-xl">
-          {r.nuevos.length ? `Pedidos nuevos: ${r.nuevos.length}` : "Pedidos de material"}
-        </BotonLink>
+        <AccionPrincipal href="/compras" icono={<ShoppingCart />} titulo={r.nuevos.length ? `${r.nuevos.length} ${r.nuevos.length === 1 ? "pedido nuevo" : "pedidos nuevos"}` : "Pedidos de material"} detalle="Tomalos, cargá la OC y habilitá el retiro." boton="Abrir la cola" />
         <div className="mt-3 grid grid-cols-2 gap-2">
           <Link href="/compras?p=en-compra"><Cifra etiqueta="En compra" valor={r.enCompra} /></Link>
           <Link href="/compras?p=esperando"><Cifra etiqueta="Esperan al dueño" valor={r.esperando} tono={r.esperando ? "aviso" : undefined} /></Link>
@@ -226,7 +220,7 @@ async function InicioCompras() {
         </div>
       </section>
       <section>
-        <Subtitulo accion={<Link href="/compras" className="text-sm font-semibold underline">Ver la cola</Link>}>Demorados</Subtitulo>
+        <Subtitulo accion={<Link href="/compras" className="text-sm font-medium underline">Ver la cola</Link>}>Demorados</Subtitulo>
         {r.demorados.length === 0 ? <Vacio titulo="Nada demorado">Todo está dentro de los tiempos.</Vacio> : <ColaMateriales filas={r.demorados.slice(0, 6)} compacta />}
       </section>
     </div>
@@ -263,7 +257,7 @@ async function InicioAdministracion() {
           )}
         </section>
         <section>
-          <Subtitulo accion={<Link href="/costos" className="flex items-center gap-1 text-sm font-semibold underline"><Download className="size-4" /> Exportar</Link>}>Costo del mes por obra</Subtitulo>
+          <Subtitulo accion={<Link href="/costos" className="flex items-center gap-1 text-sm font-medium underline"><Download className="size-4" /> Exportar</Link>}>Costo del mes por obra</Subtitulo>
           {obras.length === 0 ? (
             <Vacio titulo="Sin viajes terminados este mes" />
           ) : (
@@ -271,11 +265,11 @@ async function InicioAdministracion() {
               {obras.map((c) => (
                 <li key={c.obraId} className="px-4 py-3">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="font-semibold">Obra {c.obra}</span>
-                    <span className="font-bold tabular-nums">{plata(c.total)}</span>
+                    <span className="font-medium">Obra {c.obra}</span>
+                    <span className="font-medium tabular-nums">{plata(c.total)}</span>
                   </div>
                   <div className="mt-1.5 flex items-center gap-3">
-                    <div className="h-1.5 flex-1 rounded-full bg-fondo"><div className="h-full rounded-full bg-negro" style={{ width: `${total ? (c.total / total) * 100 : 0}%` }} /></div>
+                    <div className="h-1 flex-1 rounded-full bg-black/[0.06]"><div className="h-full rounded-full bg-tinta" style={{ width: `${total ? (c.total / total) * 100 : 0}%` }} /></div>
                     <span className="text-sm text-suave">{c.viajes} viajes{c.combustible ? ` · ${plata(c.combustible)} comb.` : ""}</span>
                   </div>
                 </li>

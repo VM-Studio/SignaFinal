@@ -50,7 +50,7 @@ export function BotonTomarMaterial({ id }: { id: string }) {
   const { correr, enviando, error } = useAccion();
   return (
     <>
-      <Boton ancho tamano="grande" cargando={enviando} icono={<Hand className="size-5" />} onClick={() => correr(() => tomarMaterial(id), "Lo tomaste. Ahora está en compra.")}>Tomar</Boton>
+      <Boton ancho cargando={enviando} icono={<Hand />} onClick={() => correr(() => tomarMaterial(id), "Lo tomaste. Ahora está en compra.")}>Tomar</Boton>
       <MensajeError>{error}</MensajeError>
     </>
   );
@@ -71,7 +71,7 @@ function ConHojaPropia({ etiqueta, titulo, icono, variante = "primario", grande 
 /** EN_COMPRA → "OC armada, pedir aprobación": número de OC y monto. */
 export function BotonPedirAprobacion({ id, ocInicial }: { id: string; ocInicial: string | null }) {
   return (
-    <ConHojaPropia etiqueta="OC armada, pedir aprobación" titulo="Pedir aprobación al dueño" icono={<FileCheck2 className="size-5" />} grande>
+    <ConHojaPropia etiqueta="OC armada, pedir aprobación" titulo="Pedir aprobación al dueño" icono={<FileCheck2 />} grande>
       {(cerrar) => <FormAprobacion id={id} ocInicial={ocInicial} cerrar={cerrar} />}
     </ConHojaPropia>
   );
@@ -86,7 +86,7 @@ function FormAprobacion({ id, ocInicial, cerrar }: { id: string; ocInicial: stri
       <Campo etiqueta="Número de OC (Lebane)" htmlFor="oc"><Entrada id="oc" value={oc} onChange={(e) => setOc(e.target.value)} maxLength={40} inputMode="numeric" placeholder="Ej.: 3142" autoFocus /></Campo>
       <Campo etiqueta="Monto" htmlFor="monto" ayuda="Opcional. Lo ve el dueño al aprobar."><Entrada id="monto" value={monto} onChange={(e) => setMonto(e.target.value)} inputMode="decimal" placeholder="$" /></Campo>
       <MensajeError>{error}</MensajeError>
-      <Boton ancho tamano="grande" cargando={enviando} disabled={!oc.trim()} onClick={async () => (await correr(() => pedirAprobacion({ id, ordenCompra: oc, monto }), "Listo. Le llegó al dueño para aprobar.")) && cerrar()}>
+      <Boton ancho cargando={enviando} disabled={!oc.trim()} onClick={async () => (await correr(() => pedirAprobacion({ id, ordenCompra: oc, monto }), "Listo. Le llegó al dueño para aprobar.")) && cerrar()}>
         Pedir aprobación
       </Boton>
     </div>
@@ -98,7 +98,7 @@ export function BotonAprobadoEnPapel({ id }: { id: string }) {
   const { correr, enviando, error } = useAccion();
   return (
     <>
-      <Boton ancho variante="secundario" cargando={enviando} icono={<Stamp className="size-5" />} onClick={() => correr(() => aprobarMaterial(id, true), "Marcado como aprobado en papel. Queda registrado que lo marcaste vos.")}>
+      <Boton ancho variante="secundario" cargando={enviando} icono={<Stamp />} onClick={() => correr(() => aprobarMaterial(id, true), "Marcado como aprobado en papel. Queda registrado que lo marcaste vos.")}>
         El dueño ya aprobó en papel
       </Boton>
       <MensajeError>{error}</MensajeError>
@@ -111,7 +111,7 @@ type Proveedor = { id: string; nombre: string; direccion: string; localidad: str
 /** APROBADO → "Habilitar para retirar". */
 export function BotonHabilitar({ id, proveedores, oc, descripcion, otraParte = false }: { id: string; proveedores: Proveedor[]; oc: string | null; descripcion: string; otraParte?: boolean }) {
   return (
-    <ConHojaPropia etiqueta={otraParte ? "Habilitar otra parte" : "Habilitar para retirar"} titulo="Habilitar para retirar" icono={<PackageOpen className="size-5" />} grande={!otraParte} variante={otraParte ? "secundario" : "primario"}>
+    <ConHojaPropia etiqueta={otraParte ? "Habilitar otra parte" : "Habilitar para retirar"} titulo="Habilitar para retirar" icono={<PackageOpen />} grande={!otraParte} variante={otraParte ? "secundario" : "primario"}>
       {(cerrar) => <FormHabilitar id={id} proveedores={proveedores} oc={oc} descripcion={descripcion} cerrar={cerrar} />}
     </ConHojaPropia>
   );
@@ -154,13 +154,13 @@ function FormHabilitar({ id, proveedores, oc, descripcion, cerrar }: { id: strin
         <p className="mb-2 text-sm font-semibold">Peso aproximado</p>
         <Opciones nombre="Peso" columnas={2} valor={pesoKg} onElegir={setPesoKg} opciones={PESOS_MATERIAL.map((p) => ({ valor: String(p.kg), titulo: p.titulo }))} />
       </div>
-      <label className="flex min-h-14 cursor-pointer items-center gap-3 rounded-[var(--radius-caja)] border-2 border-linea bg-papel px-4">
+      <label className="flex min-h-14 cursor-pointer items-center gap-3 rounded-[var(--radius-caja)] border border-linea bg-papel px-4">
         <input type="checkbox" checked={completo} onChange={(e) => setCompleto(e.target.checked)} className="size-6 accent-negro" />
         <span className="font-semibold">Con esto no falta nada del pedido</span>
       </label>
       <MensajeError>{error}</MensajeError>
       <Boton
-        ancho tamano="grande" cargando={enviando} disabled={!proveedorId || !pesoKg}
+        ancho cargando={enviando} disabled={!proveedorId || !pesoKg}
         onClick={async () =>
           (await correr(
             () => habilitarRetiro({ id, proveedorId, horario, contacto, ordenCompra, descripcion: que, pesoKg, modo, fechaEstimada: modo === "ENTREGA_PROVEEDOR" ? fechaEstimada : undefined, completo }),
@@ -177,7 +177,7 @@ function FormHabilitar({ id, proveedores, oc, descripcion, cerrar }: { id: strin
 /** Cancelar con motivo (Compras siempre; quien pidió, solo mientras está pedido). */
 export function BotonCancelarMaterial({ id, grande = false }: { id: string; grande?: boolean }) {
   return (
-    <ConHojaPropia etiqueta="Cancelar pedido" titulo="Cancelar el pedido" icono={<Ban className="size-5" />} variante="secundario" grande={grande}>
+    <ConHojaPropia etiqueta="Cancelar pedido" titulo="Cancelar el pedido" icono={<Ban />} variante="secundario" grande={grande}>
       {(cerrar) => <FormMotivo etiqueta="¿Por qué se cancela?" boton="Cancelar el pedido" ok="Pedido cancelado." enviar={(m) => cancelarMaterial(id, m)} cerrar={cerrar} />}
     </ConHojaPropia>
   );
@@ -190,7 +190,7 @@ function FormMotivo({ etiqueta, boton, ok, enviar, cerrar }: { etiqueta: string;
     <div className="flex flex-col gap-4">
       <Campo etiqueta={etiqueta} htmlFor="motivo"><AreaTexto id="motivo" value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={300} rows={3} autoFocus /></Campo>
       <MensajeError>{error}</MensajeError>
-      <Boton ancho tamano="grande" variante="peligro" cargando={enviando} disabled={motivo.trim().length < 3} onClick={async () => (await correr(() => enviar(motivo), ok)) && cerrar()}>{boton}</Boton>
+      <Boton ancho variante="peligro" cargando={enviando} disabled={motivo.trim().length < 3} onClick={async () => (await correr(() => enviar(motivo), ok)) && cerrar()}>{boton}</Boton>
     </div>
   );
 }
@@ -201,10 +201,10 @@ export function BotonesAprobacion({ id, oc }: { id: string; oc: string | null })
   return (
     <div className="flex flex-col gap-2">
       <div className="grid grid-cols-2 gap-2">
-        <Boton tamano="grande" cargando={enviando} icono={<Check className="size-5" />} onClick={() => correr(() => aprobarMaterial(id), `Aprobaste ${nroOC(oc) ? `la ${nroOC(oc)}` : "la OC"}. Compras y la obra ya lo saben.`, () => deshacerAprobacion(id))}>
+        <Boton cargando={enviando} icono={<Check />} onClick={() => correr(() => aprobarMaterial(id), `Aprobaste ${nroOC(oc) ? `la ${nroOC(oc)}` : "la OC"}. Compras y la obra ya lo saben.`, () => deshacerAprobacion(id))}>
           Aprobar
         </Boton>
-        <ConHojaPropia etiqueta="Rechazar" titulo="Rechazar la OC" icono={<X className="size-5" />} variante="secundario" grande>
+        <ConHojaPropia etiqueta="Rechazar" titulo="Rechazar la OC" icono={<X />} variante="secundario" grande>
           {(cerrar) => <FormMotivo etiqueta="¿Por qué la rechazás? (lo lee Compras)" boton="Rechazar" ok="Rechazada. Vuelve a Compras con tu motivo." enviar={(m) => rechazarMaterial(id, m)} cerrar={cerrar} />}
         </ConHojaPropia>
       </div>
@@ -218,7 +218,7 @@ export function BotonRecibido({ materialListoId }: { materialListoId: string }) 
   const { correr, enviando, error } = useAccion();
   return (
     <>
-      <Boton ancho variante="secundario" cargando={enviando} icono={<PackageCheck className="size-5" />} onClick={() => correr(() => marcarRecibido(materialListoId), "Marcado como recibido en la obra.")}>Llegó a la obra</Boton>
+      <Boton ancho variante="secundario" cargando={enviando} icono={<PackageCheck />} onClick={() => correr(() => marcarRecibido(materialListoId), "Marcado como recibido en la obra.")}>Llegó a la obra</Boton>
       <MensajeError>{error}</MensajeError>
     </>
   );

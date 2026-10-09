@@ -8,7 +8,7 @@ import { CLAVE_INGRESO } from "@/components/splash/claves";
 type Demo = { usuarios: { nombre: string; email: string; rol: string; obras: string | null }[]; contrasena: string } | null;
 
 const campo =
-  "w-full min-h-[52px] rounded-[var(--radius-caja)] border-2 border-white/20 bg-white/5 px-4 text-base text-white placeholder:text-white/40 focus:border-white focus:outline-none";
+  "w-full min-h-12 rounded-md border border-white/20 bg-white/5 px-3 text-base text-white placeholder:text-white/40 focus:border-white focus:outline-none";
 
 export function FormularioLogin({ volver, demo }: { volver?: string; demo: Demo }) {
   const [estado, accion, pendiente] = useActionState<EstadoLogin, FormData>(ingresar, undefined);
@@ -47,7 +47,7 @@ export function FormularioLogin({ volver, demo }: { volver?: string; demo: Demo 
             {estado.error}
           </p>
         )}
-        <button type="submit" disabled={pendiente} className="min-h-[56px] rounded-[var(--radius-caja)] bg-white text-lg font-bold text-negro disabled:opacity-60">
+        <button type="submit" disabled={pendiente} className="min-h-12 rounded-md bg-white text-[15px] font-medium text-negro disabled:opacity-60">
           {pendiente ? "Ingresando…" : "Ingresar"}
         </button>
       </form>

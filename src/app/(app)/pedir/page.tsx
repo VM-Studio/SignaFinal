@@ -12,7 +12,7 @@ export default async function PaginaPedir({ searchParams }: { searchParams: Prom
   const { obra } = await searchParams;
   const [datos, u] = await Promise.all([datosFormulario(), exigirSesion()]); // verifica pedidos.crear
   return (
-    <div className="mx-auto max-w-xl">
+    <div className="max-w-xl">
       <h1 className="sr-only">Pedir un viaje</h1>
       {puede(u.rol, "materiales.pedir") && <ElegirPedido activo="viaje" obra={obra} />}
       {datos.obras.length === 0 ? (

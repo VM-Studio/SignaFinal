@@ -45,13 +45,13 @@ export async function DetalleMaterial({ id, vista }: { id: string; vista: "compr
     else if (p.estado === "EN_COMPRA") principal = <BotonPedirAprobacion id={p.id} ocInicial={p.ordenCompraNumero} />;
     else if (p.estado === "ESPERANDO_APROBACION") principal = p.aprueba ? <BotonesAprobacion id={p.id} oc={p.ordenCompraNumero} /> : (
       <>
-        <p className="flex min-h-[52px] items-center justify-center gap-2 rounded-[var(--radius-caja)] bg-aviso-fondo px-4 text-center font-bold text-aviso"><Clock className="size-5" /> Esperando al dueño</p>
+        <p className="flex min-h-12 items-center justify-center gap-2 rounded-md bg-aviso-fondo px-4 text-center text-sm font-medium text-aviso lg:min-h-9"><Clock className="size-4" /> Esperando al dueño</p>
         <BotonAprobadoEnPapel id={p.id} />
       </>
     );
     else if (habilitable) principal = <BotonHabilitar id={p.id} proveedores={proveedores} oc={p.ordenCompraNumero} descripcion={p.descripcion} otraParte={p.estado !== "APROBADO"} />;
   } else if (obraPuedePedir && listo) {
-    principal = <BotonLink href={`/pedir/retiro?obra=${p.obraId}&material=${listo.id}`} ancho tamano="grande" icono={<Truck className="size-5" />}>Pedir el viaje</BotonLink>;
+    principal = <BotonLink href={`/pedir/retiro?obra=${p.obraId}&material=${listo.id}`} ancho icono={<Truck />}>Pedir el viaje</BotonLink>;
   }
   const acciones = [principal, ...recibibles.map((m) => (vista === "obra" || gestiona) && <BotonRecibido key={m.id} materialListoId={m.id} />), (cancelaObra || cancelaCompras) && <BotonCancelarMaterial key="c" id={p.id} />].filter(Boolean);
 
@@ -60,12 +60,12 @@ export async function DetalleMaterial({ id, vista }: { id: string; vista: "compr
   const pasoActual = ordenEstado(p.estado);
 
   return (
-    <div className="mx-auto grid max-w-5xl gap-x-8 gap-y-5 lg:grid-cols-[1fr_360px]">
+    <div className="grid gap-x-6 gap-y-4 lg:grid-cols-[1fr_320px]">
       <header className="min-w-0 lg:col-start-1">
-        <Link href={volver.href} className="mb-2 hidden min-h-11 items-center gap-1 font-semibold text-suave lg:inline-flex"><ArrowLeft className="size-5" /> {volver.titulo}</Link>
-        <p className="text-sm font-semibold tracking-wider text-suave uppercase">Pedido de material {p.numero} · Obra {p.obra.nombre}</p>
-        <h1 className="mt-1 text-2xl leading-tight font-bold whitespace-pre-line lg:text-3xl">{p.descripcion}</h1>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <Link href={volver.href} className="mb-2 hidden min-h-8 items-center gap-1 text-sm font-medium text-suave hover:text-tinta lg:inline-flex"><ArrowLeft className="size-4" /> {volver.titulo}</Link>
+        <p className="etiqueta">Pedido de material {p.numero} · Obra {p.obra.nombre}</p>
+        <h1 className="mt-1 text-xl leading-7 font-semibold whitespace-pre-line lg:text-[22px]">{p.descripcion}</h1>
+        <div className="mt-2 flex flex-wrap gap-1.5">
           {vista === "obra" ? (
             <Insignia tono={listo ? "ok" : estado.tono}>{fraseMaterial(listo ? "LISTO_PARA_RETIRAR" : p.estado, { proveedor: listo?.proveedor.nombre, llega: enCamino ? hora(enCamino) : null })}</Insignia>
           ) : (
@@ -78,13 +78,13 @@ export async function DetalleMaterial({ id, vista }: { id: string; vista: "compr
       </header>
 
       {acciones.length > 0 && (
-        <aside className="flex flex-col gap-2 lg:sticky lg:top-8 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start lg:rounded-[var(--radius-caja)] lg:border lg:border-linea lg:bg-papel lg:p-5">
+        <aside className="flex flex-col gap-2 lg:sticky lg:top-[72px] lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start lg:rounded-[var(--radius-caja)] lg:border lg:border-linea lg:bg-papel lg:p-4">
           {acciones}
         </aside>
       )}
 
       <div className="min-w-0 lg:col-start-1">
-        <dl className="grid grid-cols-2 gap-3 rounded-[var(--radius-caja)] border border-linea bg-papel p-4 sm:grid-cols-3">
+        <dl className="grid grid-cols-2 gap-4 rounded-[var(--radius-caja)] border border-linea bg-papel p-4 sm:grid-cols-3">
           {[
             ["Para cuándo", paraElDia(delDia(p.paraCuando)).replace(/^para /, "")],
             ["Pidió", p.solicitante.nombre],
@@ -96,14 +96,14 @@ export async function DetalleMaterial({ id, vista }: { id: string; vista: "compr
             .filter((x): x is [string, string] => !!x)
             .map(([k, v]) => (
               <div key={k}>
-                <dt className="text-xs font-semibold tracking-wider text-suave uppercase">{k}</dt>
-                <dd className="mt-0.5 font-medium">{v}</dd>
+                <dt className="etiqueta">{k}</dt>
+                <dd className="mt-1 text-sm font-medium">{v}</dd>
               </div>
             ))}
         </dl>
-        {p.observaciones && <p className="mt-3 rounded-[var(--radius-caja)] bg-papel px-4 py-3 text-suave">{p.observaciones}</p>}
+        {p.observaciones && <p className="mt-3 rounded-[var(--radius-caja)] border border-linea bg-papel px-4 py-3 text-sm text-suave">{p.observaciones}</p>}
         {gestiona && p.solicitante.telefono && (
-          <a href={`tel:${p.solicitante.telefono.replace(/\s/g, "")}`} className="mt-2 inline-flex min-h-11 items-center gap-1.5 font-semibold underline"><Phone className="size-4" /> Llamar a {p.solicitante.nombre}</a>
+          <a href={`tel:${p.solicitante.telefono.replace(/\s/g, "")}`} className="mt-2 inline-flex min-h-9 items-center gap-1.5 text-sm font-medium underline"><Phone className="size-4" /> Llamar a {p.solicitante.nombre}</a>
         )}
 
         {p.materialesListos.length > 0 && (
@@ -112,13 +112,13 @@ export async function DetalleMaterial({ id, vista }: { id: string; vista: "compr
             <ul className="flex flex-col gap-2">
               {p.materialesListos.map((m) => (
                 <li key={m.id}>
-                  <Tarjeta className={`p-4 ${m.estado === "LISTO" ? "border-2 border-ok" : ""}`}>
+                  <Tarjeta className={`p-4 ${m.estado === "LISTO" ? "border-ok/30" : ""}`}>
                     <div className="flex flex-wrap items-start justify-between gap-2">
-                      <p className="font-bold">{m.descripcion}</p>
+                      <p className="font-medium">{m.descripcion}</p>
                       <Insignia tono={ESTADO_LISTO[m.estado].tono}>{m.modoEntrega === "ENTREGA_PROVEEDOR" && m.estado === "EN_CAMINO" ? "Lo trae el proveedor" : ESTADO_LISTO[m.estado].titulo}</Insignia>
                     </div>
-                    <p className="mt-1 text-suave">{m.proveedor.nombre} · {m.proveedorDireccion}</p>
-                    <p className="text-sm text-suave">
+                    <p className="mt-1 text-sm text-suave">{m.proveedor.nombre} · {m.proveedorDireccion}</p>
+                    <p className="text-[12px] text-suave">
                       {[
                         m.modoEntrega === "ENTREGA_PROVEEDOR" ? `${MODO_ENTREGA.ENTREGA_PROVEEDOR}${m.fechaEntregaEstimada ? ` el ${fecha(delDia(m.fechaEntregaEstimada))}` : ""}` : m.horarioRetiro && `Retiro: ${m.horarioRetiro}`,
                         m.contactoRetiro && `Contacto: ${m.contactoRetiro}`,
@@ -138,28 +138,28 @@ export async function DetalleMaterial({ id, vista }: { id: string; vista: "compr
 
         {seguimientos.map(({ v, s }) => (
           <div key={v.id}>
-            <Subtitulo accion={vista === "obra" ? <Link href={`/mis-pedidos/${v.id}`} className="text-sm font-semibold underline">Ver el viaje</Link> : undefined}>Viaje #{v.numero}</Subtitulo>
-            <SeguimientoViaje pedidoId={v.id} inicial={s!} demo={modoDemo() && u.rol === "DIRECCION"} />
+            <Subtitulo accion={vista === "obra" ? <Link href={`/mis-pedidos/${v.id}`} className="text-sm font-medium underline">Ver el viaje</Link> : undefined}>Viaje #{v.numero}</Subtitulo>
+            <SeguimientoViaje embebido pedidoId={v.id} inicial={s!} demo={modoDemo() && u.rol === "DIRECCION"} />
           </div>
         ))}
 
         <Subtitulo>Línea de tiempo</Subtitulo>
-        <ol className="relative ml-2 border-l-2 border-linea pl-5">
+        <ol className="relative ml-1.5 border-l border-linea pl-5">
           {PASOS_MATERIAL.map((paso, i) => {
             const hecho = p.estado !== "CANCELADO" && i <= pasoActual;
             const cambio = [...p.cambios].reverse().find((c) => c.a === paso.estado);
             return (
               <li key={paso.estado} className="relative pb-4 last:pb-0">
-                <span aria-hidden className={`absolute top-1.5 -left-[27px] size-3 rounded-full border-2 ${hecho ? "border-negro bg-negro" : "border-linea-fuerte bg-papel"}`} />
-                <p className={hecho ? "font-semibold" : "text-apagado"}>{paso.titulo}</p>
-                {hecho && cambio && <p className="text-sm text-suave">{[cuando(cambio.fecha), cambio.usuario?.nombre, cambio.nota].filter(Boolean).join(" · ")}</p>}
+                <span aria-hidden className={`absolute top-1.5 -left-[25px] size-2 rounded-full ${hecho ? "bg-tinta" : "border border-linea-fuerte bg-papel"}`} />
+                <p className={`text-sm ${hecho ? "font-medium" : "text-suave"}`}>{paso.titulo}</p>
+                {hecho && cambio && <p className="text-[12px] text-suave">{[cuando(cambio.fecha), cambio.usuario?.nombre, cambio.nota].filter(Boolean).join(" · ")}</p>}
               </li>
             );
           })}
           {p.estado === "CANCELADO" && (
             <li className="relative">
-              <span aria-hidden className="absolute top-1.5 -left-[27px] size-3 rounded-full border-2 border-critico bg-critico" />
-              <p className="font-semibold text-critico">Cancelado{p.motivoCancelacion ? `: ${p.motivoCancelacion}` : ""}</p>
+              <span aria-hidden className="absolute top-1.5 -left-[25px] size-2 rounded-full bg-critico" />
+              <p className="text-sm font-medium text-critico">Cancelado{p.motivoCancelacion ? `: ${p.motivoCancelacion}` : ""}</p>
               {p.cambios.at(-1) && <p className="text-sm text-suave">{cuando(p.cambios.at(-1)!.fecha)} · {p.cambios.at(-1)!.usuario?.nombre}</p>}
             </li>
           )}
@@ -171,7 +171,7 @@ export async function DetalleMaterial({ id, vista }: { id: string; vista: "compr
             <ul className="divide-y divide-linea rounded-[var(--radius-caja)] border border-linea bg-papel">
               {p.cambios.map((c) => (
                 <li key={c.id} className="px-4 py-2 text-sm">
-                  <span className="font-semibold">{ESTADO_MATERIAL[c.a].titulo}</span> · {cuando(c.fecha)}{c.usuario ? ` · ${c.usuario.nombre}` : ""}{c.nota ? ` · ${c.nota}` : ""}
+                  <span className="font-medium">{ESTADO_MATERIAL[c.a].titulo}</span> · {cuando(c.fecha)}{c.usuario ? ` · ${c.usuario.nombre}` : ""}{c.nota ? ` · ${c.nota}` : ""}
                 </li>
               ))}
             </ul>

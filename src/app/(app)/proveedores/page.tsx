@@ -26,7 +26,7 @@ export default async function PaginaProveedores({ searchParams }: { searchParams
     select: { id: true, nombre: true, direccion: true, localidad: true, telefono: true, latitud: true, longitud: true, idLebane: true, _count: { select: { pedidos: { where: { creadoEn: { gte: desde } } } } } },
   });
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <Titulo siempre={carga} accion={carga ? <NuevoProveedor /> : undefined} detalle="Mientras no haya conexión con Lebane, se cargan acá.">Proveedores</Titulo>
       <div className="mb-3"><Buscador accion="/proveedores" valor={q} placeholder="Buscar por nombre o localidad" /></div>
       {filas.length === 0 ? (
@@ -41,9 +41,9 @@ export default async function PaginaProveedores({ searchParams }: { searchParams
                 <p className="text-sm text-suave">{p._count.pedidos ? `${p._count.pedidos} ${p._count.pedidos === 1 ? "viaje" : "viajes"} en los últimos 30 días` : "Sin viajes en los últimos 30 días"}</p>
               </div>
               {p.telefono && (
-                <a href={`tel:${p.telefono.replace(/\s/g, "")}`} aria-label={`Llamar a ${p.nombre}`} className="grid size-12 shrink-0 place-items-center rounded-md border-2 border-negro"><Phone className="size-5" /></a>
+                <a href={`tel:${p.telefono.replace(/\s/g, "")}`} aria-label={`Llamar a ${p.nombre}`} className="grid size-12 shrink-0 place-items-center rounded-md border border-linea"><Phone className="size-5" /></a>
               )}
-              <a href={`https://www.google.com/maps/dir/?api=1&destination=${p.latitud},${p.longitud}`} target="_blank" rel="noopener" aria-label={`Cómo llegar a ${p.nombre}`} className="grid size-12 shrink-0 place-items-center rounded-md border-2 border-negro"><Navigation className="size-5" /></a>
+              <a href={`https://www.google.com/maps/dir/?api=1&destination=${p.latitud},${p.longitud}`} target="_blank" rel="noopener" aria-label={`Cómo llegar a ${p.nombre}`} className="grid size-12 shrink-0 place-items-center rounded-md border border-linea"><Navigation className="size-5" /></a>
             </li>
           ))}
         </ul>

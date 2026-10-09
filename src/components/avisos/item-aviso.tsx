@@ -9,10 +9,10 @@ import { marcarLeida, marcarTodasLeidas } from "@/lib/avisos/acciones";
 /** Un aviso de la bandeja: al tocarlo se marca leído y lleva a su enlace. */
 export function ItemAviso({ id, enlace, leida, children }: { id: string; enlace: string | null; leida: boolean; children: ReactNode }) {
   const router = useRouter();
-  const clase = `block w-full rounded-[var(--radius-caja)] border p-4 text-left ${leida ? "border-linea bg-papel" : "border-2 border-negro bg-papel"}`;
+  const clase = `block w-full rounded-[var(--radius-caja)] border p-4 text-left ${leida ? "border-linea bg-papel" : "border border-linea bg-papel"}`;
   return (
     <button
-      className={`${clase} hover:bg-fondo/60`}
+      className={`${clase} hover:bg-hover`}
       onClick={async () => {
         if (!leida) void marcarLeida(id);
         if (enlace) router.push(enlace);
@@ -29,7 +29,7 @@ export function BotonMarcarTodas({ hay }: { hay: number }) {
   const router = useRouter();
   if (!hay) return null;
   return (
-    <Boton variante="secundario" tamano="chico" cargando={enviando} icono={<CheckCheck className="size-4" />} onClick={async () => {
+    <Boton variante="secundario" tamano="chico" cargando={enviando} icono={<CheckCheck />} onClick={async () => {
       setEnviando(true);
       await marcarTodasLeidas();
       setEnviando(false);

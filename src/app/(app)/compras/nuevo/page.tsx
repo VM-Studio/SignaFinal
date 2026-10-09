@@ -8,8 +8,8 @@ export const metadata: Metadata = { title: "Nuevo pedido de material" };
 export default async function PaginaNuevoMaterial() {
   const obras = await datosNuevoPedidoCompras(); // verifica materiales.gestionar
   return (
-    <div className="mx-auto max-w-xl">
-      <h1 className="mb-1 text-2xl font-bold">Nuevo pedido de material</h1>
+    <div className="max-w-xl">
+      <h1 className="mb-1 text-2xl font-semibold">Nuevo pedido de material</h1>
       <p className="mb-4 text-suave">Para lo que te piden por teléfono. Le llegan los avisos a quien lo pidió.</p>
       <FormularioMateriales obras={obras} compras />
     </div>

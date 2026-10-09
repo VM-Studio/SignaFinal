@@ -37,9 +37,9 @@ export default async function PaginaFlota() {
         detalle={`${vehiculos.length} vehículos activos`}
         accion={
           <div className="flex gap-2">
-            {puede(u.rol, "flota.agenda") && <BotonLink href="/flota/agenda" variante="secundario" icono={<CalendarClock className="size-5" />}>Agenda</BotonLink>}
+            {puede(u.rol, "flota.agenda") && <BotonLink href="/flota/agenda" variante="secundario" icono={<CalendarClock />}>Agenda</BotonLink>}
             {editar && (
-              <ConHoja titulo="Agregar vehículo" etiqueta="Agregar" icono={<Plus className="size-5" />}>
+              <ConHoja titulo="Agregar vehículo" etiqueta="Agregar" icono={<Plus />}>
                 <FormularioVehiculo inicial={VEHICULO_NUEVO} {...await opcionesVehiculo()} />
               </ConHoja>
             )}
@@ -49,7 +49,7 @@ export default async function PaginaFlota() {
         Flota
       </Titulo>
 
-      <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
+      <div className="mb-6 grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
         <Cifra etiqueta="Disponibles" valor={resumen.disponibles} tono="ok" />
         <Cifra etiqueta="En viaje" valor={resumen.enViaje} />
         <Cifra etiqueta="En el taller" valor={resumen.enTaller} tono={resumen.enTaller ? "aviso" : undefined} />
@@ -60,32 +60,31 @@ export default async function PaginaFlota() {
         <Vacio icono={<Truck className="size-10" />} titulo="No hay vehículos cargados" />
       ) : (
         <>
-          <ul className="flex flex-col gap-2 lg:hidden">
+          <ul className="-mx-4 divide-y divide-linea border-y border-linea bg-papel lg:hidden">
             {vehiculos.map((v) => (
               <li key={v.id}>
-                <Link href={`/flota/${v.id}`} className="block rounded-[var(--radius-caja)] border border-linea bg-papel p-4">
+                <Link href={`/flota/${v.id}`} className="block px-4 py-3 active:bg-hover">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-lg font-bold">{v.nombre}</p>
-                      <p className="text-sm text-suave">{TIPO[v.tipo]} · {v.patente}</p>
+                      <p className="font-medium">{v.nombre}</p>
+                      <p className="text-sm text-suave">{TIPO[v.tipo]} · {v.patente} · {quien(v)}</p>
                     </div>
                     <Insignia tono={ESTADO_VEHICULO[v.estado].tono}>{ESTADO_VEHICULO[v.estado].texto}</Insignia>
                   </div>
-                  <p className="mt-2 text-[15px]">{quien(v)}</p>
-                  <div className="mt-2">{proximo(v.proximo)}</div>
+                  <div className="mt-1.5 text-sm">{proximo(v.proximo)}</div>
                 </Link>
               </li>
             ))}
           </ul>
           <div className="hidden overflow-x-auto rounded-[var(--radius-caja)] border border-linea bg-papel lg:block">
-            <table className="w-full text-left text-[15px]">
-              <thead className="border-b border-linea text-xs tracking-wider text-suave uppercase">
-                <tr className="[&>th]:px-4 [&>th]:py-3"><th>Vehículo</th><th>Tipo</th><th>Patente</th><th>Estado</th><th>Chofer o asignado</th><th>Próximo vencimiento</th></tr>
+            <table className="tabla">
+              <thead>
+                <tr><th>Vehículo</th><th>Tipo</th><th>Patente</th><th>Estado</th><th>Chofer o asignado</th><th>Próximo vencimiento</th></tr>
               </thead>
-              <tbody className="divide-y divide-linea">
+              <tbody>
                 {vehiculos.map((v) => (
-                  <tr key={v.id} className="hover:bg-fondo/60 [&>td]:px-4 [&>td]:py-3">
-                    <td className="font-semibold"><Link href={`/flota/${v.id}`} className="hover:underline">{v.nombre}</Link></td>
+                  <tr key={v.id} >
+                    <td className="font-medium"><Link href={`/flota/${v.id}`} className="hover:underline">{v.nombre}</Link></td>
                     <td>{TIPO[v.tipo]}</td>
                     <td className="tabular-nums">{v.patente}</td>
                     <td><Insignia tono={ESTADO_VEHICULO[v.estado].tono}>{ESTADO_VEHICULO[v.estado].texto}</Insignia></td>

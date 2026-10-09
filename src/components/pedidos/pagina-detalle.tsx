@@ -17,6 +17,7 @@ import { BotonReasignar, BotonTomar } from "@/components/pedidos/tomar";
 import { BotonCancelar, BotonSoltar } from "@/components/pedidos/acciones-detalle";
 import { BotonIniciar } from "@/components/viajes/acciones-viaje";
 import { cuando, hora, peso, plata } from "@/lib/formato";
+import { claseBoton } from "@/components/ui/boton";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const p = await db.pedidoViaje.findUnique({ where: { id: (await params).id }, select: { numero: true } });
@@ -59,7 +60,7 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
   const destino = `${p.obra.direccion}, ${p.obra.localidad}`;
   const acciones = (
     <>
-      {esChofer && p.estado === "PENDIENTE" && vehiculos && <BotonTomar pedidoId={p.id} numero={p.numero} vehiculos={vehiculos} ancho tamano="grande" />}
+      {esChofer && p.estado === "PENDIENTE" && vehiculos && <BotonTomar pedidoId={p.id} numero={p.numero} vehiculos={vehiculos} ancho />}
       {esMio && p.estado === "TOMADO" && p.viaje && (
         <>
           <BotonIniciar pedidoId={p.id} numero={p.numero} vehiculo={p.viaje.vehiculo.nombre} kmActual={vehiculoActual?.kmActual ?? 0} />
@@ -77,100 +78,120 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
     { href: "/solicitudes", titulo: "Solicitudes" };
   const hayAcciones = (esChofer && p.estado === "PENDIENTE") || (esMio && p.estado === "TOMADO") || puedeReasignar || puedeCancelar;
 
-  return (
-    <div className="mx-auto grid max-w-5xl gap-x-8 gap-y-5 lg:grid-cols-[1fr_360px]">
-      <header className="min-w-0 lg:col-start-1">
-        <Link href={volver.href} className="mb-2 hidden min-h-11 items-center gap-1 font-semibold text-suave lg:inline-flex">
-          <ArrowLeft className="size-5" /> {volver.titulo}
-        </Link>
-        <p className="flex items-center gap-2 text-sm font-semibold tracking-wider text-suave uppercase">
-          <IconoTipo tipo={p.tipo} /> {TIPO[p.tipo].titulo} · Pedido {p.numero}
-        </p>
-        <h1 className="mt-1 text-2xl leading-tight font-bold lg:text-3xl">{p.descripcion}</h1>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <EstadoPedido p={p} />
-          {p.prioridad === "URGENTE" && <Insignia tono="critico">Urgente</Insignia>}
-          {p.necesitaCamion && <Insignia tono="neutro">Necesita camión</Insignia>}
+  const cabecera = (
+    <header className="min-w-0">
+      <Link href={volver.href} className="mb-2 hidden min-h-8 items-center gap-1 text-sm font-medium text-suave hover:text-tinta lg:inline-flex">
+        <ArrowLeft className="size-4" /> {volver.titulo}
+      </Link>
+      <p className="flex items-center gap-1.5 etiqueta [&_svg]:size-3.5">
+        <IconoTipo tipo={p.tipo} /> {TIPO[p.tipo].titulo} · Pedido {p.numero}
+      </p>
+      <h1 className="mt-1 text-xl leading-7 font-semibold lg:text-[22px]">{p.descripcion}</h1>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <EstadoPedido p={p} />
+        {p.prioridad === "URGENTE" && <Insignia tono="critico">Urgente</Insignia>}
+        {p.necesitaCamion && <Insignia tono="neutro">Necesita camión</Insignia>}
+      </div>
+      {p.estado === "CANCELADO" && p.motivoCancelacion && <p className="mt-2 text-sm text-suave">Cancelado: {p.motivoCancelacion}</p>}
+    </header>
+  );
+
+  const queSePidio = (
+    <>
+      <Tarjeta className="p-4">
+        <div className="flex gap-3">
+          <MapPin className="mt-0.5 size-4 shrink-0 text-suave" />
+          <div className="min-w-0 flex-1">
+            <p className="etiqueta">Desde</p>
+            <p className="font-medium">{p.origen.nombre}</p>
+            <p className="text-sm text-suave">{p.origen.direccion}</p>
+            {p.proveedor?.telefono && (
+              <a href={`tel:${p.proveedor.telefono.replace(/\s/g, "")}`} className="mt-1 inline-flex min-h-9 items-center gap-1.5 text-sm font-medium underline">
+                <Phone className="size-4" /> {p.proveedor.telefono}
+              </a>
+            )}
+          </div>
+          {p.origen.direccion && (
+            <a href={mapsA(p.origen.direccion)} target="_blank" rel="noopener" aria-label="Cómo llegar al origen" className={claseBoton("secundario", "normal", false, "w-12 shrink-0 px-0 lg:w-9")}>
+              <Navigation />
+            </a>
+          )}
         </div>
-        {p.estado === "CANCELADO" && p.motivoCancelacion && <p className="mt-3 font-medium text-suave">Cancelado: {p.motivoCancelacion}</p>}
-      </header>
+        <ArrowDown aria-hidden className="my-2 size-4 text-apagado" />
+        <div className="flex gap-3">
+          <MapPin className="mt-0.5 size-4 shrink-0 fill-tinta" />
+          <div className="min-w-0 flex-1">
+            <p className="etiqueta">Hacia</p>
+            <p className="font-medium">Obra {p.obra.nombre}</p>
+            <p className="text-sm text-suave">{destino}</p>
+          </div>
+          <a href={mapsA(destino)} target="_blank" rel="noopener" aria-label="Cómo llegar a la obra" className={claseBoton("secundario", "normal", false, "w-12 shrink-0 px-0 lg:w-9")}>
+            <Navigation />
+          </a>
+        </div>
+      </Tarjeta>
+
+      <dl className="grid grid-cols-2 gap-4 rounded-[var(--radius-caja)] border border-linea bg-papel p-4 sm:grid-cols-3">
+        {[
+          ["Para cuándo", textoParaCuando(p.paraCuando, p.franja)],
+          ["Pidió", p.solicitante.nombre],
+          p.pesoKg ? ["Peso", `Hasta ${peso(p.pesoKg)}`] : null,
+          p.cantidadPersonas ? ["Personas", String(p.cantidadPersonas)] : null,
+          p.ordenCompraLebane ? ["Orden de compra", p.ordenCompraLebane] : null,
+          p.viaje && p.estado !== "PENDIENTE" && p.estado !== "CANCELADO" ? ["Vehículo", `${p.viaje.vehiculo.nombre} · ${p.viaje.vehiculo.patente}`] : null,
+          p.viaje?.costoCalculado != null && puede(u.rol, "costos.ver") ? ["Costo a la obra", plata(p.viaje.costoCalculado)] : null,
+        ]
+          .filter((x): x is [string, string] => !!x)
+          .map(([k, v]) => (
+            <div key={k}>
+              <dt className="etiqueta">{k}</dt>
+              <dd className="mt-1 text-sm font-medium">{v}</dd>
+            </div>
+          ))}
+      </dl>
+    </>
+  );
+
+  // Aceptado, en viaje o entregado: seguimiento en vivo (pasos, frase, llamar al chofer y, en camino, el mapa).
+  if (enVivo) {
+    return (
+      <SeguimientoViaje
+        pedidoId={p.id}
+        inicial={enVivo}
+        demo={modoDemo() && u.rol === "DIRECCION"}
+        cabecera={<>{cabecera}{hayAcciones && <div className="flex flex-wrap gap-2">{acciones}</div>}</>}
+        resto={<><Subtitulo>Qué pidió</Subtitulo>{queSePidio}</>}
+      />
+    );
+  }
+
+  return (
+    <div className="grid gap-x-6 gap-y-4 lg:grid-cols-[1fr_320px]">
+      <div className="lg:col-start-1">{cabecera}</div>
 
       {hayAcciones && (
-        <aside className="flex flex-col gap-2 lg:sticky lg:top-8 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start lg:rounded-[var(--radius-caja)] lg:border lg:border-linea lg:bg-papel lg:p-5">
+        <aside className="flex flex-col gap-2 lg:sticky lg:top-[72px] lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start lg:rounded-[var(--radius-caja)] lg:border lg:border-linea lg:bg-papel lg:p-4">
           {acciones}
         </aside>
       )}
 
-      <div id="detalle" className="min-w-0 scroll-mt-20 lg:col-start-1">
-        {/* Seguimiento en vivo (aceptado, en viaje o entregado): pasos, mapa, frase y llamar al chofer. */}
-        {enVivo && <SeguimientoViaje pedidoId={p.id} inicial={enVivo} demo={modoDemo() && u.rol === "DIRECCION"} />}
-        {enVivo && <Subtitulo>Qué pidió</Subtitulo>}
-        <Tarjeta className="p-4">
-          <div className="flex gap-3">
-            <MapPin className="mt-0.5 size-5 shrink-0" />
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold tracking-wider text-suave uppercase">Desde</p>
-              <p className="font-bold">{p.origen.nombre}</p>
-              <p className="text-suave">{p.origen.direccion}</p>
-              {p.proveedor?.telefono && (
-                <a href={`tel:${p.proveedor.telefono.replace(/\s/g, "")}`} className="mt-1 inline-flex min-h-11 items-center gap-1.5 font-semibold underline">
-                  <Phone className="size-4" /> {p.proveedor.telefono}
-                </a>
-              )}
-            </div>
-            {p.origen.direccion && (
-              <a href={mapsA(p.origen.direccion)} target="_blank" rel="noopener" aria-label="Cómo llegar al origen" className="grid size-12 shrink-0 place-items-center rounded-md border-2 border-negro">
-                <Navigation className="size-5" />
-              </a>
-            )}
-          </div>
-          <ArrowDown aria-hidden className="my-2 ml-0.5 size-4 text-apagado" />
-          <div className="flex gap-3">
-            <MapPin className="mt-0.5 size-5 shrink-0 fill-negro" />
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold tracking-wider text-suave uppercase">Hacia</p>
-              <p className="font-bold">Obra {p.obra.nombre}</p>
-              <p className="text-suave">{destino}</p>
-            </div>
-            <a href={mapsA(destino)} target="_blank" rel="noopener" aria-label="Cómo llegar a la obra" className="grid size-12 shrink-0 place-items-center rounded-md border-2 border-negro">
-              <Navigation className="size-5" />
-            </a>
-          </div>
-        </Tarjeta>
+      <div id="detalle" className="flex min-w-0 scroll-mt-20 flex-col gap-3 lg:col-start-1">
+        {queSePidio}
 
-        <dl className="mt-3 grid grid-cols-2 gap-3 rounded-[var(--radius-caja)] border border-linea bg-papel p-4 sm:grid-cols-3">
-          {[
-            ["Para cuándo", textoParaCuando(p.paraCuando, p.franja)],
-            ["Pidió", p.solicitante.nombre],
-            p.pesoKg ? ["Peso", `Hasta ${peso(p.pesoKg)}`] : null,
-            p.cantidadPersonas ? ["Personas", String(p.cantidadPersonas)] : null,
-            p.ordenCompraLebane ? ["Orden de compra", p.ordenCompraLebane] : null,
-            p.viaje && p.estado !== "PENDIENTE" && p.estado !== "CANCELADO" ? ["Vehículo", `${p.viaje.vehiculo.nombre} · ${p.viaje.vehiculo.patente}`] : null,
-            p.viaje?.costoCalculado != null && puede(u.rol, "costos.ver") ? ["Costo a la obra", plata(p.viaje.costoCalculado)] : null,
-          ]
-            .filter((x): x is [string, string] => !!x)
-            .map(([k, v]) => (
-              <div key={k}>
-                <dt className="text-xs font-semibold tracking-wider text-suave uppercase">{k}</dt>
-                <dd className="mt-0.5 font-medium">{v}</dd>
-              </div>
-            ))}
-        </dl>
-
-        {!enVivo && <Subtitulo>Línea de tiempo</Subtitulo>}
-        <ol className={`relative ml-2 border-l-2 border-linea pl-5 ${enVivo ? "hidden" : ""}`}>
+        <Subtitulo>Línea de tiempo</Subtitulo>
+        <ol className="relative ml-1.5 border-l border-linea pl-5">
           {momentos.map((m) => (
             <li key={m.titulo} className="relative pb-4 last:pb-0">
-              <span aria-hidden className={`absolute top-1.5 -left-[27px] size-3 rounded-full border-2 ${m.hecho ? "border-negro bg-negro" : "border-linea-fuerte bg-papel"}`} />
-              <p className={m.hecho ? "font-semibold" : "text-apagado"}>{m.titulo}</p>
-              {(m.fecha || m.detalle) && <p className="text-sm text-suave">{[m.fecha ? cuando(m.fecha) : null, m.detalle].filter(Boolean).join(" · ")}</p>}
+              <span aria-hidden className={`absolute top-1.5 -left-[25px] size-2 rounded-full ${m.hecho ? "bg-tinta" : "border border-linea-fuerte bg-papel"}`} />
+              <p className={`text-sm ${m.hecho ? "font-medium" : "text-suave"}`}>{m.titulo}</p>
+              {(m.fecha || m.detalle) && <p className="text-[12px] text-suave">{[m.fecha ? cuando(m.fecha) : null, m.detalle].filter(Boolean).join(" · ")}</p>}
             </li>
           ))}
           {p.estado === "CANCELADO" && (
             <li className="relative">
-              <span aria-hidden className="absolute top-1.5 -left-[27px] size-3 rounded-full border-2 border-critico bg-critico" />
-              <p className="font-semibold text-critico">Cancelado{p.motivoCancelacion ? `: ${p.motivoCancelacion}` : ""}</p>
-              {p.canceladoEn && <p className="text-sm text-suave">{cuando(p.canceladoEn)}</p>}
+              <span aria-hidden className="absolute top-1.5 -left-[25px] size-2 rounded-full bg-critico" />
+              <p className="text-sm font-medium text-critico">Cancelado{p.motivoCancelacion ? `: ${p.motivoCancelacion}` : ""}</p>
+              {p.canceladoEn && <p className="text-[12px] text-suave">{cuando(p.canceladoEn)}</p>}
             </li>
           )}
         </ol>

@@ -29,7 +29,7 @@ export default async function PaginaCombustible() {
         ) : (
           <ul className="divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
             {cargas.map((c) => (
-              <li key={c.id} className="flex min-h-16 items-center gap-3 px-4 py-3">
+              <li key={c.id} className="flex min-h-14 items-center gap-3 px-4 py-2 lg:min-h-11">
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">{c.vehiculo.nombre} · {litros(c.litros)}</p>
                   <p className="text-sm text-suave">
@@ -37,7 +37,7 @@ export default async function PaginaCombustible() {
                     {c.obra ? ` · Obra ${c.obra.nombre}` : ""}
                   </p>
                 </div>
-                <p className="font-bold tabular-nums">{plata(c.monto)}</p>
+                <p className="font-semibold tabular-nums">{plata(c.monto)}</p>
                 {c.comprobanteUrl && (
                   <a href={c.comprobanteUrl} target="_blank" rel="noopener" aria-label="Ver ticket" className="grid size-11 place-items-center rounded-md hover:bg-black/5">
                     <FileImage className="size-5" />

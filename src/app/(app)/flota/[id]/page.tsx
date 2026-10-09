@@ -6,7 +6,8 @@ import { exigirPermiso } from "@/lib/auth/sesion";
 import { enlacePedido, puede } from "@/lib/permisos";
 import type { Rol } from "@prisma/client";
 import { db } from "@/lib/db";
-import { ESTADO_VEHICULO, fichaVehiculo, opcionesVehiculo, type Ficha } from "@/lib/flota/consultas";
+import { ESTADO_VEHICULO, fichaVehiculo, listarFlota, opcionesVehiculo, type Ficha } from "@/lib/flota/consultas";
+import { ListaDetalle } from "@/components/ui/lista-detalle";
 import { costosPorVehiculo, periodo } from "@/lib/costos/consultas";
 import { Cifra, Insignia, Pestanas, Tarjeta, Vacio } from "@/components/ui/basicos";
 import { ConHoja } from "@/components/ui/hoja";
@@ -31,7 +32,7 @@ export default async function FichaVehiculo({ params, searchParams }: { params: 
   const { id } = await params;
   const t = (await searchParams).tab;
   const tab: Pestana = t && t in PESTANAS ? (t as Pestana) : "datos";
-  const v = await fichaVehiculo(id);
+  const [v, flota] = await Promise.all([fichaVehiculo(id), listarFlota()]);
   if (!v) notFound();
 
   const verCostos = puede(u.rol, "costos.ver");
@@ -40,12 +41,24 @@ export default async function FichaVehiculo({ params, searchParams }: { params: 
   const docVencida = v.vigentes.some((d) => d.vencimiento && diaISO(d.vencimiento) < diaISO() && ["SEGURO", "VTV", "RUTA"].includes(d.tipo));
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <Link href="/flota" className="mb-2 hidden min-h-11 items-center gap-1 font-semibold text-suave lg:inline-flex"><ArrowLeft className="size-5" /> Flota</Link>
+    <ListaDetalle
+      titulo="Flota"
+      verTodo="/flota"
+      activo={v.id}
+      items={flota.vehiculos.map((x) => ({
+        id: x.id,
+        href: `/flota/${x.id}`,
+        titulo: x.nombre,
+        detalle: `${TIPO[x.tipo]} · ${x.patente}`,
+        derecha: <Insignia tono={ESTADO_VEHICULO[x.estado].tono}>{ESTADO_VEHICULO[x.estado].texto}</Insignia>,
+      }))}
+    >
+    <div>
+      <Link href="/flota" className="mb-2 hidden min-h-8 items-center gap-1 text-sm font-medium text-suave hover:text-tinta lg:inline-flex"><ArrowLeft className="size-4" /> Flota</Link>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold tracking-wider text-suave uppercase">{TIPO[v.tipo]} · {v.patente}</p>
-          <h1 className="text-3xl font-bold tracking-tight">{v.nombre}</h1>
+          <p className="etiqueta">{TIPO[v.tipo]} · {v.patente}</p>
+          <h1 className="mt-1 text-[22px] leading-7 font-semibold">{v.nombre}</h1>
           <div className="mt-2 flex flex-wrap gap-2">
             <Insignia tono={ESTADO_VEHICULO[v.estado].tono}>{ESTADO_VEHICULO[v.estado].texto}</Insignia>
             {v.asignadoA && <Insignia tono="neutro">Asignada a {v.asignadoA.nombre}</Insignia>}
@@ -54,7 +67,7 @@ export default async function FichaVehiculo({ params, searchParams }: { params: 
           </div>
         </div>
         {editar && (
-          <ConHoja titulo={`Editar ${v.nombre}`} etiqueta="Editar" variante="secundario" icono={<Pencil className="size-5" />}>
+          <ConHoja titulo={`Editar ${v.nombre}`} etiqueta="Editar" variante="secundario" icono={<Pencil />}>
             <FormularioVehiculo
               inicial={{
                 id: v.id, nombre: v.nombre, tipo: v.tipo, patente: v.patente, marca: v.marca, modelo: v.modelo, anio: String(v.anio),
@@ -85,6 +98,7 @@ export default async function FichaVehiculo({ params, searchParams }: { params: 
       {tab === "mantenimiento" && <Mantenimiento v={v} registrar={puede(u.rol, "mantenimiento.registrar")} />}
       {tab === "incidentes" && <Incidentes v={v} registrar={puede(u.rol, "incidentes.registrar")} resolver={editar} />}
     </div>
+    </ListaDetalle>
   );
 }
 
@@ -105,7 +119,7 @@ function Datos({ v, editar }: { v: Ficha; editar: boolean }) {
       <Tarjeta className="p-4">
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           {filas.map(([k, val]) => (
-            <div key={k}><dt className="text-xs font-semibold tracking-wider text-suave uppercase">{k}</dt><dd className="mt-0.5 font-medium">{val}</dd></div>
+            <div key={k}><dt className="etiqueta">{k}</dt><dd className="mt-0.5 font-medium">{val}</dd></div>
           ))}
         </dl>
       </Tarjeta>
@@ -126,7 +140,7 @@ function Documentacion({ v, cargar }: { v: Ficha; cargar: boolean }) {
     <div>
       {cargar && (
         <div className="mb-3">
-          <ConHoja titulo="Cargar documento" etiqueta="Cargar documento" variante="secundario" icono={<FilePlus className="size-5" />}>
+          <ConHoja titulo="Cargar documento" etiqueta="Cargar documento" variante="secundario" icono={<FilePlus />}>
             <FormularioDocumento vehiculoId={v.id} />
           </ConHoja>
         </div>
@@ -140,7 +154,7 @@ function Documentacion({ v, cargar }: { v: Ficha; cargar: boolean }) {
             const ven = d.vencimiento ? vencimiento(d.vencimiento) : null;
             const destacar = vigente && ven && ven.dias <= 30;
             return (
-              <li key={d.id} className={`flex min-h-16 items-center gap-3 px-4 py-3 ${destacar ? (ven!.tono === "critico" ? "bg-critico-fondo/60" : "bg-aviso-fondo/60") : ""} ${vigente ? "" : "opacity-55"}`}>
+              <li key={d.id} className={`flex min-h-14 items-center gap-3 px-4 py-2 lg:min-h-11 ${destacar ? (ven!.tono === "critico" ? "bg-critico-fondo/60" : "bg-aviso-fondo/60") : ""} ${vigente ? "" : "opacity-55"}`}>
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">{DOCUMENTO[d.tipo]}{!vigente && " (anterior)"}</p>
                   <p className="text-sm text-suave">{d.vencimiento ? `Vence ${fecha(d.vencimiento)}` : "Sin vencimiento"}{d.notas ? ` · ${d.notas}` : ""}</p>
@@ -164,7 +178,7 @@ function Viajes({ v, rol }: { v: Ficha; rol: Rol }) {
     <ul className="divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
       {v.viajes.map((x) => (
         <li key={x.id}>
-          <Link href={enlacePedido(rol, x.pedido.id) ?? `/flota/${v.id}?tab=viajes`} className="flex min-h-16 items-center gap-3 px-4 py-3 hover:bg-fondo/60">
+          <Link href={enlacePedido(rol, x.pedido.id) ?? `/flota/${v.id}?tab=viajes`} className="flex min-h-14 items-center gap-3 px-4 py-2 lg:min-h-11 hover:bg-hover">
             <div className="min-w-0 flex-1">
               <p className="truncate font-semibold">{x.pedido.descripcion}</p>
               <p className="text-sm text-suave">Obra {x.pedido.obra.nombre} · {x.chofer.nombre} · {cuando(x.llegadaReal ?? x.salidaReal ?? x.salidaEstimada)}</p>
@@ -185,7 +199,7 @@ function Combustible({ v }: { v: Ficha }) {
   return (
     <div>
       <p className="mb-3 text-suave">
-        Consumo promedio: <span className="font-bold text-tinta">{v.consumoPromedio != null ? `${dec(v.consumoPromedio)} l/100 km` : "sin datos suficientes"}</span>{" "}
+        Consumo promedio: <span className="font-semibold text-tinta">{v.consumoPromedio != null ? `${dec(v.consumoPromedio)} l/100 km` : "sin datos suficientes"}</span>{" "}
         (calculado entre cargas, suponiendo tanque lleno).
       </p>
       {!v.cargas.length ? (
@@ -193,7 +207,7 @@ function Combustible({ v }: { v: Ficha }) {
       ) : (
         <ul className="divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
           {v.cargas.map((c) => (
-            <li key={c.id} className="flex min-h-16 items-center gap-3 px-4 py-3">
+            <li key={c.id} className="flex min-h-14 items-center gap-3 px-4 py-2 lg:min-h-11">
               <div className="min-w-0 flex-1">
                 <p className="font-semibold">{litros(c.litros)} · {plata(c.monto)}</p>
                 <p className="text-sm text-suave">{cuando(c.fecha)} · {c.usuario.nombre} · {km(c.km)}{c.obra ? ` · Obra ${c.obra.nombre}` : ""}</p>
@@ -214,9 +228,9 @@ function Mantenimiento({ v, registrar }: { v: Ficha; registrar: boolean }) {
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div className={`rounded-[var(--radius-caja)] border px-4 py-3 ${atrasado ? "border-critico bg-critico-fondo" : "border-linea bg-papel"}`}>
-          <p className="text-xs font-semibold tracking-wider text-suave uppercase">Próximo mantenimiento</p>
-          <p className="font-bold">
+        <div className={`rounded-[var(--radius-caja)] border px-4 py-3 ${atrasado ? "border-critico/15 bg-critico-fondo" : "border-linea bg-papel"}`}>
+          <p className="etiqueta">Próximo mantenimiento</p>
+          <p className="font-semibold">
             {!p && "Sin programar"}
             {p?.km != null && `A los ${km(p.km)} (${p.faltanKm! > 0 ? `faltan ${km(p.faltanKm)}` : `pasado por ${km(-p.faltanKm!)}`})`}
             {p?.km != null && p?.fecha && " · "}
@@ -224,7 +238,7 @@ function Mantenimiento({ v, registrar }: { v: Ficha; registrar: boolean }) {
           </p>
         </div>
         {registrar && (
-          <ConHoja titulo={`Mantenimiento · ${v.nombre}`} etiqueta="Registrar" variante="secundario" icono={<Wrench className="size-5" />}>
+          <ConHoja titulo={`Mantenimiento · ${v.nombre}`} etiqueta="Registrar" variante="secundario" icono={<Wrench />}>
             <FormularioMantenimiento vehiculoId={v.id} kmActual={v.kmActual} />
           </ConHoja>
         )}
@@ -234,12 +248,12 @@ function Mantenimiento({ v, registrar }: { v: Ficha; registrar: boolean }) {
       ) : (
         <ul className="divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
           {v.mantenimientos.map((m) => (
-            <li key={m.id} className="flex min-h-16 items-center gap-3 px-4 py-3">
+            <li key={m.id} className="flex min-h-14 items-center gap-3 px-4 py-2 lg:min-h-11">
               <div className="min-w-0 flex-1">
                 <p className="font-semibold">{MANT[m.tipo]} · {m.descripcion}</p>
                 <p className="text-sm text-suave">{fecha(m.fecha)} · {km(m.km)}{m.taller ? ` · ${m.taller}` : ""}</p>
               </div>
-              <p className="font-bold tabular-nums">{plata(m.costo)}</p>
+              <p className="font-semibold tabular-nums">{plata(m.costo)}</p>
             </li>
           ))}
         </ul>
@@ -253,7 +267,7 @@ function Incidentes({ v, registrar, resolver }: { v: Ficha; registrar: boolean; 
     <div>
       {registrar && (
         <div className="mb-3">
-          <ConHoja titulo={`Incidente · ${v.nombre}`} etiqueta="Registrar incidente" variante="secundario" icono={<AlertTriangle className="size-5" />}>
+          <ConHoja titulo={`Incidente · ${v.nombre}`} etiqueta="Registrar incidente" variante="secundario" icono={<AlertTriangle />}>
             <FormularioIncidente vehiculoId={v.id} />
           </ConHoja>
         </div>
@@ -263,12 +277,12 @@ function Incidentes({ v, registrar, resolver }: { v: Ficha; registrar: boolean; 
       ) : (
         <ul className="divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
           {v.incidentes.map((i) => (
-            <li key={i.id} className="flex min-h-16 items-center gap-3 px-4 py-3">
+            <li key={i.id} className="flex min-h-14 items-center gap-3 px-4 py-2 lg:min-h-11">
               <div className="min-w-0 flex-1">
                 <p className="font-semibold">{INC[i.tipo]} · {i.descripcion}</p>
                 <p className="text-sm text-suave">{fecha(i.fecha)}{i.usuario ? ` · ${i.usuario.nombre}` : ""}</p>
               </div>
-              <p className="font-bold tabular-nums">{plata(i.monto)}</p>
+              <p className="font-semibold tabular-nums">{plata(i.monto)}</p>
               {resolver ? <BotonResolver id={i.id} resuelto={i.resuelto} /> : <Insignia tono={i.resuelto ? "ok" : "aviso"}>{i.resuelto ? "Resuelto" : "Abierto"}</Insignia>}
             </li>
           ))}

@@ -11,7 +11,7 @@ export default async function PaginaPedirMateriales({ searchParams }: { searchPa
   const { obra } = await searchParams;
   const { obras } = await datosPedirMateriales(); // verifica materiales.pedir
   return (
-    <div className="mx-auto max-w-xl">
+    <div className="max-w-xl">
       <h1 className="sr-only">Pedir materiales a Compras</h1>
       <ElegirPedido activo="materiales" obra={obra} />
       {obras.length === 0 ? (

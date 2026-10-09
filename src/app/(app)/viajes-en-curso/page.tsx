@@ -11,7 +11,7 @@ export default async function PaginaViajesEnCurso() {
   const viajes = await viajesDeMisObras();
   const enViaje = viajes.filter((v) => v.estado === "EN_VIAJE").length;
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <Titulo detalle={viajes.length ? `${enViaje ? `${enViaje} en camino · ` : ""}${viajes.length} en total hacia tus obras.` : undefined}>Viajes</Titulo>
       {viajes.length === 0 ? (
         <Vacio icono={<Route className="size-10" />} titulo="No hay viajes hacia tus obras">Cuando un chofer acepte un pedido para tus obras, lo vas a ver acá.</Vacio>

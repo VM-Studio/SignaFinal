@@ -22,12 +22,12 @@ export function ListaUsuarios({ filas, obras, puedeDireccion, yoId, abrir }: {
   };
   return (
     <>
-      <Boton icono={<UserPlus className="size-5" />} onClick={() => setEditando(NUEVO)} className="mb-3">Agregar persona</Boton>
+      <Boton icono={<UserPlus />} onClick={() => setEditando(NUEVO)} className="mb-3">Agregar persona</Boton>
       <ul className="divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
         {filas.map((f) => (
           <li key={f.id}>
-            <button onClick={() => setEditando(f)} className={`flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-fondo/60 ${f.activo ? "" : "opacity-60"}`}>
-              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-negro font-bold text-white">{f.nombre.slice(0, 1)}</span>
+            <button onClick={() => setEditando(f)} className={`flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-hover ${f.activo ? "" : "opacity-60"}`}>
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-black/[0.06] text-[13px] font-medium">{f.nombre.slice(0, 1)}</span>
               <span className="min-w-0 flex-1">
                 <span className="block font-semibold">{f.nombre}{f.id === yoId ? " (vos)" : ""}</span>
                 <span className="block truncate text-sm text-suave">{f.rolTexto} · {f.detalle}</span>

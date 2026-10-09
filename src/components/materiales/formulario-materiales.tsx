@@ -87,7 +87,7 @@ export function FormularioMateriales({ obras, obraInicial, compras = false }: { 
                 placeholder={i === 0 ? "Ej.: cemento portland, 50 bolsas" : "Otro material y cantidad"}
               />
               {renglones.length > 1 && (
-                <button type="button" aria-label={`Sacar material ${i + 1}`} onClick={() => setRenglones((x) => x.filter((_, j) => j !== i))} className="grid size-[52px] shrink-0 place-items-center rounded-[var(--radius-caja)] border-2 border-linea hover:border-negro">
+                <button type="button" aria-label={`Sacar material ${i + 1}`} onClick={() => setRenglones((x) => x.filter((_, j) => j !== i))} className="grid size-[52px] shrink-0 place-items-center rounded-[var(--radius-caja)] border border-linea hover:border-linea">
                   <X className="size-5" />
                 </button>
               )}
@@ -114,7 +114,7 @@ export function FormularioMateriales({ obras, obraInicial, compras = false }: { 
       </div>
 
       <MensajeError>{error}</MensajeError>
-      <Boton ancho tamano="grande" cargando={enviando} onClick={enviar} icono={<Send className="size-5" />}>
+      <Boton ancho cargando={enviando} onClick={enviar} icono={<Send />}>
         {compras ? "Cargar el pedido" : "Pedir a Compras"}
       </Boton>
     </div>

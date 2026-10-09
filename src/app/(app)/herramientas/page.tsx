@@ -40,12 +40,12 @@ export default async function PaginaHerramientas({ searchParams }: { searchParam
         detalle="Maquinaria y herramientas: en el depósito o en una obra, nunca en otro lado."
         accion={
           <div className="flex flex-wrap gap-2">
-            {puede(u.rol, "herramientas.mover") && <BotonLink href="/herramientas/escanear" icono={<ScanLine className="size-5" />}>Escanear</BotonLink>}
+            {puede(u.rol, "herramientas.mover") && <BotonLink href="/herramientas/escanear" icono={<ScanLine />}>Escanear</BotonLink>}
             {puede(u.rol, "herramientas.editar") && (
               <>
-                <BotonLink href="/herramientas/etiquetas" variante="secundario" icono={<QrCode className="size-5" />}>Etiquetas</BotonLink>
-                <BotonLink href="/herramientas/importar" variante="secundario" icono={<Upload className="size-5" />}>Importar CSV</BotonLink>
-                <ConHoja titulo="Nueva herramienta" etiqueta="Agregar" variante="secundario" icono={<Plus className="size-5" />}>
+                <BotonLink href="/herramientas/etiquetas" variante="secundario" icono={<QrCode />}>Etiquetas</BotonLink>
+                <BotonLink href="/herramientas/importar" variante="secundario" icono={<Upload />}>Importar CSV</BotonLink>
+                <ConHoja titulo="Nueva herramienta" etiqueta="Agregar" variante="secundario" icono={<Plus />}>
                   <FormularioHerramienta categorias={ops.categorias.map((x) => x.nombre)} />
                 </ConHoja>
               </>
@@ -56,7 +56,7 @@ export default async function PaginaHerramientas({ searchParams }: { searchParam
         Herramientas
       </Titulo>
 
-      <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
+      <div className="mb-6 grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
         <Link href={qs({ donde: "deposito" })}><Cifra etiqueta="En depósito" valor={c.deposito} tono="ok" /></Link>
         <Cifra etiqueta="En obras" valor={c.obras} />
         <Cifra etiqueta="En reparación" valor={c.reparacion} tono={c.reparacion ? "aviso" : undefined} />
@@ -91,7 +91,7 @@ async function Lista({ tab, q, donde, n, obras, qs }: { tab: Exclude<Pestana, "s
   const filas = todas.slice(0, limite);
   return (
     <>
-      <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_16rem]">
+      <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_16rem] lg:grid-cols-[minmax(0,420px)_16rem]">
         <Buscador accion="/herramientas" valor={q} placeholder="Buscar por nombre o código (SIG-0001)" ocultos={{ tab, donde }} />
         <FiltroUbicacion valor={donde ?? ""} obras={obras} base={qs({ donde: undefined })} />
       </div>
@@ -99,38 +99,36 @@ async function Lista({ tab, q, donde, n, obras, qs }: { tab: Exclude<Pestana, "s
         <Vacio icono={<Wrench className="size-10" />} titulo="No se encontró nada">{q || donde ? "Probá con otra búsqueda u otra ubicación." : undefined}</Vacio>
       ) : (
         <>
-          <ul className="flex flex-col gap-2 lg:hidden">
+          <ul className="-mx-4 divide-y divide-linea border-y border-linea bg-papel lg:hidden">
             {filas.map((h) => (
               <li key={h.id}>
-                <Link href={`/herramientas/${h.id}`} className={`block rounded-[var(--radius-caja)] border bg-papel p-4 ${h.vencida ? "border-2 border-critico" : "border-linea"}`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="font-bold">{h.nombre}</p>
-                      <p className="text-sm text-suave tabular-nums">{h.codigo} · {h.categoria}</p>
-                    </div>
-                    {h.tipoControl === "UNITARIA" ? <Insignia tono={h.vencida ? "critico" : ESTADO[h.estado].tono}>{h.vencida ? "Devolución vencida" : ESTADO[h.estado].texto}</Insignia> : <span className="text-lg font-bold tabular-nums">{h.total}</span>}
+                <Link href={`/herramientas/${h.id}`} className="flex min-h-14 items-start justify-between gap-3 px-4 py-3 active:bg-hover">
+                  <div className="min-w-0">
+                    <p className="font-medium">{h.nombre}</p>
+                    <p className="truncate text-sm text-suave tabular-nums">{h.codigo} · {h.donde}{h.quien ? ` · la tiene ${h.quien}` : ""}</p>
+                    {h.vencida && h.devolucionPrevista && <p className="text-sm font-medium text-critico">{vencimiento(h.devolucionPrevista).texto.replace("Vencido", "Debía volver")}</p>}
                   </div>
-                  <p className="mt-2 text-[15px]">{h.donde}{h.quien ? ` · la tiene ${h.quien}` : ""}</p>
-                  {h.vencida && h.devolucionPrevista && <p className="text-sm font-semibold text-critico">{vencimiento(h.devolucionPrevista).texto.replace("Vencido", "Debía volver")}</p>}
+                  {h.tipoControl === "UNITARIA" ? <Insignia tono={h.vencida ? "critico" : ESTADO[h.estado].tono}>{h.vencida ? "Vencida" : ESTADO[h.estado].texto}</Insignia> : <span className="font-medium tabular-nums">{h.total}</span>}
                 </Link>
               </li>
             ))}
           </ul>
           <div className="hidden overflow-x-auto rounded-[var(--radius-caja)] border border-linea bg-papel lg:block">
-            <table className="w-full text-left text-[15px]">
-              <thead className="border-b border-linea text-xs tracking-wider text-suave uppercase">
-                <tr className="[&>th]:px-4 [&>th]:py-3"><th>Nombre</th><th>Código</th><th>Dónde está</th><th>Quién la tiene</th><th>Estado</th></tr>
+            <table className="tabla">
+              <thead>
+                <tr><th>Nombre</th><th>Código</th><th>Categoría</th><th>Dónde está</th><th>Quién la tiene</th><th>Estado</th></tr>
               </thead>
-              <tbody className="divide-y divide-linea">
+              <tbody>
                 {filas.map((h) => (
-                  <tr key={h.id} className={`hover:bg-fondo/60 [&>td]:px-4 [&>td]:py-3 ${h.vencida ? "bg-critico-fondo/50" : ""}`}>
-                    <td className="font-semibold"><Link href={`/herramientas/${h.id}`} className="hover:underline">{h.nombre}</Link><span className="block text-xs font-normal text-suave">{h.categoria}</span></td>
-                    <td className="tabular-nums">{h.codigo}</td>
+                  <tr key={h.id}>
+                    <td className="font-medium"><Link href={`/herramientas/${h.id}`} className="hover:underline">{h.nombre}</Link></td>
+                    <td className="text-suave tabular-nums">{h.codigo}</td>
+                    <td className="text-suave">{h.categoria}</td>
                     <td>{h.donde}</td>
                     <td>{h.quien ?? <span className="text-suave">—</span>}</td>
                     <td>
                       {h.tipoControl === "CANTIDAD" ? (
-                        <span className="font-semibold tabular-nums">{h.total} en total</span>
+                        <span className="tabular-nums">{h.total} en total</span>
                       ) : h.vencida && h.devolucionPrevista ? (
                         <Insignia tono="critico">{vencimiento(h.devolucionPrevista).texto.replace("Vencido", "Devolución vencida")}</Insignia>
                       ) : (

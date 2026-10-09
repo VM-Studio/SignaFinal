@@ -170,9 +170,9 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
     return (
       <div className="flex flex-col items-center gap-4 py-10 text-center">
         <CloudOff className="size-12" />
-        <h2 className="text-2xl font-bold">Guardado en el teléfono</h2>
+        <h2 className="text-2xl font-semibold">Guardado en el teléfono</h2>
         <p className="max-w-sm text-suave">No hay señal. El pedido queda pendiente de envío y se manda solo cuando vuelva; arriba vas a ver el aviso hasta que salga.</p>
-        <button onClick={() => router.push("/inicio")} className="min-h-[52px] w-full max-w-sm rounded-[var(--radius-caja)] bg-negro font-semibold text-white">Volver al inicio</button>
+        <button onClick={() => router.push("/inicio")} className="min-h-12 lg:min-h-9 w-full max-w-sm rounded-[var(--radius-caja)] bg-negro font-semibold text-white">Volver al inicio</button>
       </div>
     );
   }
@@ -190,7 +190,7 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
           <p className="text-sm font-semibold text-suave">Paso {paso} de 3</p>
           <div className="mt-1.5 flex gap-1">
             {[1, 2, 3].map((n) => (
-              <span key={n} className={`h-1 flex-1 rounded-full ${n <= paso ? "bg-negro" : "bg-linea"}`} />
+              <span key={n} className={`h-1 flex-1 rounded-full ${n <= paso ? "bg-tinta" : "bg-linea"}`} />
             ))}
           </div>
         </div>
@@ -198,19 +198,19 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
 
       {paso === 1 && (
         <section>
-          <h2 className="mb-3 text-2xl font-bold">¿Qué hay que hacer?</h2>
+          <h2 className="mb-3 text-2xl font-semibold">¿Qué hay que hacer?</h2>
           <div className="grid grid-cols-2 gap-2">
             {TIPOS_PARA_PEDIR.map((t) => (
               <button
                 key={t}
                 type="button"
                 onClick={() => elegirTipo(t)}
-                className={`flex min-h-[120px] flex-col items-start justify-between gap-2 rounded-[var(--radius-caja)] border-2 p-4 text-left ${tipo === t ? "border-negro bg-negro text-white" : "border-linea bg-papel hover:border-negro"}`}
+                className={`flex min-h-[120px] flex-col items-start justify-between gap-2 rounded-[var(--radius-caja)] border p-4 text-left ${tipo === t ? "border-tinta bg-hover text-tinta" : "border-linea bg-papel hover:border-linea"}`}
               >
                 <IconoTipo tipo={t} className="size-8" />
                 <span>
-                  <span className="block text-[17px] leading-tight font-bold">{TIPO[t].titulo}</span>
-                  <span className={`mt-1 hidden text-sm sm:block ${tipo === t ? "text-white/70" : "text-suave"}`}>{TIPO[t].detalle}</span>
+                  <span className="block text-[15px] leading-tight font-semibold">{TIPO[t].titulo}</span>
+                  <span className={`mt-1 hidden text-sm sm:block text-suave`}>{TIPO[t].detalle}</span>
                 </span>
               </button>
             ))}
@@ -220,7 +220,7 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
 
       {paso === 2 && tipo && (
         <section className="flex flex-col gap-4">
-          <h2 className="flex items-center gap-2 text-2xl font-bold">
+          <h2 className="flex items-center gap-2 text-2xl font-semibold">
             <IconoTipo tipo={tipo} className="size-7" /> Detalles
           </h2>
 
@@ -304,13 +304,13 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
           )}
 
           <MensajeError>{error}</MensajeError>
-          <Boton ancho tamano="grande" onClick={pasoDosCompleto}>Siguiente</Boton>
+          <Boton ancho onClick={pasoDosCompleto}>Siguiente</Boton>
         </section>
       )}
 
       {paso === 3 && (
         <section className="flex flex-col gap-5">
-          <h2 className="text-2xl font-bold">¿Para cuándo?</h2>
+          <h2 className="text-2xl font-semibold">¿Para cuándo?</h2>
           <div className="flex flex-col gap-2">
             <Opciones
               nombre="Día"
@@ -355,7 +355,7 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
             <p className="text-sm text-suave">Urgente solo si la obra se para sin esto.</p>
           </div>
           <MensajeError>{error}</MensajeError>
-          <Boton ancho tamano="grande" cargando={enviando} onClick={() => enviar(false)} icono={<Send className="size-5" />}>
+          <Boton ancho cargando={enviando} onClick={() => enviar(false)} icono={<Send />}>
             Pedir el viaje
           </Boton>
         </section>
@@ -365,16 +365,16 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
       <Hoja abierta={!!duplicado} onCerrar={() => { setDuplicado(null); setVerResumen(false); }} titulo="¿Es el mismo pedido?">
         {duplicado && (
           <div className="flex flex-col gap-4">
-            <div className="flex gap-3 rounded-[var(--radius-caja)] border-2 border-aviso bg-aviso-fondo p-4">
+            <div className="flex gap-3 rounded-[var(--radius-caja)] border border-aviso/15 bg-aviso-fondo p-4">
               <Copy className="mt-0.5 size-6 shrink-0 text-aviso" />
               <div>
-                <p className="text-lg font-bold">{duplicado.mensaje}</p>
+                <p className="text-lg font-semibold">{duplicado.mensaje}</p>
                 {verResumen && <p className="mt-2">{duplicado.resumen} · Pedido {duplicado.numero}</p>}
               </div>
             </div>
             {/* Nunca se bloquea: se avisa y decide quien pide. */}
             {!verResumen && (
-              <Boton ancho tamano="grande" onClick={() => (duplicado.visible ? router.push(`/mis-pedidos/${duplicado.id}`) : setVerResumen(true))}>
+              <Boton ancho onClick={() => (duplicado.visible ? router.push(`/mis-pedidos/${duplicado.id}`) : setVerResumen(true))}>
                 Ver ese pedido
               </Boton>
             )}

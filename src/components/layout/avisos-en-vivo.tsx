@@ -113,7 +113,7 @@ export function AvisosEnVivo({ inicial, children }: { inicial: number; children:
       {children}
       {toast && (
         <div role="status" className="fixed inset-x-4 top-[calc(4rem+env(safe-area-inset-top))] z-[60] mx-auto max-w-md lg:top-6 lg:right-6 lg:left-auto lg:mx-0 lg:w-96">
-          <div className="flex items-start gap-3 rounded-[var(--radius-caja)] border-2 border-negro bg-papel p-3">
+          <div className="flex items-start gap-3 rounded-[var(--radius-caja)] border border-linea bg-papel p-3">
             <button
               onClick={() => {
                 setToast(null);

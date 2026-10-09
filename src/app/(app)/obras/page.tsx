@@ -16,38 +16,49 @@ export default async function PaginaObras() {
   const carga = puede(u.rol, "obras.cargar");
   const responsables = carga ? await db.usuario.findMany({ where: { rol: "RESPONSABLE_OBRA", activo: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true } }) : [];
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <Titulo siempre={carga} accion={carga ? <NuevaObra responsables={responsables} /> : undefined}>Obras</Titulo>
       {obras.length === 0 ? (
         carga
           ? <Vacio icono={<Building2 className="size-10" />} titulo="Todavía no hay obras">Cargá la primera con “Nueva obra”. Después, en Usuarios, se le asignan más responsables.</Vacio>
           : <Vacio icono={<Building2 className="size-10" />} titulo="No tenés obras asignadas">Pedile a la oficina que te asigne tus obras.</Vacio>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
-          {obras.map((o) => (
-            <li key={o.id}>
-              <Link href={`/obras/${o.id}`} className="flex h-full flex-col rounded-[var(--radius-caja)] border border-linea bg-papel p-4 hover:bg-fondo/60">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-lg font-bold">Obra {o.nombre}</p>
+        <>
+          {/* Celular: filas */}
+          <ul className="-mx-4 divide-y divide-linea border-y border-linea bg-papel lg:hidden">
+            {obras.map((o) => (
+              <li key={o.id}>
+                <Link href={`/obras/${o.id}`} className="flex min-h-14 items-center gap-3 px-4 py-2.5 active:bg-hover">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">Obra {o.nombre}</p>
                     <p className="truncate text-sm text-suave">{o.direccion}</p>
+                    <p className="text-sm text-suave tabular-nums">{o.pedidosActivos} {o.pedidosActivos === 1 ? "pedido activo" : "pedidos activos"} · {o.herramientas} {o.herramientas === 1 ? "herramienta" : "herramientas"}</p>
                   </div>
-                  {o.estado !== "ACTIVA" ? <Insignia tono="aviso">Pausada</Insignia> : <ChevronRight aria-hidden className="size-5 shrink-0 text-apagado" />}
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <div className="rounded-md bg-fondo px-3 py-2">
-                    <p className="text-2xl font-bold tabular-nums">{o.pedidosActivos}</p>
-                    <p className="text-sm text-suave">{o.pedidosActivos === 1 ? "pedido activo" : "pedidos activos"}</p>
-                  </div>
-                  <div className="rounded-md bg-fondo px-3 py-2">
-                    <p className="text-2xl font-bold tabular-nums">{o.herramientas}</p>
-                    <p className="text-sm text-suave">{o.herramientas === 1 ? "herramienta" : "herramientas"}</p>
-                  </div>
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
+                  {o.estado !== "ACTIVA" ? <Insignia tono="aviso">Pausada</Insignia> : <ChevronRight aria-hidden className="size-4 shrink-0 text-apagado" />}
+                </Link>
+              </li>
+            ))}
+          </ul>
+          {/* Escritorio: tabla */}
+          <div className="hidden overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel lg:block">
+            <table className="tabla">
+              <thead>
+                <tr><th>Obra</th><th>Dirección</th><th>Estado</th><th className="num">Pedidos activos</th><th className="num">Herramientas</th></tr>
+              </thead>
+              <tbody>
+                {obras.map((o) => (
+                  <tr key={o.id}>
+                    <td className="font-medium"><Link href={`/obras/${o.id}`} className="hover:underline">Obra {o.nombre}</Link></td>
+                    <td className="text-suave">{o.direccion}</td>
+                    <td>{o.estado !== "ACTIVA" ? <Insignia tono="aviso">Pausada</Insignia> : <Insignia tono="ok">Activa</Insignia>}</td>
+                    <td className="num">{o.pedidosActivos}</td>
+                    <td className="num">{o.herramientas}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );

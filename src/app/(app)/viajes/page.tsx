@@ -32,29 +32,46 @@ async function TodosLosViajes({ vista, pagina }: { vista: "activos" | "terminado
       {viajes.length === 0 ? (
         <Vacio icono={<Route className="size-10" />} titulo={vista === "activos" ? "No hay viajes en curso ni aceptados" : "Todavía no hay viajes terminados"} />
       ) : (
-        <div className="overflow-x-auto rounded-[var(--radius-caja)] border border-linea bg-papel">
-          <table className="w-full min-w-[720px] text-left text-[15px]">
-            <thead className="border-b border-linea text-xs tracking-wider text-suave uppercase">
-              <tr className="[&>th]:px-4 [&>th]:py-3">
-                <th>Estado</th><th>Qué</th><th>Obra</th><th>Chofer · Vehículo</th><th>Cuándo</th><th className="text-right">Km</th><th className="text-right">Costo</th><th />
+        <>
+        {/* Celular: filas */}
+        <ul className="-mx-4 divide-y divide-linea border-y border-linea bg-papel lg:hidden">
+          {viajes.map((v) => (
+            <li key={v.id}>
+              <Link href={`/solicitudes/${v.pedidoId}`} className="flex items-start gap-3 px-4 py-2.5 active:bg-hover">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{v.descripcion}</p>
+                  <p className="truncate text-sm text-suave">Obra {v.obra} · {v.chofer} · {v.vehiculo}</p>
+                  <p className="text-sm text-suave tabular-nums">{cuando(v.llegadaReal ?? v.salidaReal ?? v.salidaEstimada)}{v.km != null ? ` · ${km(v.km)}` : ""}{v.costo != null ? ` · ${plata(v.costo)}` : ""}</p>
+                </div>
+                <Insignia tono={ESTADO[v.estado].tono}>{ESTADO[v.estado].t}</Insignia>
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <div className="hidden overflow-x-auto rounded-[var(--radius-caja)] border border-linea bg-papel lg:block">
+          <table className="tabla min-w-[720px]">
+            <thead>
+              <tr>
+                <th>Estado</th><th>Qué</th><th>Obra</th><th>Chofer · Vehículo</th><th>Cuándo</th><th className="num">Km</th><th className="num">Costo</th><th />
               </tr>
             </thead>
-            <tbody className="divide-y divide-linea">
+            <tbody>
               {viajes.map((v) => (
-                <tr key={v.id} className="[&>td]:px-4 [&>td]:py-3">
+                <tr key={v.id}>
                   <td><Insignia tono={ESTADO[v.estado].tono}>{ESTADO[v.estado].t}</Insignia></td>
-                  <td className="max-w-xs"><Link href={`/solicitudes/${v.pedidoId}`} className="line-clamp-2 font-semibold hover:underline">{v.descripcion}</Link></td>
+                  <td className="max-w-xs"><Link href={`/solicitudes/${v.pedidoId}`} className="line-clamp-1 font-medium hover:underline">{v.descripcion}</Link></td>
                   <td>Obra {v.obra}</td>
                   <td>{v.chofer} · <span className="text-suave">{v.vehiculo}</span></td>
                   <td className="whitespace-nowrap text-suave">{cuando(v.llegadaReal ?? v.salidaReal ?? v.salidaEstimada)}</td>
-                  <td className="text-right tabular-nums">{km(v.km)}</td>
-                  <td className="text-right font-semibold tabular-nums">{plata(v.costo)}</td>
-                  <td>{v.remitoUrl && <a href={v.remitoUrl} target="_blank" rel="noopener" aria-label="Ver remito" className="grid size-10 place-items-center"><FileImage className="size-5" /></a>}</td>
+                  <td className="num">{km(v.km)}</td>
+                  <td className="num font-medium">{plata(v.costo)}</td>
+                  <td>{v.remitoUrl && <a href={v.remitoUrl} target="_blank" rel="noopener" aria-label="Ver remito" className="grid size-8 place-items-center rounded-md text-suave hover:bg-black/[0.04] hover:text-tinta"><FileImage className="size-4" /></a>}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        </>
       )}
       {paginas > 1 && (
         <div className="mt-4 flex items-center justify-between gap-3">

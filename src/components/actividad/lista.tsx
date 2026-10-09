@@ -13,7 +13,7 @@ export function ListaActividad({ filas, pagina, paginas, total, href }: { filas:
     <>
       {dias.map((d) => (
         <section key={d} className="mb-4">
-          <h2 className="mb-1.5 text-xs font-bold tracking-wider text-suave uppercase">{d}</h2>
+          <h2 className="mb-1.5 etiqueta">{d}</h2>
           <ul className="divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
             {filas.filter((f) => dia(f.fecha) === d).map((a) => (
               <li key={a.id} className="flex gap-3 px-4 py-3">

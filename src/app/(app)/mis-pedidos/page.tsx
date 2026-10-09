@@ -47,8 +47,8 @@ export default async function PaginaMisPedidos({ searchParams }: { searchParams:
   if (enMateriales) {
     const m = await misMateriales(limite);
     return (
-      <div className="mx-auto max-w-3xl">
-        <Titulo accion={<BotonLink href="/pedir-materiales" icono={<PlusCircle className="size-5" />}>Pedir materiales</BotonLink>}>Mis pedidos</Titulo>
+      <div>
+        <Titulo accion={<BotonLink href="/pedir-materiales" icono={<PlusCircle />}>Pedir materiales</BotonLink>}>Mis pedidos</Titulo>
         {pestanas()}
         {m.filas.length === 0 ? (
           <Vacio icono={<ShoppingCart className="size-10" />} titulo="No pediste materiales" accion={<BotonLink href="/pedir-materiales" variante="secundario">Pedir materiales a Compras</BotonLink>}>Lo que le pidas a Compras aparece acá con su estado, paso a paso.</Vacio>
@@ -62,8 +62,8 @@ export default async function PaginaMisPedidos({ searchParams }: { searchParams:
 
   const { filas, cuantos, hayMas } = await misPedidos(pestana, limite);
   return (
-    <div className="mx-auto max-w-3xl">
-      <Titulo accion={<BotonLink href="/pedir" icono={<PlusCircle className="size-5" />}>Pedir un viaje</BotonLink>}>Mis pedidos</Titulo>
+    <div>
+      <Titulo accion={<BotonLink href="/pedir" icono={<PlusCircle />}>Pedir un viaje</BotonLink>}>Mis pedidos</Titulo>
       {pestanas(cuantos)}
       {filas.length === 0 ? <Vacio icono={<ListOrdered className="size-10" />} titulo={VACIO[pestana]} /> : <ListaPedidos filas={filas} base="/mis-pedidos" />}
       {hayMas && <CargarMas href={`/mis-pedidos?${pestana !== "pendientes" ? `p=${pestana}&` : ""}n=${siguiente}`} />}

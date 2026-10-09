@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: "Aprobaciones" };
 export default async function PaginaAprobaciones() {
   const filas = await paraAprobar(); // verifica materiales.aprobar
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <Titulo siempre detalle="Órdenes de compra que armó Compras y esperan tu aprobación.">Aprobaciones</Titulo>
       {filas.length === 0 ? (
         <Vacio icono={<Stamp className="size-10" />} titulo="No hay nada para aprobar">Cuando Compras arme una orden de compra, aparece acá y te llega el aviso.</Vacio>
@@ -21,13 +21,13 @@ export default async function PaginaAprobaciones() {
         <ul className="flex flex-col gap-3">
           {filas.map((f) => (
             <li key={f.id}>
-              <Tarjeta className={`p-4 ${f.demorado ? "border-2 border-critico" : ""}`}>
+              <Tarjeta className={`p-4 ${f.demorado ? "border-critico/30" : ""}`}>
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <p className="text-sm font-semibold tracking-wider text-suave uppercase">{nroOC(f.ordenCompra) ?? "Sin número de OC"} · Obra {f.obra}</p>
+                  <p className="etiqueta">{nroOC(f.ordenCompra) ?? "Sin número de OC"} · Obra {f.obra}</p>
                   {f.prioridad === "URGENTE" && <Insignia tono="critico">Urgente</Insignia>}
                 </div>
-                <Link href={`/compras/${f.id}`} className="mt-1 block text-lg leading-tight font-bold whitespace-pre-line underline-offset-2 hover:underline">{f.descripcion}</Link>
-                <p className="mt-2 text-3xl font-bold tabular-nums">{f.monto != null ? plata(f.monto) : "Sin monto"}</p>
+                <Link href={`/compras/${f.id}`} className="mt-1 block text-lg leading-tight font-semibold whitespace-pre-line underline-offset-2 hover:underline">{f.descripcion}</Link>
+                <p className="mt-2 text-3xl font-semibold tabular-nums">{f.monto != null ? plata(f.monto) : "Sin monto"}</p>
                 <p className="mt-1 text-sm text-suave">
                   Pidió {f.solicitante} {paraElDia(aFecha(f.paraCuando.slice(0, 10), "12:00"))} · Compras: {f.comprador ?? "—"} · enviada {haceDias(new Date(f.enEstadoDesde))}
                   {f.proveedorListo ? ` · ${f.proveedorListo}` : ""}

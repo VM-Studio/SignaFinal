@@ -32,17 +32,17 @@ export default async function PaginaRastreo() {
   const libres = vehiculos.filter((v) => !v.idCusat).map((v) => ({ id: v.id, nombre: `${v.nombre} · ${v.patente}` }));
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <Titulo siempre detalle="Cusat View (Suartec). La posición de cada vehículo sale de acá; si Cusat no responde, del teléfono del chofer.">Rastreo</Titulo>
 
       {vapidFaltantes().length > 0 && (
-        <p role="alert" className="mb-4 flex gap-2 rounded-[var(--radius-caja)] border-2 border-critico bg-critico-fondo p-3 font-semibold text-critico">
+        <p role="alert" className="mb-4 flex gap-2 rounded-[var(--radius-caja)] border border-critico/15 bg-critico-fondo p-3 font-semibold text-critico">
           <AlertTriangle className="mt-0.5 size-5 shrink-0" />
           Los avisos push están apagados: faltan {vapidFaltantes().join(", ")} en Vercel. Nadie recibe avisos en el celular.
         </p>
       )}
       {vieja && (
-        <p className="mb-4 flex gap-2 rounded-[var(--radius-caja)] border-2 border-aviso bg-aviso-fondo p-3 font-semibold">
+        <p className="mb-4 flex gap-2 rounded-[var(--radius-caja)] border border-aviso/15 bg-aviso-fondo p-3 font-semibold">
           <AlertTriangle className="mt-0.5 size-5 shrink-0 text-aviso" />
           {sync ? `El cron no está pegando. Revisá docs/cusat/cron.md (última sincronización ${haceSeg(sync.valor.fecha)}).` : "El cron no está pegando: todavía no hubo ninguna sincronización. Revisá docs/cusat/cron.md o tocá \"Sincronizar ahora\"."}
         </p>
@@ -59,8 +59,8 @@ export default async function PaginaRastreo() {
         <Cifra etiqueta="Sin enlazar" valor={sinEnlazar.length} detalle="unidades de Cusat" />
       </div>
       {error && (
-        <Tarjeta className={`mt-3 p-4 ${errorReciente ? "border-2 border-critico" : ""}`}>
-          <p className="text-xs font-semibold tracking-wider text-suave uppercase">Último error {errorReciente ? "" : "(ya se resolvió)"}</p>
+        <Tarjeta className={`mt-3 p-4 ${errorReciente ? "border-critico/30" : ""}`}>
+          <p className="etiqueta">Último error {errorReciente ? "" : "(ya se resolvió)"}</p>
           <p className="mt-1 font-medium">{error.valor.error}</p>
           <p className="text-sm text-suave">{cuando(error.valor.fecha)}</p>
         </Tarjeta>

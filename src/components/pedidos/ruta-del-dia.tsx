@@ -38,15 +38,15 @@ export function RutaDelDia({ paradas }: { paradas: ParadaRuta[] }) {
   }
 
   return (
-    <ol className="divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border-2 border-negro bg-papel">
+    <ol className="divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
       {paradas.map((p, i) => {
         const e = textoEstado({ estado: p.estado, chofer: p.chofer, salidaEstimada: p.salidaEstimada });
         const k = programadas.findIndex((x) => x.viajeId === p.viajeId);
         return (
           <li key={p.viajeId} className="flex items-center gap-2">
-            <span className="grid w-10 shrink-0 place-items-center self-stretch bg-negro text-lg font-bold text-white">{i + 1}</span>
+            <span className="grid w-10 shrink-0 place-items-center self-stretch bg-negro text-lg font-semibold text-white">{i + 1}</span>
             <Link href={`/viaje/${p.pedidoId}`} className="min-w-0 flex-1 py-3">
-              <p className="truncate font-bold">{p.descripcion}</p>
+              <p className="truncate font-semibold">{p.descripcion}</p>
               <p className="truncate text-sm">{p.origen} → Obra {p.obra}</p>
               <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-suave">
                 <Insignia tono={e.tono}>{p.estado === "EN_VIAJE" ? "En viaje" : `Sale ${p.salidaEstimada ? hora(p.salidaEstimada) : "—"}`}</Insignia>

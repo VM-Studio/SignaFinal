@@ -131,7 +131,7 @@ export function Escaner({ obras, personas }: { obras: { id: string; nombre: stri
         ) : (
           <>
             <video ref={video} playsInline muted className="h-full w-full object-cover" />
-            <div aria-hidden className="pointer-events-none absolute inset-[18%] rounded-xl border-4 border-white/90" />
+            <div aria-hidden className="pointer-events-none absolute inset-[18%] rounded-xl border border-white/90" />
           </>
         )}
         <canvas ref={lienzo} hidden />
@@ -150,7 +150,7 @@ export function Escaner({ obras, personas }: { obras: { id: string; nombre: stri
 
       {modo === "varias" && (
         <section className="flex flex-col gap-2">
-          <p className="text-sm font-bold tracking-wider text-suave uppercase">Escaneadas ({lote.length})</p>
+          <p className="etiqueta">Escaneadas ({lote.length})</p>
           {lote.length === 0 ? (
             <p className="text-suave">Escaneá las que van juntas a la misma obra.</p>
           ) : (
@@ -164,7 +164,7 @@ export function Escaner({ obras, personas }: { obras: { id: string; nombre: stri
               ))}
             </ul>
           )}
-          <Boton ancho tamano="grande" disabled={!lote.length} icono={<Truck className="size-5" />} onClick={() => setEntregando(true)}>
+          <Boton ancho disabled={!lote.length} icono={<Truck />} onClick={() => setEntregando(true)}>
             Entregar {lote.length || ""} a una obra
           </Boton>
         </section>
@@ -200,7 +200,7 @@ function EntregaLote({ ids, obras, personas, alTerminar }: { ids: string[]; obra
       </Campo>
       <Campo etiqueta="¿Cuándo vuelven?" htmlFor="lote-vuelve"><Fecha id="lote-vuelve" value={vuelve} min={diaISO()} onChange={(e) => setVuelve(e.target.value)} /></Campo>
       <MensajeError>{error}</MensajeError>
-      <Boton ancho tamano="grande" disabled={!obraId || !recibe} cargando={enviando} onClick={async () => {
+      <Boton ancho disabled={!obraId || !recibe} cargando={enviando} onClick={async () => {
         setEnviando(true);
         const r = await entregarVarias({ ids, obraId, recibidoPorId: recibe, devolucionPrevista: vuelve });
         setEnviando(false);

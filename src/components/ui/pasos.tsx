@@ -23,20 +23,20 @@ export function Pasos({ titulos, children, textoFinal, onFinal, validar, enviand
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2">
         {paso > 0 && (
-          <button type="button" onClick={() => setPaso(paso - 1)} aria-label="Paso anterior" className="-ml-2 grid size-11 place-items-center rounded-md hover:bg-black/5">
-            <ArrowLeft className="size-6" />
+          <button type="button" onClick={() => setPaso(paso - 1)} aria-label="Paso anterior" className="-ml-2 grid size-10 place-items-center rounded-md hover:bg-black/[0.04]">
+            <ArrowLeft className="size-5" />
           </button>
         )}
         <div className="flex-1">
-          <p className="text-sm font-semibold text-suave">Paso {paso + 1} de {titulos.length} · {titulos[paso]}</p>
+          <p className="text-sm font-medium text-suave">Paso {paso + 1} de {titulos.length} · {titulos[paso]}</p>
           <div className="mt-1.5 flex gap-1">
-            {titulos.map((t, i) => <span key={t} className={`h-1 flex-1 rounded-full ${i <= paso ? "bg-negro" : "bg-linea"}`} />)}
+            {titulos.map((t, i) => <span key={t} className={`h-0.5 flex-1 rounded-full ${i <= paso ? "bg-tinta" : "bg-linea"}`} />)}
           </div>
         </div>
       </div>
       {children.map((c, i) => <div key={i} hidden={i !== paso} className="flex flex-col gap-4">{c}</div>)}
       <MensajeError>{aviso ?? error}</MensajeError>
-      <Boton ancho tamano="grande" onClick={siguiente} cargando={enviando && ultimo}>{ultimo ? textoFinal : "Siguiente"}</Boton>
+      <Boton ancho onClick={siguiente} cargando={enviando && ultimo}>{ultimo ? textoFinal : "Siguiente"}</Boton>
     </div>
   );
 }

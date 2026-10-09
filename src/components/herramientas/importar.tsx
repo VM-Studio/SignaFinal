@@ -83,7 +83,7 @@ export function ImportarCSV() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap gap-2">
-        <label className="flex min-h-[52px] cursor-pointer items-center gap-2 rounded-[var(--radius-caja)] bg-negro px-5 font-semibold text-white">
+        <label className="flex min-h-12 lg:min-h-9 cursor-pointer items-center gap-2 rounded-[var(--radius-caja)] bg-negro px-5 font-semibold text-white">
           <FileUp className="size-5" /> Elegir archivo CSV
           <input type="file" accept=".csv,text/csv" hidden onChange={async (e) => {
             const f = e.target.files?.[0];
@@ -93,7 +93,7 @@ export function ImportarCSV() {
             setPrevia(interpretar(await f.text()));
           }} />
         </label>
-        <a href={`data:text/csv;charset=utf-8,${encodeURIComponent(PLANTILLA)}`} download="plantilla-herramientas.csv" className="flex min-h-[52px] items-center gap-2 rounded-[var(--radius-caja)] border-2 border-negro bg-papel px-5 font-semibold">
+        <a href={`data:text/csv;charset=utf-8,${encodeURIComponent(PLANTILLA)}`} download="plantilla-herramientas.csv" className="flex min-h-12 lg:min-h-9 items-center gap-2 rounded-[var(--radius-caja)] border border-linea bg-papel px-5 font-semibold">
           <Download className="size-5" /> Bajar plantilla
         </a>
       </div>
@@ -106,15 +106,15 @@ export function ImportarCSV() {
             {conError ? <span className="text-critico"> · {conError} con error</span> : <span className="text-ok"> · todas bien</span>}
           </p>
           <div className="max-h-[50dvh] overflow-auto rounded-[var(--radius-caja)] border border-linea bg-papel">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="sticky top-0 border-b border-linea bg-papel text-xs tracking-wider text-suave uppercase">
-                <tr className="[&>th]:px-3 [&>th]:py-2"><th>#</th><th>Nombre</th><th>Categoría</th><th>Tipo</th><th>Cantidad</th><th>Estado</th></tr>
+            <table className="tabla min-w-[640px]">
+              <thead className="sticky top-0 bg-papel">
+                <tr><th>#</th><th>Nombre</th><th>Categoría</th><th>Tipo</th><th>Cantidad</th><th>Estado</th></tr>
               </thead>
-              <tbody className="divide-y divide-linea">
+              <tbody>
                 {previa.map((p, i) => (
-                  <tr key={i} className={`[&>td]:px-3 [&>td]:py-2 ${p.error ? "bg-critico-fondo/60" : ""}`}>
+                  <tr key={i}>
                     <td className="text-suave tabular-nums">{i + 2}</td>
-                    <td className="font-semibold">{p.fila?.nombre ?? p.original[0]}</td>
+                    <td className="font-medium">{p.fila?.nombre ?? p.original[0]}</td>
                     <td>{p.fila?.categoria ?? p.original[1]}</td>
                     <td>{p.fila ? `${p.fila.esMaquina ? "Máquina" : "Herramienta"} · ${p.fila.tipoControl === "CANTIDAD" ? "por cantidad" : "unitaria"}` : "—"}</td>
                     <td className="tabular-nums">{p.fila?.cantidad ?? (p.fila ? 1 : "—")}</td>
@@ -125,7 +125,7 @@ export function ImportarCSV() {
             </table>
           </div>
           <MensajeError>{error}</MensajeError>
-          <Boton ancho tamano="grande" disabled={!!conError} cargando={enviando} icono={<Upload className="size-5" />} onClick={async () => {
+          <Boton ancho disabled={!!conError} cargando={enviando} icono={<Upload />} onClick={async () => {
             setEnviando(true);
             const r = await importarHerramientas(previa.map((p) => p.fila!));
             setEnviando(false);

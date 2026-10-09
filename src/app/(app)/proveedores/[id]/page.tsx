@@ -27,13 +27,13 @@ export default async function PaginaProveedor({ params }: { params: Promise<{ id
     ? await db.materialListo.findMany({ where: { proveedorId: id, estado: { in: ["LISTO", "RETIRO_PEDIDO", "EN_CAMINO"] } }, orderBy: { habilitadoEn: "asc" }, include: { obra: { select: { nombre: true } } } })
     : [];
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <Link href="/proveedores" className="mb-2 hidden min-h-11 items-center gap-1 font-semibold text-suave lg:inline-flex"><ArrowLeft className="size-5" /> Proveedores</Link>
-      <h1 className="text-2xl font-bold lg:text-3xl">{p.nombre}</h1>
+      <h1 className="text-2xl font-semibold lg:text-3xl">{p.nombre}</h1>
       <p className="mt-1 text-suave">{p.direccion}, {p.localidad}{p.idLebane ? ` · Lebane ${p.idLebane}` : ""}</p>
       <div className="mt-4 grid grid-cols-2 gap-2">
-        {p.telefono ? <a href={`tel:${p.telefono.replace(/\s/g, "")}`} className="flex min-h-[52px] items-center justify-center gap-2 rounded-[var(--radius-caja)] border-2 border-negro font-semibold"><Phone className="size-5" /> {p.telefono}</a> : <span />}
-        <a href={`https://www.google.com/maps/dir/?api=1&destination=${p.latitud},${p.longitud}`} target="_blank" rel="noopener" className="flex min-h-[52px] items-center justify-center gap-2 rounded-[var(--radius-caja)] bg-negro font-semibold text-white"><Navigation className="size-5" /> Cómo llegar</a>
+        {p.telefono ? <a href={`tel:${p.telefono.replace(/\s/g, "")}`} className="flex min-h-12 lg:min-h-9 items-center justify-center gap-2 rounded-[var(--radius-caja)] border border-linea font-semibold"><Phone className="size-5" /> {p.telefono}</a> : <span />}
+        <a href={`https://www.google.com/maps/dir/?api=1&destination=${p.latitud},${p.longitud}`} target="_blank" rel="noopener" className="flex min-h-12 lg:min-h-9 items-center justify-center gap-2 rounded-[var(--radius-caja)] bg-negro font-semibold text-white"><Navigation className="size-5" /> Cómo llegar</a>
       </div>
       {compras && (
         <>

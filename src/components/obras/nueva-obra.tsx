@@ -36,7 +36,7 @@ export function NuevaObra({ responsables }: { responsables: { id: string; nombre
 
   return (
     <>
-      <Boton icono={<PlusCircle className="size-5" />} onClick={() => setAbierta(true)}>Nueva obra</Boton>
+      <Boton icono={<PlusCircle />} onClick={() => setAbierta(true)}>Nueva obra</Boton>
       <Hoja abierta={abierta} onCerrar={() => setAbierta(false)} titulo="Nueva obra">
         <div className="flex flex-col gap-4">
           <Campo etiqueta="Nombre" htmlFor="o-nombre" ayuda="Como la llaman todos: “Darwin”, “Pinares II”."><Entrada id="o-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={80} autoFocus /></Campo>
@@ -50,7 +50,7 @@ export function NuevaObra({ responsables }: { responsables: { id: string; nombre
                   const si = elegidos.includes(r.id);
                   return (
                     <button key={r.id} type="button" role="checkbox" aria-checked={si} onClick={() => alternar(r.id)}
-                      className={`flex min-h-[52px] items-center gap-2 rounded-[var(--radius-caja)] border-2 px-3 text-left font-semibold ${si ? "border-negro bg-negro text-white" : "border-linea bg-papel"}`}>
+                      className={`flex min-h-12 lg:min-h-9 items-center gap-2 rounded-[var(--radius-caja)] border px-3 text-left font-semibold ${si ? "border-tinta bg-hover text-tinta" : "border-linea bg-papel"}`}>
                       {si && <Check className="size-4 shrink-0" />} {r.nombre}{si && elegidos[0] === r.id ? " · principal" : ""}
                     </button>
                   );
@@ -59,7 +59,7 @@ export function NuevaObra({ responsables }: { responsables: { id: string; nombre
             </div>
           )}
           <MensajeError>{error}</MensajeError>
-          <Boton ancho tamano="grande" cargando={enviando} disabled={!nombre.trim() || !direccion.trim() || !localidad.trim()} onClick={guardar}>Cargar la obra</Boton>
+          <Boton ancho cargando={enviando} disabled={!nombre.trim() || !direccion.trim() || !localidad.trim()} onClick={guardar}>Cargar la obra</Boton>
         </div>
       </Hoja>
     </>

@@ -54,18 +54,18 @@ export function ProveedorAvisos({ children }: { children: ReactNode }) {
   return (
     <Contexto.Provider value={mostrar}>
       {children}
-      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-[calc(80px+env(safe-area-inset-bottom))] z-[60] flex justify-center px-3 lg:bottom-6 lg:left-60">
+      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-[60] flex justify-center px-4 lg:bottom-6 lg:left-[232px]">
         {aviso && (
-          <div role="status" className={`pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-[var(--radius-caja)] px-4 py-3 text-white ${aviso.tono === "error" ? "bg-critico" : "bg-negro"}`}>
-            {aviso.tono === "error" ? <AlertTriangle className="size-5 shrink-0" /> : <CheckCircle2 className="size-5 shrink-0" />}
-            <p className="min-w-0 flex-1 font-medium">{aviso.mensaje}</p>
+          <div role="status" className={`pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-[var(--radius-caja)] px-4 py-2.5 text-white shadow-[var(--shadow-flotante)] ${aviso.tono === "error" ? "bg-critico" : "bg-negro"}`}>
+            {aviso.tono === "error" ? <AlertTriangle className="size-4 shrink-0" /> : <CheckCircle2 className="size-4 shrink-0" />}
+            <p className="min-w-0 flex-1 text-sm font-medium">{aviso.mensaje}</p>
             {aviso.deshacer ? (
-              <button onClick={deshacer} disabled={deshaciendo} className="min-h-11 shrink-0 rounded-md bg-white px-3 font-bold text-negro disabled:opacity-50">
+              <button onClick={deshacer} disabled={deshaciendo} className="min-h-9 shrink-0 rounded-md bg-white px-3 text-sm font-medium text-negro disabled:opacity-50">
                 {deshaciendo ? "…" : `Deshacer (${restante})`}
               </button>
             ) : (
-              <button onClick={() => setAviso(null)} aria-label="Cerrar" className="grid size-11 shrink-0 place-items-center">
-                <X className="size-5" />
+              <button onClick={() => setAviso(null)} aria-label="Cerrar" className="grid size-9 shrink-0 place-items-center">
+                <X className="size-4" />
               </button>
             )}
           </div>

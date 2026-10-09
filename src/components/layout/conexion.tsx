@@ -104,7 +104,7 @@ export function IndicadorConexion() {
                 {e.error ? (
                   <div className="mt-2 flex items-start justify-between gap-2">
                     <p className="text-sm font-medium text-critico">No se pudo enviar: {e.error}</p>
-                    <button onClick={() => descartar(e.id)} className="min-h-11 shrink-0 px-2 text-sm font-bold underline">Descartar</button>
+                    <button onClick={() => descartar(e.id)} className="min-h-11 shrink-0 px-2 text-sm font-semibold underline">Descartar</button>
                   </div>
                 ) : (
                   <p className="mt-1 text-sm font-medium">{enLinea ? "Enviando…" : "Pendiente de envío"}</p>
@@ -114,7 +114,7 @@ export function IndicadorConexion() {
           </ul>
         )}
         {enLinea && esperando.length > 0 && (
-          <button onClick={enviar} disabled={enviando} className="mt-3 min-h-[52px] w-full rounded-[var(--radius-caja)] bg-negro font-semibold text-white disabled:opacity-50">
+          <button onClick={enviar} disabled={enviando} className="mt-3 min-h-12 lg:min-h-9 w-full rounded-[var(--radius-caja)] bg-negro font-semibold text-white disabled:opacity-50">
             {enviando ? "Enviando…" : "Enviar ahora"}
           </button>
         )}

@@ -70,14 +70,14 @@ export function RetiroMateriales({ obras, listos, obraInicial, materialInicial }
         <div className="flex-1">
           <p className="text-sm font-semibold text-suave">Retiro en proveedor · Paso {paso} de 3</p>
           <div className="mt-1.5 flex gap-1">
-            {[1, 2, 3].map((n) => <span key={n} className={`h-1 flex-1 rounded-full ${n <= paso ? "bg-negro" : "bg-linea"}`} />)}
+            {[1, 2, 3].map((n) => <span key={n} className={`h-1 flex-1 rounded-full ${n <= paso ? "bg-tinta" : "bg-linea"}`} />)}
           </div>
         </div>
       </div>
 
       {paso === 1 && (
         <section className="flex flex-col gap-3">
-          <h2 className="text-2xl font-bold">¿Para qué obra?</h2>
+          <h2 className="text-2xl font-semibold">¿Para qué obra?</h2>
           <Opciones
             nombre="Obra" valor={obraId}
             onElegir={(v) => { setObraId(v); setMarcados([]); setPaso(2); }}
@@ -91,7 +91,7 @@ export function RetiroMateriales({ obras, listos, obraInicial, materialInicial }
 
       {paso === 2 && obra && (
         <section className="flex flex-col gap-3">
-          <h2 className="text-2xl font-bold">¿Qué hay que retirar?</h2>
+          <h2 className="text-2xl font-semibold">¿Qué hay que retirar?</h2>
           {disponibles.length === 0 ? (
             <Vacio icono={<PackageOpen className="size-10" />} titulo={`No tenés materiales listos para retirar en ${obra.nombre}.`} accion={<BotonLink href="/mis-pedidos?tab=materiales" variante="secundario">Ver mis pedidos de material</BotonLink>}>
               Aparecen acá cuando Compras los habilita.
@@ -104,13 +104,13 @@ export function RetiroMateriales({ obras, listos, obraInicial, materialInicial }
                   return (
                     <li key={m.id}>
                       <button type="button" role="checkbox" aria-checked={si} onClick={() => marcar(m.id)}
-                        className={`flex min-h-16 w-full items-start gap-3 rounded-[var(--radius-caja)] border-2 px-4 py-3 text-left ${si ? "border-negro bg-negro text-white" : "border-linea bg-papel hover:border-linea-fuerte"}`}>
-                        <span aria-hidden className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded border-2 ${si ? "border-white bg-white text-negro" : "border-linea-fuerte"}`}>
+                        className={`flex min-h-16 w-full items-start gap-3 rounded-[var(--radius-caja)] border px-4 py-3 text-left ${si ? "border-tinta bg-hover text-tinta" : "border-linea bg-papel hover:border-linea-fuerte"}`}>
+                        <span aria-hidden className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded border ${si ? "border-white bg-white text-negro" : "border-linea-fuerte"}`}>
                           {si && <Check className="size-4" strokeWidth={3} />}
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block leading-tight font-semibold">{m.descripcion}</span>
-                          <span className={`mt-0.5 block text-sm ${si ? "text-white/75" : "text-suave"}`}>
+                          <span className={`mt-0.5 block text-sm text-suave`}>
                             {[m.proveedor, m.pesoKg ? `hasta ${peso(m.pesoKg)}` : null, `listo ${haceDias(new Date(m.habilitadoEn))}`].filter(Boolean).join(" · ")}
                           </span>
                         </span>
@@ -120,12 +120,12 @@ export function RetiroMateriales({ obras, listos, obraInicial, materialInicial }
                 })}
               </ul>
               {proveedores.length > 1 && (
-                <p className="flex gap-2 rounded-[var(--radius-caja)] border-2 border-aviso bg-aviso-fondo p-3 font-semibold">
+                <p className="flex gap-2 rounded-[var(--radius-caja)] border border-aviso/15 bg-aviso-fondo p-3 font-semibold">
                   <Split className="mt-0.5 size-5 shrink-0 text-aviso" /> Son {proveedores.length} proveedores, se van a crear {proveedores.length} viajes.
                 </p>
               )}
               <MensajeError>{error}</MensajeError>
-              <Boton ancho tamano="grande" disabled={!marcados.length} onClick={() => setPaso(3)}>Siguiente</Boton>
+              <Boton ancho disabled={!marcados.length} onClick={() => setPaso(3)}>Siguiente</Boton>
             </>
           )}
         </section>
@@ -133,7 +133,7 @@ export function RetiroMateriales({ obras, listos, obraInicial, materialInicial }
 
       {paso === 3 && (
         <section className="flex flex-col gap-5">
-          <h2 className="text-2xl font-bold">¿Para cuándo?</h2>
+          <h2 className="text-2xl font-semibold">¿Para cuándo?</h2>
           <div className="flex flex-col gap-2">
             <Opciones nombre="Día" columnas={3} valor={dia} onElegir={(v) => setDia(v as typeof dia)} opciones={[{ valor: "hoy", titulo: "Hoy" }, { valor: "manana", titulo: "Mañana" }, { valor: "fecha", titulo: "Elegir fecha" }]} />
             {dia === "fecha" && <Fecha aria-label="Fecha" value={fecha} min={hoy} onChange={(e) => setFecha(e.target.value)} />}
@@ -149,7 +149,7 @@ export function RetiroMateriales({ obras, listos, obraInicial, materialInicial }
             <p className="text-sm text-suave">Urgente solo si la obra se para sin esto.</p>
           </div>
           <MensajeError>{error}</MensajeError>
-          <Boton ancho tamano="grande" cargando={enviando} onClick={enviar} icono={<Send className="size-5" />}>
+          <Boton ancho cargando={enviando} onClick={enviar} icono={<Send />}>
             {proveedores.length > 1 ? `Pedir los ${proveedores.length} viajes` : "Pedir el viaje"}
           </Boton>
         </section>

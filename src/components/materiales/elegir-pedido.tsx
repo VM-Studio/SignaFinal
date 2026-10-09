@@ -13,7 +13,7 @@ export function ElegirPedido({ activo, obra }: { activo: "viaje" | "materiales";
       {opciones.map((o) => (
         <Link
           key={o.clave} href={o.href} aria-current={o.clave === activo ? "page" : undefined}
-          className={`flex min-h-[56px] items-center justify-center gap-2 rounded-[var(--radius-caja)] border-2 px-2 text-center text-[15px] leading-tight font-bold ${o.clave === activo ? "border-negro bg-negro text-white" : "border-linea bg-papel hover:border-negro"}`}
+          className={`flex min-h-12 lg:min-h-10 items-center justify-center gap-2 rounded-[var(--radius-caja)] border px-2 text-center text-[15px] leading-tight font-semibold ${o.clave === activo ? "border-tinta bg-hover text-tinta" : "border-linea bg-papel hover:border-linea"}`}
         >
           {o.icono} {o.titulo}
         </Link>
