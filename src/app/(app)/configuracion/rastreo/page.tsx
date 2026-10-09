@@ -3,6 +3,7 @@ import { AlertTriangle, SatelliteDish } from "lucide-react";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { db } from "@/lib/db";
 import { modoCusat } from "@/lib/cusat";
+import { vapidFaltantes } from "@/lib/notificaciones";
 import { CLAVE, leerEstado, type SinEnlazar, type UltimaSync, type UltimoError } from "@/lib/cusat/estado";
 import { cuando, haceSeg } from "@/lib/formato";
 import { Cifra, Insignia, Subtitulo, Tarjeta, Titulo } from "@/components/ui/basicos";
@@ -34,6 +35,12 @@ export default async function PaginaRastreo() {
     <div className="mx-auto max-w-3xl">
       <Titulo siempre detalle="Cusat View (Suartec). La posición de cada vehículo sale de acá; si Cusat no responde, del teléfono del chofer.">Rastreo</Titulo>
 
+      {vapidFaltantes().length > 0 && (
+        <p role="alert" className="mb-4 flex gap-2 rounded-[var(--radius-caja)] border-2 border-critico bg-critico-fondo p-3 font-semibold text-critico">
+          <AlertTriangle className="mt-0.5 size-5 shrink-0" />
+          Los avisos push están apagados: faltan {vapidFaltantes().join(", ")} en Vercel. Nadie recibe avisos en el celular.
+        </p>
+      )}
       {vieja && (
         <p className="mb-4 flex gap-2 rounded-[var(--radius-caja)] border-2 border-aviso bg-aviso-fondo p-3 font-semibold">
           <AlertTriangle className="mt-0.5 size-5 shrink-0 text-aviso" />

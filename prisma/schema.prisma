@@ -62,6 +62,7 @@ model Usuario {
   materialesAprobados       PedidoMaterial[]           @relation("MaterialAprobador")
   cambiosMaterial           CambioEstadoMaterial[]
   materialesHabilitados     MaterialListo[]
+  enviosPush                EnvioPush[]
 
   @@index([rol, activo])
 }
@@ -784,6 +785,8 @@ model SuscripcionPush {
 
   usuario Usuario @relation(fields: [usuarioId], references: [id])
 
+  envios EnvioPush[]
+
   @@index([usuarioId, activa])
 }
 
@@ -934,4 +937,24 @@ model EstadoSistema {
   clave         String   @id
   valor         Json
   actualizadoEn DateTime @updatedAt
+}
+
+/// Cada intento de mandar una push a un dispositivo: qué respondió Apple/Google/Mozilla (diagnóstico).
+model EnvioPush {
+  id              String   @id @default(cuid())
+  usuarioId       String
+  suscripcionId   String
+  /// Tipo del aviso (o "PRUEBA" para "Enviarme una prueba").
+  tipo            String
+  /// ENVIADA (el servicio la aceptó) o FALLIDA.
+  estado          String
+  codigoRespuesta Int?
+  error           String?
+  fecha           DateTime @default(now())
+
+  usuario     Usuario         @relation(fields: [usuarioId], references: [id])
+  suscripcion SuscripcionPush @relation(fields: [suscripcionId], references: [id])
+
+  @@index([usuarioId, fecha])
+  @@index([suscripcionId, fecha])
 }

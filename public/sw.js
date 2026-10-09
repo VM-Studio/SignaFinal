@@ -2,7 +2,7 @@
  * Estáticos: primero caché. Pantallas: primero red; sin señal, la última versión guardada.
  * Nada de /api ni Server Actions se guarda en caché.
  */
-const VERSION = "signa-v8";
+const VERSION = "signa-v9";
 const ESTATICOS = `${VERSION}-estaticos`;
 const PANTALLAS = `${VERSION}-pantallas`;
 
@@ -52,9 +52,9 @@ self.addEventListener("fetch", (e) => {
   }
 });
 
-// Avisos push: título, cuerpo y a dónde lleva al tocarlo. Mismas opciones que en la versión que
-// anduvo en iPhone (sin renotify ni lang: Safari no las admite). Si algo falla, se muestra igual una
-// versión mínima: en iPhone, una push que no muestra nada hace que el sistema corte los avisos.
+// Avisos push. SIEMPRE se muestra una notificación (iPhone corta los avisos si una push no muestra
+// nada): con las opciones de la versión que andaba en iPhone y, si algo falla, una mínima.
+// tag = la clave del aviso: el mismo aviso repetido reemplaza al anterior en vez de apilarse.
 self.addEventListener("push", (e) => {
   let d = {};
   try {
@@ -63,16 +63,17 @@ self.addEventListener("push", (e) => {
     d = { titulo: "SIGNA", cuerpo: e.data ? e.data.text() : "" };
   }
   const titulo = d.titulo || "SIGNA";
+  const url = d.url || d.enlace || "/avisos";
   const mostrar = self.registration
     .showNotification(titulo, {
       body: d.cuerpo || "",
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
-      data: { enlace: d.enlace || "/avisos" },
-      tag: d.tag,
+      tag: d.tag || undefined,
+      data: { url },
     })
-    .catch(() => self.registration.showNotification(titulo, { body: d.cuerpo || "" }));
-  // El teléfono confirma que la recibió (diagnóstico en Mi cuenta). Nunca frena el aviso.
+    .catch(() => self.registration.showNotification(titulo, { body: d.cuerpo || "", data: { url } }));
+  // El dispositivo confirma que la recibió (diagnóstico). Nunca frena el aviso.
   const confirmar = self.registration.pushManager
     .getSubscription()
     .then((s) => s && fetch("/api/push/recibido", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: s.endpoint }) }))
@@ -80,18 +81,18 @@ self.addEventListener("push", (e) => {
   e.waitUntil(Promise.all([mostrar, confirmar]));
 });
 
+// Al tocar el aviso: si la app ya está abierta, se enfoca y va al enlace; si no, se abre en el enlace.
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
-  const destino = new URL(e.notification.data?.enlace || "/avisos", self.location.origin).href;
+  const datos = e.notification.data || {};
+  const destino = new URL(datos.url || datos.enlace || "/avisos", self.location.origin).href;
   e.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (ventanas) => {
-      // Si ya hay una pestaña en ese enlace, se enfoca; si hay otra de la app, se lleva ahí; si no, se abre.
-      const exacta = ventanas.find((v) => v.url === destino);
-      if (exacta) return exacta.focus();
       const abierta = ventanas.find((v) => v.url.startsWith(self.location.origin));
       if (abierta) {
         await abierta.focus();
-        return abierta.navigate(destino).catch(() => self.clients.openWindow(destino));
+        if (abierta.url !== destino) return abierta.navigate(destino).catch(() => self.clients.openWindow(destino));
+        return abierta;
       }
       return self.clients.openWindow(destino);
     }),

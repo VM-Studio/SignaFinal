@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { LogOut } from "lucide-react";
 import { exigirSesion } from "@/lib/auth/sesion";
-import { cerrarSesion } from "@/lib/auth/acciones";
+import { FormularioSalir } from "@/components/layout/salir";
 import { ROL } from "@/lib/etiquetas";
 import { Tarjeta, Titulo } from "@/components/ui/basicos";
 import { Boton } from "@/components/ui/boton";
@@ -28,9 +28,9 @@ export default async function PaginaCuenta() {
           <ReiniciarDemo />
         </div>
       )}
-      <form action={cerrarSesion} className="mt-6">
+      <FormularioSalir className="mt-6">
         <Boton variante="peligro" ancho icono={<LogOut className="size-5" />}>Cerrar sesión</Boton>
-      </form>
+      </FormularioSalir>
     </div>
   );
 }

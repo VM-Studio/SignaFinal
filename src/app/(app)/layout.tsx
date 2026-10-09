@@ -12,6 +12,7 @@ import { BarraInferior, BarraLateral, HeaderMovil } from "@/components/layout/na
 import { ProveedorAvisos } from "@/components/ui/avisos";
 import { IndicadorConexion } from "@/components/layout/conexion";
 import { AvisosEnVivo } from "@/components/layout/avisos-en-vivo";
+import { SincronizarPush } from "@/components/layout/sincronizar-push";
 
 export default async function LayoutApp({ children }: { children: React.ReactNode }) {
   const u = await exigirSesion();
@@ -47,6 +48,7 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
       <BarraInferior items={barraInferior(u.rol)} mas={menuMas(u.rol)} conSalir={chofer} nuevas={chofer ? { href: "/solicitudes", ultima: ultima?.toISOString() ?? null } : undefined} />
       {/* Mientras el chofer está en viaje, el teléfono manda su posición aunque navegue. */}
       {chofer && <SeguimientoChofer activo={enViaje} />}
+      <SincronizarPush />
       </AvisosEnVivo>
     </ProveedorAvisos>
   );

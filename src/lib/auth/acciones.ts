@@ -34,8 +34,17 @@ export async function ingresar(_: EstadoLogin, form: FormData): Promise<EstadoLo
   redirect(v && v.startsWith("/") && !v.startsWith("//") ? v : "/inicio");
 }
 
-export async function cerrarSesion() {
+/**
+ * Cerrar sesión. Si el formulario trae el endpoint push de este dispositivo, la suscripción se
+ * desactiva (no se borra): el que se va no sigue recibiendo avisos en un celular que ya no usa.
+ * Cuando otro entra en ese dispositivo, la app la reactiva a su nombre.
+ */
+export async function cerrarSesion(formData?: FormData) {
   const u = await obtenerSesion();
+  const endpoint = formData?.get("endpoint");
+  if (u && typeof endpoint === "string" && endpoint.startsWith("https://")) {
+    await db.suscripcionPush.updateMany({ where: { endpoint, usuarioId: u.id }, data: { activa: false } });
+  }
   if (u) await auditar(db, { usuarioId: u.id, accion: "sesion.salir", entidad: "Usuario", entidadId: u.id, resumen: `${u.nombre} cerró sesión` });
   await cerrarSesionCookie();
   redirect("/login");

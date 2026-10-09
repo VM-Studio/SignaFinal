@@ -22,7 +22,14 @@ base** (con `MODO_DEMO=true`; borra todo lo cargado y no se puede deshacer).
    cargados un vehículo no se puede usar en un viaje. También el **costo por km** y los km del tablero.
 4. **Administración** → *Usuarios*: teléfonos, licencia de cada chofer (categoría y vencimiento: sin
    licencia vigente no puede aceptar viajes) y las obras de cada responsable.
-5. Cada persona en su celular: *Mi cuenta* → **Activar avisos en este celular** → **Enviarme una prueba**.
+5. Cada persona en su celular: *Mi cuenta* → **Avisos en este dispositivo** → **Activar avisos** →
+   **Enviarme una prueba**. La lista de arriba dice qué falta si no llega (app instalada, permiso,
+   suscripción a su nombre, claves del servidor).
+
+**Avisos y usuarios**: los avisos de un celular son del usuario que tiene la sesión abierta. Al entrar con
+otro usuario, el celular pasa solo a ese usuario; al cerrar sesión, deja de recibir. Para probar todo
+desde un solo celular viendo los avisos de todos: `AVISOS_A_TODOS=true` en Vercel (cada push dice para
+quién es). Para revisar un usuario desde la terminal: `npx tsx scripts/push-probar.ts <email>`.
 
 ## Recorrido para probar el circuito
 

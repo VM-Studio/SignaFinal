@@ -1,12 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { BellRing, Send } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { BellRing, Check, Loader2, Send, X } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
-import { enviarmePrueba, estadoDispositivos, type Dispositivo } from "@/lib/avisos/acciones";
-import { haceSeg, hora } from "@/lib/formato";
-
-type Estado = "cargando" | "activadas" | "inactivas" | "bloqueadas" | "no-soportado" | "ios-sin-instalar";
+import { enviarmePrueba, type ResultadoPrueba } from "@/lib/avisos/acciones";
 
 const CLAVE = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
 
@@ -15,128 +12,172 @@ function aBytes(base64: string) {
   return Uint8Array.from(atob(b), (c) => c.charCodeAt(0));
 }
 
-/** En iPhone los avisos solo andan con la app instalada en la pantalla de inicio. */
-function iosSinInstalar() {
-  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
-  const instalada = window.matchMedia("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone === true;
-  return ios && !instalada;
+type Item = { titulo: string; ok: boolean | null; detalle?: string; accion?: { texto: string; hacer: () => void } };
+type EstadoServidor = { vapid: { ok: boolean; faltan: string[] }; suscripcion: { activa: boolean; usuario: string; esMia: boolean } | null };
+
+const esIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent);
+const instalada = () => window.matchMedia("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone === true;
+
+async function guardarEnServidor(s: PushSubscription) {
+  const r = await fetch("/api/push/suscribir", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s.toJSON()) });
+  if (!r.ok) throw new Error("El servidor no guardó la suscripción.");
 }
 
-/** "Activar avisos en este celular": pide permiso, guarda la suscripción y muestra el estado. */
+/**
+ * "Avisos en este dispositivo": diagnóstico real, en el orden en que tiene que estar todo para que
+ * llegue una push con el celular apagado. Cada punto con tilde o cruz y qué hacer si falla.
+ */
 export function EstadoPush() {
-  const [estado, setEstado] = useState<Estado>("cargando");
-  const [error, setError] = useState<string | null>(null);
+  const [items, setItems] = useState<Item[] | null>(null);
+  const [trabajando, setTrabajando] = useState<"activar" | "prueba" | null>(null);
+  const [prueba, setPrueba] = useState<{ ok: boolean; texto: string; resultado?: ResultadoPrueba } | null>(null);
+
+  const diagnosticar = useCallback(async () => {
+    const lista: Item[] = [];
+    const ios = esIOS();
+    const pasar = async (sub: PushSubscription) => {
+      try {
+        await guardarEnServidor(sub);
+      } finally {
+        await diagnosticar();
+      }
+    };
+    // 1. Navegador compatible
+    const compatible = "Notification" in window && "PushManager" in window && "serviceWorker" in navigator;
+    lista.push({
+      titulo: "Navegador compatible con avisos",
+      ok: compatible,
+      detalle: compatible ? undefined : ios ? "En iPhone, los avisos funcionan solo con la app instalada (iOS 16.4 o más nuevo)." : "Este navegador no admite avisos. Usá Chrome en Android o la app instalada.",
+    });
+    // 2. App instalada
+    const inst = instalada();
+    lista.push({
+      titulo: "App instalada en la pantalla de inicio",
+      ok: inst ? true : ios ? false : null,
+      detalle: inst ? undefined : ios ? "En iPhone, primero tocá Compartir → Agregar a inicio, y abrí la app desde ahí." : "Recomendado: menú del navegador → Instalar app (o Agregar a la pantalla principal).",
+    });
+    // 3. Permiso
+    const permiso = "Notification" in window ? Notification.permission : "denied";
+    lista.push({
+      titulo: `Permiso de notificaciones: ${permiso === "granted" ? "concedido" : permiso === "denied" ? "denegado" : "sin pedir"}`,
+      ok: permiso === "granted" ? true : permiso === "denied" ? false : null,
+      detalle:
+        permiso === "denied"
+          ? ios ? "Activalo en Ajustes → Notificaciones → Signa." : "Activalo en Ajustes del sitio → Notificaciones (el candado de la barra de direcciones)."
+          : permiso === "default" ? "Tocá “Activar avisos” y aceptá el permiso." : undefined,
+    });
+    // 4. Service worker
+    let reg: ServiceWorkerRegistration | undefined;
+    try {
+      reg = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration("/") : undefined;
+    } catch {}
+    lista.push({ titulo: "Service worker registrado y activo", ok: !!reg?.active, detalle: reg?.active ? undefined : "Cerrá la app y volvé a abrirla. Si sigue, recargá la página." });
+    // 5. Suscripción en el servidor y 6. claves VAPID
+    let sub: PushSubscription | null = null;
+    try {
+      sub = (await reg?.pushManager.getSubscription()) ?? null;
+    } catch {}
+    let servidor: EstadoServidor | null = null;
+    try {
+      const r = await fetch("/api/push/estado", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sub ? { endpoint: sub.endpoint } : {}) });
+      if (r.ok) servidor = (await r.json()) as EstadoServidor;
+    } catch {}
+    const s = servidor?.suscripcion;
+    const actual = sub;
+    lista.push(
+      !actual
+        ? { titulo: "Suscripción de este dispositivo", ok: false, detalle: "Este dispositivo no está suscripto. Tocá “Activar avisos”." }
+        : !s
+          ? { titulo: "Suscripción guardada en el servidor", ok: false, detalle: "El navegador está suscripto pero el servidor no la tiene.", accion: { texto: "Guardarla ahora", hacer: () => void pasar(actual) } }
+          : !s.esMia
+            ? { titulo: "Suscripción a tu nombre", ok: false, detalle: `Está a nombre de ${s.usuario}: los avisos le llegan a esa persona.`, accion: { texto: "Pasar a mi usuario", hacer: () => void pasar(actual) } }
+            : !s.activa
+              ? { titulo: "Suscripción activa", ok: false, detalle: "Está desactivada (se cerró sesión en este dispositivo).", accion: { texto: "Reactivarla", hacer: () => void pasar(actual) } }
+              : { titulo: "Suscripción guardada a tu nombre", ok: true },
+    );
+    lista.push({
+      titulo: "Claves de avisos (VAPID) en el servidor",
+      ok: servidor ? servidor.vapid.ok : null,
+      detalle: !servidor ? "No se pudo consultar al servidor." : servidor.vapid.ok ? undefined : `Faltan en el servidor: ${servidor.vapid.faltan.join(", ")}. Avisale a la oficina.`,
+    });
+    setItems(lista);
+  }, []);
 
   useEffect(() => {
-    if (iosSinInstalar()) return setEstado("ios-sin-instalar");
-    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window) || !CLAVE) return setEstado("no-soportado");
-    if (Notification.permission === "denied") return setEstado("bloqueadas");
-    navigator.serviceWorker
-      .getRegistration()
-      .then((r) => (r ? r.pushManager.getSubscription() : null))
-      .then(async (s) => {
-        const activas = !!s && Notification.permission === "granted";
-        setEstado(activas ? "activadas" : "inactivas");
-        // Si en este celular entró otra persona, la suscripción pasa a ser suya (una por usuario y dispositivo).
-        if (activas) await fetch("/api/push/suscribir", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s!.toJSON()) }).catch(() => {});
-      })
-      .catch(() => setEstado("inactivas"));
-  }, []);
+    void diagnosticar();
+  }, [diagnosticar]);
 
   async function activar() {
-    setError(null);
-    setEstado("cargando");
+    setTrabajando("activar");
+    setPrueba(null);
     try {
-      if ((await Notification.requestPermission()) !== "granted") {
-        setEstado(Notification.permission === "denied" ? "bloqueadas" : "inactivas");
-        return;
-      }
-      const r = await navigator.serviceWorker.ready;
-      const s = (await r.pushManager.getSubscription()) ?? (await r.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: aBytes(CLAVE) }));
-      const res = await fetch("/api/push/suscribir", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s.toJSON()) });
-      if (!res.ok) throw new Error();
-      setEstado("activadas");
-    } catch {
-      setError("No se pudieron activar. Probá de nuevo.");
-      setEstado("inactivas");
+      if (!CLAVE) throw new Error("Falta la clave pública de avisos en la app (NEXT_PUBLIC_VAPID_PUBLIC_KEY).");
+      if ((await Notification.requestPermission()) !== "granted") throw new Error("No se dio el permiso de notificaciones.");
+      await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      const reg = await navigator.serviceWorker.ready;
+      const s = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: aBytes(CLAVE) }));
+      await guardarEnServidor(s);
+      setPrueba({ ok: true, texto: "Avisos activados en este dispositivo. Mandate una prueba." });
+    } catch (e) {
+      setPrueba({ ok: false, texto: e instanceof Error ? e.message : "No se pudieron activar." });
+    } finally {
+      setTrabajando(null);
+      await diagnosticar();
     }
   }
-
-  const [prueba, setPrueba] = useState<{ cargando: boolean; texto: string | null; ok: boolean }>({ cargando: false, texto: null, ok: true });
-  const [dispositivos, setDispositivos] = useState<Dispositivo[] | null>(null);
-  const actualizarDispositivos = async () => {
-    const r = await estadoDispositivos();
-    if (r.ok) setDispositivos(r.datos);
-  };
-  useEffect(() => {
-    void actualizarDispositivos();
-  }, []);
 
   async function probar() {
-    setPrueba({ cargando: true, texto: null, ok: true });
+    setTrabajando("prueba");
+    setPrueba(null);
     const r = await enviarmePrueba();
-    if (!r.ok) return setPrueba({ cargando: false, ok: false, texto: r.error });
-    setPrueba({ cargando: false, ok: true, texto: `Enviada a ${r.datos.enviadas === 1 ? "1 dispositivo" : `${r.datos.enviadas} dispositivos`}. Esperando que confirmen que les llegó…` });
-    // Cada teléfono confirma solo cuando la recibe: se mira durante 15 s.
-    for (let i = 0; i < 5; i++) {
-      await new Promise((ok) => setTimeout(ok, 3_000));
-      await actualizarDispositivos();
-    }
-    setPrueba((p) => ({ ...p, texto: "Listo. Abajo, en cada dispositivo, si le llegó." }));
+    setTrabajando(null);
+    if (!r.ok) return setPrueba({ ok: false, texto: r.error });
+    const todo = r.datos.enviadas === r.datos.telefonos;
+    setPrueba({
+      ok: todo,
+      texto: `Prueba de las ${r.datos.hora}: enviada a ${r.datos.enviadas} de ${r.datos.telefonos} ${r.datos.telefonos === 1 ? "dispositivo" : "dispositivos"}.${todo ? " Tiene que aparecer en unos segundos." : ""}`,
+      resultado: r.datos,
+    });
   }
 
-  async function desactivar() {
-    setEstado("cargando");
-    try {
-      const r = await navigator.serviceWorker.getRegistration();
-      const s = await r?.pushManager.getSubscription();
-      if (s) {
-        await fetch("/api/push/baja", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: s.endpoint }) });
-        await s.unsubscribe();
-      }
-    } finally {
-      setEstado("inactivas");
-    }
-  }
-
+  const todoOk = items?.every((c) => c.ok !== false);
   return (
     <div className="rounded-[var(--radius-caja)] border border-linea bg-papel p-4">
-      <p className="flex items-center gap-2 font-semibold">
-        <BellRing className="size-5" /> Avisos en este celular
-      </p>
-      {estado === "activadas" && (
-        <>
-          <p className="mt-1 font-semibold text-ok">Activados en este dispositivo: te llegan aunque no tengas la app abierta.</p>
-          <Boton className="mt-3" ancho variante="secundario" cargando={prueba.cargando} icono={<Send className="size-4" />} onClick={probar}>Enviarme una prueba</Boton>
-          {prueba.texto && <p role="status" className={`mt-2 text-sm font-medium ${prueba.ok ? "text-ok" : "text-critico"}`}>{prueba.texto}</p>}
-          <button onClick={desactivar} className="mt-2 text-sm font-semibold text-suave underline">Desactivar en este celular</button>
-        </>
+      <p className="flex items-center gap-2 font-semibold"><BellRing className="size-5" /> Avisos en este dispositivo</p>
+      {!items ? (
+        <p className="mt-2 flex items-center gap-2 text-sm text-suave"><Loader2 className="size-4 animate-spin" /> Revisando…</p>
+      ) : (
+        <ul className="mt-3 flex flex-col gap-2">
+          {items.map((c) => (
+            <li key={c.titulo} className="flex gap-2">
+              <span aria-hidden className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-full ${c.ok === true ? "bg-ok text-white" : c.ok === false ? "bg-critico text-white" : "bg-black/10 text-suave"}`}>
+                {c.ok === true ? <Check className="size-3.5" strokeWidth={3} /> : c.ok === false ? <X className="size-3.5" strokeWidth={3} /> : <span className="text-xs">?</span>}
+              </span>
+              <div className="min-w-0 text-sm">
+                <p className="font-semibold">{c.titulo}<span className="sr-only">{c.ok === true ? ": bien" : c.ok === false ? ": falta" : ": sin datos"}</span></p>
+                {c.detalle && <p className="text-suave">{c.detalle}</p>}
+                {c.accion && <button onClick={c.accion.hacer} className="mt-1 min-h-11 font-semibold underline">{c.accion.texto}</button>}
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
-      {estado === "bloqueadas" && <p className="mt-1 text-sm font-semibold text-critico">Bloqueados por el navegador. Tocá el candado de la barra de direcciones → Notificaciones → Permitir, y volvé acá.</p>}
-      {estado === "no-soportado" && <p className="mt-1 text-sm text-suave">Este navegador no admite avisos. Abrí la app con Chrome (Android) o instalala en la pantalla de inicio.</p>}
-      {estado === "ios-sin-instalar" && (
-        <p className="mt-1 text-sm text-suave">En iPhone los avisos funcionan solo con la app instalada: tocá Compartir → “Agregar a inicio” y abrila desde ahí.</p>
-      )}
-      {(estado === "inactivas" || estado === "cargando") && (
-        <Boton className="mt-3" ancho onClick={activar} cargando={estado === "cargando"}>Activar avisos en este celular</Boton>
-      )}
-      {error && <p role="alert" className="mt-2 text-sm font-medium text-critico">{error}</p>}
-      {dispositivos && dispositivos.length > 0 && (
-        <div className="mt-4 border-t border-linea pt-3">
-          <p className="mb-1 text-xs font-bold tracking-wider text-suave uppercase">Dispositivos con avisos</p>
-          <ul className="flex flex-col gap-2">
-            {dispositivos.map((d) => {
-              const llego = d.recibido && d.envio && new Date(d.recibido) >= new Date(new Date(d.envio).getTime() - 2_000);
-              return (
-                <li key={d.id} className="text-sm">
-                  <p className="font-semibold">{d.equipo} <span className="font-normal text-suave">· de {d.usuario}</span></p>
-                  <p suppressHydrationWarning className={llego ? "text-ok" : d.envio ? "text-critico" : "text-suave"}>
-                    {!d.envio ? "Todavía no se le mandó ninguna." : llego ? `Le llegó la última (${hora(d.recibido!)}).` : `Última enviada ${haceSeg(d.envio)} (${d.estado ?? "?"}), sin confirmación del dispositivo.`}
-                  </p>
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <Boton variante={todoOk ? "secundario" : "primario"} cargando={trabajando === "activar"} onClick={activar}>Activar avisos</Boton>
+        <Boton variante={todoOk ? "primario" : "secundario"} cargando={trabajando === "prueba"} icono={<Send className="size-4" />} onClick={probar}>Enviarme una prueba</Boton>
+      </div>
+      {prueba && (
+        <div role="status" className={`mt-3 rounded-[var(--radius-caja)] border-2 p-3 text-sm ${prueba.ok ? "border-ok bg-ok-fondo" : "border-critico bg-critico-fondo"}`}>
+          <p className="font-semibold">{prueba.texto}</p>
+          {prueba.resultado && (
+            <ul className="mt-2 flex flex-col gap-1">
+              {prueba.resultado.resultados.map((x, i) => (
+                <li key={i}>
+                  <b>{x.equipo}</b> ({x.servicio}): {x.ok ? `enviada (${x.codigo})` : <span className="text-critico">falló — {x.motivo}</span>}
                 </li>
-              );
-            })}
-          </ul>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </div>

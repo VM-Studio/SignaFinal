@@ -4,7 +4,7 @@ import { revalidar } from "@/lib/revalidar";
 import { db } from "@/lib/db";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { ejecutar, ErrorNegocio, type Resultado } from "@/lib/resultado";
-import { avisosATodos, pushA } from "@/lib/notificaciones";
+import { pushA } from "@/lib/notificaciones";
 import { auditar } from "@/lib/auditoria";
 
 /** Al abrir un aviso: deja de contar en la campana. */
@@ -27,17 +27,21 @@ export async function marcarTodasLeidas(): Promise<Resultado<{ cantidad: number 
   });
 }
 
-/** "Enviarme una prueba": una push al propio usuario, a todos sus celulares activados. */
-export async function enviarmePrueba(): Promise<Resultado<{ enviadas: number; telefonos: number }>> {
+export type ResultadoPrueba = { hora: string; enviadas: number; telefonos: number; resultados: { equipo: string; servicio: string; ok: boolean; codigo: number | null; motivo: string | null }[] };
+
+/** "Enviarme una prueba": push a los dispositivos activos del propio usuario, con la hora en el cuerpo. */
+export async function enviarmePrueba(): Promise<Resultado<ResultadoPrueba>> {
   return ejecutar(async () => {
     const u = await exigirPermiso("avisos.ver");
-    // En modo prueba de avisos va a todos los dispositivos activados.
-    const r = await pushA(avisosATodos() ? null : u.id, { titulo: "Prueba de avisos de SIGNA", cuerpo: `${u.nombre} mandó una prueba: si ves esto, los avisos llegan a este dispositivo.`, enlace: "/cuenta", tag: `prueba-${Date.now()}` });
+    const hora = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(new Date());
+    const r = await pushA(u.id, { titulo: "Prueba de avisos de SIGNA", cuerpo: `Para ${u.nombre}, enviada a las ${hora}. Si la ves, los avisos llegan a este dispositivo.`, enlace: "/cuenta", tag: `prueba-${Date.now()}` }, "PRUEBA");
     if (r.sinClaves) throw new ErrorNegocio("El servidor no tiene las claves de avisos (VAPID). Avisale a la oficina.");
-    if (!r.telefonos) throw new ErrorNegocio("Todavía no activaste los avisos en ningún celular. Tocá “Activar avisos en este celular”.");
-    if (!r.enviadas) throw new ErrorNegocio("No se pudo mandar. Desactivá y volvé a activar los avisos en este celular.");
-    await auditar(db, { usuarioId: u.id, accion: "push.prueba", entidad: "Usuario", entidadId: u.id, resumen: `${u.nombre} se mandó una prueba de avisos (${r.enviadas} de ${r.telefonos} celulares)` });
-    return { enviadas: r.enviadas, telefonos: r.telefonos };
+    if (!r.telefonos) throw new ErrorNegocio("No tenés ningún dispositivo con avisos activados a tu nombre. Tocá “Activar avisos”.");
+    await auditar(db, { usuarioId: u.id, accion: "push.prueba", entidad: "Usuario", entidadId: u.id, resumen: `${u.nombre} se mandó una prueba de avisos (${r.enviadas} de ${r.telefonos} dispositivos)` });
+    return {
+      hora, enviadas: r.enviadas, telefonos: r.telefonos,
+      resultados: r.resultados.map((x) => ({ equipo: equipo(x.userAgent), servicio: x.servicio, ok: x.ok, codigo: x.codigo, motivo: x.motivo })),
+    };
   });
 }
 
@@ -52,14 +56,14 @@ function equipo(ua: string | null) {
 }
 
 /**
- * Diagnóstico de avisos: los dispositivos activados (en modo prueba, todos; si no, los propios),
+ * Diagnóstico de avisos: los dispositivos activados a nombre del usuario,
  * con el último envío, qué respondió Apple/Google y si el teléfono confirmó que la recibió.
  */
 export async function estadoDispositivos(): Promise<Resultado<Dispositivo[]>> {
   return ejecutar(async () => {
     const u = await exigirPermiso("avisos.ver");
     const subs = await db.suscripcionPush.findMany({
-      where: { activa: true, ...(avisosATodos() ? {} : { usuarioId: u.id }) },
+      where: { activa: true, usuarioId: u.id },
       orderBy: { creadaEn: "desc" },
       include: { usuario: { select: { nombre: true } } },
     });

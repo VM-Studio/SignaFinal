@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Bell, LogOut, UserCircle2 } from "lucide-react";
 import { tituloDeRuta, type Grupo, type Seccion } from "@/lib/navegacion";
-import { cerrarSesion } from "@/lib/auth/acciones";
+import { FormularioSalir } from "@/components/layout/salir";
 import { Hoja } from "@/components/ui/hoja";
 import { ICONOS } from "./iconos";
 import { EstadoPush } from "./estado-push";
@@ -67,11 +67,11 @@ function HojaPerfil({ perfil, abierta, onCerrar }: { perfil: Perfil; abierta: bo
         <Link href="/cuenta" onClick={onCerrar} className="flex min-h-[52px] items-center gap-3 rounded-[var(--radius-caja)] border border-linea bg-papel px-4 font-semibold">
           <UserCircle2 className="size-5" /> Mi cuenta y contraseña
         </Link>
-        <form action={cerrarSesion}>
+        <FormularioSalir>
           <button className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[var(--radius-caja)] border-2 border-critico font-bold text-critico">
             <LogOut className="size-5" /> Cerrar sesión
           </button>
-        </form>
+        </FormularioSalir>
       </div>
     </Hoja>
   );
@@ -233,11 +233,11 @@ export function BarraInferior({ items, mas: grupos, conSalir = false, nuevas }: 
               </section>
             ))}
             {conSalir && (
-              <form action={cerrarSesion}>
+              <FormularioSalir>
                 <button className="flex min-h-14 w-full items-center gap-3 rounded-[var(--radius-caja)] border border-linea bg-papel px-4 text-[17px] font-semibold text-critico">
                   <LogOut className="size-6" /> Cerrar sesión
                 </button>
-              </form>
+              </FormularioSalir>
             )}
           </div>
         </Hoja>
