@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Cusat: capturas con datos de la cuenta (no se suben)
+docs/cusat/captura-*.json
+tmp/
