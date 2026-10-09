@@ -184,6 +184,8 @@ async function haySegundoFactor(p: Page) {
   return (await p.locator("text=/c[oó]digo de verificaci[oó]n|segundo factor|two.factor|2FA|ingres[aá] el c[oó]digo/i").count().catch(() => 0)) > 0;
 }
 
+// El proyecto compila los scripts como CommonJS: sin await en el nivel superior.
+async function main() {
 // ───────────────────────── Recorrido ─────────────────────────
 
 const navegador = await chromium.launch({ headless: HEADLESS, slowMo: HEADLESS ? 0 : 150 });
@@ -387,3 +389,9 @@ console.log(`\nCaptura: ${archivo} (${entradas.length} requests, ${sockets.lengt
 console.log(`Vehículos encontrados: ${encontrados.nombres.length}/6 nombres, ${encontrados.patentes.length}/6 patentes`);
 if (problemas.length) console.log("Problemas:\n- " + problemas.join("\n- "));
 console.log("Resumen: docs/cusat/api-descubierta.md · Capturas de pantalla: tmp/cusat/");
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
