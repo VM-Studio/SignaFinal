@@ -1,7 +1,7 @@
 /**
  * Prueba el adaptador real de Cusat View contra cusatglobal.com, sin tocar la base:
  * ingreso, posiciones actuales (los seis vehículos de la flota), dirección e historial de hoy
- * del Mercedes 710 (por unit_id y por patente, para confirmar cuál acepta Cusat).
+ * del Mercedes 710.
  *
  *   npx tsx scripts/cusat-probar.ts
  *
@@ -37,10 +37,8 @@ async function main() {
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
   const desde = new Date(`${hoy}T00:00:00-03:00`);
   const porId = await cusat.obtenerHistorial(mercedes.idExterno, desde, new Date());
-  const porPatente = await cusat.obtenerHistorial("0", desde, new Date(), mercedes.patente);
   const resumen = (h: typeof porId) => (h.ok ? `${h.datos.length} puntos${h.datos.length ? `, de ${h.datos[0].fecha.toISOString()} a ${h.datos.at(-1)!.fecha.toISOString()}` : ""}` : `error: ${h.error}`);
-  console.log(`Historial de hoy por unit_id: ${resumen(porId)}`);
-  console.log(`Historial de hoy por patente: ${resumen(porPatente)}`);
+  console.log(`Historial de hoy del Mercedes 710: ${resumen(porId)}`);
   if (porId.ok && porId.datos[0]) console.log(`Primer punto: ${JSON.stringify(porId.datos[0])}`);
 }
 

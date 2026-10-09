@@ -34,7 +34,7 @@ export interface FuenteCusat {
   readonly modo: ModoCusat;
   obtenerPosicionesActuales(): Promise<Resultado<PosicionExterna[]>>;
   /** Recorrido de una unidad entre dos instantes, ordenado por fecha. */
-  obtenerHistorial(idExterno: string, desde: Date, hasta: Date, patente?: string): Promise<Resultado<PuntoHistorial[]>>;
+  obtenerHistorial(idExterno: string, desde: Date, hasta: Date): Promise<Resultado<PuntoHistorial[]>>;
   /** Dirección en texto de una unidad (Cusat la calcula aparte). */
   obtenerDireccion?(idExterno: string): Promise<string | null>;
   probar(): Promise<Prueba>;

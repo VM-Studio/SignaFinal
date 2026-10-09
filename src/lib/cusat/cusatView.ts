@@ -172,14 +172,12 @@ export class CusatView implements FuenteCusat {
   }
 
   /** Cusat da el recorrido de a un día: se pide día por día y se recorta a [desde, hasta]. */
-  obtenerHistorial(idExterno: string, desde: Date, hasta: Date, patente?: string): Promise<Resultado<PuntoHistorial[]>> {
+  obtenerHistorial(idExterno: string, desde: Date, hasta: Date): Promise<Resultado<PuntoHistorial[]>> {
     return aResultado(async () => {
       const out: PuntoHistorial[] = [];
       for (let dia = diaAR(desde); dia <= diaAR(hasta); dia = sumarDia(dia)) {
-        const pedir = (idunit: string | number) => conSesion((iduser) => llamar<PuntoCrudo[] | null>(OP.historial, { iduser, idunit, report_date: dia }));
-        // La web manda el id de la unidad; si viniera vacío se prueba con la patente (a confirmar con scripts/cusat-probar.ts).
-        let puntos = await pedir(Number(idExterno));
-        if ((!Array.isArray(puntos) || !puntos.length) && patente) puntos = await pedir(patente);
+        // idunit = unit_id (confirmado el 9/10/2026: con la patente Cusat devuelve vacío).
+        const puntos = await conSesion((iduser) => llamar<PuntoCrudo[] | null>(OP.historial, { iduser, idunit: Number(idExterno), report_date: dia }));
         for (const p of Array.isArray(puntos) ? puntos : []) {
           const c = normalizarCoordenadas(p.lt, p.ln);
           const fecha = fechaCusat(String(p.e ?? ""), dia);
@@ -208,14 +206,15 @@ export class CusatView implements FuenteCusat {
     await medir("Posiciones", async () => {
       const r = await this.obtenerPosicionesActuales();
       if (!r.ok) throw new Error(r.error);
-      primera = r.datos[0];
-      return `${r.datos.length} vehículos. Primero: ${primera ? `${primera.nombre} (${primera.patente}) ${primera.latitud.toFixed(5)}, ${primera.longitud.toFixed(5)} · ${primera.velocidadKmh} km/h · ${primera.fechaGps.toISOString()}` : "ninguno"}`;
+      // Para probar dirección e historial, la unidad que reportó más recientemente.
+      primera = [...r.datos].sort((a, b) => b.fechaGps.getTime() - a.fechaGps.getTime())[0];
+      return `${r.datos.length} vehículos. Más reciente: ${primera ? `${primera.nombre} (${primera.patente}) ${primera.latitud.toFixed(5)}, ${primera.longitud.toFixed(5)} · ${primera.velocidadKmh} km/h · ${primera.fechaGps.toISOString()}` : "ninguno"}`;
     });
     if (primera) {
       const p = primera;
       await medir("Dirección", async () => (await this.obtenerDireccion(p.idExterno)) ?? "Sin dirección");
       await medir("Historial de hoy", async () => {
-        const r = await this.obtenerHistorial(p.idExterno, new Date(`${diaAR(new Date())}T00:00:00-03:00`), new Date(), p.patente);
+        const r = await this.obtenerHistorial(p.idExterno, new Date(`${diaAR(new Date())}T00:00:00-03:00`), new Date());
         if (!r.ok) throw new Error(r.error);
         return `${r.datos.length} puntos${r.datos[0] ? ` desde ${r.datos[0].fecha.toISOString()}` : ""}`;
       });

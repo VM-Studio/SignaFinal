@@ -31,10 +31,10 @@ export async function rastroDelDia(vehiculoId: string, dia: string): Promise<Pun
   if (pasado && (await leerEstado(CLAVE.historial(vehiculoId, dia)))) return guardado();
 
   const fuente = fuenteCusat();
-  const v = await db.vehiculo.findUnique({ where: { id: vehiculoId }, select: { idCusat: true, patente: true } });
+  const v = await db.vehiculo.findUnique({ where: { id: vehiculoId }, select: { idCusat: true } });
   const idExterno = fuente.modo === "mock" ? vehiculoId : v?.idCusat;
   if (!idExterno) return guardado();
-  const r = await fuente.obtenerHistorial(idExterno, desde, new Date(Math.min(hasta.getTime() - 1, Date.now())), v?.patente);
+  const r = await fuente.obtenerHistorial(idExterno, desde, new Date(Math.min(hasta.getTime() - 1, Date.now())));
   if (!r.ok || r.datos.length === 0) return guardado();
 
   // Día terminado: se guarda una vez (sin repetir los puntos que ya estaban) y queda marcado.

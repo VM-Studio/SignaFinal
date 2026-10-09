@@ -20,7 +20,7 @@ la contraseña, el email de la cuenta y el id de usuario no figuran acá.
 | `3387061` | **Login** | `us` usuario, `ps` contraseña, `tk` "" | `[{ user_id, n (usuario), fn (razón social), m (email), pw }]` |
 | `338100` | **Vehículos con posición actual** (lo que pinta el mapa) | `uid` = user_id | `{ u: [unidades], p: [], z: [], a: null }` |
 | `90100` | Dirección en texto de una unidad | `iu` = user_id, `un` = unit_id | `[{ iu, un, lt: "-34,49901", lg: "-58,54413", geo: "GRANADA, MAESTRO 1, MARTINEZ, SAN ISIDRO…", d: "306" }]` |
-| `3381030` | **Historial (recorrido) de un día** | `iduser` = user_id, `idunit`, `report_date` "AAAA-MM-DD" | lista de puntos `{ lt, ln, e (hora), s (velocidad) }` |
+| `3381030` | **Historial (recorrido) de un día** | `iduser` = user_id, `idunit` = unit_id, `report_date` "AAAA-MM-DD" | lista de puntos `{ lt, ln, e (hora), s (velocidad) }` |
 | `338900` | Geocercas (leer) | `iu`, `idg` | (no capturado) |
 | `338500` / `338800` | Geocercas (crear / editar) | `iu`, polígono… | (no se usa) |
 | `3381020` | Activar/desactivar "estacionamiento" | `unit_id`, `lat`, `lon`… | (no se usa: modifica la cuenta) |
@@ -71,13 +71,11 @@ Para confirmar con el dueño: si la Hilux y la retro se suman a la flota.
 
 ## Lo que no se pudo capturar
 
-- **El historial no se ejecutó en la captura:** el script no pudo hacer clic en el vehículo (la
-  lista de la versión `mobile.html` no es clickeable por texto). La llamada (`iq 3381030`) y sus
-  parámetros salen del JavaScript de la web, no de una respuesta real. Falta confirmar:
-  1. si `idunit` es el `unit_id` o la patente (el adaptador prueba `unit_id` y, si viene vacío, la
-     patente), y
-  2. el formato exacto de `e` (la hora de cada punto; la web la muestra como `report_date + " " + e`).
-  Se confirma con `scripts/cusat-probar.ts`.
+- **El historial no se ejecutó en la captura** (el script no pudo hacer clic en el vehículo de la
+  versión `mobile.html`); la llamada salió del JavaScript de la web. **Confirmado el 9/10/2026 con
+  `scripts/cusat-probar.ts`:** `idunit` es el `unit_id` (con la patente devuelve vacío) y `e` se
+  interpreta bien como hora argentina del día consultado. Con el vehículo estacionado, Cusat guarda
+  un punto por hora; en movimiento, más seguido.
 - **Geocercas y alertas:** no hay llamadas de alertas en la web; las geocercas existen
   (`338900`) pero la cuenta no tiene ninguna (`z: []`).
 - **Ignición:** `ignition_on` viene vacío; se usa el texto del evento (`ev`).
