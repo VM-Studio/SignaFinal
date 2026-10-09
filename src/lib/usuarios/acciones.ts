@@ -12,7 +12,7 @@ import { ROL } from "@/lib/etiquetas";
 import { aFecha } from "@/lib/formato";
 
 const vacio = (v: unknown) => (v === "" || v === null ? undefined : v);
-const ROLES = ["DIRECCION", "RESPONSABLE_OBRA", "CAPATAZ", "CHOFER", "DEPOSITO", "ADMINISTRACION"] as const;
+const ROLES = ["DIRECCION", "RESPONSABLE_OBRA", "CAPATAZ", "CHOFER", "DEPOSITO", "ADMINISTRACION", "COMPRAS"] as const;
 
 const esquema = z.object({
   id: z.preprocess(vacio, z.string().optional()),

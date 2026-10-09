@@ -79,7 +79,7 @@ export async function opciones() {
     db.obra.findMany({ where: { estado: "ACTIVA" }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true, responsables: { where: { activo: true }, select: { usuarioId: true, principal: true }, orderBy: [{ principal: "desc" }, { creadoEn: "asc" }] } } }),
     db.usuario.findMany({ where: { activo: true, rol: { in: ["RESPONSABLE_OBRA", "CAPATAZ", "CHOFER", "DIRECCION", "DEPOSITO"] } }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true } }),
     db.categoriaHerramienta.findMany({ orderBy: { nombre: "asc" } }),
-    db.ubicacion.findFirst({ where: { tipo: "DEPOSITO" }, select: { id: true, nombre: true } }),
+    db.ubicacion.findFirst({ where: { tipo: "DEPOSITO" }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true } }),
   ]);
   // responsableId: el principal (quien recibe por defecto); responsablesIds: todos los asignados.
   const obras = obrasConResponsables.map((o) => ({

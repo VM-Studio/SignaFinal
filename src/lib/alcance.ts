@@ -66,6 +66,9 @@ export function pedidosVisibles(s: Pick<UsuarioSesion, "id" | "rol">): Prisma.Pe
     case "DIRECCION":
     case "ADMINISTRACION":
       return {};
+    case "COMPRAS":
+      // Compras sigue sus retiros de material (si ya se retiraron); no ve el resto de los viajes.
+      return { esRetiroMaterial: true };
   }
 }
 

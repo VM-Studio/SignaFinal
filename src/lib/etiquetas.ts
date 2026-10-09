@@ -11,6 +11,7 @@ export const ROL: Record<Rol, string> = {
   CHOFER: "Chofer",
   DEPOSITO: "Depósito",
   ADMINISTRACION: "Administración",
+  COMPRAS: "Compras",
 };
 
 export const ESTADO_PEDIDO: Record<EstadoPedido, { texto: string; tono: Tono }> = {

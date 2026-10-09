@@ -36,9 +36,8 @@ aceptan viajes; el que pidió ve en vivo cómo viene su pedido sin llamar a nadi
   Thomas). Lolo es el capataz general, está en todas.
 - Choferes: Claudio y Cristian (camiones y camionetas). David maneja auto para cosas
   chicas.
-- Flota: 3 camiones de 5, 4 y 3 toneladas, guardados en Martínez (al lado de la casa de
-  Claudio). 6 camionetas: asignadas a Leandro, Lolo, Claudio, Cristian, y dos en el
-  interior. Autos.
+- Flota: la real está en "Flota real" (más abajo). Los camiones se guardan en Martínez
+  (al lado de la casa de Claudio).
 - Camión solo para materiales pesados de corralón y traslado de maquinaria. Camioneta
   para el día a día.
 - Viaje típico: Martínez → proveedor (retiro) → obra (entrega). La dirección del proveedor
@@ -62,6 +61,7 @@ sirve. Si una pantalla no le cambia el día a esa persona, no existe para ella.
 | CHOFER | Claudio, Cristian, David | Sus viajes de hoy, próximos y todos. Las solicitudes pendientes. Acepta, inicia, marca retiro y destino. Combustible |
 | DEPOSITO | encargado del depósito | Escanear, herramientas, entregas y devoluciones, mantenimiento de maquinaria |
 | ADMINISTRACION | oficina | Flota, documentación, costos, exportaciones |
+| COMPRAS | la persona de compras | Pedidos de material: los toma, arma la OC, pide aprobación al dueño, habilita para retirar. Proveedores |
 
 Reglas de visibilidad (se verifican en el servidor, en cada query y cada action):
 - RESPONSABLE_OBRA solo ve datos de las obras donde está asignado (tabla ResponsableObra).
@@ -150,6 +150,57 @@ con texto. Tipografía Inter (next/font). Botones mínimo 52px en celular. Sin g
 sombras difusas. Splash de carga negro con public/loading.png centrado, barra fina del ancho
 del logo y porcentaje, 2,5 s: al abrir el sistema (una vez por sesión) y al ingresar. Login con
 public/inicio.png arriba del formulario.
+
+## Materiales y Compras (circuito nuevo)
+
+Hoy el responsable de obra pide material a Compras por WhatsApp y nadie sabe en qué quedó.
+El circuito queda en la app, con un estado a la vista de todos:
+
+SOLICITADO → EN_COMPRA → ESPERANDO_APROBACION → APROBADO → LISTO_PARA_RETIRAR →
+RETIRO_PEDIDO → EN_CAMINO → ENTREGADO, o CANCELADO.
+
+- El responsable de obra (o el capataz) pide el material: obra, qué y cuánto, para cuándo,
+  prioridad. Lo ve Compras (con copia al dueño).
+- Compras lo toma (EN_COMPRA), cotiza y arma la orden de compra en Lebane; carga el número de
+  OC y el monto y pide aprobación (ESPERANDO_APROBACION).
+- El dueño (DIRECCION) aprueba o rechaza en /aprobaciones. Si rechaza, vuelve a EN_COMPRA con
+  el motivo.
+- Cuando el proveedor lo tiene, Compras lo **habilita para retirar** (MaterialListo):
+  proveedor, horario y contacto de retiro, OC, qué se retira, peso, y si lo retira un chofer
+  o lo entrega el proveedor. Un pedido puede tener **retiros parciales** (varios MaterialListo);
+  queda ENTREGADO cuando todos se entregaron y Compras marcó "con esto no falta nada".
+- Un viaje RETIRO_PROVEEDOR **solo se pide desde un material habilitado** (LISTO, misma obra,
+  mismo proveedor). Varios proveedores = varios pedidos de viaje. El viaje copia dirección,
+  horario y contacto del proveedor.
+- ENTREGA_PROVEEDOR: el proveedor lo lleva a la obra; no hace falta viaje.
+- Los estados del viaje mueven el material: en viaje → EN_CAMINO; entregado → ENTREGADO;
+  si el chofer lo suelta o se cancela, vuelve a LISTO.
+- Rol nuevo COMPRAS. El dueño aprueba en /aprobaciones.
+- A futuro, los pedidos pueden venir de Lebane (fuente LEBANE, ordenCompraLebaneId).
+
+## Flota real (datos de Cusat, confirmar con el dueño)
+
+| Cusat | Patente | En la app | Tipo | Cola |
+|---|---|---|---|---|
+| MERCEDES 710 | HFD336 | Camión Mercedes 710 | Camión, 5 tn // confirmar | Sí |
+| KIA | AH282PU | Camión Kia | Camión chico (nuevo), 3 tn // confirmar | Sí |
+| ZANELLA | AG149BJ | Zanella | Tipo a confirmar | No |
+| OROCH | AC689NR | Oroch | Camioneta | No |
+| KANGOO | AF399OO | Kangoo | Utilitario (interior, Cusat la mostró en Lincoln) | No |
+| KANGOO LL | AF399OP | Kangoo LL | Utilitario | No |
+
+Base: Martínez (Triunfo Argentino / Granada y Maestro). Depósito: Terreno 1 y Terreno 2
+// confirmar. Los vehículos viejos que no estén en esta lista quedan con activo=false, no se
+borran. Vehiculo.cusatNombre guarda el nombre tal cual aparece en Cusat.
+
+## Rastreo (Cusat View, plataforma de Suartec)
+
+- El rastreo satelital es Cusat View (cusatglobal.com), de Suartec. No tiene API pública:
+  el adaptador (lib/cusat/cusatView.ts) reproduce las llamadas internas de la web con un
+  usuario de la cuenta, CUSAT_WEB_USER / CUSAT_WEB_PASS en .env (nunca en el código ni en
+  los docs). Lo que se descubrió está en docs/cusat/.
+- Fuente de posición: CUSAT primero; si no hay dato reciente, TELEFONO (el celular del
+  chofer); si no hay ninguna, los botones manuales del chofer.
 
 ## Integraciones (puntos de extensión)
 

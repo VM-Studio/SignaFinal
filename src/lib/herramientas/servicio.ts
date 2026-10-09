@@ -13,7 +13,7 @@ type Tx = Prisma.TransactionClient;
 type Lugar = { ubicacionId?: string | null; obraId?: string | null };
 
 export async function depositoId(tx: Tx) {
-  const d = await tx.ubicacion.findFirst({ where: { tipo: "DEPOSITO" }, select: { id: true } });
+  const d = await tx.ubicacion.findFirst({ where: { tipo: "DEPOSITO" }, orderBy: { nombre: "asc" }, select: { id: true } });
   if (!d) throw new ErrorNegocio("No hay un depósito cargado.");
   return d.id;
 }

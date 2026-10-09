@@ -33,7 +33,7 @@ async function auditar(
 
 const esquemaVehiculo = z.object({
   id: z.preprocess(vacio, z.string().optional()),
-  nombre: z.string().trim().min(2, "Poné un nombre, por ejemplo “Camión 5 tn”.").max(60),
+  nombre: z.string().trim().min(2, "Poné un nombre, por ejemplo “Camión Mercedes 710”.").max(60),
   tipo: z.enum(["CAMION", "CAMIONETA", "AUTO", "MAQUINA"], { error: "Elegí el tipo." }),
   patente: z.string().trim().toUpperCase().min(6, "Revisá la patente.").max(12),
   marca: z.string().trim().min(1, "Poné la marca.").max(40),

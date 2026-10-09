@@ -101,7 +101,14 @@ const DIRECCION: Entrada = {
   ],
 };
 
+// Compras: rutas y acciones completas en el prompt 2 del circuito de Compras.
+const COMPRAS: Entrada = {
+  rutas: ["/inicio", "/avisos", "/cuenta"],
+  acciones: ["alertas.ver", "avisos.ver"],
+};
+
 export const MATRIZ: Record<Rol, Entrada> = {
+  COMPRAS,
   DIRECCION,
   RESPONSABLE_OBRA: OBRA,
   CAPATAZ: { rutas: OBRA.rutas, acciones: OBRA.acciones },

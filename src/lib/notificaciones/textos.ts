@@ -8,8 +8,8 @@ export function queLleva(descripcion: string) {
   return t.charAt(0).toLowerCase() + t.slice(1);
 }
 
-/** "el Camión 5 tn", "la Camioneta Claudio". */
-const conArticulo = (vehiculo: string) => `${/^camioneta/i.test(vehiculo) ? "la" : "el"} ${vehiculo}`;
+/** "el Camión Kia", "la Oroch". */
+const conArticulo = (vehiculo: string) => `${/^(camioneta|oroch|kangoo|zanella)/i.test(vehiculo) ? "la" : "el"} ${vehiculo}`;
 
 type P = { descripcion: string; destino: string };
 

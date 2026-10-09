@@ -58,6 +58,7 @@ type GrupoClaves = { titulo: string | null; claves: Clave[] };
  * Dirección ve todo: su "Más" va agrupado por tema.
  */
 const NAV: Record<Rol, { barra: Clave[]; mas: GrupoClaves[] }> = {
+  COMPRAS: { barra: [], mas: [] }, // se arma con el circuito de Compras
   RESPONSABLE_OBRA: { barra: ["obras", "pedir", "viajesObra", "herramientas"], mas: [] },
   CAPATAZ: { barra: ["obras", "pedir", "viajesObra", "herramientas"], mas: [] },
   CHOFER: { barra: ["hoy", "solicitudes", "combustible"], mas: [{ titulo: null, claves: ["cuenta", "misAvisos"] }] },

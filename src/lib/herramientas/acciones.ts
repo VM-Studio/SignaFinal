@@ -441,7 +441,7 @@ export async function pedirHerramienta(entrada: DatosPedirHerramienta): Promise<
       }
     }
 
-    const dep = await db.ubicacion.findFirst({ where: { tipo: "DEPOSITO" }, select: { id: true } });
+    const dep = await db.ubicacion.findFirst({ where: { tipo: "DEPOSITO" }, orderBy: { nombre: "asc" }, select: { id: true } });
     const desdeObra = h.tipoControl === "UNITARIA" && h.estado === "EN_OBRA" ? h.obra : null;
     if (h.tipoControl === "CANTIDAD" && dep) {
       const hay = await db.existenciaHerramienta.findFirst({ where: { herramientaId: h.id, ubicacionId: dep.id } });

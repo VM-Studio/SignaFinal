@@ -74,7 +74,7 @@ export function FormularioVehiculo({ inicial, personas, bases }: { inicial: Vehi
       }}
     >
       <>
-        <Campo etiqueta="Nombre" htmlFor="v-nombre" ayuda="Como lo llaman todos: “Camión 5 tn”."><Entrada {...campo("nombre")} maxLength={60} /></Campo>
+        <Campo etiqueta="Nombre" htmlFor="v-nombre" ayuda="Como lo llaman todos: “Camión Mercedes 710”."><Entrada {...campo("nombre")} maxLength={60} /></Campo>
         <Opciones nombre="Tipo" columnas={4} valor={v.tipo} onElegir={(tipo) => setV({ ...v, tipo })} opciones={TIPOS} />
         <div className="grid grid-cols-2 gap-3">
           <Campo etiqueta="Patente" htmlFor="v-patente"><Entrada {...campo("patente")} autoCapitalize="characters" maxLength={12} placeholder="AB 123 CD" /></Campo>

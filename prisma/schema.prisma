@@ -22,6 +22,7 @@ enum Rol {
   CHOFER
   DEPOSITO
   ADMINISTRACION
+  COMPRAS // una sola persona hace todas las compras de la empresa
 }
 
 model Usuario {
@@ -56,6 +57,11 @@ model Usuario {
   posiciones                PosicionVehiculo[]
   notificaciones            Notificacion[]
   suscripcionesPush         SuscripcionPush[]
+  materialesPedidos         PedidoMaterial[]           @relation("MaterialSolicitante")
+  materialesTomados         PedidoMaterial[]           @relation("MaterialComprador")
+  materialesAprobados       PedidoMaterial[]           @relation("MaterialAprobador")
+  cambiosMaterial           CambioEstadoMaterial[]
+  materialesHabilitados     MaterialListo[]
 
   @@index([rol, activo])
 }
@@ -82,6 +88,8 @@ model Obra {
 
   responsables        ResponsableObra[]
   pedidos             PedidoViaje[]
+  pedidosMaterial     PedidoMaterial[]
+  materialesListos    MaterialListo[]
   cargasCombustible   CargaCombustible[]
   herramientas        Herramienta[]
   existencias         ExistenciaHerramienta[]
@@ -122,7 +130,8 @@ model Proveedor {
   idLebane  String?  @unique
   creadoEn  DateTime @default(now())
 
-  pedidos PedidoViaje[]
+  pedidos          PedidoViaje[]
+  materialesListos MaterialListo[]
 
   @@index([nombre])
 }
@@ -184,6 +193,8 @@ model Vehiculo {
   asignadoAId      String?
   baseId           String?
   idCusat          String?        @unique
+  // El nombre tal cual aparece en Cusat ("MERCEDES 710"): para emparejar si la patente no alcanza.
+  cusatNombre      String?
   fotoUrl          String?
   activo           Boolean        @default(true)
   creadoEn         DateTime       @default(now())
@@ -346,6 +357,8 @@ model PedidoViaje {
   proveedorId       String?
   // Si el viaje lleva una máquina o herramienta del depósito: herramientas y viajes quedan unidos.
   herramientaId     String?
+  // Retiro en proveedor: solo se crea desde materiales habilitados por Compras (MaterialListo).
+  esRetiroMaterial  Boolean      @default(false)
   // Día en que se necesita la herramienta: misma herramienta + obra + día = duplicado exacto.
   fechaNecesaria    DateTime?    @db.Date
   ordenCompraLebane String?
@@ -373,12 +386,13 @@ model PedidoViaje {
   creadoEn          DateTime     @default(now())
   actualizadoEn     DateTime     @updatedAt
 
-  solicitante Usuario      @relation("PedidoSolicitante", fields: [solicitanteId], references: [id])
-  obra        Obra         @relation(fields: [obraId], references: [id])
-  proveedor   Proveedor?   @relation(fields: [proveedorId], references: [id])
-  herramienta Herramienta? @relation(fields: [herramientaId], references: [id])
-  tomadoPor   Usuario?     @relation("PedidoTomadoPor", fields: [tomadoPorId], references: [id])
-  viaje       Viaje?
+  solicitante      Usuario         @relation("PedidoSolicitante", fields: [solicitanteId], references: [id])
+  obra             Obra            @relation(fields: [obraId], references: [id])
+  proveedor        Proveedor?      @relation(fields: [proveedorId], references: [id])
+  herramienta      Herramienta?    @relation(fields: [herramientaId], references: [id])
+  tomadoPor        Usuario?        @relation("PedidoTomadoPor", fields: [tomadoPorId], references: [id])
+  viaje            Viaje?
+  materialesListos MaterialListo[]
 
   @@index([estado, prioridad, paraCuando])
   @@index([obraId, estado])
@@ -768,4 +782,131 @@ model Archivo {
   tamano      Int
   subidoPorId String?
   creadoEn    DateTime @default(now())
+}
+
+// ═══════════════════════════ MATERIALES Y COMPRAS ═══════════════════════════
+// Los materiales no se piden a los choferes: se piden a Compras (CLAUDE.md, "Materiales y Compras").
+
+enum EstadoMaterial {
+  SOLICITADO
+  EN_COMPRA
+  ESPERANDO_APROBACION
+  APROBADO
+  LISTO_PARA_RETIRAR
+  RETIRO_PEDIDO
+  EN_CAMINO
+  ENTREGADO
+  CANCELADO
+}
+
+enum FuenteMaterial {
+  MANUAL
+  LEBANE // cuando llegue la API: EN_COMPRA → APROBADO se leen de la OC de Lebane
+}
+
+model PedidoMaterial {
+  id                  String         @id @default(cuid())
+  numero              Int            @unique @default(autoincrement())
+  obraId              String
+  solicitanteId       String
+  descripcion         String // qué y cuánto
+  cantidad            Decimal?       @db.Decimal(12, 2)
+  unidad              String?
+  paraCuando          DateTime       @db.Date
+  prioridad           Prioridad      @default(NORMAL)
+  estado              EstadoMaterial @default(SOLICITADO)
+  fuente              FuenteMaterial @default(MANUAL)
+  ordenCompraNumero   String?
+  ordenCompraLebaneId String?
+  montoAprobado       Decimal?       @db.Decimal(14, 2)
+  aprobadoPorId       String?
+  aprobadoEn          DateTime?
+  tomadoPorId         String? // Compras
+  tomadoEn            DateTime?
+  // "Con esto no falta nada del pedido": al entregarse todas las habilitaciones, queda ENTREGADO.
+  completo            Boolean        @default(false)
+  motivoCancelacion   String?
+  observaciones       String?
+  creadoEn            DateTime       @default(now())
+  actualizadoEn       DateTime       @updatedAt
+
+  obra             Obra                   @relation(fields: [obraId], references: [id])
+  solicitante      Usuario                @relation("MaterialSolicitante", fields: [solicitanteId], references: [id])
+  tomadoPor        Usuario?               @relation("MaterialComprador", fields: [tomadoPorId], references: [id])
+  aprobadoPor      Usuario?               @relation("MaterialAprobador", fields: [aprobadoPorId], references: [id])
+  cambios          CambioEstadoMaterial[]
+  materialesListos MaterialListo[]
+
+  @@index([obraId, estado])
+  @@index([estado, paraCuando])
+  @@index([solicitanteId])
+}
+
+/**
+ * Historial de estados del pedido de material (la línea de tiempo de 8 pasos).
+ */
+model CambioEstadoMaterial {
+  id               String          @id @default(cuid())
+  pedidoMaterialId String
+  de               EstadoMaterial?
+  a                EstadoMaterial
+  usuarioId        String?
+  fecha            DateTime        @default(now())
+  nota             String?
+
+  pedidoMaterial PedidoMaterial @relation(fields: [pedidoMaterialId], references: [id])
+  usuario        Usuario?       @relation(fields: [usuarioId], references: [id])
+
+  @@index([pedidoMaterialId, fecha])
+}
+
+enum EstadoMaterialListo {
+  LISTO
+  RETIRO_PEDIDO
+  EN_CAMINO
+  ENTREGADO
+  CANCELADO
+}
+
+enum ModoEntrega {
+  RETIRA_CHOFER
+  ENTREGA_PROVEEDOR // el proveedor lo lleva: no hay viaje
+}
+
+/**
+ * Habilitación: material listo para retirar (un pedido puede tener varias: retiros parciales).
+ */
+model MaterialListo {
+  id                   String              @id @default(cuid())
+  pedidoMaterialId     String
+  obraId               String // copiado del pedido
+  proveedorId          String
+  // Copiados al habilitar, por si el proveedor cambia después.
+  proveedorDireccion   String
+  proveedorLat         Float
+  proveedorLng         Float
+  horarioRetiro        String? // "lun a vie 8 a 12"
+  contactoRetiro       String?
+  ordenCompraNumero    String?
+  descripcion          String // qué se retira en ESTE retiro
+  pesoKg               Int?
+  necesitaCamion       Boolean             @default(false)
+  modoEntrega          ModoEntrega         @default(RETIRA_CHOFER)
+  fechaEntregaEstimada DateTime?           @db.Date
+  estado               EstadoMaterialListo @default(LISTO)
+  habilitadoPorId      String
+  habilitadoEn         DateTime            @default(now())
+  // El viaje que lo lleva (varios materiales del mismo proveedor pueden ir en el mismo viaje).
+  pedidoViajeId        String?
+  entregadoEn          DateTime?
+
+  pedidoMaterial PedidoMaterial @relation(fields: [pedidoMaterialId], references: [id])
+  obra           Obra           @relation(fields: [obraId], references: [id])
+  proveedor      Proveedor      @relation(fields: [proveedorId], references: [id])
+  habilitadoPor  Usuario        @relation(fields: [habilitadoPorId], references: [id])
+  pedidoViaje    PedidoViaje?   @relation(fields: [pedidoViajeId], references: [id])
+
+  @@index([obraId, estado])
+  @@index([pedidoMaterialId])
+  @@index([pedidoViajeId])
 }
