@@ -106,13 +106,13 @@ export function Cifra({ etiqueta, valor, detalle, tono }: { etiqueta: string; va
 /** Pestañas con enlaces: el estado queda en la URL y funcionan con el botón Atrás. */
 export function Pestanas({ items }: { items: { href: string; etiqueta: string; activa: boolean }[] }) {
   return (
-    <nav className="mb-4 flex gap-0.5 overflow-x-auto rounded-md border border-linea bg-black/[0.03] p-0.5 lg:inline-flex lg:max-w-full">
+    <nav className="mb-4 flex gap-0.5 overflow-x-auto rounded-md border border-linea bg-papel p-0.5 lg:inline-flex lg:max-w-full">
       {items.map((i) => (
         <Link
           key={i.href}
           href={i.href}
           aria-current={i.activa ? "page" : undefined}
-          className={`grid min-h-10 flex-1 place-items-center rounded-[5px] px-3 text-sm font-medium whitespace-nowrap lg:min-h-7 lg:flex-none ${i.activa ? "bg-papel text-tinta shadow-[0_0_0_1px_var(--color-linea)]" : "text-suave hover:text-tinta"}`}
+          className={`grid min-h-10 flex-1 place-items-center rounded-[5px] px-3 text-sm font-medium whitespace-nowrap lg:min-h-7 lg:flex-none ${i.activa ? "bg-black/[0.06] text-tinta" : "text-suave hover:text-tinta"}`}
         >
           {i.etiqueta}
         </Link>

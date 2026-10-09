@@ -43,11 +43,11 @@ export default async function PaginaCostos({ searchParams }: { searchParams: Pro
       <Titulo siempre detalle={`Del ${fecha(aFecha(p.desdeISO, "12:00"))} al ${fecha(aFecha(p.hastaISO, "12:00"))}`}>Costos</Titulo>
 
       <form action="/costos" className="mb-6 flex flex-wrap items-end gap-2">
-        <nav className="flex gap-0.5 rounded-md border border-linea bg-black/[0.03] p-0.5">
+        <nav className="flex gap-0.5 rounded-md border border-linea bg-papel p-0.5">
           {meses().map((m) => {
             const activo = p.desdeISO === m.desde && p.hastaISO === m.hasta;
             return (
-              <Link key={m.desde} href={`/costos?${new URLSearchParams({ desde: m.desde, hasta: m.hasta, ver })}`} aria-current={activo ? "page" : undefined} className={`grid min-h-10 place-items-center rounded-[5px] px-3 text-sm font-medium capitalize lg:min-h-7 ${activo ? "bg-papel text-tinta shadow-[0_0_0_1px_var(--color-linea)]" : "text-suave hover:text-tinta"}`}>
+              <Link key={m.desde} href={`/costos?${new URLSearchParams({ desde: m.desde, hasta: m.hasta, ver })}`} aria-current={activo ? "page" : undefined} className={`grid min-h-10 place-items-center rounded-[5px] px-3 text-sm font-medium capitalize lg:min-h-7 ${activo ? "bg-black/[0.06] text-tinta" : "text-suave hover:text-tinta"}`}>
                 {m.etiqueta}
               </Link>
             );

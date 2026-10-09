@@ -81,7 +81,7 @@ Reglas de visibilidad (se verifican en el servidor, en cada query y cada action)
 - COMPRAS: Pedidos · Habilitados · Proveedores · Más
 - DIRECCION: Mapa · Solicitudes · Viajes · Más (y en Más: todo lo demás, con Aprobaciones)
 Cuenta y cerrar sesión viven en el avatar del header, no en la barra.
-Escritorio (1024px+): barra lateral negra de 240px con las mismas entradas del rol.
+Escritorio (1024px+): barra lateral negra de 232px con las mismas entradas del rol.
 
 ## Ciclo de un viaje (la lógica más importante de la app)
 
