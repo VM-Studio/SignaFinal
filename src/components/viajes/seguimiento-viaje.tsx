@@ -5,9 +5,9 @@ import { useCallback, useEffect, useState } from "react";
 import { FileText, MapPinned, Phone } from "lucide-react";
 import { Boton, claseBoton } from "@/components/ui/boton";
 import { useAviso } from "@/components/ui/avisos";
-import { hora } from "@/lib/formato";
+import { haceSeg, hora } from "@/lib/formato";
 import type { DatosSeguimiento } from "@/lib/viajes/seguimiento";
-import { avanzarSimulado } from "@/lib/viajes/simulador";
+import { avanzarSimulado, simularEtapa, type PasoDemo } from "@/lib/viajes/simulador";
 
 const MapaSeguimiento = dynamic(() => import("@/components/mapa/mapa-seguimiento"), {
   ssr: false,
@@ -15,7 +15,7 @@ const MapaSeguimiento = dynamic(() => import("@/components/mapa/mapa-seguimiento
 });
 
 const CADA_MS = 20_000;
-const EN_CURSO = ["HACIA_RETIRO", "EN_RETIRO", "HACIA_DESTINO"];
+const EN_CURSO = ["HACIA_RETIRO", "EN_RETIRO", "HACIA_DESTINO", "EN_DESTINO"];
 
 /**
  * Seguimiento en vivo, como PedidosYa: cuatro pasos, el mapa con el vehículo (cada 20 s),
@@ -24,6 +24,7 @@ const EN_CURSO = ["HACIA_RETIRO", "EN_RETIRO", "HACIA_DESTINO"];
 export function SeguimientoViaje({ pedidoId, inicial, demo = false }: { pedidoId: string; inicial: DatosSeguimiento; demo?: boolean }) {
   const [d, setD] = useState(inicial);
   const [moviendo, setMoviendo] = useState(false);
+  const [simulando, setSimulando] = useState<PasoDemo | null>(null);
   const aviso = useAviso();
 
   const actualizar = useCallback(async () => {
@@ -43,9 +44,10 @@ export function SeguimientoViaje({ pedidoId, inicial, demo = false }: { pedidoId
   }, [vivo, actualizar]);
 
   const pasos = [
-    { titulo: "Pedido", fecha: d.pasos.pedido },
     { titulo: "Aceptado", fecha: d.pasos.aceptado },
-    { titulo: "Retiro", fecha: d.pasos.retiro },
+    { titulo: "Salió", fecha: d.pasos.salio },
+    { titulo: "En el retiro", fecha: d.pasos.retiro },
+    { titulo: "En camino", fecha: d.pasos.enCamino },
     { titulo: "Entregado", fecha: d.pasos.entregado },
   ];
   const actual = pasos.reduce((a, p, i) => (p.fecha ? i : a), 0);
@@ -53,7 +55,7 @@ export function SeguimientoViaje({ pedidoId, inicial, demo = false }: { pedidoId
 
   return (
     <section aria-label="Seguimiento del pedido" className="mt-3 overflow-hidden rounded-[var(--radius-caja)] border-2 border-negro bg-papel">
-      <ol className="grid grid-cols-4 gap-1 p-4 pb-3">
+      <ol className="grid grid-cols-5 gap-1 p-4 pb-3">
         {pasos.map((p, i) => (
           <li key={p.titulo}>
             <span className={`block h-2 rounded-full ${i <= actual ? "bg-negro" : "bg-linea"}`} />
@@ -71,7 +73,11 @@ export function SeguimientoViaje({ pedidoId, inicial, demo = false }: { pedidoId
 
       <div className="p-4">
         <p aria-live="polite" className="text-2xl leading-tight font-bold">{d.frase}</p>
-        {conMapa && d.posicion && <p className="mt-1 text-sm text-suave">Posición de las {hora(d.posicion.fecha)} · se actualiza sola</p>}
+        {conMapa && d.posicion && (
+          <p suppressHydrationWarning className="mt-1 text-sm text-suave">
+            {d.posicion.fuente === "TELEFONO" ? "GPS del teléfono" : d.posicion.fuente === "CUSAT" ? "GPS Cusat" : "GPS"} · {haceSeg(d.posicion.fecha)} · se actualiza sola
+          </p>
+        )}
         {d.vehiculo && <p className="mt-1 text-suave">{d.chofer?.nombre} · {d.vehiculo}</p>}
         <div className="mt-4 grid grid-cols-2 gap-2">
           {d.chofer?.telefono ? (
@@ -79,6 +85,24 @@ export function SeguimientoViaje({ pedidoId, inicial, demo = false }: { pedidoId
           ) : <span />}
           <a href="#detalle" className={claseBoton("secundario", "normal", true)}><FileText className="size-5" /> Ver qué pidió</a>
         </div>
+        {demo && vivo && d.etapa && EN_CURSO.includes(d.etapa) && d.etapa !== "EN_DESTINO" && (
+          <div className="mt-3 rounded-[var(--radius-caja)] border border-dashed border-linea-fuerte p-3">
+            <p className="mb-2 text-xs font-bold tracking-wider text-suave uppercase">Demo · simular GPS</p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {([["retiro", "Llegó al retiro", "HACIA_RETIRO"], ["salio", "Salió", "EN_RETIRO"], ["destino", "Llegó a destino", "HACIA_DESTINO"]] as const).map(([paso, titulo, cuando]) => (
+                <Boton key={paso} variante="secundario" disabled={d.etapa !== cuando || !!simulando} cargando={simulando === paso} onClick={async () => {
+                  setSimulando(paso);
+                  const r = await simularEtapa(pedidoId, paso);
+                  setSimulando(null);
+                  if (!r.ok) return aviso({ mensaje: r.error, tono: "error" });
+                  await actualizar();
+                }}>
+                  Simular: {titulo.toLowerCase()}
+                </Boton>
+              ))}
+            </div>
+          </div>
+        )}
         {demo && vivo && d.etapa && EN_CURSO.includes(d.etapa) && (
           <Boton variante="secundario" ancho className="mt-2" cargando={moviendo} icono={<MapPinned className="size-5" />} onClick={async () => {
             setMoviendo(true);

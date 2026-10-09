@@ -416,6 +416,7 @@ enum EtapaViaje {
   HACIA_RETIRO
   EN_RETIRO
   HACIA_DESTINO
+  EN_DESTINO
   FINALIZADO
 }
 
@@ -459,6 +460,9 @@ model Viaje {
   // Se recalculan con cada posición nueva.
   etaRetiro         DateTime?
   etaDestino        DateTime?
+  // Motor de viajes (src/lib/viajes/motor.ts): lecturas candidatas, última lectura válida,
+  // llegada para confirmar, confirmación rechazada y aviso de "sin señal".
+  motor             Json?
 
   pedido      PedidoViaje             @relation(fields: [pedidoId], references: [id])
   vehiculo    Vehiculo                @relation(fields: [vehiculoId], references: [id])
@@ -734,6 +738,8 @@ enum TipoNotificacion {
   VIAJE_INICIADO
   LLEGO_RETIRO
   LLEGO_DESTINO
+  SALIO_RETIRO
+  SIN_SENAL
   PEDIDO_SOLTADO
   PEDIDO_CANCELADO
   NUEVA_SOLICITUD

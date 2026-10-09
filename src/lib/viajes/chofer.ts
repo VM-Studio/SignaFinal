@@ -6,6 +6,8 @@ import { conAlcance, viajesVisibles } from "@/lib/alcance";
 import { finDelDia, inicioDelDia } from "@/lib/formato";
 import { vehiculosParaTomar } from "@/lib/pedidos/consultas";
 import { ETAPAS_EN_CURSO } from "./etapas";
+import { estadoMotor, senalDe } from "./motor";
+import { PARAMETROS_MOTOR } from "./parametros";
 import { baseDe, destinoDe, origenDe, rutaSegura } from "./tramos";
 import type { Punto } from "@/lib/geo";
 
@@ -135,19 +137,24 @@ export async function pantallaViaje(pedidoId: string) {
       materialesListos: { where: { estado: { not: "CANCELADO" } }, select: { descripcion: true, horarioRetiro: true, contactoRetiro: true, ordenCompraNumero: true } },
       viaje: {
         include: {
-          vehiculo: { select: { nombre: true, patente: true, kmActual: true, baseId: true } },
-          posiciones: { where: { fuente: "TELEFONO" }, orderBy: { fecha: "desc" }, take: 1 },
+          vehiculo: { select: { nombre: true, patente: true, kmActual: true, baseId: true, ultimaLat: true, ultimaLng: true, ultimaFechaGps: true } },
         },
       },
     },
   });
   if (!p?.viaje || p.viaje.choferId !== u.id || p.viaje.estado === "CANCELADO") return null;
   const v = p.viaje;
-  const ultima: Punto | null = v.posiciones[0] ? { lat: v.posiciones[0].latitud, lng: v.posiciones[0].longitud } : null;
+  // Dónde está el vehículo ahora (Cusat o el teléfono, lo último que llegó en los últimos 5 minutos).
+  const vh = v.vehiculo;
+  const ultima: Punto | null = vh.ultimaLat != null && vh.ultimaLng != null && vh.ultimaFechaGps && Date.now() - vh.ultimaFechaGps.getTime() < PARAMETROS_MOTOR.sinSenalMs ? { lat: vh.ultimaLat, lng: vh.ultimaLng } : null;
   const aRetiro = v.etapa === "PROGRAMADO" || v.etapa === "HACIA_RETIRO";
   const hasta = aRetiro ? origenDe(p) : destinoDe(p);
-  const desde = aRetiro ? (v.etapa === "HACIA_RETIRO" ? ultima : null) ?? (await baseDe(v.vehiculo)) ?? origenDe(p) : v.etapa === "HACIA_DESTINO" && ultima ? ultima : origenDe(p);
-  const ruta = v.etapa === "FINALIZADO" ? null : await rutaSegura(desde, hasta);
+  const desde = aRetiro ? (v.etapa === "HACIA_RETIRO" ? ultima : null) ?? ultima ?? (await baseDe(v.vehiculo)) ?? origenDe(p) : v.etapa === "HACIA_DESTINO" && ultima ? ultima : origenDe(p);
+  const ruta = v.etapa === "FINALIZADO" || v.etapa === "EN_DESTINO" ? null : await rutaSegura(desde, hasta);
+  // Llegada que detectó el GPS y el chofer todavía puede negar ("No, todavía no").
+  const pendiente = estadoMotor(v).pendiente;
+  const confirmar = pendiente && pendiente.etapa === v.etapa && new Date(pendiente.hasta) > new Date() ? { etapa: pendiente.etapa, lugar: pendiente.etapa === "EN_RETIRO" ? p.origenNombre : p.destinoNombre } : null;
+  const senal = v.etapa === "PROGRAMADO" || v.etapa === "FINALIZADO" ? null : await senalDe(v.vehiculoId, null);
   const enCursoOtro = v.etapa === "PROGRAMADO" ? await db.viaje.count({ where: { choferId: u.id, etapa: { in: ETAPAS_EN_CURSO } } }) : 0;
   const siguiente =
     v.etapa === "FINALIZADO"
@@ -169,6 +176,7 @@ export async function pantallaViaje(pedidoId: string) {
     entregar: { nombre: p.destinoNombre, direccion: p.destinoDireccion, ...destinoDe(p) },
     tramo: ruta && { hacia: aRetiro ? "retiro" as const : "destino" as const, desde, hasta, distanciaM: ruta.distanciaM, duracionS: ruta.duracionS, geometria: ruta.geometria, estimada: ruta.fuente === "estimada" },
     otroEnCurso: enCursoOtro > 0,
+    confirmar, senal,
     kmRecorridos: v.kmLlegada != null && v.kmSalida != null ? v.kmLlegada - v.kmSalida : null,
     siguiente: siguiente ? tarjeta(siguiente) : null,
     hoy: inicioDelDia().toISOString(),

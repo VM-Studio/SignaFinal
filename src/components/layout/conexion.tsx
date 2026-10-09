@@ -4,7 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, CloudOff, RefreshCw } from "lucide-react";
 import { Hoja } from "@/components/ui/hoja";
-import { finalizarViaje, iniciarViaje, llegueAlRetiro, registrarCarga, salgoHaciaDestino } from "@/lib/viajes/acciones";
+import { finalizarViaje, iniciarViaje, llegueAlDestino, llegueAlRetiro, registrarCarga, salgoHaciaDestino } from "@/lib/viajes/acciones";
 import { crearPedido, tomarPedido } from "@/lib/pedidos/acciones";
 import { descartar, enviarPendientes, escuchar, leerEnvios, type Envio } from "@/lib/offline/cola";
 import { cuando } from "@/lib/formato";
@@ -20,6 +20,7 @@ const ejecutores = {
   "pedido.aceptar": (d: Record<string, unknown>) => tomarPedido(d as Parameters<typeof tomarPedido>[0]),
   "viaje.retiro": (d: Record<string, unknown>) => llegueAlRetiro(d as Parameters<typeof llegueAlRetiro>[0]),
   "viaje.salgo": (d: Record<string, unknown>) => salgoHaciaDestino(d as Parameters<typeof salgoHaciaDestino>[0]),
+  "viaje.llegada": (d: Record<string, unknown>) => llegueAlDestino(d as Parameters<typeof llegueAlDestino>[0]),
   "viaje.finalizar": (d: Record<string, unknown>) => finalizarViaje(d as Parameters<typeof finalizarViaje>[0]),
   "combustible.cargar": (d: Record<string, unknown>) => registrarCarga(d as Parameters<typeof registrarCarga>[0]),
 };

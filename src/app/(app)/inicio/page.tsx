@@ -94,7 +94,7 @@ async function InicioChofer() {
           <Subtitulo>Mi viaje en curso</Subtitulo>
           <ul>
             <TarjetaChofer t={enCurso} href={`/viaje/${enCurso.pedidoId}`} destacada accion={
-              <BotonEtapa etapa={enCurso.etapa!} pedidoId={enCurso.pedidoId} numero={enCurso.numero} vehiculo={enCurso.vehiculo ?? ""} kmActual={enCurso.kmActual} kmSalida={enCurso.kmSalida} obra={enCurso.entregar.nombre} />
+              <BotonEtapa etapa={enCurso.etapa!} pedidoId={enCurso.pedidoId} numero={enCurso.numero} vehiculo={enCurso.vehiculo ?? ""} kmActual={enCurso.kmActual} kmSalida={enCurso.kmSalida} obra={enCurso.entregar.nombre} irAlViaje />
             } />
           </ul>
           <BotonLink href="/solicitudes" variante="secundario" ancho className="mt-4">Solicitudes pendientes: {pendientes}</BotonLink>

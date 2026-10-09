@@ -2,16 +2,12 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { calcularRuta, rutaEstimada, type Ruta } from "@/lib/rutas";
-import { auditar } from "@/lib/auditoria";
 import { notificar } from "@/lib/notificaciones";
 import { TEXTO } from "@/lib/notificaciones/textos";
-import { conEtapa } from "./etapas";
-import { distancia, type Punto } from "@/lib/geo";
+import type { Punto } from "@/lib/geo";
 
 /** Lo que se tarda en cargar en el punto de retiro (para estimar la llegada a la obra). */
 export const CARGA_S = 20 * 60;
-/** El GPS da por salido del retiro cuando se aleja más que esto. */
-export const SALIDA_RETIRO_M = 300;
 
 export const origenDe = (p: { origenLat: number; origenLng: number }): Punto => ({ lat: p.origenLat, lng: p.origenLng });
 export const destinoDe = (p: { destinoLat: number; destinoLng: number }): Punto => ({ lat: p.destinoLat, lng: p.destinoLng });
@@ -31,22 +27,6 @@ export async function rutaSegura(desde: Punto, hasta: Punto): Promise<Ruta> {
   }
 }
 
-const sumar = (d: Date, s: number) => new Date(d.getTime() + s * 1000);
-
-/** Pasa el viaje de "cargando" a "en camino a la obra" (botón "Salgo" o el GPS al alejarse). */
-export async function salirDelRetiro(cliente: Prisma.TransactionClient, viajeId: string, cuando: Date, porGps: boolean, usuarioId: string | null) {
-  const v = await cliente.viaje.findUnique({ where: { id: viajeId }, include: { chofer: { select: { nombre: true } }, pedido: { select: { id: true, numero: true, origenNombre: true } } } });
-  if (!v || v.etapa !== "EN_RETIRO") return false;
-  await cliente.viaje.update({
-    where: { id: viajeId },
-    data: { ...conEtapa("HACIA_DESTINO"), salidaRetiroEn: cuando, etaDestino: v.duracionDestinoS ? sumar(cuando, v.duracionDestinoS) : v.etaDestino },
-  });
-  await auditar(cliente, {
-    usuarioId, accion: porGps ? "viaje.salidaRetiro.gps" : "viaje.salidaRetiro", entidad: "PedidoViaje", entidadId: v.pedido.id,
-    resumen: `${porGps ? "GPS: " : ""}${v.chofer.nombre} salió de ${v.pedido.origenNombre} hacia la obra (pedido #${v.pedido.numero})`,
-  });
-  return true;
-}
 
 // ─────────────────────── Posición, hora estimada y demora ───────────────────────
 
@@ -83,10 +63,10 @@ export async function avisarSiHayDemora(v: ViajeConPedido, nuevaEta: Date) {
 export async function registrarPosicion(
   viajeId: string,
   aqui: Punto,
-  o: { fuente: "TELEFONO" | "CUSAT" | "MOCK"; usuarioId?: string | null; precisionM?: number | null; velocidadKmh?: number; rumbo?: number },
+  o: { fuente: "TELEFONO" | "CUSAT" | "MOCK"; usuarioId?: string | null; precisionM?: number | null; velocidadKmh?: number; rumbo?: number; demo?: boolean },
 ) {
   const v = await db.viaje.findUnique({ where: { id: viajeId }, include: { pedido: true, chofer: { select: { nombre: true } } } });
-  if (!v || !["HACIA_RETIRO", "EN_RETIRO", "HACIA_DESTINO"].includes(v.etapa)) return null;
+  if (!v || !["HACIA_RETIRO", "EN_RETIRO", "HACIA_DESTINO", "EN_DESTINO"].includes(v.etapa)) return null;
   const ahora = new Date();
   await db.posicionVehiculo.create({
     data: {
@@ -101,12 +81,10 @@ export async function registrarPosicion(
       data: { ultimaLat: aqui.lat, ultimaLng: aqui.lng, ultimaFechaGps: ahora, ultimaVelocidad: o.velocidadKmh ?? 0, ultimaDireccionTexto: null },
     });
   }
-  let etapa = v.etapa;
-  // Se fue del punto de retiro sin tocar "Salgo": lo hace el GPS.
-  if (etapa === "EN_RETIRO" && distancia(aqui, origenDe(v.pedido)) > SALIDA_RETIRO_M) {
-    await db.$transaction((tx) => salirDelRetiro(tx, v.id, ahora, true, null));
-    etapa = "HACIA_DESTINO";
-  }
+  // El motor de viajes decide si llegó, salió o llegó a la obra (y le avisa al que pidió).
+  const { evaluarViaje } = await import("./motor");
+  const m = await evaluarViaje(v.id, { ...aqui, velocidadKmh: o.velocidadKmh ?? 0, fecha: ahora, fuente: o.fuente, demo: o.demo });
+  const etapa = m.transicion ? (await db.viaje.findUniqueOrThrow({ where: { id: v.id }, select: { etapa: true } })).etapa : v.etapa;
   const eta = await recalcularEta({ ...v, etapa }, aqui, ahora);
   return { etapa, eta, cambioDeEtapa: etapa !== v.etapa };
 }

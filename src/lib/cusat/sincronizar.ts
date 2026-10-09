@@ -4,7 +4,7 @@ import { evaluarAlertas } from "@/lib/alertas";
 import { distancia } from "@/lib/geo";
 import { fuenteCusat } from "./index";
 import { emparejar } from "./emparejar";
-import { aplicarGeocercas } from "./geocercas";
+import { evaluarViaje } from "@/lib/viajes/motor";
 import { CLAVE, guardarEstado, leerEstado, type UltimaSync } from "./estado";
 import type { PosicionCusat } from "./tipos";
 
@@ -61,8 +61,14 @@ async function sincronizarAhora() {
       nuevas.push({ vehiculoId, latitud: p.latitud, longitud: p.longitud, velocidad: p.velocidadKmh, rumbo: p.rumbo, motorEncendido: p.motorEncendido, fecha: p.fechaGps });
     }
 
-    const eventos = await aplicarGeocercas(nuevas);
-    // Motor de viajes (prompt 4): evaluar cada viaje en curso con las posiciones nuevas.
+    // Motor de viajes: cada posición nueva de un vehículo con viaje en curso puede pasarlo de etapa.
+    const eventos: string[] = [];
+    for (const p of nuevas) {
+      const viajeId = viajes.get(p.vehiculoId);
+      if (!viajeId) continue;
+      const m = await evaluarViaje(viajeId, { lat: p.latitud, lng: p.longitud, velocidadKmh: p.velocidad, fecha: p.fecha, fuente: fuente.modo === "mock" ? "MOCK" : "CUSAT" });
+      if (m.transicion) eventos.push(`${p.vehiculoId}: ${m.transicion.a}`);
+    }
     await evaluarAlertas(["cusat", "pedidos"]);
 
     const resumen: UltimaSync = { fecha: new Date().toISOString(), modo: fuente.modo, recibidas: r.datos.length, enlazadas: enlace.size, nuevas: nuevas.length, ms: Date.now() - t };

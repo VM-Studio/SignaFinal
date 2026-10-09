@@ -89,17 +89,17 @@ Pedido: PENDIENTE → TOMADO (se muestra "Aceptado por Claudio") → EN_VIAJE �
 o CANCELADO. El chofer que lo aceptó puede soltarlo (vuelve a PENDIENTE).
 
 Viaje (se crea al aceptar), etapas:
-  PROGRAMADO → HACIA_RETIRO → EN_RETIRO → HACIA_DESTINO → FINALIZADO
-Tres botones del chofer, en orden, uno a la vez:
-  1. "Iniciar viaje": la app calcula la ruta desde donde está el chofer hasta el punto
-     de retiro y la muestra. Etapa HACIA_RETIRO.
-  2. "Llegué al punto de retiro": la app carga sola la ruta retiro → destino. Etapa
-     EN_RETIRO y, al salir (automático por GPS o al tocar "Salgo"), HACIA_DESTINO.
-  3. "Llegué al destino": km de llegada, peajes, foto opcional. Etapa FINALIZADO,
-     pedido ENTREGADO, costo imputado a la obra.
-En los tres momentos, el solicitante recibe un aviso con distancia restante y hora
-estimada de llegada. Mientras el viaje está en curso, la app del chofer manda su posición
-cada 30 segundos y el solicitante la ve en un mapa.
+  PROGRAMADO → HACIA_RETIRO → EN_RETIRO → HACIA_DESTINO → EN_DESTINO → FINALIZADO.
+El chofer toca "Iniciar viaje" (PROGRAMADO → HACIA_RETIRO) y "Viaje terminado"
+(EN_DESTINO → FINALIZADO: km de llegada, peajes, foto opcional; pedido ENTREGADO y costo
+imputado a la obra). Las otras transiciones las hace el motor de viajes
+(src/lib/viajes/motor.ts) a partir de posiciones (Cusat primero, teléfono de respaldo):
+llegó al retiro (150 m, quieto, 2 lecturas), salió del retiro (más de 300 m), llegó a la obra
+(radio de la geocerca, quieto, 2 lecturas). Si el viaje no tiene un retiro distinto de donde
+arranca, empieza directo en HACIA_DESTINO. El chofer siempre tiene botones manuales de
+respaldo, que hacen la misma transición, y puede negar una llegada detectada ("No, todavía
+no"). En cada transición se avisa al solicitante con distancia y hora estimada; sin señal
+más de 10 minutos, también. Parámetros en src/lib/viajes/parametros.ts.
 
 ## Reglas de negocio
 

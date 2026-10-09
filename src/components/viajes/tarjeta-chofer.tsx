@@ -10,6 +10,7 @@ const ETAPA: Record<NonNullable<Tarjeta["etapa"]>, string> = {
   HACIA_RETIRO: "Yendo a retirar",
   EN_RETIRO: "Cargando",
   HACIA_DESTINO: "En camino a la obra",
+  EN_DESTINO: "En la obra",
   FINALIZADO: "Entregado",
 };
 

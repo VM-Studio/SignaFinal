@@ -10,7 +10,7 @@ import { ejecutar, ErrorNegocio, type Resultado } from "@/lib/resultado";
 import { auditar, describirPedido, validarChoferYVehiculo } from "@/lib/pedidos/reglas";
 import { responsablePrincipal } from "@/lib/alcance";
 import { conEtapa } from "./etapas";
-import { baseDe, CARGA_S, destinoDe, origenDe, rutaSegura, salirDelRetiro } from "./tramos";
+import { baseDe, CARGA_S, destinoDe, origenDe, rutaSegura } from "./tramos";
 import { notificar } from "@/lib/notificaciones";
 import { TEXTO } from "@/lib/notificaciones/textos";
 import { finDelDia, hora } from "@/lib/formato";
@@ -18,6 +18,7 @@ import { guardarArchivo } from "@/lib/archivos";
 import { km as fmtKm } from "@/lib/formato";
 import { alLlegarElViaje } from "@/lib/herramientas/servicio";
 import { alCambiarElViaje } from "@/lib/materiales/circuito";
+import { responderLlegada as responderLlegadaMotor, sinRetiro, transicionar } from "./motor";
 
 /** Refresca pantallas y reevalúa las alertas del módulo (resuelve solas las que ya no aplican). */
 const refrescar = () => {
@@ -62,11 +63,18 @@ export async function iniciarViaje(entrada: DatosInicio): Promise<Resultado<{ ve
     if (ya) return { vehiculo: ya.vehiculo.nombre };
 
     // Ruta al punto de retiro desde donde está el teléfono (o la base del vehículo). Nunca traba: hay respaldo.
-    const previo = await db.viaje.findUnique({ where: { pedidoId: d.pedidoId }, include: { vehiculo: { select: { baseId: true } }, pedido: true } });
+    const previo = await db.viaje.findUnique({ where: { pedidoId: d.pedidoId }, include: { vehiculo: { select: { baseId: true, ultimaLat: true, ultimaLng: true } }, pedido: true } });
     if (!previo) throw new ErrorNegocio("No existe ese viaje.");
     const gps = d.lat != null && d.lng != null ? { lat: d.lat, lng: d.lng } : null;
-    const desde = gps ?? (await baseDe(previo.vehiculo)) ?? origenDe(previo.pedido);
-    const [aRetiro, aDestino] = await Promise.all([rutaSegura(desde, origenDe(previo.pedido)), rutaSegura(origenDe(previo.pedido), destinoDe(previo.pedido))]);
+    const satelite = previo.vehiculo.ultimaLat != null && previo.vehiculo.ultimaLng != null ? { lat: previo.vehiculo.ultimaLat, lng: previo.vehiculo.ultimaLng } : null;
+    const conocido = gps ?? satelite ?? (await baseDe(previo.vehiculo));
+    const desde = conocido ?? origenDe(previo.pedido);
+    // Sin punto de retiro distinto de donde arranca (ya lleva la carga): el viaje va directo a la obra.
+    const directo = sinRetiro(previo.pedido, conocido);
+    const [aRetiro, aDestino] = await Promise.all([
+      rutaSegura(desde, origenDe(previo.pedido)),
+      rutaSegura(directo ? desde : origenDe(previo.pedido), destinoDe(previo.pedido)),
+    ]);
 
     const r = await db.$transaction(async (tx) => {
       const viaje = await tx.viaje.findUnique({ where: { pedidoId: d.pedidoId }, include: { pedido: true } });
@@ -81,21 +89,25 @@ export async function iniciarViaje(entrada: DatosInicio): Promise<Resultado<{ ve
       if (d.kmSalida > vehiculo.kmActual + 3000) throw new ErrorNegocio(`Son ${fmtKm(d.kmSalida - vehiculo.kmActual)} más que los registrados. Revisá el número.`);
 
       const salidaReal = momento(d.ocurridoEn);
-      const etaRetiro = new Date(salidaReal.getTime() + aRetiro.duracionS * 1000);
-      const etaDestino = new Date(etaRetiro.getTime() + (CARGA_S + aDestino.duracionS) * 1000);
+      const etaRetiro = directo ? null : new Date(salidaReal.getTime() + aRetiro.duracionS * 1000);
+      const etaDestino = directo ? new Date(salidaReal.getTime() + aDestino.duracionS * 1000) : new Date(etaRetiro!.getTime() + (CARGA_S + aDestino.duracionS) * 1000);
       await tx.viaje.update({
         where: { id: viaje.id },
         data: {
-          ...conEtapa("HACIA_RETIRO"), salidaReal, inicioEn: salidaReal, kmSalida: d.kmSalida, clientIdInicio: d.clientId,
-          distanciaRetiroM: aRetiro.distanciaM, duracionRetiroS: aRetiro.duracionS, etaRetiro, etaDestino,
+          ...conEtapa(directo ? "HACIA_DESTINO" : "HACIA_RETIRO"), salidaReal, inicioEn: salidaReal, kmSalida: d.kmSalida, clientIdInicio: d.clientId,
+          distanciaRetiroM: directo ? 0 : aRetiro.distanciaM, duracionRetiroS: directo ? 0 : aRetiro.duracionS, etaRetiro, etaDestino,
+          distanciaDestinoM: aDestino.distanciaM, duracionDestinoS: aDestino.duracionS, motor: {},
+          ...(directo ? { llegadaRetiroEn: salidaReal, salidaRetiroEn: salidaReal } : {}),
         },
       });
       if (gps) {
         await tx.posicionVehiculo.create({ data: { vehiculoId: viaje.vehiculoId, viajeId: viaje.id, usuarioId: yo.id, fuente: "TELEFONO", latitud: gps.lat, longitud: gps.lng, precisionM: d.precisionM ?? null, motorEncendido: true, fecha: salidaReal } });
       }
       await notificar(viaje.pedido.solicitanteId, "VIAJE_INICIADO", {
-        ...TEXTO.iniciado(yo.nombre, { descripcion: viaje.pedido.descripcion, destino: viaje.pedido.destinoNombre, origen: viaje.pedido.origenNombre, distanciaM: aRetiro.distanciaM, etaRetiro, etaDestino }),
-        enlace: `/mis-pedidos/${viaje.pedido.id}`, datos: { pedidoId: viaje.pedido.id, distanciaM: aRetiro.distanciaM, eta: etaDestino.toISOString() },
+        ...(directo
+          ? TEXTO.salioDelRetiro(yo.nombre, { descripcion: viaje.pedido.descripcion, destino: viaje.pedido.destinoNombre, distanciaM: aDestino.distanciaM, etaDestino })
+          : TEXTO.iniciado(yo.nombre, { descripcion: viaje.pedido.descripcion, destino: viaje.pedido.destinoNombre, origen: viaje.pedido.origenNombre, distanciaM: aRetiro.distanciaM, etaRetiro: etaRetiro!, etaDestino })),
+        enlace: `/mis-pedidos/${viaje.pedido.id}`, datos: { pedidoId: viaje.pedido.id, distanciaM: directo ? aDestino.distanciaM : aRetiro.distanciaM, eta: etaDestino.toISOString() },
       }, { tx, copiaDireccion: true });
       await tx.pedidoViaje.update({ where: { id: d.pedidoId }, data: { estado: "EN_VIAJE" } });
       await alCambiarElViaje(tx, d.pedidoId, "EN_VIAJE", yo.id);
@@ -113,49 +125,57 @@ export async function iniciarViaje(entrada: DatosInicio): Promise<Resultado<{ ve
 const esquemaTramo = z.object({ clientId: z.string().uuid(), pedidoId: z.string().min(1), ocurridoEn: z.coerce.date().optional(), ...posicion });
 export type DatosTramo = z.input<typeof esquemaTramo>;
 
-/** Botón 2: llegó a donde se carga. Calcula el tramo a la obra y le avisa al que pidió. Idempotente. */
+/** A mano: "¿Ya llegaste? Marcar a mano" (llegó al retiro). Misma transición que el motor. Idempotente. */
 export async function llegueAlRetiro(entrada: DatosTramo): Promise<Resultado<{ etapa: string }>> {
   return ejecutar(async () => {
     const yo = await exigirPermiso("viajes.ejecutar");
     const d = esquemaTramo.parse(entrada);
-    const v = await db.viaje.findUnique({ where: { pedidoId: d.pedidoId }, include: { pedido: true } });
+    const v = await db.viaje.findUnique({ where: { pedidoId: d.pedidoId }, select: { id: true, choferId: true, etapa: true, inicioEn: true } });
     if (!v || v.choferId !== yo.id) throw new ErrorNegocio("Este viaje no es tuyo.");
-    if (v.etapa !== "HACIA_RETIRO") {
-      // Reenvío sin señal o doble toque: si ya pasó esta etapa, no hace nada.
-      if (["EN_RETIRO", "HACIA_DESTINO", "FINALIZADO"].includes(v.etapa)) return { etapa: v.etapa };
-      throw new ErrorNegocio("Primero iniciá el viaje.");
-    }
-    const aDestino = await rutaSegura(origenDe(v.pedido), destinoDe(v.pedido));
-    const cuando = momento(d.ocurridoEn, v.inicioEn);
-    const etaDestino = new Date(cuando.getTime() + (CARGA_S + aDestino.duracionS) * 1000);
-    await db.$transaction(async (tx) => {
-      const r = await tx.viaje.updateMany({
-        where: { id: v.id, etapa: "HACIA_RETIRO" },
-        data: { ...conEtapa("EN_RETIRO"), llegadaRetiroEn: cuando, distanciaDestinoM: aDestino.distanciaM, duracionDestinoS: aDestino.duracionS, etaDestino },
-      });
-      if (!r.count) return;
-      await notificar(v.pedido.solicitanteId, "LLEGO_RETIRO", {
-        ...TEXTO.enRetiro(yo.nombre, { descripcion: v.pedido.descripcion, destino: v.pedido.destinoNombre, origen: v.pedido.origenNombre, distanciaM: aDestino.distanciaM, etaDestino }),
-        enlace: `/mis-pedidos/${v.pedido.id}`, datos: { pedidoId: v.pedido.id, distanciaM: aDestino.distanciaM, eta: etaDestino.toISOString() },
-      }, { tx, copiaDireccion: true });
-      await auditar(tx, { usuarioId: yo.id, accion: "viaje.llegadaRetiro", entidadId: v.pedido.id, resumen: `${yo.nombre} llegó a ${v.pedido.origenNombre} a retirar ${await describirPedido(tx, v.pedido.id)}` });
-    });
+    if (v.etapa === "PROGRAMADO") throw new ErrorNegocio("Primero iniciá el viaje.");
+    // Reenvío sin señal o doble toque: si ya pasó esta etapa, no hace nada.
+    if (v.etapa === "HACIA_RETIRO") await transicionar(v.id, "EN_RETIRO", momento(d.ocurridoEn, v.inicioEn), { porGps: false, usuarioId: yo.id });
     refrescar();
-    return { etapa: "EN_RETIRO" };
+    return { etapa: (await db.viaje.findUniqueOrThrow({ where: { id: v.id }, select: { etapa: true } })).etapa };
   });
 }
 
-/** Botón chico: "Salgo hacia el destino" (si no lo toca, lo hace el GPS al alejarse 300 m). */
+/** Botón chico "Salgo ahora" (si no lo toca, lo detecta el motor al alejarse 300 m). */
 export async function salgoHaciaDestino(entrada: DatosTramo): Promise<Resultado<{ etapa: string }>> {
   return ejecutar(async () => {
     const yo = await exigirPermiso("viajes.ejecutar");
     const d = esquemaTramo.parse(entrada);
     const v = await db.viaje.findUnique({ where: { pedidoId: d.pedidoId }, select: { id: true, choferId: true, etapa: true, llegadaRetiroEn: true } });
     if (!v || v.choferId !== yo.id) throw new ErrorNegocio("Este viaje no es tuyo.");
-    if (v.etapa !== "EN_RETIRO") return { etapa: v.etapa };
-    await db.$transaction((tx) => salirDelRetiro(tx, v.id, momento(d.ocurridoEn, v.llegadaRetiroEn), false, yo.id));
+    if (v.etapa === "EN_RETIRO") await transicionar(v.id, "HACIA_DESTINO", momento(d.ocurridoEn, v.llegadaRetiroEn), { porGps: false, usuarioId: yo.id });
     refrescar();
-    return { etapa: "HACIA_DESTINO" };
+    return { etapa: (await db.viaje.findUniqueOrThrow({ where: { id: v.id }, select: { etapa: true } })).etapa };
+  });
+}
+
+/** A mano: "Marcar llegada a mano" (llegó a la obra). Lleva a la tarjeta de "Viaje terminado". */
+export async function llegueAlDestino(entrada: DatosTramo): Promise<Resultado<{ etapa: string }>> {
+  return ejecutar(async () => {
+    const yo = await exigirPermiso("viajes.ejecutar");
+    const d = esquemaTramo.parse(entrada);
+    const v = await db.viaje.findUnique({ where: { pedidoId: d.pedidoId }, select: { id: true, choferId: true, etapa: true, inicioEn: true } });
+    if (!v || v.choferId !== yo.id) throw new ErrorNegocio("Este viaje no es tuyo.");
+    if (v.etapa === "PROGRAMADO") throw new ErrorNegocio("Primero iniciá el viaje.");
+    if (["HACIA_RETIRO", "EN_RETIRO", "HACIA_DESTINO"].includes(v.etapa)) await transicionar(v.id, "EN_DESTINO", momento(d.ocurridoEn, v.inicioEn), { porGps: false, usuarioId: yo.id });
+    refrescar();
+    return { etapa: "EN_DESTINO" };
+  });
+}
+
+/** "Sí, estoy acá" / "No, todavía no" ante una llegada que detectó el GPS. */
+export async function responderLlegada(pedidoId: string, si: boolean): Promise<Resultado> {
+  return ejecutar(async () => {
+    const yo = await exigirPermiso("viajes.ejecutar");
+    const v = await db.viaje.findUnique({ where: { pedidoId }, select: { id: true, choferId: true } });
+    if (!v || v.choferId !== yo.id) throw new ErrorNegocio("Este viaje no es tuyo.");
+    await responderLlegadaMotor(v.id, si, yo.id, yo.nombre);
+    refrescar();
+    return null;
   });
 }
 
@@ -227,7 +247,8 @@ export async function finalizarViaje(entrada: DatosFin): Promise<Resultado<Resul
         data: { kmActual: Math.max(viaje.vehiculo.kmActual, d.kmLlegada), ...(viaje.vehiculo.estado === "EN_VIAJE" ? { estado: "DISPONIBLE" } : {}) },
       });
       const llego = viaje.llegadaDestinoEn ?? viaje.llegadaReal ?? momento(d.ocurridoEn, viaje.salidaReal);
-      await notificar(viaje.pedido.solicitanteId, "LLEGO_DESTINO", {
+      // Si ya se avisó la llegada (EN_DESTINO), no se repite.
+      if (viaje.etapa !== "EN_DESTINO") await notificar(viaje.pedido.solicitanteId, "LLEGO_DESTINO", {
         ...TEXTO.entregado({ descripcion: viaje.pedido.descripcion, destino: viaje.pedido.destinoNombre, llego }),
         enlace: `/mis-pedidos/${viaje.pedido.id}`, datos: { pedidoId: viaje.pedido.id, distanciaM: 0, eta: llego.toISOString() },
       }, { tx, copiaDireccion: true });

@@ -12,11 +12,12 @@ export type DatosSeguimiento = {
   estado: string;
   chofer: { nombre: string; telefono: string | null } | null;
   vehiculo: string | null;
-  pasos: { pedido: string; aceptado: string | null; retiro: string | null; entregado: string | null };
+  /** Aceptado · Salió · En el retiro · En camino · Entregado (fecha de cada uno cumplido). */
+  pasos: { aceptado: string | null; salio: string | null; retiro: string | null; enCamino: string | null; entregado: string | null };
   retiro: { nombre: string; lat: number; lng: number };
   destino: { nombre: string; lat: number; lng: number };
   /** Última posición del vehículo en este viaje (sin posiciones: sin mapa, solo el texto). */
-  posicion: { lat: number; lng: number; fecha: string } | null;
+  posicion: { lat: number; lng: number; fecha: string; fuente: "CUSAT" | "TELEFONO" | "MOCK" | null } | null;
   ruta: [number, number][] | null;
   distanciaM: number | null;
   eta: string | null;
@@ -33,26 +34,29 @@ export async function seguimiento(u: Pick<UsuarioSesion, "id" | "rol">, pedidoId
     where: conAlcance(u, { id: pedidoId }),
     include: {
       tomadoPor: { select: { nombre: true, telefono: true } },
-      viaje: { include: { vehiculo: { select: { nombre: true } }, posiciones: { orderBy: { fecha: "desc" }, take: 1 } } },
+      viaje: { include: { vehiculo: { select: { nombre: true, ultimaLat: true, ultimaLng: true, ultimaFechaGps: true, posiciones: { orderBy: { fecha: "desc" }, take: 1, select: { fuente: true } } } } } },
     },
   });
   if (!p) return null;
   const v = p.viaje && p.viaje.estado !== "CANCELADO" && p.estado !== "PENDIENTE" ? p.viaje : null;
   const etapa = v?.etapa ?? null;
-  const pos = v?.posiciones[0] ?? null;
-  const aqui = pos ? { lat: pos.latitud, lng: pos.longitud } : null;
+  // La posición es la del vehículo (Cusat, o el teléfono del chofer si Cusat no reporta).
+  const vh = v?.vehiculo;
+  const aqui = vh?.ultimaLat != null && vh.ultimaLng != null && vh.ultimaFechaGps ? { lat: vh.ultimaLat, lng: vh.ultimaLng } : null;
   const enCamino = etapa === "HACIA_RETIRO" || etapa === "HACIA_DESTINO";
   const hacia = etapa === "HACIA_RETIRO" ? origenDe(p) : destinoDe(p);
   const ruta = aqui && enCamino ? await rutaSegura(aqui, hacia) : null;
   const eta = etapa === "HACIA_RETIRO" ? v?.etaRetiro : etapa === "EN_RETIRO" || etapa === "HACIA_DESTINO" ? v?.etaDestino : null;
   const chofer = p.tomadoPor?.nombre ?? "El chofer";
   const llego = v?.llegadaDestinoEn ?? v?.llegadaReal ?? null;
+  const enObra = etapa === "EN_DESTINO";
 
   let frase: string;
   if (p.estado === "CANCELADO") frase = "Pedido cancelado.";
   else if (p.estado === "PENDIENTE") frase = "Pendiente, lo ven los choferes.";
   else if (p.estado === "ENTREGADO" || etapa === "FINALIZADO") frase = llego ? `Entregado ${hora(llego)}.` : "Entregado.";
   else if (etapa === "PROGRAMADO") frase = v?.salidaEstimada ? `${chofer} lo aceptó. Sale ${hora(v.salidaEstimada)} aprox.` : `${chofer} lo aceptó.`;
+  else if (enObra) frase = llego ? `${chofer} llegó a ${p.destinoNombre} a las ${hora(llego)}. Está descargando.` : `${chofer} llegó a ${p.destinoNombre}.`;
   else if (etapa === "EN_RETIRO") frase = `${chofer} está cargando en ${p.origenNombre}.`;
   else if (etapa === "HACIA_RETIRO") frase = `${chofer} va a ${p.origenNombre}${ruta ? `, está a ${metros(ruta.distanciaM)}` : ""}${eta ? `. Llega a ${p.destinoNombre} ${hora(v!.etaDestino ?? eta)} aprox.` : "."}`;
   else if (ruta && ruta.distanciaM < 200) frase = `${chofer} está llegando a ${p.destinoNombre}.`;
@@ -63,14 +67,15 @@ export async function seguimiento(u: Pick<UsuarioSesion, "id" | "rol">, pedidoId
     chofer: p.tomadoPor ? { nombre: p.tomadoPor.nombre, telefono: p.tomadoPor.telefono } : null,
     vehiculo: v?.vehiculo.nombre ?? null,
     pasos: {
-      pedido: p.creadoEn.toISOString(),
       aceptado: p.tomadoEn?.toISOString() ?? null,
-      retiro: (v?.llegadaRetiroEn ?? v?.salidaRetiroEn)?.toISOString() ?? null,
-      entregado: p.estado === "ENTREGADO" && llego ? llego.toISOString() : null,
+      salio: (v?.inicioEn ?? v?.salidaReal)?.toISOString() ?? null,
+      retiro: v?.llegadaRetiroEn?.toISOString() ?? null,
+      enCamino: v?.salidaRetiroEn?.toISOString() ?? null,
+      entregado: (enObra || p.estado === "ENTREGADO") && llego ? llego.toISOString() : null,
     },
     retiro: { nombre: p.origenNombre, ...origenDe(p) },
     destino: { nombre: p.destinoNombre, ...destinoDe(p) },
-    posicion: pos && aqui ? { ...aqui, fecha: pos.fecha.toISOString() } : null,
+    posicion: aqui && vh?.ultimaFechaGps ? { ...aqui, fecha: vh.ultimaFechaGps.toISOString(), fuente: vh.posiciones[0]?.fuente ?? null } : null,
     ruta: ruta?.geometria ?? null,
     distanciaM: ruta?.distanciaM ?? null,
     eta: eta?.toISOString() ?? null,

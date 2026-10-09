@@ -9,6 +9,8 @@ export function queLleva(descripcion: string) {
 }
 
 /** "el Camión Kia", "la Oroch". */
+/** "del Camión Mercedes 710", "de la Oroch". */
+const delVehiculo = (vehiculo: string) => conArticulo(vehiculo).replace(/^el /, "del ").replace(/^la /, "de la ");
 const conArticulo = (vehiculo: string) => `${/^(camioneta|oroch|kangoo|zanella)/i.test(vehiculo) ? "la" : "el"} ${vehiculo}`;
 
 type P = { descripcion: string; destino: string };
@@ -25,6 +27,18 @@ export const TEXTO = {
   enRetiro: (chofer: string, p: P & { origen: string; distanciaM: number; etaDestino: Date }) => ({
     titulo: `${chofer} está cargando tu pedido`,
     cuerpo: `${chofer} llegó a ${p.origen} y está cargando tu pedido. Llega a ${p.destino} ${hora(p.etaDestino)} aprox (${metros(p.distanciaM)}).`,
+  }),
+  salioDelRetiro: (chofer: string, p: P & { distanciaM: number; etaDestino: Date | null }) => ({
+    titulo: `${chofer} va camino a ${p.destino}`,
+    cuerpo: `${chofer} salió hacia ${p.destino} con tu pedido${p.etaDestino ? `, llega ${hora(p.etaDestino)} aprox` : ""} (${metros(p.distanciaM)}).`,
+  }),
+  llegoAlDestino: (chofer: string, p: P & { llego: Date }) => ({
+    titulo: `Tu pedido llegó a ${p.destino}`,
+    cuerpo: `${chofer} llegó a ${p.destino} con tu pedido de ${queLleva(p.descripcion)} a las ${hora(p.llego)}.`,
+  }),
+  sinSenal: (vehiculo: string, desde: Date) => ({
+    titulo: `Sin señal ${delVehiculo(vehiculo)}`,
+    cuerpo: `No tenemos señal ${delVehiculo(vehiculo)} desde las ${hora(desde)}. Cuando vuelva, el seguimiento sigue solo.`,
   }),
   entregado: (p: P & { llego: Date }) => ({
     titulo: `Llegó tu pedido a ${p.destino}`,

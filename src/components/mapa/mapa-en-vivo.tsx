@@ -30,7 +30,7 @@ function Hace({ fecha }: { fecha: string }) {
     const t = window.setInterval(() => setT((x) => x + 1), 5_000);
     return () => window.clearInterval(t);
   }, []);
-  return <>{haceSeg(fecha)}</>;
+  return <span suppressHydrationWarning>{haceSeg(fecha)}</span>;
 }
 
 function Lista({ datos, onElegir }: { datos: DatosMapa; onElegir: (id: string) => void }) {

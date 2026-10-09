@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { tokenValido } from "@/lib/cron/token";
 import { ETAPAS_EN_CURSO } from "@/lib/viajes/etapas";
 import { recalcularEta } from "@/lib/viajes/tramos";
+import { avisarSinSenal } from "@/lib/viajes/motor";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -12,7 +13,8 @@ const POSICION_VIGENTE_MS = 10 * 60_000;
 
 /**
  * Cada minuto: recalcula la hora estimada de los viajes en curso con su última posición y, si se
- * corrió más de 15 minutos respecto de lo que se le dijo al que pidió, le avisa una vez.
+ * corrió más de 15 minutos respecto de lo que se le dijo al que pidió, le avisa una vez. Y avisa
+ * los viajes que se quedaron sin señal.
  */
 async function correr(req: NextRequest) {
   if (!tokenValido(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -27,7 +29,9 @@ async function correr(req: NextRequest) {
     await recalcularEta(v, { lat: p.latitud, lng: p.longitud });
     recalculados++;
   }
-  return NextResponse.json({ ok: true, enCurso: viajes.length, recalculados });
+  // Viajes sin ninguna posición hace más de 10 minutos: se le avisa una vez al que pidió.
+  const sinSenal = await avisarSinSenal();
+  return NextResponse.json({ ok: true, enCurso: viajes.length, recalculados, sinSenal });
 }
 
 export const GET = correr;

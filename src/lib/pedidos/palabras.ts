@@ -44,6 +44,8 @@ export function etapaEnPalabras(etapa: EtapaViaje, origen: string, salidaEstimad
       return `Cargando en ${origen}`;
     case "HACIA_DESTINO":
       return "En camino a la obra";
+    case "EN_DESTINO":
+      return "Llegó a la obra";
     case "FINALIZADO":
       return "Entregado";
   }
@@ -53,6 +55,6 @@ export function etapaEnPalabras(etapa: EtapaViaje, origen: string, salidaEstimad
 export function horaEstimada(v: NonNullable<Viaje>) {
   if (v.etapa === "PROGRAMADO") return v.salidaEstimada ? `sale ${hora(v.salidaEstimada)}` : null;
   if (v.etapa === "HACIA_RETIRO") return v.etaRetiro ? `llega al retiro ${hora(v.etaRetiro)}` : null;
-  if (v.etapa === "FINALIZADO") return v.llegadaDestinoEn ?? v.llegadaReal ? `llegó ${hora((v.llegadaDestinoEn ?? v.llegadaReal)!)}` : null;
+  if (v.etapa === "FINALIZADO" || v.etapa === "EN_DESTINO") return v.llegadaDestinoEn ?? v.llegadaReal ? `llegó ${hora((v.llegadaDestinoEn ?? v.llegadaReal)!)}` : null;
   return v.etaDestino ? `llega ${hora(v.etaDestino)} aprox` : null;
 }
