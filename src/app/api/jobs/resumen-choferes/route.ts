@@ -2,8 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { tokenValido } from "@/lib/cron/token";
 import { finDelDia, inicioDelDia } from "@/lib/formato";
-import { notificar } from "@/lib/notificaciones";
-import { TEXTO } from "@/lib/notificaciones/textos";
+import { notificarEvento } from "@/lib/notificaciones/enviar";
+import { EVENTO } from "@/lib/notificaciones/eventos";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +24,7 @@ async function correr(req: NextRequest) {
       select: { salidaEstimada: true, pedido: { select: { descripcion: true, destinoNombre: true } } },
     });
     if (!viajes.length) continue;
-    await notificar(c.id, "GENERAL", { ...TEXTO.resumenDia(viajes.map((v) => ({ salida: v.salidaEstimada, descripcion: v.pedido.descripcion, destino: v.pedido.destinoNombre }))), enlace: "/hoy", datos: { resumen: true } });
+    await notificarEvento(EVENTO.resumenChofer({ choferId: c.id, viajes: viajes.map((v) => ({ salida: v.salidaEstimada, descripcion: v.pedido.descripcion, destino: v.pedido.destinoNombre })) }));
     avisados++;
   }
   return NextResponse.json({ ok: true, choferes: choferes.length, avisados });

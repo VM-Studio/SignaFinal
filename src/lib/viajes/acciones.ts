@@ -11,8 +11,8 @@ import { auditar, describirPedido, validarChoferYVehiculo } from "@/lib/pedidos/
 import { responsablePrincipal } from "@/lib/alcance";
 import { conEtapa } from "./etapas";
 import { baseDe, CARGA_S, destinoDe, origenDe, rutaSegura } from "./tramos";
-import { notificar } from "@/lib/notificaciones";
-import { TEXTO } from "@/lib/notificaciones/textos";
+import { baseViaje, notificarEvento } from "@/lib/notificaciones/enviar";
+import { EVENTO } from "@/lib/notificaciones/eventos";
 import { finDelDia, hora } from "@/lib/formato";
 import { guardarArchivo } from "@/lib/archivos";
 import { km as fmtKm } from "@/lib/formato";
@@ -103,12 +103,9 @@ export async function iniciarViaje(entrada: DatosInicio): Promise<Resultado<{ ve
       if (gps) {
         await tx.posicionVehiculo.create({ data: { vehiculoId: viaje.vehiculoId, viajeId: viaje.id, usuarioId: yo.id, fuente: "TELEFONO", latitud: gps.lat, longitud: gps.lng, precisionM: d.precisionM ?? null, motorEncendido: true, fecha: salidaReal } });
       }
-      await notificar(viaje.pedido.solicitanteId, "VIAJE_INICIADO", {
-        ...(directo
-          ? TEXTO.salioDelRetiro(yo.nombre, { descripcion: viaje.pedido.descripcion, destino: viaje.pedido.destinoNombre, distanciaM: aDestino.distanciaM, etaDestino })
-          : TEXTO.iniciado(yo.nombre, { descripcion: viaje.pedido.descripcion, destino: viaje.pedido.destinoNombre, origen: viaje.pedido.origenNombre, distanciaM: aRetiro.distanciaM, etaRetiro: etaRetiro!, etaDestino })),
-        enlace: `/mis-pedidos/${viaje.pedido.id}`, datos: { pedidoId: viaje.pedido.id, distanciaM: directo ? aDestino.distanciaM : aRetiro.distanciaM, eta: etaDestino.toISOString() },
-      }, { tx, copiaDireccion: true });
+      await notificarEvento(EVENTO.viajeSalio({
+        ...(await baseViaje(tx, viaje.pedido.id, yo.nombre)), origen: viaje.pedido.origenNombre, distanciaM: directo ? aDestino.distanciaM : aRetiro.distanciaM, etaRetiro, etaDestino, directo,
+      }), { tx, actor: yo.id });
       await tx.pedidoViaje.update({ where: { id: d.pedidoId }, data: { estado: "EN_VIAJE" } });
       await alCambiarElViaje(tx, d.pedidoId, "EN_VIAJE", yo.id);
       await tx.vehiculo.update({ where: { id: vehiculo.id }, data: { estado: "EN_VIAJE", kmActual: d.kmSalida } });
@@ -247,11 +244,7 @@ export async function finalizarViaje(entrada: DatosFin): Promise<Resultado<Resul
         data: { kmActual: Math.max(viaje.vehiculo.kmActual, d.kmLlegada), ...(viaje.vehiculo.estado === "EN_VIAJE" ? { estado: "DISPONIBLE" } : {}) },
       });
       const llego = viaje.llegadaDestinoEn ?? viaje.llegadaReal ?? momento(d.ocurridoEn, viaje.salidaReal);
-      // Si ya se avisó la llegada (EN_DESTINO), no se repite.
-      if (viaje.etapa !== "EN_DESTINO") await notificar(viaje.pedido.solicitanteId, "LLEGO_DESTINO", {
-        ...TEXTO.entregado({ descripcion: viaje.pedido.descripcion, destino: viaje.pedido.destinoNombre, llego }),
-        enlace: `/mis-pedidos/${viaje.pedido.id}`, datos: { pedidoId: viaje.pedido.id, distanciaM: 0, eta: llego.toISOString() },
-      }, { tx, copiaDireccion: true });
+      await notificarEvento(EVENTO.viajeTerminado({ ...(await baseViaje(tx, viaje.pedido.id, yo.nombre)), llego, km: recorridos }), { tx, actor: yo.id });
       await auditar(tx, {
         usuarioId: yo.id, accion: "viaje.finalizar", entidadId: d.pedidoId,
         resumen: `${yo.nombre} entregó ${await describirPedido(tx, d.pedidoId)}: ${recorridos} km`,

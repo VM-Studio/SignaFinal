@@ -2,8 +2,8 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { calcularRuta, rutaEstimada, type Ruta } from "@/lib/rutas";
-import { notificar } from "@/lib/notificaciones";
-import { TEXTO } from "@/lib/notificaciones/textos";
+import { baseViaje, notificarEvento } from "@/lib/notificaciones/enviar";
+import { EVENTO } from "@/lib/notificaciones/eventos";
 import type { Punto } from "@/lib/geo";
 
 /** Lo que se tarda en cargar en el punto de retiro (para estimar la llegada a la obra). */
@@ -48,11 +48,7 @@ export async function avisarSiHayDemora(v: ViajeConPedido, nuevaEta: Date) {
   if (avisos.some((a) => (a.datos as { demora?: boolean } | null)?.demora)) return false;
   const dicho = avisos.map((a) => (a.datos as { eta?: string } | null)?.eta).find(Boolean);
   if (!dicho || nuevaEta.getTime() - new Date(dicho).getTime() <= DEMORA_AVISO_MS) return false;
-  await notificar(v.pedido.solicitanteId, "GENERAL", {
-    ...TEXTO.demora(v.chofer.nombre, nuevaEta),
-    enlace: `/mis-pedidos/${v.pedido.id}`,
-    datos: { pedidoId: v.pedido.id, eta: nuevaEta.toISOString(), demora: true },
-  }, { copiaDireccion: true });
+  await notificarEvento(EVENTO.viajeDemora({ ...(await baseViaje(db, v.pedido.id, v.chofer.nombre)), eta: nuevaEta }));
   return true;
 }
 

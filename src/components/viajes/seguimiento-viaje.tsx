@@ -8,6 +8,7 @@ import { useAviso } from "@/components/ui/avisos";
 import { haceSeg, hora } from "@/lib/formato";
 import type { DatosSeguimiento } from "@/lib/viajes/seguimiento";
 import { avanzarSimulado, simularEtapa, type PasoDemo } from "@/lib/viajes/simulador";
+import { useAlCambiar } from "@/components/layout/avisos-en-vivo";
 
 const MapaSeguimiento = dynamic(() => import("@/components/mapa/mapa-seguimiento"), {
   ssr: false,
@@ -35,6 +36,9 @@ export function SeguimientoViaje({ pedidoId, inicial, demo = false }: { pedidoId
       // Sin señal: queda lo último que se vio y se reintenta en 20 s.
     }
   }, [pedidoId]);
+
+  // Cada aviso nuevo del viaje (aceptado, salió, llegó…) refresca el seguimiento sin esperar los 20 s.
+  useAlCambiar((tipo) => tipo === "aviso" && void actualizar());
 
   const vivo = d.etapa !== null && d.etapa !== "FINALIZADO" && d.estado !== "ENTREGADO" && d.estado !== "CANCELADO";
   useEffect(() => {

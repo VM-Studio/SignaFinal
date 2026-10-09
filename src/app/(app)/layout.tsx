@@ -11,6 +11,7 @@ import { SeguimientoChofer } from "@/components/viajes/seguimiento-chofer";
 import { BarraInferior, BarraLateral, HeaderMovil } from "@/components/layout/navegacion";
 import { ProveedorAvisos } from "@/components/ui/avisos";
 import { IndicadorConexion } from "@/components/layout/conexion";
+import { AvisosEnVivo } from "@/components/layout/avisos-en-vivo";
 
 export default async function LayoutApp({ children }: { children: React.ReactNode }) {
   const u = await exigirSesion();
@@ -34,9 +35,10 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
 
   return (
     <ProveedorAvisos>
-      <BarraLateral grupos={gruposEscritorio(u.rol)} perfil={perfil} avisos={avisos} />
+      <AvisosEnVivo inicial={avisos}>
+      <BarraLateral grupos={gruposEscritorio(u.rol)} perfil={perfil} />
       <div className="flex min-h-dvh flex-col bg-fondo lg:pl-60">
-        <HeaderMovil perfil={perfil} avisos={avisos} />
+        <HeaderMovil perfil={perfil} />
         <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-20 lg:top-0">
           <IndicadorConexion />
         </div>
@@ -45,6 +47,7 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
       <BarraInferior items={barraInferior(u.rol)} mas={menuMas(u.rol)} conSalir={chofer} nuevas={chofer ? { href: "/solicitudes", ultima: ultima?.toISOString() ?? null } : undefined} />
       {/* Mientras el chofer está en viaje, el teléfono manda su posición aunque navegue. */}
       {chofer && <SeguimientoChofer activo={enViaje} />}
+      </AvisosEnVivo>
     </ProveedorAvisos>
   );
 }

@@ -10,14 +10,15 @@ import { auditar as auditarBase } from "@/lib/auditoria";
 import { revalidar } from "@/lib/revalidar";
 import { reevaluar } from "@/lib/alertas/reevaluar";
 import { esObraDelUsuario } from "@/lib/alcance";
-import { notificar } from "@/lib/notificaciones";
-import { TEXTO_MATERIAL, queLleva } from "@/lib/notificaciones/textos";
-import { aFecha, diaISO, fecha, paraElDia, plata } from "@/lib/formato";
+import { notificarEvento } from "@/lib/notificaciones/enviar";
+import { EVENTO } from "@/lib/notificaciones/eventos";
+import { queLleva } from "@/lib/notificaciones/textos";
+import { aFecha, diaISO, fecha, plata } from "@/lib/formato";
 import { resolverPuntos } from "@/lib/pedidos/puntos";
 import { describirPedido, necesitaCamion } from "@/lib/pedidos/reglas";
-import { avisarUrgente } from "@/lib/pedidos/avisos";
+import { avisarSolicitudNueva } from "@/lib/pedidos/avisos";
 import { FRANJA } from "@/lib/pedidos/presentacion";
-import { cambiarEstado, enlaceMaterial, idsCompras, idsObra, recalcular } from "./circuito";
+import { cambiarEstado, recalcular } from "./circuito";
 
 type Tx = Prisma.TransactionClient;
 
@@ -31,6 +32,11 @@ const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const auditar = (tx: Tx, d: { usuarioId: string; accion: string; entidadId: string; resumen: string; antes?: Prisma.InputJsonValue; despues?: Prisma.InputJsonValue }) =>
   auditarBase(tx, { entidad: "PedidoMaterial", ...d });
+
+/** Lo común de los avisos de un pedido de material. */
+const deMaterial = (p: { id: string; solicitanteId: string; obraId: string; descripcion: string; obra: { nombre: string } }) => ({
+  pedidoMaterialId: p.id, solicitanteId: p.solicitanteId, obraId: p.obraId, que: p.descripcion, obra: p.obra.nombre,
+});
 
 /** "#12 (cemento portland) para Obra Darwin" */
 const describir = (p: { numero: number; descripcion: string; obra: { nombre: string } }) => `el pedido de material #${p.numero} (${queLleva(p.descripcion)}) para Obra ${p.obra.nombre}`;
@@ -93,14 +99,10 @@ export async function pedirMateriales(entrada: DatosPedirMateriales): Promise<Re
         resumen: `${yo.nombre} pidió a Compras ${queLleva(descripcion)}${d.renglones.length > 1 ? ` y ${d.renglones.length - 1} más` : ""} para Obra ${obra.nombre}${d.prioridad === "URGENTE" ? " (urgente)" : ""}${comoCompras ? ` a nombre de ${solicitante.nombre}` : ""}`,
         despues: { estado: "SOLICITADO", renglones: d.renglones, dia: d.dia, prioridad: d.prioridad },
       });
-      // A Compras, con copia al dueño. Si lo cargó Compras, no se avisa a sí mismo.
-      const texto = { ...TEXTO_MATERIAL.nuevo(solicitante.nombre, { que: descripcion, obra: obra.nombre, para: paraElDia(aFecha(d.dia, "12:00")), urgente: d.prioridad === "URGENTE" }), enlace: enlaceMaterial(p.id) };
-      const compras = (await idsCompras(tx)).filter((id) => id !== yo.id);
-      for (const [i, id] of compras.entries()) await notificar(id, "MATERIAL", texto, { tx, copiaDireccion: i === 0 });
-      if (!compras.length) {
-        const direccion = await tx.usuario.findMany({ where: { rol: "DIRECCION", activo: true, id: { not: yo.id } }, select: { id: true } });
-        for (const x of direccion) await notificar(x.id, "MATERIAL", texto, { tx, push: false });
-      }
+      // A Compras (push) y al dueño (bandeja). Si lo cargó Compras, no se avisa a sí mismo.
+      await notificarEvento(EVENTO.materialNuevo({
+        pedidoMaterialId: p.id, solicitanteId: solicitante.id, obraId: obra.id, que: descripcion, obra: obra.nombre, quien: solicitante.nombre, para: aFecha(d.dia, "12:00"), urgente: d.prioridad === "URGENTE",
+      }), { tx, actor: yo.id });
       return p;
     });
     refrescar();
@@ -147,9 +149,7 @@ export async function cancelarMaterial(id: string, motivo: string): Promise<Resu
       if (!ok) throw new ErrorNegocio("El pedido cambió mientras lo cancelabas.");
       await tx.materialListo.updateMany({ where: { pedidoMaterialId: id, estado: "LISTO" }, data: { estado: "CANCELADO" } });
       // Que se entere el otro lado.
-      const datos = { ...TEXTO_MATERIAL.cancelado(yo.nombre, { que: p.descripcion, obra: p.obra.nombre, motivo: m }), enlace: enlaceMaterial(id) };
-      const avisar = gestiona ? await idsObra(tx, p) : p.tomadoPorId ? [p.tomadoPorId] : await idsCompras(tx);
-      for (const uid of avisar.filter((x) => x !== yo.id)) await notificar(uid, "MATERIAL", datos, { tx });
+      await notificarEvento(EVENTO.materialCancelado({ ...deMaterial(p), quien: yo.nombre, motivo: m, porCompras: gestiona, compradorId: p.tomadoPorId }), { tx, actor: yo.id });
       await auditar(tx, { usuarioId: yo.id, accion: "material.cancelar", entidadId: id, resumen: `${yo.nombre} canceló ${describir(p)}: ${m}`, antes: { estado: p.estado }, despues: { estado: "CANCELADO", motivo: m } });
     });
     refrescar();
@@ -168,7 +168,7 @@ export async function tomarMaterial(id: string): Promise<Resultado> {
       exigirEstado(p, "SOLICITADO");
       const ok = await cambiarEstado(tx, p, "EN_COMPRA", yo.id, undefined, { tomadoPorId: yo.id, tomadoEn: new Date() });
       if (!ok) exigirEstado(await pedidoOError(tx, id), "SOLICITADO");
-      await notificar(p.solicitanteId, "MATERIAL", { ...TEXTO_MATERIAL.tomado(yo.nombre, { que: p.descripcion, obra: p.obra.nombre }), enlace: enlaceMaterial(id) }, { tx });
+      await notificarEvento(EVENTO.materialTomado({ ...deMaterial(p), comprador: yo.nombre }), { tx, actor: yo.id });
       await auditar(tx, { usuarioId: yo.id, accion: "material.tomar", entidadId: id, resumen: `${yo.nombre} tomó ${describir(p)} y lo está comprando`, antes: { estado: "SOLICITADO" }, despues: { estado: "EN_COMPRA" } });
     });
     refrescar();
@@ -195,10 +195,8 @@ export async function pedirAprobacion(entrada: DatosAprobacion): Promise<Resulta
       const nota = `OC ${d.ordenCompra.replace(/^\s*(OC)?\s*#?\s*/i, "")}${monto ? ` · ${plata(monto.toNumber())}` : ""}`;
       const ok = await cambiarEstado(tx, p, "ESPERANDO_APROBACION", yo.id, nota, { ordenCompraNumero: d.ordenCompra, montoAprobado: monto, ...(p.tomadoPorId ? {} : { tomadoPorId: yo.id, tomadoEn: new Date() }) });
       if (!ok) throw new ErrorNegocio("El pedido cambió. Actualizá la pantalla.");
-      const duenos = await tx.usuario.findMany({ where: { rol: "DIRECCION", activo: true }, select: { id: true } });
-      const texto = { ...TEXTO_MATERIAL.paraAprobar({ que: p.descripcion, obra: p.obra.nombre, oc: d.ordenCompra, monto: monto ? plata(monto.toNumber()) : null }), enlace: "/aprobaciones" };
-      for (const x of duenos) await notificar(x.id, "MATERIAL", texto, { tx });
-      await notificar(p.solicitanteId, "MATERIAL", { ...TEXTO_MATERIAL.esperando({ que: p.descripcion, obra: p.obra.nombre }), enlace: enlaceMaterial(p.id) }, { tx, push: false });
+      await notificarEvento(EVENTO.materialParaAprobar({ ...deMaterial(p), oc: d.ordenCompra, monto: monto ? plata(monto.toNumber()) : null }), { tx, actor: yo.id });
+      await notificarEvento(EVENTO.materialOcArmada(deMaterial(p)), { tx, actor: yo.id });
       await auditar(tx, { usuarioId: yo.id, accion: "material.pedirAprobacion", entidadId: p.id, resumen: `${yo.nombre} armó la ${nota} de ${describir(p)} y pidió la aprobación del dueño`, antes: { estado: "EN_COMPRA" }, despues: { estado: "ESPERANDO_APROBACION", ordenCompra: d.ordenCompra, monto: monto?.toString() ?? null } });
     });
     refrescar();
@@ -220,9 +218,7 @@ export async function aprobarMaterial(id: string, enPapel = false): Promise<Resu
       const nota = enPapel ? `El dueño aprobó en papel (lo marcó ${yo.nombre})` : undefined;
       const ok = await cambiarEstado(tx, p, "APROBADO", yo.id, nota, { aprobadoPorId: yo.id, aprobadoEn: new Date() });
       if (!ok) throw new ErrorNegocio("El pedido cambió. Actualizá la pantalla.");
-      const texto = { ...TEXTO_MATERIAL.aprobado({ que: p.descripcion, obra: p.obra.nombre, oc: p.ordenCompraNumero, enPapel }), enlace: enlaceMaterial(id) };
-      const avisar = [...new Set([...(p.tomadoPorId ? [p.tomadoPorId] : await idsCompras(tx)), ...(await idsObra(tx, p))])].filter((x) => x !== yo.id);
-      for (const uid of avisar) await notificar(uid, "MATERIAL", texto, { tx });
+      await notificarEvento(EVENTO.materialAprobado({ ...deMaterial(p), oc: p.ordenCompraNumero, enPapel, compradorId: p.tomadoPorId }), { tx, actor: yo.id });
       await auditar(tx, {
         usuarioId: yo.id, accion: enPapel ? "material.aprobadoEnPapel" : "material.aprobar", entidadId: id,
         resumen: enPapel ? `${yo.nombre} marcó que el dueño aprobó en papel ${describir(p)}` : `${yo.nombre} aprobó la OC de ${describir(p)}`,
@@ -261,8 +257,7 @@ export async function rechazarMaterial(id: string, motivo: string): Promise<Resu
       exigirEstado(p, "ESPERANDO_APROBACION");
       const ok = await cambiarEstado(tx, p, "EN_COMPRA", yo.id, `Rechazado: ${m}`);
       if (!ok) throw new ErrorNegocio("El pedido cambió. Actualizá la pantalla.");
-      const texto = { ...TEXTO_MATERIAL.rechazado({ que: p.descripcion, obra: p.obra.nombre, oc: p.ordenCompraNumero, motivo: m }), enlace: enlaceMaterial(id) };
-      for (const uid of p.tomadoPorId ? [p.tomadoPorId] : await idsCompras(tx)) await notificar(uid, "MATERIAL", texto, { tx });
+      await notificarEvento(EVENTO.materialRechazado({ ...deMaterial(p), oc: p.ordenCompraNumero, motivo: m, compradorId: p.tomadoPorId }), { tx, actor: yo.id });
       await auditar(tx, { usuarioId: yo.id, accion: "material.rechazar", entidadId: id, resumen: `${yo.nombre} rechazó la OC de ${describir(p)}: ${m}`, antes: { estado: "ESPERANDO_APROBACION" }, despues: { estado: "EN_COMPRA", motivo: m } });
     });
     refrescar();
@@ -317,10 +312,11 @@ export async function habilitarRetiro(entrada: DatosHabilitar): Promise<Resultad
       if (d.completo) await tx.pedidoMaterial.update({ where: { id: p.id }, data: { completo: true } });
       await recalcular(tx, p.id, yo.id, `${d.descripcion} · ${prov.nombre}${d.completo ? " · No falta nada" : ""}`);
 
-      const texto = d.modo === "ENTREGA_PROVEEDOR"
-        ? TEXTO_MATERIAL.loLlevaElProveedor({ que: d.descripcion, obra: p.obra.nombre, proveedor: prov.nombre, cuando: d.fechaEstimada ? `el ${fecha(aFecha(d.fechaEstimada, "12:00"))}` : null })
-        : TEXTO_MATERIAL.listo({ que: d.descripcion, obra: p.obra.nombre, proveedor: prov.nombre, horario: d.horario ?? null });
-      for (const uid of await idsObra(tx, p)) await notificar(uid, "MATERIAL", { ...texto, enlace: enlaceMaterial(p.id) }, { tx, copiaDireccion: false });
+      // Al que pidió y a los demás responsables de la obra (push); a Compras, bandeja.
+      await notificarEvento(EVENTO.materialHabilitado({
+        ...deMaterial(p), que: d.descripcion, proveedor: prov.nombre, horario: d.horario ?? null,
+        entregaProveedor: d.modo === "ENTREGA_PROVEEDOR", cuando: d.fechaEstimada ? `el ${fecha(aFecha(d.fechaEstimada, "12:00"))}` : null,
+      }), { tx, actor: yo.id });
       await auditar(tx, {
         usuarioId: yo.id, accion: "material.habilitar", entidadId: p.id,
         resumen: `${yo.nombre} habilitó ${queLleva(d.descripcion)} en ${prov.nombre} para Obra ${p.obra.nombre}${d.modo === "ENTREGA_PROVEEDOR" ? " (lo entrega el proveedor)" : ""}${d.completo ? "; no falta nada" : ""}`,
@@ -344,8 +340,7 @@ export async function marcarRecibido(materialListoId: string): Promise<Resultado
       const r = await tx.materialListo.updateMany({ where: { id: ml.id, estado: "EN_CAMINO" }, data: { estado: "ENTREGADO", entregadoEn: new Date() } });
       if (!r.count) throw new ErrorNegocio("Ya estaba marcado.");
       const cambio = await recalcular(tx, ml.pedidoMaterialId, yo.id, `Recibido en obra: ${ml.descripcion}`);
-      const texto = { ...TEXTO_MATERIAL.entregado({ que: ml.descripcion, obra: ml.pedidoMaterial.obra.nombre, completo: cambio?.a === "ENTREGADO" }), enlace: enlaceMaterial(ml.pedidoMaterialId) };
-      for (const uid of [...(await idsCompras(tx)), ...(await idsObra(tx, ml.pedidoMaterial))].filter((x) => x !== yo.id)) await notificar(uid, "MATERIAL", texto, { tx });
+      await notificarEvento(EVENTO.materialEntregado({ ...deMaterial(ml.pedidoMaterial), que: ml.descripcion, completo: cambio?.a === "ENTREGADO" }), { tx, actor: yo.id });
       await auditar(tx, { usuarioId: yo.id, accion: "material.recibido", entidadId: ml.pedidoMaterialId, resumen: `${yo.nombre} recibió en Obra ${ml.pedidoMaterial.obra.nombre} ${queLleva(ml.descripcion)} que entregó ${ml.proveedor.nombre}` });
     });
     refrescar();
@@ -428,7 +423,11 @@ export async function pedirRetiro(entrada: DatosRetiro): Promise<Resultado<{ ped
             await tx.pedidoViaje.update({ where: { id: viejo }, data: { estado: "CANCELADO", motivoCancelacion: "Se volvió a pedir el retiro", canceladoEn: new Date() } });
           }
         }
-        for (const pmId of new Set(grupo.map((m) => m.pedidoMaterialId))) await recalcular(tx, pmId, yo.id, `Viaje #${p.numero} pedido`);
+        for (const pmId of new Set(grupo.map((m) => m.pedidoMaterialId))) {
+          await recalcular(tx, pmId, yo.id, `Viaje #${p.numero} pedido`);
+          const pm = await tx.pedidoMaterial.findUniqueOrThrow({ where: { id: pmId }, include: { obra: { select: { nombre: true } } } });
+          await notificarEvento(EVENTO.materialRetiroPedido({ ...deMaterial(pm), quien: yo.nombre, proveedor: primero.proveedor.nombre }), { tx, actor: yo.id });
+        }
         await auditarBase(tx, {
           usuarioId: yo.id, accion: "pedido.crear", entidad: "PedidoViaje", entidadId: p.id,
           resumen: `${yo.nombre} pidió el retiro en ${primero.proveedor.nombre} de ${grupo.map((m) => queLleva(m.descripcion)).join(" + ")} para Obra ${obra.nombre}${d.prioridad === "URGENTE" ? " (urgente)" : ""}`,
@@ -439,7 +438,7 @@ export async function pedirRetiro(entrada: DatosRetiro): Promise<Resultado<{ ped
       return out;
     });
     refrescar();
-    if (d.prioridad === "URGENTE") for (const p of creados) await avisarUrgente(p.id);
+    for (const p of creados) await avisarSolicitudNueva(p.id, yo.id);
     return { pedidos: creados };
   });
 }

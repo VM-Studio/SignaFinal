@@ -16,8 +16,9 @@ import { auditar, depositoId, moverUnitaria, restar, siguienteCodigo, stockEn, s
 import { auditar as auditarBase } from "@/lib/auditoria";
 import { conAlcance, esObraDelUsuario } from "@/lib/alcance";
 import { resolverPuntos } from "@/lib/pedidos/puntos";
-import { notificar } from "@/lib/notificaciones";
-import { avisarUrgente } from "@/lib/pedidos/avisos";
+import { avisarSolicitudNueva } from "@/lib/pedidos/avisos";
+import { notificarEvento } from "@/lib/notificaciones/enviar";
+import { EVENTO } from "@/lib/notificaciones/eventos";
 
 /** Refresca pantallas y reevalúa las alertas del módulo (resuelve solas las que ya no aplican). */
 const refrescar = () => {
@@ -475,19 +476,15 @@ export async function pedirHerramienta(entrada: DatosPedirHerramienta): Promise<
       });
       // Al que lo pidió primero: que sepa que otro también lo necesitaba.
       if (igual && igual.solicitanteId !== yo.id) {
-        await notificar(igual.solicitante.id, "DUPLICADO", {
-          titulo: `${yo.nombre} también pidió ${h.nombre} para Obra ${obra.nombre}`,
-          cuerpo: `Es ${paraElDia(fechaNecesaria)}, igual que el tuyo. Motivo: ${d.motivo}`,
-          enlace: `/mis-pedidos/${igual.id}`, datos: { pedidoId: p.id, motivo: d.motivo ?? null },
-        }, { tx });
+        await notificarEvento(EVENTO.herramientaDuplicada({
+          primeroId: igual.solicitante.id, pedidoPrimeroId: igual.id, pedidoId: p.id, obraId: obra.id, quien: yo.nombre, herramienta: h.nombre, obra: obra.nombre, cuando: fechaNecesaria, motivo: d.motivo ?? null,
+        }), { tx, actor: yo.id });
       }
       // Si sale de otra obra, le avisa a quienes la tienen ahí.
-      for (const r of responsablesOrigen) {
-        await notificar(r.usuario.id, "GENERAL", {
-          titulo: `${yo.nombre} pidió ${h.nombre} que está en Obra ${desdeObra!.nombre}`,
-          cuerpo: `La van a buscar para llevarla a Obra ${obra.nombre} ${paraElDia(fechaNecesaria)}.`,
-          enlace: `/herramientas/${h.id}`, datos: { pedidoId: p.id },
-        }, { tx });
+      if (responsablesOrigen.length) {
+        await notificarEvento(EVENTO.herramientaPedidaEnTuObra({
+          usuarioIds: responsablesOrigen.map((r) => r.usuario.id), herramientaId: h.id, pedidoId: p.id, quien: yo.nombre, herramienta: h.nombre, desdeObra: desdeObra!.nombre, obra: obra.nombre, cuando: fechaNecesaria,
+        }), { tx, actor: yo.id });
       }
       await auditarBase(tx, {
         usuarioId: yo.id, accion: igual ? "pedido.crear.noEraDuplicado" : "pedido.crear", entidad: "PedidoViaje", entidadId: p.id,
@@ -497,7 +494,7 @@ export async function pedirHerramienta(entrada: DatosPedirHerramienta): Promise<
       return p;
     });
     refrescar();
-    if (d.prioridad === "URGENTE") await avisarUrgente(pedido.id);
+    await avisarSolicitudNueva(pedido.id, yo.id);
     return {
       estado: "creado", pedidoId: pedido.id, numero: pedido.numero, choferes: await choferesQueLoVen(h.esMaquina),
       avisado: responsablesOrigen.length ? responsablesOrigen.map((r) => r.usuario.nombre).join(" y ") : null,

@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { obtenerSesion } from "@/lib/auth/sesion";
-import { contarAvisos } from "@/lib/avisos/consultas";
+import { estadoAvisos } from "@/lib/avisos/estado";
 
 export const dynamic = "force-dynamic";
 
-/** Para la campana (polling cada 30 s). */
+/** Respaldo de la campana si el stream no anda (proxy, red mala): polling cada 15 s. */
 export async function GET() {
-  if (!(await obtenerSesion())) return NextResponse.json({ avisos: 0 }, { status: 401 });
-  return NextResponse.json({ avisos: await contarAvisos() }, { headers: { "Cache-Control": "no-store" } });
+  const u = await obtenerSesion();
+  if (!u) return NextResponse.json({ n: 0 }, { status: 401 });
+  return NextResponse.json(await estadoAvisos(u), { headers: { "Cache-Control": "no-store" } });
 }

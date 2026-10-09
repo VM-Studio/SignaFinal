@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BellRing } from "lucide-react";
+import { BellRing, Send } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
+import { enviarmePrueba } from "@/lib/avisos/acciones";
 
 type Estado = "cargando" | "activadas" | "inactivas" | "bloqueadas" | "no-soportado" | "ios-sin-instalar";
 
@@ -32,7 +33,12 @@ export function EstadoPush() {
     navigator.serviceWorker
       .getRegistration()
       .then((r) => (r ? r.pushManager.getSubscription() : null))
-      .then((s) => setEstado(s && Notification.permission === "granted" ? "activadas" : "inactivas"))
+      .then(async (s) => {
+        const activas = !!s && Notification.permission === "granted";
+        setEstado(activas ? "activadas" : "inactivas");
+        // Si en este celular entró otra persona, la suscripción pasa a ser suya (una por usuario y dispositivo).
+        if (activas) await fetch("/api/push/suscribir", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s!.toJSON()) }).catch(() => {});
+      })
       .catch(() => setEstado("inactivas"));
   }, []);
 
@@ -53,6 +59,13 @@ export function EstadoPush() {
       setError("No se pudieron activar. Probá de nuevo.");
       setEstado("inactivas");
     }
+  }
+
+  const [prueba, setPrueba] = useState<{ cargando: boolean; texto: string | null; ok: boolean }>({ cargando: false, texto: null, ok: true });
+  async function probar() {
+    setPrueba({ cargando: true, texto: null, ok: true });
+    const r = await enviarmePrueba();
+    setPrueba(r.ok ? { cargando: false, ok: true, texto: `Listo: te la mandamos a ${r.datos.enviadas === 1 ? "tu celular" : `${r.datos.enviadas} celulares`}. Tiene que llegar en unos segundos.` } : { cargando: false, ok: false, texto: r.error });
   }
 
   async function desactivar() {
@@ -76,12 +89,14 @@ export function EstadoPush() {
       </p>
       {estado === "activadas" && (
         <>
-          <p className="mt-1 font-semibold text-ok">Activados: te llegan aunque no tengas la app abierta.</p>
+          <p className="mt-1 font-semibold text-ok">Activados en este dispositivo: te llegan aunque no tengas la app abierta.</p>
+          <Boton className="mt-3" ancho variante="secundario" cargando={prueba.cargando} icono={<Send className="size-4" />} onClick={probar}>Enviarme una prueba</Boton>
+          {prueba.texto && <p role="status" className={`mt-2 text-sm font-medium ${prueba.ok ? "text-ok" : "text-critico"}`}>{prueba.texto}</p>}
           <button onClick={desactivar} className="mt-2 text-sm font-semibold text-suave underline">Desactivar en este celular</button>
         </>
       )}
-      {estado === "bloqueadas" && <p className="mt-1 text-sm text-suave">Están bloqueados en el navegador. Habilitalos en los permisos del sitio y volvé acá.</p>}
-      {estado === "no-soportado" && <p className="mt-1 text-sm text-suave">Este navegador no los admite. Instalá la app en la pantalla de inicio del celular.</p>}
+      {estado === "bloqueadas" && <p className="mt-1 text-sm font-semibold text-critico">Bloqueados por el navegador. Tocá el candado de la barra de direcciones → Notificaciones → Permitir, y volvé acá.</p>}
+      {estado === "no-soportado" && <p className="mt-1 text-sm text-suave">Este navegador no admite avisos. Abrí la app con Chrome (Android) o instalala en la pantalla de inicio.</p>}
       {estado === "ios-sin-instalar" && (
         <p className="mt-1 text-sm text-suave">En iPhone los avisos funcionan solo con la app instalada: tocá Compartir → “Agregar a inicio” y abrila desde ahí.</p>
       )}

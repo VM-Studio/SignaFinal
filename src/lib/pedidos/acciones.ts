@@ -13,9 +13,9 @@ import { auditar, buscarDuplicado, choferesQueLoVen, describirPedido, necesitaCa
 import { resolverPuntos } from "./puntos";
 import { esObraDelUsuario } from "@/lib/alcance";
 import { conEtapa } from "@/lib/viajes/etapas";
-import { notificar } from "@/lib/notificaciones";
-import { avisarUrgente } from "./avisos";
-import { TEXTO } from "@/lib/notificaciones/textos";
+import { avisarSolicitudNueva } from "./avisos";
+import { baseViaje, notificarEvento } from "@/lib/notificaciones/enviar";
+import { EVENTO } from "@/lib/notificaciones/eventos";
 import { FRANJA } from "./presentacion";
 import { alCambiarElViaje } from "@/lib/materiales/circuito";
 
@@ -136,7 +136,7 @@ export async function crearPedido(entrada: DatosPedido): Promise<Resultado<Respu
     });
 
     refrescar();
-    if (d.prioridad === "URGENTE") await avisarUrgente(pedido.id);
+    await avisarSolicitudNueva(pedido.id, yo.id);
     return { estado: "creado", id: pedido.id, numero: pedido.numero, choferes: await choferesQueLoVen(camion) } as const;
   });
 }
@@ -215,10 +215,7 @@ export async function tomarPedido(entrada: DatosTomar): Promise<Resultado<{ nume
         resumen: `${yo.nombre} aceptó ${await describirPedido(tx, pedido.id)} con ${vehiculo.nombre}`,
         antes: { estado: "PENDIENTE" }, despues: { estado: "TOMADO", chofer: yo.nombre, vehiculo: vehiculo.nombre, salida: salidaEstimada.toISOString() },
       });
-      await notificar(pedido.solicitanteId, "PEDIDO_ACEPTADO", {
-        ...TEXTO.aceptado(yo.nombre, { descripcion: pedido.descripcion, destino: pedido.destinoNombre, salida: salidaEstimada, vehiculo: vehiculo.nombre }),
-        enlace: `/mis-pedidos/${pedido.id}`, datos: { pedidoId: pedido.id, salida: salidaEstimada.toISOString() },
-      }, { tx, copiaDireccion: true });
+      await notificarEvento(EVENTO.pedidoAceptado({ ...(await baseViaje(tx, pedido.id, yo.nombre)), choferId: yo.id, salida: salidaEstimada, vehiculo: vehiculo.nombre }), { tx, actor: yo.id });
       return { numero: pedido.numero, vehiculo: vehiculo.nombre, salida: hora(salidaEstimada) };
     });
 
@@ -240,8 +237,7 @@ export async function soltarPedido(pedidoId: string): Promise<Resultado<{ vehicu
       const viaje = await tx.viaje.findUnique({ where: { pedidoId } });
       if (viaje) await tx.viaje.update({ where: { pedidoId }, data: { estado: "CANCELADO", ordenRuta: null } });
       await alCambiarElViaje(tx, pedidoId, "LIBERADO", yo.id);
-      const p = await tx.pedidoViaje.findUniqueOrThrow({ where: { id: pedidoId }, select: { numero: true, solicitanteId: true } });
-      await notificar(p.solicitanteId, "PEDIDO_SOLTADO", { ...TEXTO.soltado(yo.nombre), enlace: `/mis-pedidos/${pedidoId}`, datos: { pedidoId } }, { tx, copiaDireccion: true });
+      await notificarEvento(EVENTO.pedidoSoltado(await baseViaje(tx, pedidoId, yo.nombre)), { tx, actor: yo.id });
       await auditar(tx, { usuarioId: yo.id, accion: "pedido.soltar", entidadId: pedidoId, resumen: `${yo.nombre} soltó ${await describirPedido(tx, pedidoId)}: vuelve a las solicitudes`, antes: { estado: "TOMADO", chofer: yo.nombre }, despues: { estado: "PENDIENTE" } });
       // Para poder deshacer: con qué vehículo y a qué hora iba a salir.
       return viaje ? { vehiculoId: viaje.vehiculoId, salida: viaje.salidaEstimada ? hora(viaje.salidaEstimada) : "08:00" } : null;
@@ -277,13 +273,8 @@ export async function cancelarPedido(pedidoId: string, motivo: string): Promise<
       if (!r.count) throw new ErrorNegocio("El pedido cambió mientras lo cancelabas.");
       await tx.viaje.updateMany({ where: { pedidoId, estado: "PROGRAMADO" }, data: { estado: "CANCELADO", ordenRuta: null } });
       await alCambiarElViaje(tx, pedidoId, "CANCELADO", yo.id);
-      // Si ya lo había aceptado un chofer, que sepa que no tiene que ir.
-      if (pedido.tomadoPorId && pedido.tomadoPorId !== yo.id) {
-        await notificar(pedido.tomadoPorId, "PEDIDO_CANCELADO", {
-          ...TEXTO.cancelado(yo.nombre, { descripcion: pedido.descripcion, destino: pedido.destinoNombre, motivo: m }),
-          enlace: "/hoy", datos: { pedidoId },
-        }, { tx });
-      }
+      // Al que lo pidió (si no fue él) y al chofer que lo había aceptado: que no tiene que ir.
+      await notificarEvento(EVENTO.pedidoCancelado({ ...(await baseViaje(tx, pedidoId)), quien: yo.nombre, motivo: m, choferId: pedido.tomadoPorId }), { tx, actor: yo.id });
       await auditar(tx, { usuarioId: yo.id, accion: "pedido.cancelar", entidadId: pedidoId, resumen: `${yo.nombre} canceló ${await describirPedido(tx, pedidoId)}: ${m}`, antes: { estado: pedido.estado }, despues: { estado: "CANCELADO", motivo: m } });
     });
     refrescar();
@@ -339,6 +330,8 @@ export async function reasignarPedido(entrada: DatosReasignar): Promise<Resultad
       const viaje = { vehiculoId: vehiculo.id, choferId: d.choferId, ...conEtapa("PROGRAMADO"), salidaEstimada, ordenRuta: await siguienteEnRuta(tx, d.choferId) };
       await tx.viaje.upsert({ where: { pedidoId: pedido.id }, create: { pedidoId: pedido.id, ...viaje }, update: viaje });
       await alCambiarElViaje(tx, pedido.id, "TOMADO", yo.id);
+      // Al que pidió y al chofer al que se lo asignaron (push a los dos).
+      await notificarEvento(EVENTO.pedidoAceptado({ ...(await baseViaje(tx, pedido.id, chofer.nombre)), choferId: d.choferId, salida: salidaEstimada, vehiculo: vehiculo.nombre }), { tx, actor: yo.id });
       await auditar(tx, {
         usuarioId: yo.id, accion: "pedido.reasignar", entidadId: pedido.id,
         resumen: `${yo.nombre} le pasó ${await describirPedido(tx, pedido.id)} a ${chofer.nombre}${pedido.tomadoPor ? ` (lo tenía ${pedido.tomadoPor.nombre})` : ""}`,

@@ -13,6 +13,7 @@ import { metros, minutos } from "@/lib/rutas";
 import type { PantallaViaje as Datos } from "@/lib/viajes/chofer";
 import { BotonEtapa, BotonLlegueDestino, BotonLlegueRetiro, BotonSalgo, ConfirmarLlegada } from "./acciones-viaje";
 import { PendienteEnvio } from "./pendiente-envio";
+import { useAlCambiar } from "@/components/layout/avisos-en-vivo";
 import { BotonSoltar } from "@/components/pedidos/acciones-detalle";
 
 const MapaTramo = dynamic(() => import("@/components/mapa/mapa-tramo"), {
@@ -40,6 +41,9 @@ export function PantallaViaje({ d }: { d: Datos }) {
     const t = window.setInterval(() => !document.hidden && router.refresh(), REFRESCO_MS);
     return () => window.clearInterval(t);
   }, [d.etapa, router]);
+
+  // Si el GPS cambió la etapa (el stream de avisos lo detecta), se refresca al instante.
+  useAlCambiar((tipo) => tipo === "viaje" && router.refresh());
 
   const base = { pedidoId: d.pedidoId, numero: d.numero, onGuardadoLocal: (a: EtapaViaje) => setLocal({ de: d.etapa, a }) };
   const aRetiro = etapa === "PROGRAMADO" || etapa === "HACIA_RETIRO";

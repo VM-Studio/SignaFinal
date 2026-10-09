@@ -6,6 +6,7 @@ import { exigirPermiso } from "@/lib/auth/sesion";
 import { puede } from "@/lib/permisos";
 import { ejecutar, ErrorNegocio, type Resultado } from "@/lib/resultado";
 import { evaluarAlertas } from "./index";
+import { avisarAlertas } from "./avisar";
 import { auditar } from "@/lib/auditoria";
 
 /** "Ya la vi": deja de contar en la campana, pero sigue abierta hasta que se resuelva sola. */
@@ -27,6 +28,7 @@ export async function revisarAhora(): Promise<Resultado<{ activas: number }>> {
     const u = await exigirPermiso("alertas.ver");
     if (!puede(u.rol, "costos.ver")) throw new ErrorNegocio("Solo Dirección y Administración.");
     const r = await evaluarAlertas();
+    await avisarAlertas(r.nuevas);
     await auditar(db, { usuarioId: u.id, accion: "alerta.revisar", entidad: "Alerta", entidadId: "todas", resumen: `${u.nombre} revisó las alertas: ${r.activas} activas` });
     revalidar("avisos", "flota");
     return { activas: r.activas };

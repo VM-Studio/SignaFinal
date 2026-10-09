@@ -1,8 +1,7 @@
 import "server-only";
 import type { EstadoMaterial, EstadoMaterialListo, Prisma } from "@prisma/client";
-import { notificar } from "@/lib/notificaciones";
-import { TEXTO_MATERIAL } from "@/lib/notificaciones/textos";
-import { responsablePrincipal } from "@/lib/alcance";
+import { notificarEvento } from "@/lib/notificaciones/enviar";
+import { EVENTO } from "@/lib/notificaciones/eventos";
 
 type Tx = Prisma.TransactionClient;
 
@@ -44,17 +43,6 @@ export async function recalcular(tx: Tx, pedidoMaterialId: string, usuarioId: st
   return { de: pm.estado, a };
 }
 
-/** Compras: todos los usuarios activos del rol. */
-export async function idsCompras(tx: Tx) {
-  return (await tx.usuario.findMany({ where: { rol: "COMPRAS", activo: true }, select: { id: true } })).map((u) => u.id);
-}
-
-/** El que pidió y el responsable principal de la obra (si son distintos, los dos). */
-export async function idsObra(tx: Tx, pm: { solicitanteId: string; obraId: string }) {
-  const principal = await responsablePrincipal(tx, pm.obraId);
-  return [...new Set([pm.solicitanteId, ...(principal ? [principal.id] : [])])];
-}
-
 /** Lo que le pasa al viaje de retiro y cómo se mueve el material. */
 export type EventoViaje = "TOMADO" | "EN_VIAJE" | "ENTREGADO" | "LIBERADO" | "CANCELADO";
 
@@ -89,27 +77,14 @@ export async function alCambiarElViaje(tx: Tx, pedidoViajeId: string, evento: Ev
 
   const viaje = await tx.pedidoViaje.findUnique({ where: { id: pedidoViajeId }, select: { solicitanteId: true, numero: true, tomadoPor: { select: { nombre: true } } } });
   const nota = { TOMADO: `Viaje #${viaje?.numero} aceptado`, EN_VIAJE: `Viaje #${viaje?.numero} en camino`, ENTREGADO: `Viaje #${viaje?.numero} entregado`, LIBERADO: `El chofer soltó el viaje #${viaje?.numero}`, CANCELADO: `Se canceló el viaje #${viaje?.numero}` }[evento];
-  const compras = await idsCompras(tx);
 
-  for (const pm of new Map(listos.map((m) => [m.pedidoMaterial.id, m])).values()) {
-    const cambio = await recalcular(tx, pm.pedidoMaterial.id, usuarioId, nota);
-    const datos = { que: pm.descripcion, obra: pm.pedidoMaterial.obra.nombre };
-    const enlace = enlaceMaterial(pm.pedidoMaterial.id);
-    // El que pidió el viaje ya recibe los avisos del viaje: el del material es para los demás (o sin push).
-    const pushObra = pm.pedidoMaterial.solicitanteId !== viaje?.solicitanteId;
-    if (evento === "EN_VIAJE" && pushObra) {
-      await notificar(pm.pedidoMaterial.solicitanteId, "MATERIAL", { ...TEXTO_MATERIAL.enCamino({ ...datos, chofer: viaje?.tomadoPor?.nombre ?? "El chofer", proveedor: pm.proveedor.nombre }), enlace }, { tx });
-    }
-    if (evento === "ENTREGADO") {
-      const completo = cambio?.a === "ENTREGADO";
-      const texto = { ...TEXTO_MATERIAL.entregado({ ...datos, completo }), enlace: enlaceMaterial(pm.pedidoMaterial.id) };
-      for (const id of compras) await notificar(id, "MATERIAL", texto, { tx });
-      await notificar(pm.pedidoMaterial.solicitanteId, "MATERIAL", texto, { tx, push: pushObra });
-    }
+  for (const m of new Map(listos.map((x) => [x.pedidoMaterial.id, x])).values()) {
+    const cambio = await recalcular(tx, m.pedidoMaterial.id, usuarioId, nota);
+    const base = { pedidoMaterialId: m.pedidoMaterial.id, solicitanteId: m.pedidoMaterial.solicitanteId, obraId: m.pedidoMaterial.obraId, que: m.descripcion, obra: m.pedidoMaterial.obra.nombre };
+    // En viaje: los avisos de las etapas del viaje ya le llegan al que pidió y a Compras (eventos.ts).
+    if (evento === "ENTREGADO") await notificarEvento(EVENTO.materialEntregado({ ...base, completo: cambio?.a === "ENTREGADO" }), { tx, actor: usuarioId });
     if (evento === "LIBERADO" || evento === "CANCELADO") {
-      const texto = { ...TEXTO_MATERIAL.vuelveAListo({ ...datos, proveedor: pm.proveedor.nombre, motivo: evento === "LIBERADO" ? `${viaje?.tomadoPor?.nombre ?? "El chofer"} soltó el viaje` : "Se canceló el viaje" }), enlace };
-      for (const id of compras) await notificar(id, "MATERIAL", texto, { tx, push: false });
-      if (pushObra) await notificar(pm.pedidoMaterial.solicitanteId, "MATERIAL", texto, { tx });
+      await notificarEvento(EVENTO.materialVuelveAListo({ ...base, proveedor: m.proveedor.nombre, motivo: evento === "LIBERADO" ? `${viaje?.tomadoPor?.nombre ?? "El chofer"} soltó el viaje` : "Se canceló el viaje" }), { tx, actor: usuarioId });
     }
   }
 }

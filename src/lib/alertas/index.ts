@@ -27,13 +27,16 @@ export async function evaluarAlertas(modulos?: Modulo[]) {
   const personas = (a: AlertaCalculada) =>
     personasDeRegla(a.regla, [a.usuarioId, ...(a.usuarios ?? [])].filter((id): id is string => !!id && roles.has(id)).map((id) => ({ id, rol: roles.get(id)! })));
 
+  // Las que hay que avisar: recién creadas, reabiertas o que pasaron a críticas (vencidas). Nunca al reevaluarse.
+  const nuevas: (AlertaCalculada & { personas: string[] })[] = [];
   await db.$transaction(async (tx) => {
     for (const a of calculadas) {
       const datos = {
         regla: a.regla, severidad: a.severidad, titulo: a.titulo, detalle: a.detalle, entidadTipo: a.entidadTipo, entidadId: a.entidadId, enlace: a.enlace,
         obraId: a.obraId ?? null, usuarioId: a.usuarioId ?? null, rolesDestino: rolesDeRegla(a.regla), usuariosDestino: personas(a),
       };
-      const previa = await tx.alerta.findUnique({ where: { claveUnica: a.claveUnica }, select: { estado: true } });
+      const previa = await tx.alerta.findUnique({ where: { claveUnica: a.claveUnica }, select: { estado: true, severidad: true } });
+      if (!previa || previa.estado === "RESUELTA" || (previa.severidad !== "CRITICA" && a.severidad === "CRITICA")) nuevas.push({ ...a, personas: datos.usuariosDestino });
       if (!previa) await tx.alerta.create({ data: { claveUnica: a.claveUnica, ...datos } });
       // Si estaba resuelta y el problema volvió, se reabre; si estaba vista, sigue vista.
       else await tx.alerta.update({ where: { claveUnica: a.claveUnica }, data: { ...datos, ...(previa.estado === "RESUELTA" ? { estado: "ABIERTA", resueltaEn: null, creadaEn: ahora } : {}) } });
@@ -44,7 +47,7 @@ export async function evaluarAlertas(modulos?: Modulo[]) {
     });
   }, { timeout: 60_000 });
 
-  return { reglas: reglas.length, activas: calculadas.length };
+  return { reglas: reglas.length, activas: calculadas.length, nuevas };
 }
 
 export type { Modulo };

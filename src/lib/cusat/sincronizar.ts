@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { evaluarAlertas } from "@/lib/alertas";
+import { avisarAlertas } from "@/lib/alertas/avisar";
 import { distancia } from "@/lib/geo";
 import { fuenteCusat } from "./index";
 import { emparejar } from "./emparejar";
@@ -69,7 +70,7 @@ async function sincronizarAhora() {
       const m = await evaluarViaje(viajeId, { lat: p.latitud, lng: p.longitud, velocidadKmh: p.velocidad, fecha: p.fecha, fuente: fuente.modo === "mock" ? "MOCK" : "CUSAT" });
       if (m.transicion) eventos.push(`${p.vehiculoId}: ${m.transicion.a}`);
     }
-    await evaluarAlertas(["cusat", "pedidos"]);
+    await avisarAlertas((await evaluarAlertas(["cusat", "pedidos"])).nuevas);
 
     const resumen: UltimaSync = { fecha: new Date().toISOString(), modo: fuente.modo, recibidas: r.datos.length, enlazadas: enlace.size, nuevas: nuevas.length, ms: Date.now() - t };
     await guardarEstado(CLAVE.ultimaSync, resumen);

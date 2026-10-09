@@ -2,8 +2,8 @@ import "server-only";
 import type { EtapaViaje, FuentePosicion, Prisma, PrismaClient } from "@prisma/client";
 import { db } from "@/lib/db";
 import { auditar } from "@/lib/auditoria";
-import { notificar } from "@/lib/notificaciones";
-import { TEXTO } from "@/lib/notificaciones/textos";
+import { baseViaje, notificarEvento } from "@/lib/notificaciones/enviar";
+import { EVENTO } from "@/lib/notificaciones/eventos";
 import { distancia, type Punto } from "@/lib/geo";
 import { conEtapa } from "./etapas";
 import { CARGA_S, destinoDe, origenDe, rutaSegura } from "./tramos";
@@ -87,25 +87,13 @@ export async function transicionar(viajeId: string, a: Transicion["a"], fecha: D
   const hecho = await db.$transaction(async (tx) => {
     const r = await tx.viaje.updateMany({ where: { id: v.id, etapa: { in: desde[a] } }, data: datos });
     if (!r.count) return false;
-    const enlace = `/mis-pedidos/${v.pedido.id}`;
-    const p = { descripcion: v.pedido.descripcion, destino: v.pedido.destinoNombre };
+    const base = await baseViaje(tx, v.pedido.id, v.chofer.nombre);
     if (a === "EN_RETIRO") {
-      const etaDestino = sumar(fecha, CARGA_S + durDestino);
-      await notificar(v.pedido.solicitanteId, "LLEGO_RETIRO", {
-        ...TEXTO.enRetiro(v.chofer.nombre, { ...p, origen: v.pedido.origenNombre, distanciaM: distDestino, etaDestino }),
-        enlace, datos: { pedidoId: v.pedido.id, distanciaM: distDestino, eta: etaDestino.toISOString() },
-      }, { tx, copiaDireccion: true });
+      await notificarEvento(EVENTO.viajeEnRetiro({ ...base, origen: v.pedido.origenNombre, distanciaM: distDestino, etaDestino: sumar(fecha, CARGA_S + durDestino) }), { tx });
     } else if (a === "HACIA_DESTINO") {
-      const etaDestino = sumar(fecha, durDestino);
-      await notificar(v.pedido.solicitanteId, "SALIO_RETIRO", {
-        ...TEXTO.salioDelRetiro(v.chofer.nombre, { ...p, distanciaM: distDestino, etaDestino }),
-        enlace, datos: { pedidoId: v.pedido.id, distanciaM: distDestino, eta: etaDestino.toISOString() },
-      }, { tx, copiaDireccion: true });
+      await notificarEvento(EVENTO.viajeSalioRetiro({ ...base, distanciaM: distDestino, etaDestino: sumar(fecha, durDestino) }), { tx });
     } else {
-      await notificar(v.pedido.solicitanteId, "LLEGO_DESTINO", {
-        ...TEXTO.llegoAlDestino(v.chofer.nombre, { ...p, llego: fecha }),
-        enlace, datos: { pedidoId: v.pedido.id, distanciaM: 0, eta: fecha.toISOString() },
-      }, { tx, copiaDireccion: true });
+      await notificarEvento(EVENTO.viajeEnDestino({ ...base, llego: fecha }), { tx });
     }
     await auditar(tx, {
       usuarioId: origen.porGps ? null : origen.usuarioId,
@@ -204,7 +192,7 @@ export async function avisarSinSenal() {
     const desde = s.fecha ? new Date(s.fecha) : v.inicioEn;
     if (!desde || Date.now() - desde.getTime() < P.avisoSinSenalMs) continue;
     if (estado.sinSenalAvisado && new Date(estado.sinSenalAvisado) >= desde) continue;
-    await notificar(v.pedido.solicitanteId, "SIN_SENAL", { ...TEXTO.sinSenal(v.vehiculo.nombre, desde), enlace: `/mis-pedidos/${v.pedido.id}`, datos: { pedidoId: v.pedido.id } }, { copiaDireccion: true });
+    await notificarEvento(EVENTO.viajeSinSenal({ ...(await baseViaje(db, v.pedido.id, v.chofer.nombre)), vehiculo: v.vehiculo.nombre, desde }));
     await db.viaje.update({ where: { id: v.id }, data: { motor: json({ ...estado, sinSenalAvisado: new Date().toISOString() }) } });
     avisados++;
   }
