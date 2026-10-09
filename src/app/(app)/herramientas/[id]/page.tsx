@@ -1,17 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { ArrowLeft, Pencil, Printer, Wrench } from "lucide-react";
+import { ArrowLeft, Pencil, Wrench } from "lucide-react";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { enlacePedido, puede } from "@/lib/permisos";
 import { db } from "@/lib/db";
 import { ficha, listar, opciones } from "@/lib/herramientas/consultas";
 import { ListaDetalle } from "@/components/ui/lista-detalle";
 import { CONDICION, ESTADO, MOVIMIENTO, type Accion } from "@/lib/herramientas/presentacion";
-import { svgQR } from "@/lib/herramientas/qr";
 import { Insignia, Subtitulo, Tarjeta, Vacio } from "@/components/ui/basicos";
 import { ConHoja } from "@/components/ui/hoja";
-import { claseBoton } from "@/components/ui/boton";
 import { AccionesHerramienta } from "@/components/herramientas/acciones";
 import { FormularioHerramienta } from "@/components/herramientas/formulario";
 import { cuando, diaISO, fecha, plata, vencimiento } from "@/lib/formato";
@@ -29,10 +27,9 @@ export default async function FichaHerramienta({ params, searchParams }: { param
   const a = (await searchParams).accion;
   const [h, ops] = await Promise.all([ficha(id), opciones()]);
   if (!h) notFound();
-  const tabLista = h.tipoControl === "CANTIDAD" ? "cantidad" : h.esMaquina ? "maquinaria" : "herramientas";
+  const tabLista = h.esMaquina ? "maquinaria" : "herramientas";
   const lista = await listar({ tab: tabLista, limite: 200 });
 
-  const qr = await svgQR(h.codigo);
   const cantidad = h.tipoControl === "CANTIDAD";
   const enDeposito = h.existencias.filter((e) => e.ubicacionId).reduce((s, e) => s + e.cantidad, 0);
   const enObras = h.existencias.filter((e) => e.obra && e.cantidad > 0).map((e) => ({ obraId: e.obra!.id, obra: e.obra!.nombre, cantidad: e.cantidad }));
@@ -43,14 +40,14 @@ export default async function FichaHerramienta({ params, searchParams }: { param
 
   return (
     <ListaDetalle
-      titulo={tabLista === "cantidad" ? "Por cantidad" : tabLista === "maquinaria" ? "Maquinaria" : "Herramientas"}
+      titulo={tabLista === "maquinaria" ? "Maquinaria" : "Herramientas"}
       verTodo={`/herramientas?tab=${tabLista}`}
       activo={h.id}
       items={lista.map((x) => ({ id: x.id, href: `/herramientas/${x.id}`, titulo: x.nombre, detalle: `${x.codigo} · ${x.donde}`, derecha: x.vencida ? <Insignia tono="critico">Vencida</Insignia> : undefined }))}
     >
     <div className="grid gap-x-6 gap-y-4 xl:grid-cols-[1fr_320px]">
       <header className="min-w-0 xl:col-start-1">
-        <Link href="/herramientas" className="mb-2 hidden min-h-8 items-center gap-1 text-sm font-medium text-suave hover:text-tinta lg:inline-flex"><ArrowLeft className="size-4" /> Herramientas</Link>
+        <Link href="/herramientas" className="mb-2 hidden min-h-8 items-center gap-1 text-sm font-medium text-suave hover:text-tinta lg:inline-flex"><ArrowLeft className="size-4" /> {u.rol === "RESPONSABLE_OBRA" || u.rol === "CAPATAZ" ? "Herramientas" : "Depósito"}</Link>
         <div className="flex gap-4">
           {h.fotoUrl && (
             // eslint-disable-next-line @next/next/no-img-element
@@ -81,16 +78,6 @@ export default async function FichaHerramienta({ params, searchParams }: { param
             pedidoActivo: pedido ? `Pedido ${pedido.numero}: ${pedido.solicitante.nombre} la pidió para Obra ${pedido.obra.nombre}${pedido.tomadoPor ? ` · la lleva ${pedido.tomadoPor.nombre}` : " · esperando chofer"}.` : null,
           }}
         />
-        <Tarjeta className="flex items-center gap-4 p-4">
-          <div className="size-24 shrink-0 [&>svg]:h-full [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: qr }} />
-          <div className="min-w-0">
-            <p className="text-lg font-semibold tabular-nums">{h.codigo}</p>
-            <p className="text-sm text-suave">Escaneá para abrir esta ficha.</p>
-            {puede(u.rol, "herramientas.editar") && (
-              <Link href={`/imprimir/etiquetas?ids=${h.id}`} target="_blank" className={claseBoton("secundario", "chico", false, "mt-2")}><Printer className="size-4" /> Imprimir etiqueta</Link>
-            )}
-          </div>
-        </Tarjeta>
       </aside>
 
       <div className="min-w-0 xl:col-start-1">

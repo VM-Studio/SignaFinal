@@ -22,7 +22,6 @@ export async function VistaObra({ u, vista, q, n }: { u: UsuarioSesion; vista: "
     <div>
       <Titulo
         detalle={vista === "disponibles" ? "Lo que está en el depósito y se puede pedir para tu obra." : "Todas, con dónde está cada una y quién la tiene."}
-        accion={u.rol === "DIRECCION" ? <Link href="/herramientas?vista=deposito" className="text-sm font-semibold underline">Vista del depósito</Link> : undefined}
       >
         Herramientas
       </Titulo>

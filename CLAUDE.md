@@ -43,8 +43,10 @@ aceptan viajes; el que pidió ve en vivo cómo viene su pedido sin llamar a nadi
 - Viaje típico: Martínez → proveedor (retiro) → obra (entrega). La dirección del proveedor
   sale de la orden de compra de Lebane.
 - Depósito: uno solo. Las herramientas y la maquinaria están en el depósito o en una
-  obra, nunca en otro lado. Materiales casi no se guardan (solo sobrantes eléctricos y
-  sanitarios). Los acopios van del corralón a la obra sin pasar por el depósito.
+  obra, nunca en otro lado; en la app se ven en "Depósito" con el filtro Maquinaria /
+  Herramientas (sin escaneo ni etiquetas QR: se buscan por nombre). Materiales casi no se
+  guardan: los que sobran de una obra van a "Sobrantes". Los acopios van del corralón a la
+  obra sin pasar por el depósito.
 
 ## Principio rector
 
@@ -59,7 +61,7 @@ sirve. Si una pantalla no le cambia el día a esa persona, no existe para ella.
 | RESPONSABLE_OBRA | Leandro, Daniela, César, Vicky | Solo sus obras. Pide viajes. Ve sus pedidos (pendientes y aceptados). Ve los viajes aceptados por los choferes (nunca las solicitudes pendientes de otros). Herramientas: disponibles para pedir, y buscador de todas con estado y en qué obra está cada una |
 | CAPATAZ | Lolo | Igual que RESPONSABLE_OBRA, pero con todas las obras |
 | CHOFER | Claudio, Cristian, David | Sus viajes de hoy, próximos y todos. Las solicitudes pendientes. Acepta, inicia, marca retiro y destino. Combustible |
-| DEPOSITO | encargado del depósito | Escanear, herramientas, entregas y devoluciones, mantenimiento de maquinaria |
+| DEPOSITO | encargado del depósito | Depósito (maquinaria y herramientas), entregas y devoluciones, mantenimiento de maquinaria, sobrantes de materiales |
 | ADMINISTRACION | oficina | Flota, documentación, costos, exportaciones |
 | COMPRAS | la persona de compras | Pedidos de material: los toma, arma la OC, pide aprobación al dueño, habilita para retirar. Proveedores |
 
@@ -76,7 +78,7 @@ Reglas de visibilidad (se verifican en el servidor, en cada query y cada action)
 
 - RESPONSABLE_OBRA / CAPATAZ: Obras · Pedir · Viajes · Herramientas
 - CHOFER: Hoy · Solicitudes · Combustible · Más
-- DEPOSITO: Escanear · Herramientas · Entregas · Más
+- DEPOSITO: Depósito · Sobrantes · Entregas · Más
 - ADMINISTRACION: Flota · Costos · Alertas · Más
 - COMPRAS: Pedidos · Habilitados · Proveedores · Más
 - DIRECCION: Mapa · Solicitudes · Viajes · Más (y en Más: todo lo demás, con Aprobaciones)
@@ -141,7 +143,7 @@ Next.js 15 (App Router), React 19, TypeScript estricto, Tailwind v4. PostgreSQL 
 6 (no 7). Zod, Server Actions, Server Components. Auth propia: jose JWT en cookie
 httpOnly + bcryptjs. Leaflet + OpenStreetMap. Ruteo: OSRM público (lib/rutas) con
 respaldo por distancia en línea recta. Push: web-push (VAPID). lucide-react, date-fns
-es, qrcode. PWA. Vercel + Postgres administrado.
+es. PWA. Vercel + Postgres administrado.
 
 ## Diseño visual
 

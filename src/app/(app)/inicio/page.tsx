@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { EsqueletoLista } from "@/components/ui/esqueletos";
-import { Download, ListOrdered, PlusCircle, ScanLine } from "lucide-react";
+import { Download, ListOrdered, PlusCircle, Warehouse } from "lucide-react";
 import { exigirSesion } from "@/lib/auth/sesion";
 import { devolucionesVencidas, pedidosPendientes, resumenDireccion, vencimientosProximos } from "@/lib/datos/inicio";
 import { misPedidosDeHoy, viajesAMisObrasHoy } from "@/lib/pedidos/listas";
@@ -123,7 +123,7 @@ async function InicioDeposito() {
   return (
     <div className="grid gap-x-6 lg:grid-cols-2 [&>section]:min-w-0">
       <section>
-        <AccionPrincipal href="/herramientas/escanear" icono={<ScanLine />} titulo="Escanear una herramienta" detalle="Entregar, devolver o ver dónde está." boton="Escanear" />
+        <AccionPrincipal href="/herramientas" icono={<Warehouse />} titulo="Depósito" detalle="Maquinaria y herramientas: dónde está cada una, entregar y devolver." boton="Abrir el depósito" />
         <Subtitulo accion={<Link href="/entregas" className="text-sm font-medium underline">Ver todo</Link>}>Para preparar hoy</Subtitulo>
         {paraPreparar.length === 0 ? (
           <Vacio titulo="Nada aceptado para hoy">Cuando un chofer acepte un traslado de herramientas, aparece acá para prepararlo.</Vacio>

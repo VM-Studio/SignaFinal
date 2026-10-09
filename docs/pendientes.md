@@ -76,7 +76,7 @@ Cada pieza externa tiene un único punto de entrada en el código, así que cone
 
 ## 6. Carga real de herramientas y personas
 
-- **Herramientas**: alta masiva desde *Herramientas → Importar CSV* (plantilla incluida), después **imprimir las etiquetas QR** (*Etiquetas*, hoja A4) y pegarlas. Para las que ya están en obra, registrar la entrega a la obra y persona correcta.
+- **Herramientas**: alta masiva desde *Herramientas → Importar CSV* (plantilla incluida), después revisar en *Depósito* que estén todas. Para las que ya están en obra, registrar la entrega a la obra y persona correcta.
 - **Personas**: emails reales, contraseñas iniciales, licencias de los choferes con categoría y vencimiento, obras a cargo de cada responsable.
 - **Datos marcados `// confirmar`** en `src/lib/demo/datos.ts`: direcciones, coordenadas, precios y nombres a validar con la empresa.
 

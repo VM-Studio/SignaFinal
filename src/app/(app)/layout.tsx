@@ -28,6 +28,7 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
     chofer ? tengoViajeEnCurso() : Promise.resolve(false),
     chofer ? ultimaSolicitud() : Promise.resolve(null),
   ]);
+  const secciones = gruposEscritorio(u.rol).flatMap((g) => g.items);
   const perfil = {
     nombre: u.nombre,
     rol: ROL[u.rol],
@@ -39,8 +40,8 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
       <AvisosEnVivo inicial={avisos}>
       <BarraLateral grupos={gruposEscritorio(u.rol)} />
       <div className="flex min-h-dvh flex-col bg-fondo lg:pt-12 lg:pl-[232px]">
-        <HeaderMovil perfil={perfil} />
-        <HeaderEscritorio perfil={perfil} />
+        <HeaderMovil perfil={perfil} secciones={secciones} />
+        <HeaderEscritorio perfil={perfil} secciones={secciones} />
         <div className="sticky top-[calc(52px+env(safe-area-inset-top))] z-20 lg:top-12">
           <IndicadorConexion />
         </div>

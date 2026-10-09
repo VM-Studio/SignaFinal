@@ -140,7 +140,7 @@ export async function cargarDatosBase(db: PrismaClient) {
     const codigo = `SIG-${String(++n).padStart(4, "0")}`;
     const comun = { codigo, nombre: h.nombre, categoriaId: categorias.get(h.categoria)!, esMaquina: !!h.esMaquina, estado: "DISPONIBLE" as const };
     if (h.cantidad === 1) {
-      // Una sola: se sigue de a una (QR propio, quién la tiene).
+      // Una sola: se sigue de a una (dónde está, quién la tiene).
       await db.herramienta.create({ data: { ...comun, tipoControl: "UNITARIA", ubicacionId: deposito.id } });
     } else {
       // Varias iguales: stock por ubicación.

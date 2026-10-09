@@ -12,8 +12,8 @@ const MODULOS = {
     detalles: ["/solicitudes/[id]", "/mis-pedidos/[id]", "/viajes-en-curso/[id]", "/viaje/[id]", "/obras/[id]"],
   },
   herramientas: {
-    listas: ["/inicio", "/herramientas", "/entregas", "/obras", "/avisos"],
-    detalles: ["/herramientas/[id]", "/obras/[id]", "/h/[codigo]"],
+    listas: ["/inicio", "/herramientas", "/entregas", "/sobrantes", "/obras", "/avisos"],
+    detalles: ["/herramientas/[id]", "/obras/[id]"],
   },
   flota: {
     listas: ["/inicio", "/flota", "/flota/agenda", "/flota/mantenimiento", "/combustible", "/costos", "/alertas"],

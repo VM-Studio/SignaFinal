@@ -11,7 +11,6 @@ import { guardarArchivo } from "@/lib/archivos";
 import { aFecha, diaISO, elDiaALas, paraElDia, sumarDias } from "@/lib/formato";
 import { choferesQueLoVen } from "@/lib/pedidos/reglas";
 import { FRANJA } from "@/lib/pedidos/presentacion";
-import { accionSugerida } from "./presentacion";
 import { auditar, depositoId, moverUnitaria, restar, siguienteCodigo, stockEn, sumar, viajeQueLaLleva } from "./servicio";
 import { auditar as auditarBase } from "@/lib/auditoria";
 import { conAlcance, esObraDelUsuario } from "@/lib/alcance";
@@ -46,23 +45,6 @@ function devolucionValida(d?: string) {
   if (!d) return null;
   if (d < diaISO()) throw new ErrorNegocio("La fecha de devolución ya pasó.");
   return aFecha(d, "12:00");
-}
-
-// ═══════════════════════════ Buscar por QR ═══════════════════════════
-
-export async function buscarPorCodigo(codigo: string): Promise<Resultado<{ id: string; nombre: string; codigo: string; estado: string; tipoControl: string; donde: string; sugerida: string | null }>> {
-  return ejecutar(async () => {
-    await exigirPermiso("herramientas.ver");
-    // El QR trae la URL completa (…/h/SIG-0001) o el código solo.
-    const c = decodeURIComponent(codigo.trim()).split("/").pop()!.toUpperCase();
-    const h = await db.herramienta.findUnique({ where: { codigo: c }, include: { obra: { select: { nombre: true } } } });
-    if (!h) throw new ErrorNegocio(`No hay ninguna herramienta con el código ${c}.`);
-    return {
-      id: h.id, nombre: h.nombre, codigo: h.codigo, estado: h.estado, tipoControl: h.tipoControl,
-      donde: h.estado === "EN_OBRA" ? `Obra ${h.obra?.nombre}` : h.estado === "DISPONIBLE" ? "Depósito" : h.estado,
-      sugerida: accionSugerida(h.estado),
-    };
-  });
 }
 
 // ═══════════════════════════ Entregar ═══════════════════════════
@@ -109,36 +91,6 @@ export async function entregar(entrada: DatosEntrega): Promise<Resultado<{ viaje
     });
     refrescar();
     return r;
-  });
-}
-
-const esquemaVarias = z.object({
-  ids: z.array(z.string()).min(1, "Escaneá al menos una."),
-  obraId: z.string().min(1, "Elegí la obra."),
-  recibidoPorId: z.string().min(1, "Elegí quién las recibe."),
-  devolucionPrevista: dia,
-});
-
-/** Modo continuo: todas a la misma obra y persona, en un solo paso (todo o nada). */
-export async function entregarVarias(entrada: z.input<typeof esquemaVarias>): Promise<Resultado<{ cantidad: number }>> {
-  return ejecutar(async () => {
-    const yo = await exigirPermiso("herramientas.mover");
-    const d = esquemaVarias.parse(entrada);
-    const obra = await obraActiva(d.obraId);
-    await personaActiva(d.recibidoPorId);
-    const devolucion = devolucionValida(d.devolucionPrevista);
-    const ids = [...new Set(d.ids)];
-    await db.$transaction(async (tx) => {
-      for (const id of ids) {
-        const viaje = await viajeQueLaLleva(tx, id, obra.id);
-        await moverUnitaria(tx, {
-          usuarioId: yo.id, herramientaId: id, tipo: "ENTREGA", hacia: { obraId: obra.id }, responsableId: d.recibidoPorId,
-          recibidoPorId: d.recibidoPorId, devolucionPrevista: devolucion, viajeId: viaje?.id ?? null, estado: "EN_OBRA", desde: ["DISPONIBLE"],
-        });
-      }
-    }, { timeout: 30_000 });
-    refrescar();
-    return { cantidad: ids.length };
   });
 }
 
@@ -603,7 +555,7 @@ export async function importarHerramientas(filas: FilaImportacion[]): Promise<Re
 
 const esquemaSobrante = z.object({
   descripcion: z.string().trim().min(2, "Contá qué es.").max(120),
-  categoria: z.enum(["ELECTRICO", "SANITARIO", "OTRO"], { error: "Elegí el tipo." }),
+  categoria: z.enum(["CONSTRUCCION", "ELECTRICO", "SANITARIO", "OTRO"], { error: "Elegí el tipo." }),
   cantidad: z.coerce.number({ error: "Poné la cantidad." }).positive("Poné la cantidad.").max(1_000_000),
   unidad: z.string().trim().min(1, "Poné la unidad.").max(20),
   obraOrigenId: z.preprocess(vacio, z.string().optional()),

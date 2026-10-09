@@ -3,8 +3,8 @@ import { rutaPermitida } from "./permisos";
 
 export type Icono =
   | "inicio" | "pedidos" | "pedir" | "viajes" | "combustible" | "flota" | "mantenimiento" | "herramientas"
-  | "escanear" | "entregas" | "sobrantes" | "mapa" | "alertas" | "obras" | "proveedores" | "usuarios" | "cuenta" | "mas"
-  | "agenda" | "costos" | "etiquetas" | "hoy" | "avisos" | "actividad" | "importar" | "compras" | "habilitados" | "aprobaciones" | "rastreo";
+  | "deposito" | "entregas" | "sobrantes" | "mapa" | "alertas" | "obras" | "proveedores" | "usuarios" | "cuenta" | "mas"
+  | "agenda" | "costos" | "hoy" | "avisos" | "actividad" | "importar" | "compras" | "habilitados" | "aprobaciones" | "rastreo";
 
 export type Seccion = { href: string; titulo: string; icono: Icono; corto?: string };
 
@@ -26,12 +26,10 @@ export const SECCIONES = {
   solicitudes: { href: "/solicitudes", titulo: "Solicitudes", icono: "pedidos" },
   combustible: { href: "/combustible", titulo: "Combustible", icono: "combustible" },
   // Depósito
-  escanear: { href: "/herramientas/escanear", titulo: "Escanear", icono: "escanear" },
-  deposito: { href: "/herramientas?vista=deposito", titulo: "Depósito", icono: "herramientas" },
+  deposito: { href: "/herramientas", titulo: "Depósito", icono: "deposito" },
   herramientas: { href: "/herramientas", titulo: "Herramientas", icono: "herramientas" },
   entregas: { href: "/entregas", titulo: "Entregas", icono: "entregas" },
-  sobrantes: { href: "/herramientas?tab=sobrantes", titulo: "Sobrantes", icono: "sobrantes" },
-  etiquetas: { href: "/herramientas/etiquetas", titulo: "Etiquetas QR", icono: "etiquetas" },
+  sobrantes: { href: "/sobrantes", titulo: "Sobrantes", icono: "sobrantes" },
   importar: { href: "/herramientas/importar", titulo: "Alta masiva", icono: "importar" },
   // Gestión
   flota: { href: "/flota", titulo: "Flota", icono: "flota" },
@@ -68,7 +66,7 @@ const NAV: Record<Rol, { barra: Clave[]; mas: GrupoClaves[] }> = {
   RESPONSABLE_OBRA: { barra: ["obras", "pedir", "viajesObra", "herramientas"], mas: [] },
   CAPATAZ: { barra: ["obras", "pedir", "viajesObra", "herramientas"], mas: [] },
   CHOFER: { barra: ["hoy", "solicitudes", "combustible"], mas: [{ titulo: null, claves: ["cuenta", "misAvisos"] }] },
-  DEPOSITO: { barra: ["escanear", "herramientas", "entregas"], mas: [{ titulo: null, claves: ["inicio", "sobrantes", "etiquetas", "importar"] }] },
+  DEPOSITO: { barra: ["deposito", "sobrantes", "entregas"], mas: [{ titulo: null, claves: ["inicio", "importar"] }] },
   ADMINISTRACION: { barra: ["flota", "costos", "alertas"], mas: [{ titulo: null, claves: ["inicio", "agenda", "mantenimiento", "obras", "proveedores", "usuarios"] }] },
   DIRECCION: {
     barra: ["mapa", "solicitudes", "viajes"],
@@ -77,7 +75,7 @@ const NAV: Record<Rol, { barra: Clave[]; mas: GrupoClaves[] }> = {
       { titulo: "Pedidos y viajes", claves: ["pedir", "misPedidos", "viajesAObras"] },
       { titulo: "Compras", claves: ["aprobaciones", "compras", "habilitados"] },
       { titulo: "Flota", claves: ["flota", "agenda", "mantenimiento", "combustible"] },
-      { titulo: "Depósito", claves: ["herramientas", "deposito", "escanear", "entregas", "sobrantes", "etiquetas", "importar"] },
+      { titulo: "Depósito", claves: ["deposito", "sobrantes", "entregas", "importar"] },
       { titulo: "Mapa", claves: ["historial", "rastreo"] },
       { titulo: "Alertas", claves: ["alertas", "avisos"] },
       { titulo: "Actividad", claves: ["actividad"] },
@@ -107,8 +105,13 @@ export function gruposEscritorio(rol: Rol): Grupo[] {
   return [{ titulo: null, items: visibles(rol, NAV[rol].barra) }, ...menuMas(rol).map((g) => ({ ...g, titulo: g.titulo ?? (rol === "DIRECCION" ? null : "Más") }))].filter((g) => g.items.length > 0);
 }
 
-/** Título para el header del celular según la ruta. */
-export function tituloDeRuta(pathname: string): string {
+/**
+ * Título del header según la ruta. Primero las secciones del rol (la misma ruta puede llamarse
+ * distinto: /herramientas es "Depósito" para el depósito y "Herramientas" para la obra).
+ */
+export function tituloDeRuta(pathname: string, propias: Seccion[] = []): string {
+  const propia = propias.find((s) => s.href.split("?")[0] === pathname);
+  if (propia) return propia.titulo;
   const todas = Object.values(SECCIONES) as Seccion[];
   const exacta = todas.find((s) => s.href === pathname);
   if (exacta) return exacta.titulo;

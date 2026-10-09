@@ -29,13 +29,5 @@ export const MOVIMIENTO: Record<TipoMovimiento, string> = {
 
 export type Accion = "entregar" | "devolver" | "transferir" | "reparar" | "volvio" | "extraviada" | "baja" | "pedir";
 
-/** Lo más probable al escanear: si está en el depósito, entregar; si está en obra, devolver. */
-export function accionSugerida(estado: EstadoHerramienta): Accion | null {
-  if (estado === "DISPONIBLE") return "entregar";
-  if (estado === "EN_OBRA") return "devolver";
-  if (estado === "EN_REPARACION") return "volvio";
-  return null;
-}
-
 export const MOTIVOS_BAJA = ["Rota sin arreglo", "Reparación más cara que una nueva", "Vendida", "Obsoleta"];
 export const MOTIVOS_EXTRAVIO = ["No aparece en la obra", "Robada en obra", "Robada en traslado"];

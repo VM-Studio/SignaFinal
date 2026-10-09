@@ -535,7 +535,7 @@ enum Condicion {
 
 model Herramienta {
   id                    String            @id @default(cuid())
-  codigo                String            @unique // SIG-0001, va en el QR
+  codigo                String            @unique // SIG-0001
   nombre                String
   categoriaId           String
   esMaquina             Boolean           @default(false)
@@ -645,6 +645,7 @@ model MantenimientoHerramienta {
 }
 
 enum CategoriaSobrante {
+  CONSTRUCCION
   ELECTRICO
   SANITARIO
   OTRO

@@ -24,7 +24,7 @@ const RUTAS: Record<string, string[]> = {
   daniela: ["/inicio", "/pedir", "/pedir-materiales", "/mis-pedidos", "/mis-pedidos?tab=materiales", "/mis-pedidos/{mipedido}", "/viajes-en-curso", "/obras", "/herramientas"],
   claudio: ["/inicio", "/hoy", "/solicitudes", "/viaje/{viaje}", "/combustible"],
   compras: ["/inicio", "/compras", "/compras/{material}", "/habilitados", "/proveedores"],
-  deposito: ["/inicio", "/herramientas", "/herramientas/{herramienta}", "/entregas"],
+  deposito: ["/inicio", "/herramientas", "/herramientas?tab=herramientas", "/herramientas/{herramienta}", "/sobrantes", "/entregas"],
   administracion: ["/inicio", "/flota", "/costos", "/flota/agenda"],
 };
 

@@ -55,7 +55,7 @@ export function FormularioHerramienta({ categorias, inicial = NUEVA }: { categor
         </Campo>
         <Opciones nombre="Tipo" columnas={2} valor={d.esMaquina ? "maquina" : "herramienta"} onElegir={(v) => setD({ ...d, esMaquina: v === "maquina", tipoControl: v === "maquina" ? "UNITARIA" : d.tipoControl })} opciones={[{ valor: "maquina", titulo: "Máquina", detalle: "Viaja en camión" }, { valor: "herramienta", titulo: "Herramienta" }]} />
         {!d.id && !d.esMaquina && (
-          <Opciones nombre="Control" columnas={2} valor={d.tipoControl} onElegir={(v) => setD({ ...d, tipoControl: v as "UNITARIA" })} opciones={[{ valor: "UNITARIA", titulo: "Una sola", detalle: "Con QR propio" }, { valor: "CANTIDAD", titulo: "Por cantidad", detalle: "Palas, baldes…" }]} />
+          <Opciones nombre="Control" columnas={2} valor={d.tipoControl} onElegir={(v) => setD({ ...d, tipoControl: v as "UNITARIA" })} opciones={[{ valor: "UNITARIA", titulo: "Una sola", detalle: "Se sigue de a una" }, { valor: "CANTIDAD", titulo: "Por cantidad", detalle: "Palas, baldes…" }]} />
         )}
       </>
       <>

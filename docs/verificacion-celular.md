@@ -36,10 +36,8 @@ Probar en **un iPhone (Safari)** y **un Android (Chrome)**, con la app publicada
 - [ ] La campana muestra solo las alertas de sus obras.
 
 ## Depósito
-- [ ] **Escanear**: pide permiso de cámara, lee el QR de una etiqueta impresa y abre la ficha con *Entregar* (si está en el depósito) o *Registrar devolución* (si está en obra).
-- [ ] Modo **Varias juntas**: escanear 3 etiquetas y entregarlas juntas a una obra.
-- [ ] Con la cámara del teléfono (fuera de la app), escanear una etiqueta: abre la ficha en Signa.
-- [ ] Imprimir una hoja de etiquetas A4 y verificar que el QR se lee a 30 cm.
+- [ ] **Depósito**: filtrar *Maquinaria* / *Herramientas*, buscar por nombre y abrir una ficha → *Entregar* (si está en el depósito) o *Registrar devolución* (si está en obra).
+- [ ] **Sobrantes**: agregar un material que sobró de una obra (tipo, cantidad, unidad) y usar una parte.
 
 ## Dirección
 - [ ] El **mapa** ocupa la pantalla; la hoja inferior se desliza con el dedo; tocar un vehículo muestra su tarjeta y **Ver recorrido de hoy**.

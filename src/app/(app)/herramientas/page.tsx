@@ -1,36 +1,37 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Plus, QrCode, ScanLine, Upload, Wrench } from "lucide-react";
+import { redirect } from "next/navigation";
+import { Plus, Upload, Wrench } from "lucide-react";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { puede } from "@/lib/permisos";
-import { cifras, listar, opciones, PESTANAS, sobrantes, type Pestana } from "@/lib/herramientas/consultas";
+import { cifras, listar, opciones, PESTANAS, type Pestana } from "@/lib/herramientas/consultas";
 import { ESTADO } from "@/lib/herramientas/presentacion";
 import { Buscador } from "@/components/ui/campos";
 import { BotonLink } from "@/components/ui/boton";
 import { Cifra, Insignia, Pestanas, Titulo, Vacio } from "@/components/ui/basicos";
 import { ConHoja } from "@/components/ui/hoja";
 import { FormularioHerramienta } from "@/components/herramientas/formulario";
-import { Sobrantes } from "@/components/herramientas/sobrantes";
 import { FiltroUbicacion } from "@/components/herramientas/filtro";
 import { vencimiento } from "@/lib/formato";
 import { VistaObra } from "@/components/herramientas/vista-obra";
 import { limiteDe } from "@/lib/pagina";
 import { CargarMas } from "@/components/ui/cargar-mas";
 
-export const metadata: Metadata = { title: "Herramientas" };
+export const metadata: Metadata = { title: "Depósito" };
 
 type P = { tab?: string; q?: string; donde?: string; vista?: string; n?: string };
 
 export default async function PaginaHerramientas({ searchParams }: { searchParams: Promise<P> }) {
   const u = await exigirPermiso("herramientas.ver");
   const sp = await searchParams;
-  // Gente de obra (y Dirección, salvo que pida la vista del depósito): la versión para pedir.
-  const deObra = u.rol === "RESPONSABLE_OBRA" || u.rol === "CAPATAZ" || (u.rol === "DIRECCION" && sp.vista !== "deposito" && !sp.tab);
+  // Gente de obra: la versión para pedir. Los demás: el depósito.
+  const deObra = u.rol === "RESPONSABLE_OBRA" || u.rol === "CAPATAZ";
   if (deObra) return <VistaObra u={u} vista={sp.vista === "todas" ? "todas" : "disponibles"} q={sp.q} n={sp.n} />;
+  if (sp.tab === "sobrantes") redirect("/sobrantes");
   const tab: Pestana = sp.tab && sp.tab in PESTANAS ? (sp.tab as Pestana) : "maquinaria";
   const [c, ops] = await Promise.all([cifras(), opciones()]);
   const qs = (extra: Partial<P>) => {
-    const p = new URLSearchParams(Object.entries({ tab, q: sp.q, donde: sp.donde, vista: sp.vista === "deposito" ? "deposito" : undefined, ...extra }).filter(([, v]) => v) as [string, string][]);
+    const p = new URLSearchParams(Object.entries({ tab, q: sp.q, donde: sp.donde, ...extra }).filter(([, v]) => v) as [string, string][]);
     return `/herramientas?${p.toString()}`;
   };
 
@@ -40,12 +41,10 @@ export default async function PaginaHerramientas({ searchParams }: { searchParam
         detalle="Maquinaria y herramientas: en el depósito o en una obra, nunca en otro lado."
         accion={
           <div className="flex flex-wrap gap-2">
-            {puede(u.rol, "herramientas.mover") && <BotonLink href="/herramientas/escanear" icono={<ScanLine />}>Escanear</BotonLink>}
             {puede(u.rol, "herramientas.editar") && (
               <>
-                <BotonLink href="/herramientas/etiquetas" variante="secundario" icono={<QrCode />}>Etiquetas</BotonLink>
                 <BotonLink href="/herramientas/importar" variante="secundario" icono={<Upload />}>Importar CSV</BotonLink>
-                <ConHoja titulo="Nueva herramienta" etiqueta="Agregar" variante="secundario" icono={<Plus />}>
+                <ConHoja titulo="Nueva herramienta" etiqueta="Agregar" icono={<Plus />}>
                   <FormularioHerramienta categorias={ops.categorias.map((x) => x.nombre)} />
                 </ConHoja>
               </>
@@ -53,7 +52,7 @@ export default async function PaginaHerramientas({ searchParams }: { searchParam
           </div>
         }
       >
-        Herramientas
+        Depósito
       </Titulo>
 
       <div className="mb-6 grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
@@ -65,27 +64,12 @@ export default async function PaginaHerramientas({ searchParams }: { searchParam
 
       <Pestanas items={(Object.keys(PESTANAS) as Pestana[]).map((k) => ({ href: qs({ tab: k }), etiqueta: PESTANAS[k], activa: k === tab }))} />
 
-      {tab === "sobrantes" ? (
-        <ListaSobrantes n={sp.n} obras={ops.obras} editar={puede(u.rol, "sobrantes.editar")} qs={qs} />
-      ) : (
-        <Lista tab={tab} q={sp.q} donde={sp.donde} n={sp.n} obras={ops.obras} qs={qs} />
-      )}
+      <Lista tab={tab} q={sp.q} donde={sp.donde} n={sp.n} obras={ops.obras} qs={qs} />
     </div>
   );
 }
 
-async function ListaSobrantes({ n, obras, editar, qs }: { n?: string; obras: { id: string; nombre: string }[]; editar: boolean; qs: (e: Partial<P>) => string }) {
-  const { limite, siguiente } = await limiteDe(n);
-  const todos = await sobrantes(limite);
-  return (
-    <>
-      <Sobrantes lista={todos.slice(0, limite)} obras={obras} editar={editar} />
-      {todos.length > limite && <CargarMas href={qs({ n: String(siguiente) })} />}
-    </>
-  );
-}
-
-async function Lista({ tab, q, donde, n, obras, qs }: { tab: Exclude<Pestana, "sobrantes">; q?: string; donde?: string; n?: string; obras: { id: string; nombre: string }[]; qs: (e: Partial<P>) => string }) {
+async function Lista({ tab, q, donde, n, obras, qs }: { tab: Pestana; q?: string; donde?: string; n?: string; obras: { id: string; nombre: string }[]; qs: (e: Partial<P>) => string }) {
   const { limite, siguiente } = await limiteDe(n);
   const todas = await listar({ tab, q, ubicacion: donde, limite });
   const filas = todas.slice(0, limite);

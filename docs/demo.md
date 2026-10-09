@@ -39,7 +39,7 @@ quién es). Para revisar un usuario desde la terminal: `npx tsx scripts/push-pro
 4. **Daniela** → *Pedir* → **Retiro en proveedor** → marca el material → pide el viaje.
 5. **Claudio** acepta, toca **Iniciar viaje** y va. El GPS (Cusat o su teléfono) marca la llegada al
    retiro, la salida y la llegada a la obra; al final, **Viaje terminado**.
-6. **Depósito**: escanear o buscar una herramienta y entregarla a una obra.
+6. **Depósito**: buscar una herramienta (filtro Maquinaria / Herramientas) y entregarla a una obra. En *Sobrantes*, cargar lo que sobró de una obra.
 
 Cada paso le llega a quien corresponde al instante (campana y celular). Lo que pasó queda en
 *Más → Actividad*.

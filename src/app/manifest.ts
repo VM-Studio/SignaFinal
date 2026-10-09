@@ -22,7 +22,6 @@ export default function manifest(): MetadataRoute.Manifest {
     shortcuts: [
       { name: "Pedir un viaje", url: "/pedir", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
       { name: "Avisos", url: "/avisos", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
-      { name: "Escanear herramienta", url: "/herramientas/escanear", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
     ],
   };
 }

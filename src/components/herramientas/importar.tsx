@@ -131,7 +131,7 @@ export function ImportarCSV() {
             setEnviando(false);
             if (!r.ok) return setError(r.error);
             aviso({ mensaje: `${r.datos.creadas} cargadas (${r.datos.desde} a ${r.datos.hasta}).` });
-            router.push("/herramientas/etiquetas");
+            router.push("/herramientas");
           }}>{conError ? "Corregí las filas con error" : `Cargar ${previa.length} al depósito`}</Boton>
         </>
       )}

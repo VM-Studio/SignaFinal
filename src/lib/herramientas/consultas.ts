@@ -5,7 +5,8 @@ import { exigirPermiso, type UsuarioSesion } from "@/lib/auth/sesion";
 import { diaISO, diaMes, inicioDelDia } from "@/lib/formato";
 import { conAlcance, idsObrasDelUsuario } from "@/lib/alcance";
 
-export const PESTANAS = { maquinaria: "Maquinaria", herramientas: "Herramientas", cantidad: "Por cantidad", sobrantes: "Sobrantes" } as const;
+/** Filtro del depósito: maquinaria o herramientas (las que se controlan por cantidad van con las herramientas). */
+export const PESTANAS = { maquinaria: "Maquinaria", herramientas: "Herramientas" } as const;
 export type Pestana = keyof typeof PESTANAS;
 
 const vencida = (h: { estado: string; devolucionPrevista: Date | null }) => h.estado === "EN_OBRA" && !!h.devolucionPrevista && diaISO(h.devolucionPrevista) < diaISO();
@@ -30,17 +31,24 @@ export type Fila = {
 };
 
 /** Listado por pestaña, con buscador (nombre o código) y filtro por ubicación ("deposito" o id de obra). */
-export async function listar({ tab, q, ubicacion, limite = 50 }: { tab: Exclude<Pestana, "sobrantes">; q?: string; ubicacion?: string; limite?: number }): Promise<Fila[]> {
+export async function listar({ tab, q, ubicacion, limite = 50 }: { tab: Pestana; q?: string; ubicacion?: string; limite?: number }): Promise<Fila[]> {
   await exigirPermiso("herramientas.ver");
+  const enDeposito = ubicacion === "deposito";
+  // Dónde está: la unitaria por su ubicación; la de cantidad, por su stock en cada lugar.
+  const donde: Prisma.HerramientaWhereInput[] = ubicacion
+    ? [
+        { tipoControl: "UNITARIA", ...(enDeposito ? { ubicacionId: { not: null } } : { obraId: ubicacion }) },
+        { tipoControl: "CANTIDAD", existencias: { some: { cantidad: { gt: 0 }, ...(enDeposito ? { ubicacionId: { not: null } } : { obraId: ubicacion }) } } },
+      ]
+    : [];
   const where: Prisma.HerramientaWhereInput = {
     activo: true,
-    ...(tab === "cantidad" ? { tipoControl: "CANTIDAD" } : { tipoControl: "UNITARIA", esMaquina: tab === "maquinaria" }),
-    ...(q ? { OR: [{ nombre: { contains: q, mode: "insensitive" } }, { codigo: { contains: q.toUpperCase() } }, { marca: { contains: q, mode: "insensitive" } }] } : {}),
+    esMaquina: tab === "maquinaria",
+    AND: [
+      ...(q ? [{ OR: [{ nombre: { contains: q, mode: "insensitive" as const } }, { codigo: { contains: q.toUpperCase() } }, { marca: { contains: q, mode: "insensitive" as const } }] }] : []),
+      ...(donde.length ? [{ OR: donde }] : []),
+    ],
   };
-  if (ubicacion && tab !== "cantidad") Object.assign(where, ubicacion === "deposito" ? { ubicacionId: { not: null } } : { obraId: ubicacion });
-  if (ubicacion && tab === "cantidad") {
-    where.existencias = { some: { cantidad: { gt: 0 }, ...(ubicacion === "deposito" ? { ubicacionId: { not: null } } : { obraId: ubicacion }) } };
-  }
 
   const filas = await db.herramienta.findMany({
     where,
@@ -183,15 +191,6 @@ export async function deMisObras(u: UsuarioSesion) {
     }),
   ]);
   return { unitarias: unitarias.map((h) => ({ ...h, vencida: vencida(h) })), porCantidad, salen };
-}
-
-export async function paraEtiquetas(ids?: string[]) {
-  await exigirPermiso("herramientas.editar");
-  return db.herramienta.findMany({
-    where: { activo: true, ...(ids ? { id: { in: ids } } : {}) },
-    orderBy: [{ esMaquina: "desc" }, { codigo: "asc" }],
-    select: { id: true, codigo: true, nombre: true, esMaquina: true, tipoControl: true, categoria: { select: { nombre: true } } },
-  });
 }
 
 // ─────────────────────── Versión de obra (responsables, capataz, dirección) ───────────────────────

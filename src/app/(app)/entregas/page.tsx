@@ -1,11 +1,10 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { PackageCheck, ScanLine } from "lucide-react";
+import { PackageCheck } from "lucide-react";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { movimientosDeHoy, paraEntregar } from "@/lib/herramientas/consultas";
 import { MOVIMIENTO } from "@/lib/herramientas/presentacion";
 import { textoEstado, textoParaCuando } from "@/lib/pedidos/presentacion";
-import { BotonLink } from "@/components/ui/boton";
 import { FilaLista, Insignia, Lista, Subtitulo, Titulo, Vacio } from "@/components/ui/basicos";
 import { hora } from "@/lib/formato";
 import { limiteDe } from "@/lib/pagina";
@@ -20,7 +19,7 @@ export default async function PaginaEntregas({ searchParams }: { searchParams: P
   const pendientes = todos.slice(0, limite);
   return (
     <div>
-      <Titulo siempre detalle="Lo que pidieron las obras y lo que se movió hoy." accion={<BotonLink href="/herramientas/escanear" icono={<ScanLine />}>Escanear</BotonLink>}>Entregas</Titulo>
+      <Titulo siempre detalle="Lo que pidieron las obras y lo que se movió hoy.">Entregas</Titulo>
       <Subtitulo>Para entregar</Subtitulo>
       {pendientes.length === 0 ? (
         <Vacio icono={<PackageCheck className="size-8" />} titulo="Nada pedido por ahora">Cuando una obra pida una máquina o herramienta, aparece acá.</Vacio>

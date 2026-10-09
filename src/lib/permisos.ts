@@ -9,10 +9,10 @@ import type { Rol } from "@prisma/client";
  * ├──────────────────┼──────────────────────────────────────────────────────────────────────────────┤
  * │ RESPONSABLE_OBRA │ /inicio /obras /obras/[id] /pedir /pedir/** /pedir-materiales /mis-pedidos/** │
  * │ CAPATAZ          │ /viajes-en-curso /viajes-en-curso/[id] /herramientas /herramientas/[id]       │
- * │                  │ /h/[codigo] /avisos /cuenta                                                  │
+ * │                  │ /avisos /cuenta                                                              │
  * │ CHOFER           │ /inicio /hoy /solicitudes /solicitudes/[id] /viaje/[id] /combustible         │
  * │                  │ /avisos /cuenta                                                              │
- * │ DEPOSITO         │ /inicio /escanear /herramientas/** /h/[codigo] /entregas /imprimir/**        │
+ * │ DEPOSITO         │ /inicio /herramientas/** /entregas /sobrantes                                │
  * │                  │ /avisos /cuenta                                                              │
  * │ ADMINISTRACION   │ /inicio /flota/** /costos /alertas /obras/** /usuarios /avisos /cuenta       │
  * │ COMPRAS          │ /inicio /compras /compras/** /habilitados /proveedores /proveedores/[id]     │
@@ -20,7 +20,6 @@ import type { Rol } from "@prisma/client";
  * │ DIRECCION        │ todas las anteriores + /mapa/** /actividad /solicitudes/** /viajes           │
  * │                  │ /proveedores /usuarios /sobrantes /aprobaciones                              │
  * └──────────────────┴──────────────────────────────────────────────────────────────────────────────┘
- * (/h/[codigo] es el QR pegado en cada herramienta; /imprimir/** son las etiquetas A4.)
  *
  * Una ruta que no está en la matriz del rol NO EXISTE para él: el middleware y el layout
  * lo mandan a /inicio sin mensaje. Las acciones se verifican en el servidor en cada
@@ -54,7 +53,7 @@ type Entrada = { rutas: readonly string[]; acciones: readonly Permiso[] };
 const OBRA: Entrada = {
   rutas: [
     "/inicio", "/obras", "/obras/[id]", "/pedir", "/pedir/**", "/pedir-materiales", "/mis-pedidos", "/mis-pedidos/[id]", "/mis-pedidos/material/[id]",
-    "/viajes-en-curso", "/viajes-en-curso/[id]", "/herramientas", "/herramientas/[id]", "/h/[codigo]", "/avisos", "/cuenta",
+    "/viajes-en-curso", "/viajes-en-curso/[id]", "/herramientas", "/herramientas/[id]", "/avisos", "/cuenta",
   ],
   acciones: [
     "pedidos.ver", "pedidos.crear", "pedidos.cancelarPropios", "herramientas.ver", "herramientas.solicitar", "herramientas.devolver",
@@ -71,7 +70,7 @@ const CHOFER: Entrada = {
 };
 
 const DEPOSITO: Entrada = {
-  rutas: ["/inicio", "/escanear", "/herramientas/**", "/h/[codigo]", "/entregas", "/imprimir/**", "/avisos", "/cuenta"],
+  rutas: ["/inicio", "/herramientas/**", "/entregas", "/sobrantes", "/avisos", "/cuenta"],
   acciones: [
     "pedidos.ver", "herramientas.ver", "herramientas.mover", "herramientas.devolver", "herramientas.editar", "herramientas.mantenimiento",
     "sobrantes.ver", "sobrantes.editar", "alertas.ver", "avisos.ver",
@@ -161,6 +160,8 @@ export function rutaNueva(rol: Rol, ruta: string): string | null {
   if (ruta === "/viajes" && rol === "CHOFER") return "/hoy";
   if (ruta === "/viajes" && obra) return "/viajes-en-curso";
   if (ruta === "/mantenimiento") return "/flota/mantenimiento";
+  // Escaneo y etiquetas QR ya no existen: al depósito (o a las herramientas de la obra).
+  if (["/escanear", "/herramientas/escanear", "/herramientas/etiquetas"].includes(ruta) || ruta.startsWith("/h/") || ruta.startsWith("/imprimir/")) return "/herramientas";
   if (ruta === "/alertas" && !rutaPermitida(rol, "/alertas")) return "/avisos";
   // Enlace neutro de un pedido de material (avisos y alertas): a la pantalla de cada rol.
   const material = ruta.match(/^\/materiales\/([^/]+)$/);

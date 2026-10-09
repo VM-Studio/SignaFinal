@@ -127,11 +127,14 @@ general, ni alertas de otros choferes.
 
 ## Depósito (encargado)
 
-- **Inicio**: botón grande **"Escanear"**, las herramientas que hay que preparar hoy (traslados ya
+- **Inicio**: acción principal **"Depósito"**, las herramientas que hay que preparar hoy (traslados ya
   aceptados) y las devoluciones vencidas.
-- **Barra**: Escanear · Herramientas · Entregas · Más (Inicio, Sobrantes, Etiquetas QR, Alta masiva).
-- Entrega, recibe, transfiere y manda a reparar herramientas y máquinas; mantenimiento de maquinaria;
-  sobrantes; etiquetas QR; alta masiva por CSV.
+- **Barra**: Depósito · Sobrantes · Entregas · Más (Inicio, Alta masiva).
+- **Depósito**: la maquinaria y las herramientas, con el filtro *Maquinaria* / *Herramientas*, buscador y
+  ubicación. Desde cada ficha entrega, recibe, transfiere y manda a reparar; mantenimiento de maquinaria.
+- **Sobrantes**: los materiales de construcción que sobraron de las obras (construcción, eléctrico,
+  sanitario, otro), con cantidad y de qué obra vinieron. Se agregan y se "usan" (todo o una parte).
+- Alta masiva de herramientas por CSV.
 
 **Alertas**: devoluciones vencidas, máquinas en obras pausadas, mantenimiento de máquinas vencido.
 
