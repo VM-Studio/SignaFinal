@@ -37,7 +37,7 @@ export default async function PaginaRastreo() {
       {vieja && (
         <p className="mb-4 flex gap-2 rounded-[var(--radius-caja)] border-2 border-aviso bg-aviso-fondo p-3 font-semibold">
           <AlertTriangle className="mt-0.5 size-5 shrink-0 text-aviso" />
-          {sync ? `La última sincronización fue ${haceSeg(sync.valor.fecha)}. Revisá el cron (docs/cusat/cron.md).` : "Todavía no se sincronizó nunca. Tocá \"Sincronizar ahora\" y configurá el cron (docs/cusat/cron.md)."}
+          {sync ? `El cron no está pegando. Revisá docs/cusat/cron.md (última sincronización ${haceSeg(sync.valor.fecha)}).` : "El cron no está pegando: todavía no hubo ninguna sincronización. Revisá docs/cusat/cron.md o tocá \"Sincronizar ahora\"."}
         </p>
       )}
 

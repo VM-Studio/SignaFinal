@@ -47,7 +47,8 @@ export function PantallaViaje({ d }: { d: Datos }) {
   const tramo = d.tramo && (d.tramo.hacia === "retiro") === aRetiro ? d.tramo : null;
   const maps = (p: { lat: number; lng: number }) => `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=driving`;
   const eta = etapa === "HACIA_RETIRO" ? d.etaRetiro : etapa === "HACIA_DESTINO" || etapa === "EN_RETIRO" ? d.etaDestino : null;
-  const mapa = tramo && (etapa === "PROGRAMADO" || etapa === "HACIA_RETIRO" || etapa === "HACIA_DESTINO" || etapa === "EN_RETIRO") && (
+  // El mapa va debajo de la tarjeta (lo primero que se lee es a dónde va) y no antes de salir.
+  const mapa = tramo && (etapa === "HACIA_RETIRO" || etapa === "HACIA_DESTINO" || etapa === "EN_RETIRO") && (
     <div className="relative isolate h-[200px] overflow-hidden rounded-[var(--radius-caja)] border border-linea">
       <MapaTramo geometria={tramo.geometria} desde={tramo.desde} hasta={tramo.hasta} nombreHasta={punto.nombre} />
     </div>
@@ -86,7 +87,6 @@ export function PantallaViaje({ d }: { d: Datos }) {
 
       {(etapa === "PROGRAMADO" || etapa === "HACIA_RETIRO") && (
         <>
-          {mapa}
           <section className="rounded-[var(--radius-caja)] border-[3px] border-negro bg-papel p-4">
             <p className="text-sm font-bold tracking-wider text-suave uppercase">{etapa === "PROGRAMADO" ? "Primero vas a" : "Vas a"}</p>
             <p className="mt-1 text-2xl leading-tight font-bold">{d.retirar.nombre}</p>
@@ -101,6 +101,7 @@ export function PantallaViaje({ d }: { d: Datos }) {
               d.salidaEstimada && <p className="mt-2 text-suave">Salida estimada {hora(d.salidaEstimada)} · km actual {km(d.kmActual)}</p>
             )}
           </section>
+          {mapa}
         </>
       )}
 
@@ -126,7 +127,6 @@ export function PantallaViaje({ d }: { d: Datos }) {
 
       {etapa === "HACIA_DESTINO" && (
         <>
-          {mapa}
           <section className="rounded-[var(--radius-caja)] border-[3px] border-negro bg-papel p-4">
             <p className="text-sm font-bold tracking-wider text-suave uppercase">Vas a entregar a</p>
             <p className="mt-1 text-2xl leading-tight font-bold">{d.entregar.nombre}</p>
@@ -134,6 +134,7 @@ export function PantallaViaje({ d }: { d: Datos }) {
             {distancia}
             {abrirMaps(d.entregar)}
           </section>
+          {mapa}
         </>
       )}
 

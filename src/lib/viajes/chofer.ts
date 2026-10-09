@@ -150,7 +150,8 @@ export async function pantallaViaje(pedidoId: string) {
   const aRetiro = v.etapa === "PROGRAMADO" || v.etapa === "HACIA_RETIRO";
   const hasta = aRetiro ? origenDe(p) : destinoDe(p);
   const desde = aRetiro ? (v.etapa === "HACIA_RETIRO" ? ultima : null) ?? ultima ?? (await baseDe(v.vehiculo)) ?? origenDe(p) : v.etapa === "HACIA_DESTINO" && ultima ? ultima : origenDe(p);
-  const ruta = v.etapa === "FINALIZADO" || v.etapa === "EN_DESTINO" ? null : await rutaSegura(desde, hasta);
+  // Antes de salir no se muestra el tramo (ni se le pide la ruta al ruteo): la pantalla carga al instante.
+  const ruta = v.etapa === "FINALIZADO" || v.etapa === "EN_DESTINO" || v.etapa === "PROGRAMADO" ? null : await rutaSegura(desde, hasta);
   // Llegada que detectó el GPS y el chofer todavía puede negar ("No, todavía no").
   const pendiente = estadoMotor(v).pendiente;
   const confirmar = pendiente && pendiente.etapa === v.etapa && new Date(pendiente.hasta) > new Date() ? { etapa: pendiente.etapa, lugar: pendiente.etapa === "EN_RETIRO" ? p.origenNombre : p.destinoNombre } : null;

@@ -1,56 +1,86 @@
-# Signa · Lo que falta para producción
+# Signa · Lo que falta
 
-La app funciona completa con datos de demostración y simuladores. Para usarla de verdad faltan estas piezas. Cada una tiene un único punto de entrada en el código, así que conectarla no cambia el resto.
+La app funciona completa. Lo que sigue son datos a confirmar con el dueño y piezas externas.
+Cada pieza externa tiene un único punto de entrada en el código, así que conectarla no cambia el resto.
 
-## Resumen (al 6/10/2026)
+## Resumen (al 9/10/2026)
 
 | Pieza | Estado hoy | Qué falta |
 |---|---|---|
-| **Claves VAPID (avisos push)** | Par P-256 generado para esta app y cargado en Vercel (`VAPID_PUBLIC_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` = URL de la app). Sirven para producción. | Solo si se pasa a dominio propio: poner `VAPID_SUBJECT` con ese dominio o un mail de la empresa. No hace falta cambiar las claves (si se cambian, cada persona vuelve a activar los avisos). |
-| **Dominio** | `signa-final.vercel.app`. | Dominio propio (ej. `logistica.signa.com.ar`) en Vercel, `APP_URL` con ese dominio y volver a activar los avisos en los celulares (la suscripción es por dominio). |
-| **Cron de Vercel** | **Funcionando**: verificado en producción el 5/10 (`/api/jobs/eta` corrió 30 veces en 30 minutos, todas con 200). Resumen a choferes 7:00 (`0 10 * * *` UTC), alertas y posiciones diarios. | Nada. Si se cambia de plan de Vercel, revisar que siga admitiendo cron por minuto. |
-| **API de Lebane** | Mock con los datos de demo. | Ver punto 1. |
-| **API de Cusat** | Simulador (`MOCK`) + posiciones del teléfono del chofer (`TELEFONO`). | Ver punto 2. Cusat entra como otra fuente de `PosicionVehiculo` por `registrarPosicion()`. |
-| **Fotos** | Comprimidas en el teléfono y guardadas en Postgres. | Ver punto 3 (almacenamiento de objetos). |
-| **Push en celulares reales** | Probada contra el servicio real de push (las suscripciones muertas se desactivan solas). | Probar en un Android con la app instalada y en un iPhone instalado (iOS 16.4+). |
+| **Cusat (rastreo)** | **Conectado** a Cusat View con el usuario de la cuenta (adaptador que reproduce la web, `docs/cusat/`). Los seis vehículos con posición real, historial y dirección. Sincroniza cada minuto (cron de Vercel, verificado: 200 cada minuto). | API oficial de Cusat (punto 2). Confirmar la Hilux y la retro (punto 1). |
+| **Cron** | Vercel Cron cada minuto: `/api/cusat/sincronizar` (Cusat) y `/api/jobs/eta` (horas estimadas y "sin señal"). | Nada mientras el plan de Vercel admita cron por minuto. Si no, cron-job.org (`docs/cusat/cron.md`). `/configuracion/rastreo` avisa si pasan 5 minutos sin sincronizar. |
+| **Lebane** | Obras y proveedores cargados a mano (demo); la OC se escribe en Compras. | API de Lebane (punto 3). |
+| **Datos del dueño** | Marcados `// confirmar` en `src/lib/demo/datos.ts`. | Punto 1. |
+| **Claves VAPID (push)** | Cargadas en Vercel, sirven para producción. | Solo si se pasa a dominio propio: `VAPID_SUBJECT`. |
+| **Dominio** | `signa-final.vercel.app`. | Dominio propio en Vercel, `APP_URL`, y volver a activar los avisos en los celulares. |
+| **Fotos** | Comprimidas en el teléfono y guardadas en Postgres. | Almacenamiento de objetos con el volumen real (punto 4). |
 
-## 1. API real de Lebane (obras, proveedores, órdenes de compra)
+## 1. Confirmar con el dueño
 
-- **Qué hay hoy**: las obras y proveedores se cargan con la demo (`src/lib/demo/datos.ts`), con `idLebane` como clave. La orden de compra es un texto libre en el pedido.
-- **Qué falta**: documentación y credenciales de la API de Lebane.
-- **Dónde va**:
-  - Un adaptador `src/lib/lebane/` con `listarObras()`, `listarProveedores()`, `listarOrdenesCompra(obraId)` (mismo patrón que `src/lib/cusat`).
-  - Una sincronización (cron diario + botón "Traer de Lebane") que haga *upsert* por `idLebane`. Lo que no venga de Lebane se marca inactivo, nunca se borra.
-  - En "Pedir un viaje", elegir la orden de compra de una lista en vez de escribirla.
-- **Regla**: obras y proveedores **no se editan** en Signa; se leen de Lebane.
+**Flota** (hoy cargada con lo que muestra Cusat):
 
-## 2. API real de Cusat (rastreo satelital)
+| Vehículo | Patente | A confirmar |
+|---|---|---|
+| Camión Mercedes 710 | HFD336 | Año, km del tablero, **capacidad (5 tn?)**, **costo por km**, documentación con vencimientos |
+| Camión Kia | AH282PU | Modelo exacto (K2500?), **capacidad (3 tn?)**, costo por km, documentación |
+| Zanella | AG149BJ | **Tipo**: ¿es una moto o un auto? ¿Entra en las solicitudes? ¿Quién la usa? |
+| Oroch | AC689NR | **Quién la usa** (asignada a alguien o de uso general), km, documentación |
+| Kangoo | AF399OO | Está en el interior (Lincoln): ¿de qué obra?, quién la usa |
+| Kangoo LL | AF399OP | Quién la usa, si entra en las solicitudes |
 
-- **Qué hay hoy**: `src/lib/cusat/mock.ts` simula posiciones (los vehículos en viaje avanzan por su ruta; el resto queda en su base).
-- **Qué falta**: documentación, URL y clave de la API; el `idCusat` real de cada vehículo (se carga en la ficha del vehículo).
-- **Dónde va**: `src/lib/cusat/api.ts`, marcado con *"ACÁ VA LA LLAMADA REAL A LA API DE CUSAT"*. Con `CUSAT_API_URL` y `CUSAT_API_KEY` configuradas, la app deja de usar el simulador sola.
-- **Cron**: para traer posiciones de Cusat cada minuto, el mismo criterio que el job de ETA (cron por
-  minuto en Vercel Pro o un cron externo a `POST /api/posiciones` con `Authorization: Bearer <CRON_SECRET>`).
-- Revisar con datos reales: radio de las geocercas (`radioGeocercaM`, 200 m por defecto), horario laboral de la alerta "fuera de horario" (L–V 7 a 19, S 7 a 13).
+- **En la cuenta de Cusat hay 15 unidades**: además de las seis, una **Hilux** (Lincoln), una
+  **retroexcavadora** ("Retro - Cukurova") y siete vehículos particulares. ¿La Hilux y la retro se
+  suman a la flota? (Se enlazan en *Más → Rastreo (Cusat)*).
+- **Costo por km** de cada vehículo (combustible + mantenimiento + seguro + amortización): es lo que
+  se imputa a cada obra.
+- **Depósito**: dirección de **Terreno 1** y **Terreno 2**, y en cuál se guardan las herramientas.
+- **Base de camiones**: Triunfo Argentino / Granada y Maestro, Martínez (coordenadas tomadas de Cusat).
+- **Compras**: nombre, email y teléfono de la persona de compras (hoy "Compras", `compras@signa.demo`).
+- **Dueño**: nombre para el usuario de Dirección.
+- **Personas**: emails reales, contraseñas iniciales, licencias de los choferes (categoría y
+  vencimiento), obras a cargo de cada responsable.
+- **Radios de llegada**: 150 m al retiro, la geocerca de cada obra (200 m por defecto). Ajustables
+  en `src/lib/viajes/parametros.ts` y en cada obra.
 
-## 3. Almacenamiento de fotos
+## 2. Cusat: API oficial
+
+- **Hoy**: el adaptador (`src/lib/cusat/cusatView.ts`) reproduce las llamadas internas de la web de
+  Cusat con el usuario de la cuenta. Funciona, pero puede romperse si Cusat cambia su web (qué hacer:
+  `docs/cusat/README.md`, "Si Cusat cambia su web").
+- **Pedirles**: una API oficial con token (texto listo en `docs/cusat/README.md`). Además, avisarles
+  que sus llamadas internas no llevan token de sesión.
+- **Contraseña**: cambiar la contraseña del usuario de Cusat por una más fuerte y actualizarla en
+  `.env` y en Vercel (`CUSAT_WEB_PASS`).
+- Con una API oficial solo cambia `cusatView.ts`.
+
+## 3. Lebane (obras, proveedores, órdenes de compra)
+
+- **Hoy**: obras y proveedores cargados a mano con `idLebane` como clave. En Compras, el número de OC
+  y el monto se escriben al pedir la aprobación.
+- **Falta**: documentación y credenciales de la API de Lebane.
+- **Dónde va**: un adaptador `src/lib/lebane/` (mismo patrón que `src/lib/cusat`) con obras,
+  proveedores y **órdenes de compra**. Con eso: Compras elige la OC de una lista (con monto y
+  proveedor ya cargados) en vez de escribirla, y los pedidos de material pueden nacer en Lebane
+  (`fuente = LEBANE`, `ordenCompraLebaneId`).
+- **Regla**: obras y proveedores no se editan en Signa; se leen de Lebane.
+
+## 4. Almacenamiento de fotos
 
 - **Qué hay hoy**: remitos, tickets, documentos y fotos de herramientas se comprimen en el teléfono (~200 KB) y se guardan en Postgres (tabla `Archivo`), servidos con sesión en `/api/archivos/[id]`.
 - **Para producción**: con el volumen real, pasar a almacenamiento de objetos (Vercel Blob privado, S3 o R2). El cambio está en un solo lugar: `src/lib/archivos.ts` (`guardarArchivo`) y la ruta que los sirve. Migrar los existentes con un script.
 
-## 4. Avisos
+## 5. Avisos
 
 - **Hecho**: avisos en la app (bandeja `/avisos` y campana) y **push en el celular** (web-push con VAPID) para los momentos del viaje, solicitudes urgentes, demoras y el resumen diario del chofer. Todo pasa por `notificar()` en `src/lib/notificaciones`.
 - **Opcional más adelante**: WhatsApp (Meta Business API o Twilio) como segundo canal para quien no instala la app. Se engancha en el mismo `notificar()`, con plantillas aprobadas por Meta.
 
-## 5. Carga real de flota y herramientas
+## 6. Carga real de herramientas y personas
 
-- **Flota**: patentes, marca/modelo/año, capacidad, **costo por km real** (combustible + mantenimiento + seguro + amortización), km actuales, base, asignado, `idCusat`, y **toda la documentación con vencimientos** (seguro, VTV, RUTA, cédula). Alta desde *Flota → Agregar*.
 - **Herramientas**: alta masiva desde *Herramientas → Importar CSV* (plantilla incluida), después **imprimir las etiquetas QR** (*Etiquetas*, hoja A4) y pegarlas. Para las que ya están en obra, registrar la entrega a la obra y persona correcta.
 - **Personas**: emails reales, contraseñas iniciales, licencias de los choferes con categoría y vencimiento, obras a cargo de cada responsable.
 - **Datos marcados `// confirmar`** en `src/lib/demo/datos.ts`: direcciones, coordenadas, precios y nombres a validar con la empresa.
 
-## 6. Otros puntos antes de salir
+## 7. Otros puntos antes de salir
 
 - **Dominio y entorno**: proyecto de Vercel nuevo para esta versión (o reemplazar la actual), Postgres administrado (Neon), variables `DATABASE_URL`, `AUTH_SECRET`, `CRON_SECRET`, `APP_URL` y `MODO_DEMO="false"`.
 - **Primera carga**: `prisma migrate deploy` (lo hace el build) y crear los usuarios reales; **no** correr el seed de demo en producción.
