@@ -769,14 +769,18 @@ model Notificacion {
 }
 
 model SuscripcionPush {
-  id        String   @id @default(cuid())
-  usuarioId String
-  endpoint  String   @unique
-  p256dh    String
-  auth      String
-  userAgent String?
-  creadaEn  DateTime @default(now())
-  activa    Boolean  @default(true)
+  id                String    @id @default(cuid())
+  usuarioId         String
+  endpoint          String    @unique
+  p256dh            String
+  auth              String
+  userAgent         String?
+  creadaEn          DateTime  @default(now())
+  activa            Boolean   @default(true)
+  // Diagnóstico: el último envío (qué respondió Apple o Google) y cuándo el teléfono confirmó que la recibió.
+  ultimoEnvioEn     DateTime?
+  ultimoEnvioEstado String?
+  ultimaRecepcionEn DateTime?
 
   usuario Usuario @relation(fields: [usuarioId], references: [id])
 

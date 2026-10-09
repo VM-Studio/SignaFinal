@@ -49,12 +49,21 @@ export async function pushA(usuarioId: string | null, contenido: { titulo: strin
   const r = await Promise.allSettled(
     subs.map((s) => webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, cuerpo, { TTL: 3600, urgency: "high", timeout: TIMEOUT_PUSH_MS })),
   );
+  // Por dispositivo: qué respondió Apple/Google (diagnóstico en Mi cuenta). 404/410: la suscripción murió.
+  const ahora = new Date();
   await Promise.all(
     r.map(async (x, i) => {
-      if (x.status === "fulfilled") return;
+      if (x.status === "fulfilled") {
+        await db.suscripcionPush.update({ where: { id: subs[i].id }, data: { ultimoEnvioEn: ahora, ultimoEnvioEstado: `aceptada (${x.value.statusCode})` } });
+        return;
+      }
       const codigo = (x.reason as { statusCode?: number }).statusCode;
-      if (codigo === 404 || codigo === 410) await db.suscripcionPush.update({ where: { id: subs[i].id }, data: { activa: false } });
-      else console.error("Push falló", codigo ?? x.reason);
+      const detalle = String((x.reason as { body?: string }).body ?? (x.reason as Error).message ?? "").slice(0, 120);
+      await db.suscripcionPush.update({
+        where: { id: subs[i].id },
+        data: { ultimoEnvioEn: ahora, ultimoEnvioEstado: `rechazada (${codigo ?? "sin respuesta"}) ${detalle}`.trim(), ...(codigo === 404 || codigo === 410 ? { activa: false } : {}) },
+      });
+      console.error("Push falló", codigo ?? x.reason, detalle);
     }),
   );
   return { enviadas: r.filter((x) => x.status === "fulfilled").length, telefonos: subs.length, sinClaves: false };
@@ -86,7 +95,8 @@ async function enviarPush(notificacionId: string) {
     : [{ usuario: n.usuario }];
   const nombres = [...new Set(para.map((x) => x.usuario.nombre))];
   const quienes = nombres.length <= 1 ? nombres.join("") : `${nombres.slice(0, -1).join(", ")} y ${nombres.at(-1)}`;
-  const { enviadas } = await pushA(null, { titulo: `Para ${quienes} · ${n.titulo}`, cuerpo: n.cuerpo, enlace: n.enlace, tag: clave });
+  // Tag único: en iPhone, una notificación con un tag repetido reemplaza a la anterior sin sonar.
+  const { enviadas } = await pushA(null, { titulo: `Para ${quienes} · ${n.titulo}`, cuerpo: n.cuerpo, enlace: n.enlace, tag: n.id });
   if (enviadas) await db.notificacion.update({ where: { id: n.id }, data: { enviadaPushEn: new Date() } });
 }
 

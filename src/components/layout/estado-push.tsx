@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { BellRing, Send } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
-import { enviarmePrueba } from "@/lib/avisos/acciones";
+import { enviarmePrueba, estadoDispositivos, type Dispositivo } from "@/lib/avisos/acciones";
+import { haceSeg, hora } from "@/lib/formato";
 
 type Estado = "cargando" | "activadas" | "inactivas" | "bloqueadas" | "no-soportado" | "ios-sin-instalar";
 
@@ -62,10 +63,26 @@ export function EstadoPush() {
   }
 
   const [prueba, setPrueba] = useState<{ cargando: boolean; texto: string | null; ok: boolean }>({ cargando: false, texto: null, ok: true });
+  const [dispositivos, setDispositivos] = useState<Dispositivo[] | null>(null);
+  const actualizarDispositivos = async () => {
+    const r = await estadoDispositivos();
+    if (r.ok) setDispositivos(r.datos);
+  };
+  useEffect(() => {
+    void actualizarDispositivos();
+  }, []);
+
   async function probar() {
     setPrueba({ cargando: true, texto: null, ok: true });
     const r = await enviarmePrueba();
-    setPrueba(r.ok ? { cargando: false, ok: true, texto: `Listo: te la mandamos a ${r.datos.enviadas === 1 ? "tu celular" : `${r.datos.enviadas} celulares`}. Tiene que llegar en unos segundos.` } : { cargando: false, ok: false, texto: r.error });
+    if (!r.ok) return setPrueba({ cargando: false, ok: false, texto: r.error });
+    setPrueba({ cargando: false, ok: true, texto: `Enviada a ${r.datos.enviadas === 1 ? "1 dispositivo" : `${r.datos.enviadas} dispositivos`}. Esperando que confirmen que les llegó…` });
+    // Cada teléfono confirma solo cuando la recibe: se mira durante 15 s.
+    for (let i = 0; i < 5; i++) {
+      await new Promise((ok) => setTimeout(ok, 3_000));
+      await actualizarDispositivos();
+    }
+    setPrueba((p) => ({ ...p, texto: "Listo. Abajo, en cada dispositivo, si le llegó." }));
   }
 
   async function desactivar() {
@@ -104,6 +121,24 @@ export function EstadoPush() {
         <Boton className="mt-3" ancho onClick={activar} cargando={estado === "cargando"}>Activar avisos en este celular</Boton>
       )}
       {error && <p role="alert" className="mt-2 text-sm font-medium text-critico">{error}</p>}
+      {dispositivos && dispositivos.length > 0 && (
+        <div className="mt-4 border-t border-linea pt-3">
+          <p className="mb-1 text-xs font-bold tracking-wider text-suave uppercase">Dispositivos con avisos</p>
+          <ul className="flex flex-col gap-2">
+            {dispositivos.map((d) => {
+              const llego = d.recibido && d.envio && new Date(d.recibido) >= new Date(new Date(d.envio).getTime() - 2_000);
+              return (
+                <li key={d.id} className="text-sm">
+                  <p className="font-semibold">{d.equipo} <span className="font-normal text-suave">· de {d.usuario}</span></p>
+                  <p suppressHydrationWarning className={llego ? "text-ok" : d.envio ? "text-critico" : "text-suave"}>
+                    {!d.envio ? "Todavía no se le mandó ninguna." : llego ? `Le llegó la última (${hora(d.recibido!)}).` : `Última enviada ${haceSeg(d.envio)} (${d.estado ?? "?"}), sin confirmación del dispositivo.`}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

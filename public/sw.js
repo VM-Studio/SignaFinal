@@ -2,7 +2,7 @@
  * Estáticos: primero caché. Pantallas: primero red; sin señal, la última versión guardada.
  * Nada de /api ni Server Actions se guarda en caché.
  */
-const VERSION = "signa-v7";
+const VERSION = "signa-v8";
 const ESTATICOS = `${VERSION}-estaticos`;
 const PANTALLAS = `${VERSION}-pantallas`;
 
@@ -52,7 +52,9 @@ self.addEventListener("fetch", (e) => {
   }
 });
 
-// Avisos push: título, cuerpo y a dónde lleva al tocarlo.
+// Avisos push: título, cuerpo y a dónde lleva al tocarlo. Mismas opciones que en la versión que
+// anduvo en iPhone (sin renotify ni lang: Safari no las admite). Si algo falla, se muestra igual una
+// versión mínima: en iPhone, una push que no muestra nada hace que el sistema corte los avisos.
 self.addEventListener("push", (e) => {
   let d = {};
   try {
@@ -60,18 +62,22 @@ self.addEventListener("push", (e) => {
   } catch {
     d = { titulo: "SIGNA", cuerpo: e.data ? e.data.text() : "" };
   }
-  e.waitUntil(
-    self.registration.showNotification(d.titulo || "SIGNA", {
+  const titulo = d.titulo || "SIGNA";
+  const mostrar = self.registration
+    .showNotification(titulo, {
       body: d.cuerpo || "",
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
-      lang: "es-AR",
       data: { enlace: d.enlace || "/avisos" },
       tag: d.tag,
-      // Si reemplaza a otra con el mismo tag, igual suena y vibra.
-      renotify: !!d.tag,
-    }),
-  );
+    })
+    .catch(() => self.registration.showNotification(titulo, { body: d.cuerpo || "" }));
+  // El teléfono confirma que la recibió (diagnóstico en Mi cuenta). Nunca frena el aviso.
+  const confirmar = self.registration.pushManager
+    .getSubscription()
+    .then((s) => s && fetch("/api/push/recibido", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: s.endpoint }) }))
+    .catch(() => {});
+  e.waitUntil(Promise.all([mostrar, confirmar]));
 });
 
 self.addEventListener("notificationclick", (e) => {
