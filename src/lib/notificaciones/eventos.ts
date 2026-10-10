@@ -156,9 +156,9 @@ export const EVENTO = {
 
   // ═══════════════════════════════ Materiales y Compras ═══════════════════════════════
 
-  materialNuevo: (m: M & { quien: string; para: Date; urgente: boolean }): Evento => ({
+  materialNuevo: (m: M & { quien: string; para: Date; urgente: boolean; observaciones?: string | null; adjuntos?: number }): Evento => ({
     nombre: "material.nuevo", tipo: "MATERIAL",
-    ...TEXTO_MATERIAL.nuevo(m.quien, { que: m.que, obra: m.obra, para: paraElDia(m.para), urgente: m.urgente }),
+    ...TEXTO_MATERIAL.nuevo(m.quien, { que: m.que, obra: m.obra, para: paraElDia(m.para), urgente: m.urgente, observaciones: m.observaciones, adjuntos: m.adjuntos }),
     ...material(m, "nuevo"), para: [rol("COMPRAS", push), rol("DIRECCION", bandeja)],
   }),
 

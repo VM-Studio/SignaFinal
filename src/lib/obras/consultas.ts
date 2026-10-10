@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { conAlcance, filtroObras } from "@/lib/alcance";
 
-const responsables = { where: { activo: true }, select: { principal: true, usuario: { select: { nombre: true, telefono: true } } }, orderBy: [{ principal: "desc" as const }, { creadoEn: "asc" as const }] };
+const responsables = { where: { activo: true }, select: { principal: true, usuario: { select: { id: true, nombre: true, telefono: true } } }, orderBy: [{ principal: "desc" as const }, { creadoEn: "asc" as const }] };
 
 /** Las obras del usuario (las suyas si es responsable): pedidos activos y herramientas en la obra. */
 export async function listaObras() {
@@ -24,7 +24,7 @@ export async function listaObras() {
   });
   const porObra = new Map(activos.map((a) => [a.obraId, a._count._all]));
   return obras.map((o) => ({
-    id: o.id, nombre: o.nombre, direccion: `${o.direccion}, ${o.localidad}`, estado: o.estado,
+    id: o.id, nombre: o.nombre, direccion: `${o.direccion}, ${o.localidad}`, calle: o.direccion, localidad: o.localidad, estado: o.estado,
     pedidosActivos: porObra.get(o.id) ?? 0,
     herramientas: o._count.herramientas + o.existencias.reduce((a, e) => a + e.cantidad, 0),
   }));
@@ -36,7 +36,8 @@ export async function fichaObra(id: string) {
   const o = await db.obra.findFirst({
     where: { id, ...filtroObras(u) },
     select: {
-      id: true, nombre: true, codigo: true, direccion: true, localidad: true, estado: true, latitud: true, longitud: true, responsables,
+      id: true, nombre: true, codigo: true, direccion: true, localidad: true, estado: true, latitud: true, longitud: true, radioGeocercaM: true, responsables,
+      sedes: { orderBy: [{ activa: "desc" }, { nombre: "asc" }], select: { id: true, nombre: true, direccion: true, localidad: true, latitud: true, longitud: true, activa: true } },
       herramientas: {
         where: { activo: true, estado: "EN_OBRA" },
         orderBy: { nombre: "asc" },

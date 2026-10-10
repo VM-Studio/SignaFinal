@@ -13,10 +13,23 @@ import { auditar as auditarBase } from "@/lib/auditoria";
 type Tx = Prisma.TransactionClient;
 type Lugar = { ubicacionId?: string | null; obraId?: string | null };
 
+/** El depósito principal (el galpón): adonde vuelven las herramientas si no se dice otro. */
 export async function depositoId(tx: Tx) {
-  const d = await tx.ubicacion.findFirst({ where: { tipo: "DEPOSITO" }, orderBy: { nombre: "asc" }, select: { id: true } });
+  const d = await tx.ubicacion.findFirst({ where: { tipo: "DEPOSITO", activa: true }, orderBy: [{ etiqueta: "asc" }, { nombre: "asc" }], select: { id: true } });
   if (!d) throw new ErrorNegocio("No hay un depósito cargado.");
   return d.id;
+}
+
+/**
+ * De qué depósito sale: la unitaria, del que está; la de cantidad, del que tenga stock suficiente
+ * (primero el principal). Null si no hay en ningún depósito.
+ */
+export async function depositoCon(tx: Tx, herramientaId: string, cantidad = 1) {
+  const h = await tx.herramienta.findUniqueOrThrow({ where: { id: herramientaId }, select: { tipoControl: true, ubicacionId: true } });
+  if (h.tipoControl === "UNITARIA") return h.ubicacionId;
+  const principal = await depositoId(tx);
+  const conStock = await tx.existenciaHerramienta.findMany({ where: { herramientaId, ubicacionId: { not: null }, cantidad: { gte: cantidad } }, select: { ubicacionId: true } });
+  return conStock.find((e) => e.ubicacionId === principal)?.ubicacionId ?? conStock[0]?.ubicacionId ?? null;
 }
 
 export async function auditar(tx: Tx, usuarioId: string, accion: string, entidadId: string, resumen: string, antes?: Prisma.InputJsonValue, despues?: Prisma.InputJsonValue) {

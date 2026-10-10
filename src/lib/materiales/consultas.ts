@@ -5,6 +5,8 @@ import { exigirPermiso, exigirSesion, type UsuarioSesion } from "@/lib/auth/sesi
 import { filtroObras, obrasDelUsuario } from "@/lib/alcance";
 import { puede } from "@/lib/permisos";
 import { hora } from "@/lib/formato";
+import { adjuntosDe } from "@/lib/archivos";
+import { proveedoresConSucursales } from "@/lib/proveedores/consultas";
 import { demorado, PESTANAS_COMPRAS, type PestanaCompras } from "./presentacion";
 
 /**
@@ -46,6 +48,8 @@ export type FilaMaterial = {
   ordenCompra: string | null; monto: number | null;
   /** Para la frase del que pidió: dónde retirar y a qué hora llega. */
   proveedorListo: string | null; llega: string | null; listoId: string | null;
+  /** Para la cola de Compras: clip con cuántos archivos y si trae observaciones. */
+  adjuntos: number; conNota: boolean;
 };
 
 function aFila(p: FilaDb): FilaMaterial {
@@ -58,7 +62,16 @@ function aFila(p: FilaDb): FilaMaterial {
     estado: p.estado, prioridad: p.prioridad, paraCuando: p.paraCuando.toISOString(), enEstadoDesde: desde.toISOString(), demorado: demorado(p.estado, desde),
     ordenCompra: p.ordenCompraNumero, monto: p.montoAprobado ? p.montoAprobado.toNumber() : null,
     proveedorListo: listo?.proveedor.nombre ?? null, listoId: listo?.id ?? null, llega: eta ? hora(eta) : null,
+    adjuntos: 0, conNota: !!p.observaciones?.trim(),
   };
+}
+
+/** Cuántos archivos (visibles para quien mira) tiene cada pedido de la lista. */
+async function conAdjuntos(filas: FilaMaterial[], internos: boolean) {
+  if (!filas.length) return filas;
+  const n = await db.adjunto.groupBy({ by: ["entidadId"], where: { entidadTipo: "PEDIDO_MATERIAL", entidadId: { in: filas.map((f) => f.id) }, ...(internos ? {} : { interno: false }) }, _count: true });
+  const m = new Map(n.map((x) => [x.entidadId, x._count]));
+  return filas.map((f) => ({ ...f, adjuntos: m.get(f.id) ?? 0 }));
 }
 
 /** Urgentes primero, después para cuándo. */
@@ -81,7 +94,7 @@ export async function colaCompras(pestana: PestanaCompras, obraId: string | unde
   const cuantos = Object.fromEntries(
     (Object.keys(PESTANAS_COMPRAS) as PestanaCompras[]).map((k) => [k, PESTANAS_COMPRAS[k].estados.reduce((s, e) => s + (n.get(e) ?? 0), 0)]),
   ) as Record<PestanaCompras, number>;
-  return { filas: filas.slice(0, limite).map(aFila), hayMas: filas.length > limite, cuantos, obras };
+  return { filas: await conAdjuntos(filas.slice(0, limite).map(aFila), true), hayMas: filas.length > limite, cuantos, obras };
 }
 
 /** Inicio de Compras: cuántos hay en cada paso y los que están demorados. */
@@ -109,7 +122,8 @@ export async function detalleMaterial(id: string) {
   const p = await db.pedidoMaterial.findFirst({
     where: conAlcance(u, { id }),
     include: {
-      obra: { select: { id: true, nombre: true, direccion: true, localidad: true } },
+      obra: { select: { id: true, nombre: true, direccion: true, localidad: true, latitud: true, longitud: true } },
+      obraSede: { select: { nombre: true, latitud: true, longitud: true } },
       solicitante: { select: { id: true, nombre: true, telefono: true } },
       tomadoPor: { select: { nombre: true } },
       aprobadoPor: { select: { nombre: true } },
@@ -125,9 +139,14 @@ export async function detalleMaterial(id: string) {
     },
   });
   if (!p) return null;
-  const { montoAprobado, cantidad, ...resto } = p;
+  const { montoAprobado, cantidad, notasCompras, ...resto } = p;
+  const internos = puede(u.rol, "materiales.gestionar") || puede(u.rol, "materiales.aprobar");
   return {
     ...resto,
+    // Las notas internas de Compras no salen del servidor para el que pidió.
+    notasCompras: internos ? notasCompras : null,
+    renglones: (Array.isArray(p.renglones) ? p.renglones : []) as { descripcion: string; cantidad: number | null; unidad: string | null }[],
+    adjuntos: await adjuntosDe("PEDIDO_MATERIAL", p.id, internos),
     // Ningún Decimal cruza a un Client Component.
     monto: montoAprobado ? montoAprobado.toNumber() : null,
     cantidad: cantidad ? cantidad.toNumber() : null,
@@ -138,17 +157,10 @@ export async function detalleMaterial(id: string) {
 }
 export type DetalleMaterial = NonNullable<Awaited<ReturnType<typeof detalleMaterial>>>;
 
-/** Proveedores para la hoja "Habilitar para retirar". */
+/** Proveedores (con sus sucursales) para la hoja "Habilitar para retirar". */
 export async function proveedoresParaHabilitar() {
   await exigirPermiso("materiales.gestionar");
-  const ps = await db.proveedor.findMany({
-    where: { activo: true },
-    orderBy: { nombre: "asc" },
-    select: { id: true, nombre: true, telefono: true, sucursales: { where: { activa: true }, orderBy: [{ principal: "desc" }, { nombre: "asc" }], select: { id: true, nombre: true, direccion: true, localidad: true, horarioRetiro: true, contacto: true, telefono: true } } },
-  });
-  // Mientras la hoja de habilitar elija proveedor (el selector de sucursal llega con la pantalla nueva):
-  // dirección = la de la sucursal principal.
-  return ps.map((p) => ({ ...p, direccion: p.sucursales[0]?.direccion ?? "", localidad: p.sucursales[0]?.localidad ?? "" }));
+  return proveedoresConSucursales();
 }
 
 /** Habilitados por estado, con hace cuánto (Compras ve lo que quedó colgado del lado de la obra). */
@@ -201,23 +213,38 @@ export async function misMateriales(limite: number) {
 /** Datos del formulario "Pedir materiales". */
 export async function datosPedirMateriales() {
   const u = await exigirPermiso("materiales.pedir");
-  return { obras: (await obrasDelUsuario(u)).map((o) => ({ id: o.id, nombre: o.nombre })) };
+  const [obras, responsables] = await Promise.all([
+    db.obra.findMany({
+      where: { estado: "ACTIVA", ...filtroObras(u) },
+      orderBy: { nombre: "asc" },
+      select: { id: true, nombre: true, localidad: true, sedes: { where: { activa: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true } } },
+    }),
+    puede(u.rol, "obras.cargar") ? db.usuario.findMany({ where: { rol: { in: ["RESPONSABLE_OBRA", "CAPATAZ"] }, activo: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true } }) : Promise.resolve([]),
+  ]);
+  return { obras, puedeCrearObra: puede(u.rol, "obras.cargar"), responsables };
 }
 
 /** Compras carga un pedido que le pidieron por teléfono: todas las obras y quién lo pidió en cada una. */
 export async function datosNuevoPedidoCompras() {
   await exigirPermiso("materiales.gestionar");
-  const [obras, capataces] = await Promise.all([
+  const [obras, capataces, responsables] = await Promise.all([
     db.obra.findMany({
       where: { estado: "ACTIVA" }, orderBy: { nombre: "asc" },
-      select: { id: true, nombre: true, responsables: { where: { activo: true }, orderBy: [{ principal: "desc" }, { creadoEn: "asc" }], select: { usuario: { select: { id: true, nombre: true } } } } },
+      select: {
+        id: true, nombre: true, localidad: true, sedes: { where: { activa: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true } },
+        responsables: { where: { activo: true }, orderBy: [{ principal: "desc" }, { creadoEn: "asc" }], select: { usuario: { select: { id: true, nombre: true } } } },
+      },
     }),
     db.usuario.findMany({ where: { rol: "CAPATAZ", activo: true }, select: { id: true, nombre: true }, orderBy: { nombre: "asc" } }),
+    db.usuario.findMany({ where: { rol: { in: ["RESPONSABLE_OBRA", "CAPATAZ"] }, activo: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true } }),
   ]);
-  return obras.map((o) => {
-    const personas = [...o.responsables.map((r) => r.usuario), ...capataces];
-    return { id: o.id, nombre: o.nombre, personas: [...new Map(personas.map((p) => [p.id, p])).values()] };
-  });
+  return {
+    obras: obras.map(({ responsables: r, ...o }) => {
+      const personas = [...r.map((x) => x.usuario), ...capataces];
+      return { ...o, personas: [...new Map(personas.map((p) => [p.id, p])).values()] };
+    }),
+    responsables,
+  };
 }
 
 /** Lo listo para retirar de una obra (pedir el viaje de retiro). */

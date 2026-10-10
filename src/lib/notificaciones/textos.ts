@@ -72,10 +72,16 @@ export const oc = (n: string | null | undefined) => (n ? `OC #${n.replace(/^\s*(
 type M = { que: string; obra: string };
 
 /** Avisos del circuito de Compras (pedidos de material). */
+/** Las primeras palabras de una nota, para que entre en el aviso: "Descargar por Darwin, el portón de…". */
+export function primerasPalabras(t: string, n = 10) {
+  const p = t.trim().replace(/\s+/g, " ").split(" ");
+  return p.length <= n ? p.join(" ") : `${p.slice(0, n).join(" ")}…`;
+}
+
 export const TEXTO_MATERIAL = {
-  nuevo: (quien: string, p: M & { para: string; urgente: boolean }) => ({
+  nuevo: (quien: string, p: M & { para: string; urgente: boolean; observaciones?: string | null; adjuntos?: number }) => ({
     titulo: p.urgente ? "Pedido de material urgente" : "Pedido de material nuevo",
-    cuerpo: `${quien} pidió ${queLleva(p.que)} para Obra ${p.obra}, ${p.para}.${p.urgente ? " La obra se para sin esto." : ""}`,
+    cuerpo: `${quien} pidió ${queLleva(p.que)} para Obra ${p.obra}, ${p.para}${p.adjuntos ? `, con ${p.adjuntos === 1 ? "1 archivo adjunto" : `${p.adjuntos} archivos adjuntos`}` : ""}.${p.urgente ? " La obra se para sin esto." : ""}${p.observaciones ? ` Nota: "${primerasPalabras(p.observaciones)}"` : ""}`,
   }),
   tomado: (comprador: string, p: M) => ({
     titulo: "Compras tomó tu pedido",

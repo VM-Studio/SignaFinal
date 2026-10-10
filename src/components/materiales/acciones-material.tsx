@@ -1,12 +1,14 @@
 "use client";
 
+import { SelectorProveedorSucursal, type ValorProveedor } from "@/components/proveedores/selector";
+import type { ProveedorConSucursales } from "@/lib/proveedores/acciones";
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Ban, Check, FileCheck2, Hand, PackageCheck, PackageOpen, Stamp, X } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
 import { Hoja } from "@/components/ui/hoja";
 import { Opciones } from "@/components/ui/opciones";
-import { AreaTexto, Campo, Entrada, Fecha, MensajeError, Selector } from "@/components/ui/campos";
+import { AreaTexto, Campo, Entrada, Fecha, MensajeError } from "@/components/ui/campos";
 import { useAviso } from "@/components/ui/avisos";
 import type { Resultado } from "@/lib/resultado";
 import {
@@ -106,20 +108,20 @@ export function BotonAprobadoEnPapel({ id }: { id: string }) {
   );
 }
 
-type Proveedor = { id: string; nombre: string; direccion: string; localidad: string };
+type DatosHabilitarHoja = { id: string; proveedores: ProveedorConSucursales[]; oc: string | null; descripcion: string; destino: { lat: number; lng: number } | null };
 
 /** APROBADO → "Habilitar para retirar". */
-export function BotonHabilitar({ id, proveedores, oc, descripcion, otraParte = false }: { id: string; proveedores: Proveedor[]; oc: string | null; descripcion: string; otraParte?: boolean }) {
+export function BotonHabilitar({ otraParte = false, ...d }: DatosHabilitarHoja & { otraParte?: boolean }) {
   return (
     <ConHojaPropia etiqueta={otraParte ? "Habilitar otra parte" : "Habilitar para retirar"} titulo="Habilitar para retirar" icono={<PackageOpen />} grande={!otraParte} variante={otraParte ? "secundario" : "primario"}>
-      {(cerrar) => <FormHabilitar id={id} proveedores={proveedores} oc={oc} descripcion={descripcion} cerrar={cerrar} />}
+      {(cerrar) => <FormHabilitar {...d} cerrar={cerrar} />}
     </ConHojaPropia>
   );
 }
 
-function FormHabilitar({ id, proveedores, oc, descripcion, cerrar }: { id: string; proveedores: Proveedor[]; oc: string | null; descripcion: string; cerrar: () => void }) {
+function FormHabilitar({ id, proveedores, oc, descripcion, destino, cerrar }: DatosHabilitarHoja & { cerrar: () => void }) {
   const { correr, enviando, error } = useAccion();
-  const [proveedorId, setProveedorId] = useState("");
+  const [prov, setProv] = useState<ValorProveedor>({ proveedorId: null, sucursalId: null });
   const [horario, setHorario] = useState("");
   const [contacto, setContacto] = useState("");
   const [ordenCompra, setOrdenCompra] = useState(oc ?? "");
@@ -128,15 +130,19 @@ function FormHabilitar({ id, proveedores, oc, descripcion, cerrar }: { id: strin
   const [modo, setModo] = useState<"RETIRA_CHOFER" | "ENTREGA_PROVEEDOR">("RETIRA_CHOFER");
   const [fechaEstimada, setFechaEstimada] = useState(sumarDias(diaISO(), 1));
   const [completo, setCompleto] = useState(true);
-  const prov = proveedores.find((p) => p.id === proveedorId);
   return (
     <div className="flex flex-col gap-4">
-      <Campo etiqueta="Proveedor" htmlFor="prov" ayuda={prov ? `${prov.direccion}, ${prov.localidad}` : undefined}>
-        <Selector id="prov" value={proveedorId} onChange={(e) => setProveedorId(e.target.value)}>
-          <option value="">Elegí el proveedor</option>
-          {proveedores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-        </Selector>
-      </Campo>
+      <SelectorProveedorSucursal
+        proveedores={proveedores}
+        valor={prov}
+        destino={destino}
+        onCambio={(v, p) => {
+          setProv(v);
+          // Horario y contacto de la sucursal elegida (se pueden cambiar).
+          const s = p?.sucursales.find((x) => x.id === v.sucursalId);
+          if (s) { setHorario(s.horarioRetiro ?? ""); setContacto(s.contacto ?? (s.telefono ? `Tel. ${s.telefono}` : "")); }
+        }}
+      />
       <Opciones nombre="Modo" columnas={2} valor={modo} onElegir={(v) => setModo(v as typeof modo)} opciones={[{ valor: "RETIRA_CHOFER", titulo: "Lo retira un chofer" }, { valor: "ENTREGA_PROVEEDOR", titulo: "Lo entrega el proveedor" }]} />
       {modo === "RETIRA_CHOFER" ? (
         <div className="grid grid-cols-2 gap-3">
@@ -160,10 +166,10 @@ function FormHabilitar({ id, proveedores, oc, descripcion, cerrar }: { id: strin
       </label>
       <MensajeError>{error}</MensajeError>
       <Boton
-        ancho cargando={enviando} disabled={!proveedorId || !pesoKg}
+        ancho cargando={enviando} disabled={!prov.proveedorId || !prov.sucursalId || !pesoKg}
         onClick={async () =>
           (await correr(
-            () => habilitarRetiro({ id, proveedorId, horario, contacto, ordenCompra, descripcion: que, pesoKg, modo, fechaEstimada: modo === "ENTREGA_PROVEEDOR" ? fechaEstimada : undefined, completo }),
+            () => habilitarRetiro({ id, proveedorId: prov.proveedorId!, sucursalId: prov.sucursalId!, horario, contacto, ordenCompra, descripcion: que, pesoKg, modo, fechaEstimada: modo === "ENTREGA_PROVEEDOR" ? fechaEstimada : undefined, completo }),
             modo === "RETIRA_CHOFER" ? "Habilitado. La obra ya puede pedir el viaje." : "Listo. La obra sabe que lo lleva el proveedor.",
           )) && cerrar()
         }

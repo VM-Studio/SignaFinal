@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pasos } from "@/components/ui/pasos";
 import { Opciones } from "@/components/ui/opciones";
-import { Campo, Entrada } from "@/components/ui/campos";
+import { Campo, Entrada, Selector } from "@/components/ui/campos";
 import { useAviso } from "@/components/ui/avisos";
 import { useHoja } from "@/components/ui/hoja";
 import { CampoFoto } from "@/components/viajes/campo-foto";
@@ -18,8 +18,9 @@ export type HerramientaEditable = {
 const NUEVA: HerramientaEditable = { nombre: "", categoria: "", esMaquina: false, tipoControl: "UNITARIA", marca: "", modelo: "", nroSerie: "", valorCompra: "", mantenimientoCadaDias: "" };
 
 /** Alta y edición en dos pasos. El código SIG-0000 se asigna solo. */
-export function FormularioHerramienta({ categorias, inicial = NUEVA }: { categorias: string[]; inicial?: HerramientaEditable }) {
+export function FormularioHerramienta({ categorias, inicial = NUEVA, depositos = [] }: { categorias: string[]; inicial?: HerramientaEditable; depositos?: { id: string; nombre: string }[] }) {
   const [d, setD] = useState(inicial);
+  const [depositoId, setDepositoId] = useState(depositos[0]?.id ?? "");
   const [cantidad, setCantidad] = useState("");
   const [foto, setFoto] = useState<string | null>(inicial.fotoUrl ?? null);
   const [error, setError] = useState<string>();
@@ -38,7 +39,7 @@ export function FormularioHerramienta({ categorias, inicial = NUEVA }: { categor
       validar={(i) => (i === 0 && (d.nombre.trim().length < 2 || d.categoria.trim().length < 2) ? "Poné nombre y categoría." : undefined)}
       onFinal={async () => {
         setEnviando(true);
-        const r = await guardarHerramienta({ ...d, cantidadInicial: cantidad, foto: foto && foto.startsWith("data:") ? foto : undefined });
+        const r = await guardarHerramienta({ ...d, cantidadInicial: cantidad, depositoId: d.id ? undefined : depositoId, foto: foto && foto.startsWith("data:") ? foto : undefined });
         setEnviando(false);
         if (!r.ok) return setError(r.error);
         hoja.cerrar();
@@ -59,6 +60,13 @@ export function FormularioHerramienta({ categorias, inicial = NUEVA }: { categor
         )}
       </>
       <>
+        {!d.id && depositos.length > 1 && (
+          <Campo etiqueta="¿En qué depósito queda?" htmlFor="h-dep">
+            <Selector id="h-dep" value={depositoId} onChange={(e) => setDepositoId(e.target.value)}>
+              {depositos.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
+            </Selector>
+          </Campo>
+        )}
         {d.tipoControl === "CANTIDAD" && !d.id ? (
           <Campo etiqueta="Cantidad en el depósito" htmlFor="h-cant"><Entrada id="h-cant" inputMode="numeric" value={cantidad} onChange={(e) => setCantidad(e.target.value.replace(/\D/g, ""))} /></Campo>
         ) : (

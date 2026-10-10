@@ -1,5 +1,6 @@
 "use server";
 
+import { engancharAdjuntos } from "@/lib/archivos";
 import { z } from "zod";
 import { Prisma, type EstadoMaterial } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -61,16 +62,33 @@ function exigirEstado(p: { estado: EstadoMaterial; tomadoPor?: { nombre: string 
 
 // ═══════════════════════════ Pedir materiales (obra) ═══════════════════════════
 
-const esquemaPedir = z.object({
-  obraId: z.string().min(1, "Elegí la obra."),
-  renglones: z.array(z.string().trim().max(200)).transform((r) => r.filter((x) => x.length > 0)).pipe(z.array(z.string()).min(1, "Escribí qué necesitás.").max(20)),
-  dia: z.string().regex(DIA, "Elegí para cuándo."),
-  prioridad: z.enum(["NORMAL", "URGENTE"]),
-  observaciones: z.preprocess(vacio, z.string().trim().max(300).optional()),
-  // Solo Compras: a nombre de quién (pedido que le hicieron por teléfono).
-  solicitanteId: z.preprocess(vacio, z.string().optional()),
+const renglonEsquema = z.object({
+  descripcion: z.string().trim().max(200),
+  cantidad: z.preprocess((v) => (v === "" || v == null ? undefined : v), z.coerce.number().positive("La cantidad tiene que ser más de cero.").max(1_000_000).optional()),
+  unidad: z.preprocess((v) => (v === "" || v == null ? undefined : v), z.string().trim().max(20).optional()),
 });
+
+const esquemaPedir = z
+  .object({
+    obraId: z.string().min(1, "Elegí la obra."),
+    obraSedeId: z.preprocess(vacio, z.string().optional()),
+    // Renglones (descripción, cantidad, unidad) y/o archivos adjuntos: con uno de los dos alcanza.
+    renglones: z.array(renglonEsquema).max(50).transform((r) => r.filter((x) => x.descripcion.length > 0)),
+    adjuntos: z.array(z.string()).max(20).default([]),
+    dia: z.string().regex(DIA, "Elegí para cuándo."),
+    prioridad: z.enum(["NORMAL", "URGENTE"]),
+    observaciones: z.preprocess(vacio, z.string().trim().max(2000).optional()),
+    // Solo Compras: a nombre de quién (pedido que le hicieron por teléfono).
+    solicitanteId: z.preprocess(vacio, z.string().optional()),
+  })
+  .superRefine((d, ctx) => {
+    if (!d.renglones.length && !d.adjuntos.length) ctx.addIssue({ code: "custom", message: "Escribí qué necesitás o adjuntá la lista de materiales." });
+  });
 export type DatosPedirMateriales = z.input<typeof esquemaPedir>;
+
+/** "40 bolsas cemento" a partir de un renglón. */
+const textoRenglon = (r: { descripcion: string; cantidad?: number; unidad?: string }) =>
+  r.cantidad ? `${r.cantidad.toLocaleString("es-AR")}${r.unidad ? ` ${r.unidad}` : ""} ${r.descripcion}` : r.descripcion;
 
 export async function pedirMateriales(entrada: DatosPedirMateriales): Promise<Resultado<{ id: string; numero: number }>> {
   return ejecutar(async () => {
@@ -80,33 +98,84 @@ export async function pedirMateriales(entrada: DatosPedirMateriales): Promise<Re
     const d = esquemaPedir.parse(entrada);
     if (d.dia < diaISO()) throw new ErrorNegocio("El día ya pasó. Elegí hoy o una fecha futura.");
 
-    const obra = await db.obra.findUnique({ where: { id: d.obraId }, select: { id: true, nombre: true, estado: true } });
+    const obra = await db.obra.findUnique({ where: { id: d.obraId }, select: { id: true, nombre: true, estado: true, sedes: { where: { activa: true }, select: { id: true, nombre: true } } } });
     if (!obra || obra.estado !== "ACTIVA") throw new ErrorNegocio("Esa obra no está activa.");
     if (!comoCompras && !(await esObraDelUsuario(yo, obra.id))) throw new ErrorNegocio(`No sos responsable de Obra ${obra.nombre}.`);
+    const sede = d.obraSedeId ? obra.sedes.find((x) => x.id === d.obraSedeId) : null;
+    if (d.obraSedeId && !sede) throw new ErrorNegocio("Esa sede no es de la obra.");
+    if (obra.sedes.length > 1 && !sede) throw new ErrorNegocio(`Obra ${obra.nombre} tiene varias sedes: elegí para cuál es.`);
     const solicitante = comoCompras ? await db.usuario.findFirst({ where: { id: d.solicitanteId, activo: true }, select: { id: true, nombre: true } }) : { id: yo.id, nombre: yo.nombre };
     if (!solicitante) throw new ErrorNegocio("Elegí quién lo pidió.");
 
-    const descripcion = d.renglones.join("\n");
+    // Los archivos tienen que ser de esta persona, recién subidos y sin enganchar.
+    const encontrados = d.adjuntos.length ? await db.adjunto.findMany({ where: { id: { in: d.adjuntos }, subidoPorId: yo.id, entidadTipo: "PEDIDO_MATERIAL", entidadId: null }, select: { id: true, nombre: true, tipoMime: true } }) : [];
+    // En el orden en que se adjuntaron, con las planillas y los PDF antes que las fotos (la descripción nombra el primero).
+    const adjuntos = [...encontrados].sort((a, b) => Number(a.tipoMime.startsWith("image/")) - Number(b.tipoMime.startsWith("image/")) || d.adjuntos.indexOf(a.id) - d.adjuntos.indexOf(b.id));
+    if (adjuntos.length !== d.adjuntos.length) throw new ErrorNegocio("Algún archivo no se terminó de subir. Quitalo y adjuntalo de nuevo.");
+    if (!d.renglones.length && !adjuntos.length) throw new ErrorNegocio("Escribí qué necesitás o adjuntá la lista de materiales.");
+
+    const lineas = d.renglones.map(textoRenglon);
+    const descripcion = lineas.length
+      ? lineas.join("\n")
+      : `Ver lista adjunta (${adjuntos[0].nombre}${adjuntos.length > 1 ? ` y ${adjuntos.length - 1} más` : ""})`;
     const observaciones = [comoCompras ? `Lo cargó ${yo.nombre} (Compras) por pedido de ${solicitante.nombre}.` : null, d.observaciones].filter(Boolean).join(" ") || null;
     const p = await db.$transaction(async (tx) => {
       const p = await tx.pedidoMaterial.create({
-        data: { obraId: obra.id, solicitanteId: solicitante.id, descripcion, paraCuando: aFecha(d.dia, "12:00"), prioridad: d.prioridad, observaciones },
+        data: {
+          obraId: obra.id, obraSedeId: sede?.id ?? null, solicitanteId: solicitante.id, descripcion, paraCuando: aFecha(d.dia, "12:00"), prioridad: d.prioridad, observaciones,
+          renglones: d.renglones.length ? d.renglones.map((r) => ({ descripcion: r.descripcion, cantidad: r.cantidad ?? null, unidad: r.unidad ?? null })) : undefined,
+        },
         select: { id: true, numero: true },
       });
+      await engancharAdjuntos(tx, adjuntos.map((a) => a.id), "PEDIDO_MATERIAL", p.id, yo.id);
       await tx.cambioEstadoMaterial.create({ data: { pedidoMaterialId: p.id, de: null, a: "SOLICITADO", usuarioId: yo.id, nota: comoCompras ? `Cargado por Compras a pedido de ${solicitante.nombre}` : null } });
       await auditar(tx, {
         usuarioId: yo.id, accion: "material.pedir", entidadId: p.id,
-        resumen: `${yo.nombre} pidió a Compras ${queLleva(descripcion)}${d.renglones.length > 1 ? ` y ${d.renglones.length - 1} más` : ""} para Obra ${obra.nombre}${d.prioridad === "URGENTE" ? " (urgente)" : ""}${comoCompras ? ` a nombre de ${solicitante.nombre}` : ""}`,
-        despues: { estado: "SOLICITADO", renglones: d.renglones, dia: d.dia, prioridad: d.prioridad },
+        resumen: `${yo.nombre} pidió a Compras ${queLleva(descripcion)}${lineas.length > 1 ? ` y ${lineas.length - 1} más` : ""} para Obra ${obra.nombre}${sede ? ` (${sede.nombre})` : ""}${adjuntos.length ? ` con ${adjuntos.length} ${adjuntos.length === 1 ? "archivo adjunto" : "archivos adjuntos"}` : ""}${d.prioridad === "URGENTE" ? " (urgente)" : ""}${comoCompras ? ` a nombre de ${solicitante.nombre}` : ""}`,
+        despues: { estado: "SOLICITADO", renglones: d.renglones, adjuntos: adjuntos.map((a) => a.nombre), dia: d.dia, prioridad: d.prioridad, observaciones: d.observaciones ?? null },
       });
       // A Compras (push) y al dueño (bandeja). Si lo cargó Compras, no se avisa a sí mismo.
       await notificarEvento(EVENTO.materialNuevo({
-        pedidoMaterialId: p.id, solicitanteId: solicitante.id, obraId: obra.id, que: descripcion, obra: obra.nombre, quien: solicitante.nombre, para: aFecha(d.dia, "12:00"), urgente: d.prioridad === "URGENTE",
+        pedidoMaterialId: p.id, solicitanteId: solicitante.id, obraId: obra.id, obra: obra.nombre, quien: solicitante.nombre, para: aFecha(d.dia, "12:00"), urgente: d.prioridad === "URGENTE",
+        que: lineas.length ? descripcion : `materiales (lista adjunta: ${adjuntos[0].nombre})`,
+        observaciones: d.observaciones ?? null, adjuntos: adjuntos.length,
       }), { tx, actor: yo.id });
       return p;
     });
     refrescar();
     return p;
+  });
+}
+
+// ═══════════════════════════ Compras: notas internas y adjuntos ═══════════════════════════
+
+/** Notas internas de Compras sobre el pedido (el solicitante no las ve). */
+export async function guardarNotasCompras(id: string, notas: string): Promise<Resultado> {
+  return ejecutar(async () => {
+    const yo = await exigirPermiso("materiales.gestionar");
+    const t = notas.trim().slice(0, 2000);
+    const p = await db.pedidoMaterial.findUnique({ where: { id }, select: { numero: true } });
+    if (!p) throw new ErrorNegocio("No existe ese pedido.");
+    await db.pedidoMaterial.update({ where: { id }, data: { notasCompras: t || null } });
+    await auditar(db, { usuarioId: yo.id, accion: "material.notasCompras", entidadId: id, resumen: `${yo.nombre} actualizó las notas internas del pedido de material ${p.numero}` });
+    revalidar("materiales");
+    return null;
+  });
+}
+
+/** Compras suma archivos al pedido (presupuestos del proveedor, etc.). Internos: el solicitante no los ve. */
+export async function adjuntarAPedido(id: string, adjuntoIds: string[]): Promise<Resultado<{ cantidad: number }>> {
+  return ejecutar(async () => {
+    const yo = await exigirPermiso("materiales.gestionar");
+    const p = await db.pedidoMaterial.findUnique({ where: { id }, select: { numero: true } });
+    if (!p) throw new ErrorNegocio("No existe ese pedido.");
+    const n = await db.$transaction(async (tx) => {
+      const n = await engancharAdjuntos(tx, adjuntoIds, "PEDIDO_MATERIAL", id, yo.id);
+      if (n) await auditar(tx, { usuarioId: yo.id, accion: "material.adjuntar", entidadId: id, resumen: `${yo.nombre} adjuntó ${n} ${n === 1 ? "archivo" : "archivos"} al pedido de material ${p.numero}` });
+      return n;
+    });
+    revalidar("materiales");
+    return { cantidad: n };
   });
 }
 
@@ -392,7 +461,7 @@ export async function pedirRetiro(entrada: DatosRetiro): Promise<Resultado<{ ped
     const max = (await db.vehiculo.aggregate({ where: { activo: true }, _max: { capacidadCargaKg: true } }))._max.capacidadCargaKg ?? 0;
 
     const creados = await db.$transaction(async (tx) => {
-      const ml = await tx.materialListo.findMany({ where: { id: { in: d.materiales } }, include: { proveedor: { select: { nombre: true } }, pedidoViaje: { select: { id: true, estado: true } } } });
+      const ml = await tx.materialListo.findMany({ where: { id: { in: d.materiales } }, include: { pedidoMaterial: { select: { obraSedeId: true } }, proveedor: { select: { nombre: true } }, pedidoViaje: { select: { id: true, estado: true } } } });
       // Regla: solo material habilitado, LISTO, de esta obra y para retirar con chofer.
       if (ml.length !== new Set(d.materiales).size) throw new ErrorNegocio("Algún material ya no está. Actualizá la pantalla.");
       for (const m of ml) {
@@ -408,14 +477,16 @@ export async function pedirRetiro(entrada: DatosRetiro): Promise<Resultado<{ ped
       for (const [sucursalId, grupo] of porProveedor) {
         const peso = grupo.reduce((s, m) => s + (m.pesoKg ?? 0), 0);
         if (peso > max) throw new ErrorNegocio(`Lo de ${grupo[0].proveedor.nombre} pesa ${peso.toLocaleString("es-AR")} kg y ningún vehículo carga más de ${max.toLocaleString("es-AR")} kg. Marcalo en dos viajes.`);
-        const puntos = await resolverPuntos(tx, { origenTipo: "PROVEEDOR", origenId: sucursalId, obraId: obra.id });
+        // Si el material era para una sede de la obra, el viaje va a esa sede.
+        const sede = grupo.map((m) => m.pedidoMaterial.obraSedeId).find(Boolean) ?? null;
+        const puntos = await resolverPuntos(tx, { origenTipo: "PROVEEDOR", origenId: sucursalId, obraId: obra.id, destinoSedeId: sede });
         const primero = grupo[0];
         const proveedorId = primero.proveedorId;
         const p = await tx.pedidoViaje.create({
           data: {
             solicitanteId: yo.id, obraId: obra.id, tipo: "RETIRO_PROVEEDOR", origenTipo: "PROVEEDOR", esRetiroMaterial: true,
             ...puntos,
-            origenId: sucursalId, sucursalId, proveedorId,
+            origenId: sucursalId, sucursalId, proveedorId, destinoSedeId: sede,
             // Copiados de la habilitación (lo que Compras acordó con el proveedor).
             origenNombre: puntos.origenNombre, origenDireccion: primero.proveedorDireccion, origenLat: primero.proveedorLat, origenLng: primero.proveedorLng,
             descripcion: descripcionRetiro(grupo), ordenCompraLebane: [...new Set(grupo.map((m) => m.ordenCompraNumero).filter(Boolean))].join(", ").slice(0, 120) || null,

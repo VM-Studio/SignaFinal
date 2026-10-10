@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, Truck } from "lucide-react";
+import { ChevronRight, MessageSquareText, Paperclip, Truck } from "lucide-react";
 import type { FilaMaterial } from "@/lib/materiales/consultas";
 import { ESTADO_MATERIAL, fraseMaterial, haceDias, nroOC } from "@/lib/materiales/presentacion";
 import { aFecha, paraElDia } from "@/lib/formato";
@@ -13,6 +13,17 @@ const primerRenglon = (d: string) => {
   return r.length > 1 ? `${r[0]} y ${r.length - 1} más` : r[0];
 };
 
+/** Clip con la cantidad de archivos y nota si trae observaciones. */
+function Marcas({ f }: { f: FilaMaterial }) {
+  if (!f.adjuntos && !f.conNota) return null;
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1.5 text-suave">
+      {f.adjuntos > 0 && <span className="inline-flex items-center gap-0.5 text-[12px] tabular-nums" title={`${f.adjuntos} ${f.adjuntos === 1 ? "archivo adjunto" : "archivos adjuntos"}`}><Paperclip aria-hidden className="size-3.5" />{f.adjuntos}<span className="sr-only"> adjuntos</span></span>}
+      {f.conNota && <span title="Tiene observaciones"><MessageSquareText aria-hidden className="size-3.5" /><span className="sr-only">Con observaciones</span></span>}
+    </span>
+  );
+}
+
 /** Cola de Compras: filas en el celular, tabla en escritorio. En rojo lo demorado. */
 export function ColaMateriales({ filas, base = "/compras", compacta = false }: { filas: FilaMaterial[]; base?: string; compacta?: boolean }) {
   return (
@@ -22,7 +33,7 @@ export function ColaMateriales({ filas, base = "/compras", compacta = false }: {
           <li key={f.id}>
             <Link href={`${base}/${f.id}`} className={`flex min-h-14 items-center gap-3 px-4 py-2 lg:min-h-11 hover:bg-hover ${f.demorado ? "" : ""}`}>
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{primerRenglon(f.descripcion)}</p>
+                <p className="flex items-center gap-2"><span className="truncate font-medium">{primerRenglon(f.descripcion)}</span><Marcas f={f} /></p>
                 <p className="truncate text-sm text-suave">#{f.numero} · Obra {f.obra} · {f.solicitante} · {para(f.paraCuando)}</p>
                 <p className={`text-sm ${f.demorado ? "font-medium text-critico" : "text-suave"}`}>{f.demorado ? "Demorado · " : ""}En este paso {haceDias(new Date(f.enEstadoDesde))}</p>
               </div>
@@ -45,7 +56,7 @@ export function ColaMateriales({ filas, base = "/compras", compacta = false }: {
               <tr key={f.id} >
                 <td className="tabular-nums"><Link href={`${base}/${f.id}`} className="font-medium text-suave hover:text-tinta">#{f.numero}</Link></td>
                 <td className="max-w-[320px]">
-                  <span className="flex items-center gap-2"><Link href={`${base}/${f.id}`} className="truncate font-medium hover:underline">{primerRenglon(f.descripcion)}</Link>{f.prioridad === "URGENTE" && <Insignia tono="critico">Urgente</Insignia>}</span>
+                  <span className="flex items-center gap-2"><Link href={`${base}/${f.id}`} className="truncate font-medium hover:underline">{primerRenglon(f.descripcion)}</Link><Marcas f={f} />{f.prioridad === "URGENTE" && <Insignia tono="critico">Urgente</Insignia>}</span>
                 </td>
                 <td>Obra {f.obra}</td>
                 <td>{f.solicitante}</td>

@@ -177,7 +177,7 @@ export async function datosFormulario() {
     db.obra.findMany({
       where: { estado: "ACTIVA", ...filtroObras(u) },
       orderBy: { nombre: "asc" },
-      select: { id: true, nombre: true, direccion: true, localidad: true },
+      select: { id: true, nombre: true, direccion: true, localidad: true, sedes: { where: { activa: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true } } },
     }),
     db.obra.findMany({ where: { estado: "ACTIVA" }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true } }),
     db.sucursalProveedor.findMany({ where: { activa: true, proveedor: { activo: true } }, orderBy: [{ proveedor: { nombre: "asc" } }, { principal: "desc" }, { nombre: "asc" }], select: { id: true, nombre: true, direccion: true, localidad: true, proveedor: { select: { nombre: true, _count: { select: { sucursales: { where: { activa: true } } } } } } } }),
@@ -189,7 +189,7 @@ export async function datosFormulario() {
     }),
   ]);
   return {
-    obras: obras.map((o) => ({ id: o.id, nombre: o.nombre, direccion: `${o.direccion}, ${o.localidad}` })),
+    obras: obras.map((o) => ({ id: o.id, nombre: o.nombre, direccion: `${o.direccion}, ${o.localidad}`, sedes: o.sedes })),
     todasLasObras,
     // Lo que se elige es la sucursal.
     proveedores: proveedores.map((s) => ({ id: s.id, nombre: nombreSucursal({ nombre: s.nombre, proveedor: s.proveedor }, s.proveedor._count.sucursales > 1), detalle: `${s.direccion}, ${s.localidad}` })),

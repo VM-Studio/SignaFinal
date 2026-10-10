@@ -21,6 +21,7 @@
     "@vercel/blob": "^2.8.1",
     "bcryptjs": "^3.0.3",
     "date-fns": "^4.4.0",
+    "exceljs": "^4.4.0",
     "jose": "^6.2.12",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.49.0",

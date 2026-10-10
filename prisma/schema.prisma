@@ -121,8 +121,9 @@ model ObraSede {
   activa    Boolean  @default(true)
   creadoEn  DateTime @default(now())
 
-  obra    Obra          @relation(fields: [obraId], references: [id])
-  pedidos PedidoViaje[]
+  obra            Obra             @relation(fields: [obraId], references: [id])
+  pedidos         PedidoViaje[]
+  pedidosMaterial PedidoMaterial[]
 
   @@index([obraId, activa])
 }
@@ -1043,7 +1044,11 @@ model PedidoMaterial {
   numero              Int            @unique @default(autoincrement())
   obraId              String
   solicitanteId       String
-  descripcion         String // qué y cuánto
+  descripcion         String // qué y cuánto (resumen; con solo adjuntos: "Ver lista adjunta (planilla.xlsx)")
+  // Renglones: [{ descripcion, cantidad, unidad }]. Opcionales si viene un adjunto.
+  renglones           Json?
+  // Si la obra tiene sedes: para cuál.
+  obraSedeId          String?
   cantidad            Decimal?       @db.Decimal(12, 2)
   unidad              String?
   paraCuando          DateTime       @db.Date
@@ -1069,6 +1074,7 @@ model PedidoMaterial {
   actualizadoEn       DateTime       @updatedAt
 
   ordenCompra      OrdenCompra?           @relation("OCVigente", fields: [ordenCompraId], references: [id])
+  obraSede         ObraSede?              @relation(fields: [obraSedeId], references: [id])
   ordenesCompra    OrdenCompra[]          @relation("OCsDelPedido")
   obra             Obra                   @relation(fields: [obraId], references: [id])
   solicitante      Usuario                @relation("MaterialSolicitante", fields: [solicitanteId], references: [id])

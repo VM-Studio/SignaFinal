@@ -43,6 +43,7 @@ export const SECCIONES = {
   viajesAObras: { href: "/viajes-en-curso", titulo: "Viajes hacia obras", icono: "viajes" },
   historial: { href: "/mapa/historial", titulo: "Recorridos del día", icono: "mapa" },
   rastreo: { href: "/configuracion/rastreo", titulo: "Rastreo (Cusat)", icono: "rastreo" },
+  ubicaciones: { href: "/configuracion/ubicaciones", titulo: "Depósitos y base", icono: "deposito" },
   actividad: { href: "/actividad", titulo: "Actividad", icono: "actividad" },
   proveedores: { href: "/proveedores", titulo: "Proveedores", icono: "proveedores" },
   usuarios: { href: "/usuarios", titulo: "Usuarios", icono: "usuarios" },
@@ -62,12 +63,12 @@ type GrupoClaves = { titulo: string | null; claves: Clave[] };
  * Dirección ve todo: su "Más" va agrupado por tema.
  */
 const NAV: Record<Rol, { barra: Clave[]; mas: GrupoClaves[] }> = {
-  COMPRAS: { barra: ["compras", "habilitados", "proveedores"], mas: [{ titulo: null, claves: ["inicio", "misAvisos", "cuenta"] }] },
+  COMPRAS: { barra: ["compras", "habilitados", "proveedores"], mas: [{ titulo: null, claves: ["inicio", "pedirMateriales", "misAvisos", "cuenta"] }] },
   RESPONSABLE_OBRA: { barra: ["obras", "pedir", "viajesObra", "herramientas"], mas: [] },
   CAPATAZ: { barra: ["obras", "pedir", "viajesObra", "herramientas"], mas: [] },
   CHOFER: { barra: ["hoy", "solicitudes", "combustible"], mas: [{ titulo: null, claves: ["cuenta", "misAvisos"] }] },
   DEPOSITO: { barra: ["deposito", "sobrantes", "entregas"], mas: [{ titulo: null, claves: ["inicio", "importar"] }] },
-  ADMINISTRACION: { barra: ["flota", "costos", "alertas"], mas: [{ titulo: null, claves: ["inicio", "agenda", "mantenimiento", "obras", "proveedores", "usuarios"] }] },
+  ADMINISTRACION: { barra: ["flota", "costos", "alertas"], mas: [{ titulo: null, claves: ["inicio", "agenda", "mantenimiento", "obras", "proveedores", "ubicaciones", "usuarios"] }] },
   DIRECCION: {
     barra: ["mapa", "solicitudes", "viajes"],
     mas: [
@@ -80,7 +81,7 @@ const NAV: Record<Rol, { barra: Clave[]; mas: GrupoClaves[] }> = {
       { titulo: "Alertas", claves: ["alertas", "avisos"] },
       { titulo: "Actividad", claves: ["actividad"] },
       { titulo: "Costos", claves: ["costos"] },
-      { titulo: "Obras", claves: ["obras", "proveedores", "usuarios"] },
+      { titulo: "Obras", claves: ["obras", "proveedores", "ubicaciones", "usuarios"] },
     ],
   },
 };

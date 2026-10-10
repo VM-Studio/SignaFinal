@@ -33,12 +33,14 @@ export type Fila = {
 /** Listado por pestaña, con buscador (nombre o código) y filtro por ubicación ("deposito" o id de obra). */
 export async function listar({ tab, q, ubicacion, limite = 50 }: { tab: Pestana; q?: string; ubicacion?: string; limite?: number }): Promise<Fila[]> {
   await exigirPermiso("herramientas.ver");
-  const enDeposito = ubicacion === "deposito";
+  // "deposito": cualquier depósito; "dep:<id>": ese depósito; si no, el id de una obra.
+  const lugar: { ubicacionId?: { not: null } | string; obraId?: string } =
+    ubicacion === "deposito" ? { ubicacionId: { not: null } } : ubicacion?.startsWith("dep:") ? { ubicacionId: ubicacion.slice(4) } : ubicacion ? { obraId: ubicacion } : {};
   // Dónde está: la unitaria por su ubicación; la de cantidad, por su stock en cada lugar.
   const donde: Prisma.HerramientaWhereInput[] = ubicacion
     ? [
-        { tipoControl: "UNITARIA", ...(enDeposito ? { ubicacionId: { not: null } } : { obraId: ubicacion }) },
-        { tipoControl: "CANTIDAD", existencias: { some: { cantidad: { gt: 0 }, ...(enDeposito ? { ubicacionId: { not: null } } : { obraId: ubicacion }) } } },
+        { tipoControl: "UNITARIA", ...lugar },
+        { tipoControl: "CANTIDAD", existencias: { some: { cantidad: { gt: 0 }, ...lugar } } },
       ]
     : [];
   const where: Prisma.HerramientaWhereInput = {
@@ -57,18 +59,23 @@ export async function listar({ tab, q, ubicacion, limite = 50 }: { tab: Pestana;
     include: {
       categoria: { select: { nombre: true } },
       obra: { select: { nombre: true } },
+      ubicacion: { select: { nombre: true } },
       responsable: { select: { nombre: true } },
-      existencias: { where: { cantidad: { gt: 0 } }, include: { obra: { select: { nombre: true } } } },
+      existencias: { where: { cantidad: { gt: 0 } }, include: { obra: { select: { nombre: true } }, ubicacion: { select: { nombre: true } } } },
     },
   });
   return filas
     .map((h) => {
       let donde = "—";
       if (h.tipoControl === "CANTIDAD") {
-        const dep = h.existencias.filter((e) => e.ubicacionId).reduce((a, e) => a + e.cantidad, 0);
-        donde = [dep ? `${dep} en depósito` : null, ...h.existencias.filter((e) => e.obra).map((e) => `${e.cantidad} en ${e.obra!.nombre}`)].filter(Boolean).join(" · ") || "Sin stock";
+        const enDepositos = h.existencias.filter((e) => e.ubicacion);
+        const variosDepositos = new Set(enDepositos.map((e) => e.ubicacionId)).size > 1 || enDepositos.some((e) => e.ubicacion!.nombre !== "Depósito Florida");
+        donde = [
+          ...(variosDepositos ? enDepositos.map((e) => `${e.cantidad} en ${e.ubicacion!.nombre}`) : enDepositos.length ? [`${enDepositos.reduce((a, e) => a + e.cantidad, 0)} en depósito`] : []),
+          ...h.existencias.filter((e) => e.obra).map((e) => `${e.cantidad} en ${e.obra!.nombre}`),
+        ].join(" · ") || "Sin stock";
       } else if (h.estado === "EN_OBRA") donde = `Obra ${h.obra?.nombre}`;
-      else if (h.estado === "DISPONIBLE") donde = "Depósito";
+      else if (h.estado === "DISPONIBLE") donde = h.ubicacion?.nombre === "Depósito Florida" || !h.ubicacion ? "Depósito" : h.ubicacion.nombre;
       else if (h.estado === "EN_REPARACION") donde = "En el taller";
       else if (h.estado === "EXTRAVIADA") donde = "No se sabe";
       return {
@@ -83,17 +90,17 @@ export async function listar({ tab, q, ubicacion, limite = 50 }: { tab: Pestana;
 
 export async function opciones() {
   await exigirPermiso("herramientas.ver");
-  const [obrasConResponsables, personas, categorias, deposito] = await Promise.all([
+  const [obrasConResponsables, personas, categorias, depositos] = await Promise.all([
     db.obra.findMany({ where: { estado: "ACTIVA" }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true, responsables: { where: { activo: true }, select: { usuarioId: true, principal: true }, orderBy: [{ principal: "desc" }, { creadoEn: "asc" }] } } }),
     db.usuario.findMany({ where: { activo: true, rol: { in: ["RESPONSABLE_OBRA", "CAPATAZ", "CHOFER", "DIRECCION", "DEPOSITO"] } }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true } }),
     db.categoriaHerramienta.findMany({ orderBy: { nombre: "asc" } }),
-    db.ubicacion.findFirst({ where: { tipo: "DEPOSITO" }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true } }),
+    db.ubicacion.findMany({ where: { tipo: "DEPOSITO", activa: true }, orderBy: [{ etiqueta: "asc" }, { nombre: "asc" }], select: { id: true, nombre: true, etiqueta: true } }),
   ]);
   // responsableId: el principal (quien recibe por defecto); responsablesIds: todos los asignados.
   const obras = obrasConResponsables.map((o) => ({
     id: o.id, nombre: o.nombre, responsableId: o.responsables[0]?.usuarioId ?? "", responsablesIds: o.responsables.map((r) => r.usuarioId),
   }));
-  return { obras, personas, categorias, deposito };
+  return { obras, personas, categorias, depositos, deposito: depositos[0] ?? null };
 }
 
 export async function ficha(id: string) {

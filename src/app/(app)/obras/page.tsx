@@ -6,7 +6,7 @@ import { Insignia, Titulo, Vacio } from "@/components/ui/basicos";
 import { exigirSesion } from "@/lib/auth/sesion";
 import { puede } from "@/lib/permisos";
 import { db } from "@/lib/db";
-import { NuevaObra } from "@/components/obras/nueva-obra";
+import { NuevaObra } from "@/components/obras/formulario-obra";
 
 export const metadata: Metadata = { title: "Obras" };
 
@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: "Obras" };
 export default async function PaginaObras() {
   const [obras, u] = await Promise.all([listaObras(), exigirSesion()]);
   const carga = puede(u.rol, "obras.cargar");
-  const responsables = carga ? await db.usuario.findMany({ where: { rol: "RESPONSABLE_OBRA", activo: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true } }) : [];
+  const responsables = carga ? await db.usuario.findMany({ where: { rol: { in: ["RESPONSABLE_OBRA", "CAPATAZ"] }, activo: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true } }) : [];
   return (
     <div>
       <Titulo siempre={carga} accion={carga ? <NuevaObra responsables={responsables} /> : undefined}>Obras</Titulo>
@@ -43,13 +43,14 @@ export default async function PaginaObras() {
           <div className="hidden overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel lg:block">
             <table className="tabla">
               <thead>
-                <tr><th>Obra</th><th>Dirección</th><th>Estado</th><th className="num">Pedidos activos</th><th className="num">Herramientas</th></tr>
+                <tr><th>Obra</th><th>Localidad</th><th>Dirección</th><th>Estado</th><th className="num">Pedidos activos</th><th className="num">Herramientas</th></tr>
               </thead>
               <tbody>
                 {obras.map((o) => (
                   <tr key={o.id}>
                     <td className="font-medium"><Link href={`/obras/${o.id}`} className="hover:underline">Obra {o.nombre}</Link></td>
-                    <td className="text-suave">{o.direccion}</td>
+                    <td>{o.localidad}</td>
+                    <td className="text-suave">{o.calle}</td>
                     <td>{o.estado !== "ACTIVA" ? <Insignia tono="aviso">Pausada</Insignia> : <Insignia tono="ok">Activa</Insignia>}</td>
                     <td className="num">{o.pedidosActivos}</td>
                     <td className="num">{o.herramientas}</td>

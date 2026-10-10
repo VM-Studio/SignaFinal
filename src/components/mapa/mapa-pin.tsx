@@ -30,21 +30,21 @@ function Clic({ onMover }: { onMover: (p: { lat: number; lng: number }) => void 
 }
 
 /** Mapa chico con el pin: se arrastra (o se toca el mapa) para ajustar dónde queda la dirección. */
-export default function MapaPin({ punto, onMover }: { punto: { lat: number; lng: number } | null; onMover: (p: { lat: number; lng: number }) => void }) {
+export default function MapaPin({ punto, onMover, soloVer = false }: { punto: { lat: number; lng: number } | null; onMover?: (p: { lat: number; lng: number }) => void; soloVer?: boolean }) {
   const pos = useMemo<[number, number] | null>(() => (punto ? [punto.lat, punto.lng] : null), [punto]);
   return (
-    <MapContainer center={pos ?? CENTRO} zoom={pos ? 16 : 11} attributionControl={false} className="h-full w-full">
+    <MapContainer center={pos ?? CENTRO} zoom={pos ? (soloVer ? 15 : 16) : 11} attributionControl={false} zoomControl={!soloVer} dragging={!soloVer} scrollWheelZoom={!soloVer} className="h-full w-full">
       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
       {pos && (
         <Marker
           position={pos}
           icon={icono}
-          draggable
-          eventHandlers={{ dragend: (e) => { const ll = (e.target as L.Marker).getLatLng(); onMover({ lat: ll.lat, lng: ll.lng }); } }}
+          draggable={!soloVer}
+          eventHandlers={{ dragend: (e) => { const ll = (e.target as L.Marker).getLatLng(); onMover?.({ lat: ll.lat, lng: ll.lng }); } }}
         />
       )}
       <Seguir punto={pos} />
-      <Clic onMover={onMover} />
+      {!soloVer && onMover && <Clic onMover={onMover} />}
     </MapContainer>
   );
 }

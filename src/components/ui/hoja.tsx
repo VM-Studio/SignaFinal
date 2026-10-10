@@ -12,7 +12,7 @@ export const useHoja = () => useContext(ContextoHoja);
  * Hoja inferior en el celular (sube desde abajo, hasta 92% del alto) y panel lateral derecho de
  * 440px en escritorio. Es lo único flotante: lleva la sombra del sistema.
  */
-export function Hoja({ abierta, onCerrar, titulo, children }: { abierta: boolean; onCerrar: () => void; titulo: string; children: ReactNode }) {
+export function Hoja({ abierta, onCerrar, titulo, children, ancho = false }: { abierta: boolean; onCerrar: () => void; titulo: string; children: ReactNode; ancho?: boolean }) {
   useEffect(() => {
     if (!abierta) return;
     const tecla = (e: KeyboardEvent) => e.key === "Escape" && onCerrar();
@@ -35,7 +35,7 @@ export function Hoja({ abierta, onCerrar, titulo, children }: { abierta: boolean
           role="dialog"
           aria-modal="true"
           aria-label={titulo}
-          className="pb-segura relative flex max-h-[92dvh] w-full flex-col rounded-t-xl bg-papel text-left text-tinta shadow-[var(--shadow-flotante)] lg:h-full lg:max-h-none lg:w-[440px] lg:rounded-none lg:border-l lg:border-linea"
+          className={`pb-segura relative flex max-h-[92dvh] w-full flex-col rounded-t-xl bg-papel text-left text-tinta shadow-[var(--shadow-flotante)] lg:h-full lg:max-h-none ${ancho ? "lg:w-[min(960px,92vw)]" : "lg:w-[440px]"} lg:rounded-none lg:border-l lg:border-linea`}
         >
           <div aria-hidden className="mx-auto mt-2 h-1 w-9 rounded-full bg-black/15 lg:hidden" />
           <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-linea pr-2 pl-4">

@@ -33,6 +33,8 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
   const [tipo, setTipo] = useState<TipoPedido>();
   // Detalles
   const [obraId, setObraId] = useState(unaObra);
+  const [sedeId, setSedeId] = useState("");
+  const sedes = datos.obras.find((o) => o.id === obraId)?.sedes ?? [];
   const [que, setQue] = useState("");
   const [pesoKg, setPesoKg] = useState("");
   const [desde, setDesde] = useState<Lugar>();
@@ -93,7 +95,9 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
   function armar(): DatosPedido | string {
     if (!tipo) return "Elegí qué hay que hacer.";
     if (!obraId) return "Elegí la obra.";
-    const base = { tipo: tipo as DatosPedido["tipo"], obraId, prioridad, franja, hora: franja === "HORA_EXACTA" ? hora : undefined, dia: diaElegido === "hoy" ? hoy : diaElegido === "manana" ? sumarDias(hoy, 1) : fecha };
+    if (sedes.length > 1 && !sedeId) return "Elegí a qué sede de la obra va.";
+    const destinoSedeId = sedes.length > 1 ? sedeId : sedes.length === 1 ? sedes[0].id : undefined;
+    const base = { tipo: tipo as DatosPedido["tipo"], obraId, destinoSedeId, prioridad, franja, hora: franja === "HORA_EXACTA" ? hora : undefined, dia: diaElegido === "hoy" ? hoy : diaElegido === "manana" ? sumarDias(hoy, 1) : fecha };
     switch (tipo) {
       case "TRASLADO_MAQUINARIA":
       case "TRASLADO_HERRAMIENTAS":
@@ -153,17 +157,29 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
   }
 
   // Con una sola obra no se pregunta: va preseleccionada.
-  const obraDestino = datos.obras.length === 1 ? (
-    <p className="rounded-[var(--radius-caja)] bg-papel px-4 py-3 font-semibold">Para Obra {datos.obras[0].nombre}</p>
-  ) : (
-    <Campo etiqueta="Obra destino" htmlFor="obra">
-      <Selector id="obra" value={obraId} onChange={(e) => setObraId(e.target.value)}>
-        {!unaObra && <option value="">Elegí la obra</option>}
-        {datos.obras.map((o) => (
-          <option key={o.id} value={o.id}>Obra {o.nombre}</option>
-        ))}
-      </Selector>
-    </Campo>
+  const obraDestino = (
+    <>
+      {datos.obras.length === 1 ? (
+        <p className="rounded-md border border-linea bg-papel px-3 py-2 text-sm font-medium">Para Obra {datos.obras[0].nombre}</p>
+      ) : (
+        <Campo etiqueta="Obra destino" htmlFor="obra">
+          <Selector id="obra" value={obraId} onChange={(e) => { setObraId(e.target.value); setSedeId(""); }}>
+            {!unaObra && <option value="">Elegí la obra</option>}
+            {datos.obras.map((o) => (
+              <option key={o.id} value={o.id}>Obra {o.nombre}</option>
+            ))}
+          </Selector>
+        </Campo>
+      )}
+      {sedes.length > 1 && (
+        <Campo etiqueta="Sede" htmlFor="sede-destino">
+          <Selector id="sede-destino" value={sedeId} onChange={(e) => setSedeId(e.target.value)}>
+            <option value="">Elegí la sede</option>
+            {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+          </Selector>
+        </Campo>
+      )}
+    </>
   );
 
   if (guardadoSinSenal) {

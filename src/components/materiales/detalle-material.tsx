@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Clock, Phone, Truck } from "lucide-react";
+import { ArrowLeft, Clock, MessageSquareText, Phone, Truck } from "lucide-react";
+import { ListaAdjuntos } from "@/components/adjuntos/lista";
+import { AdjuntarCompras, NotasCompras } from "./extras-compras";
 import { exigirSesion } from "@/lib/auth/sesion";
 import { detalleMaterial, proveedoresParaHabilitar } from "@/lib/materiales/consultas";
 import { seguimiento } from "@/lib/viajes/seguimiento";
@@ -49,7 +51,7 @@ export async function DetalleMaterial({ id, vista }: { id: string; vista: "compr
         <BotonAprobadoEnPapel id={p.id} />
       </>
     );
-    else if (habilitable) principal = <BotonHabilitar id={p.id} proveedores={proveedores} oc={p.ordenCompraNumero} descripcion={p.descripcion} otraParte={p.estado !== "APROBADO"} />;
+    else if (habilitable) principal = <BotonHabilitar id={p.id} proveedores={proveedores} oc={p.ordenCompraNumero} descripcion={p.descripcion} otraParte={p.estado !== "APROBADO"} destino={p.obraSede ? { lat: p.obraSede.latitud, lng: p.obraSede.longitud } : { lat: p.obra.latitud, lng: p.obra.longitud }} />;
   } else if (obraPuedePedir && listo) {
     principal = <BotonLink href={`/pedir/retiro?obra=${p.obraId}&material=${listo.id}`} ancho icono={<Truck />}>Pedir el viaje</BotonLink>;
   }
@@ -58,12 +60,13 @@ export async function DetalleMaterial({ id, vista }: { id: string; vista: "compr
   const volver = vista === "compras" ? { href: "/compras", titulo: "Pedidos de material" } : { href: "/mis-pedidos?tab=materiales", titulo: "Mis pedidos" };
   const estado = ESTADO_MATERIAL[p.estado];
   const pasoActual = ordenEstado(p.estado);
+  const observacionesSolicitante = p.observaciones?.trim() || null;
 
   return (
     <div className="grid gap-x-6 gap-y-4 lg:grid-cols-[1fr_320px]">
       <header className="min-w-0 lg:col-start-1">
         <Link href={volver.href} className="mb-2 hidden min-h-8 items-center gap-1 text-sm font-medium text-suave hover:text-tinta lg:inline-flex"><ArrowLeft className="size-4" /> {volver.titulo}</Link>
-        <p className="etiqueta">Pedido de material {p.numero} · Obra {p.obra.nombre}</p>
+        <p className="etiqueta">Pedido de material {p.numero} · Obra {p.obra.nombre}{p.obraSede ? ` · ${p.obraSede.nombre}` : ""}</p>
         <h1 className="mt-1 text-xl leading-7 font-semibold whitespace-pre-line lg:text-[22px]">{p.descripcion}</h1>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {vista === "obra" ? (
@@ -84,6 +87,31 @@ export async function DetalleMaterial({ id, vista }: { id: string; vista: "compr
       )}
 
       <div className="min-w-0 lg:col-start-1">
+        {/* Lo primero que lee Compras: lo que escribió el que pidió. */}
+        {observacionesSolicitante && (
+          <section className="mb-3 rounded-[var(--radius-caja)] border border-tinta/15 bg-hover p-4">
+            <p className="etiqueta flex items-center gap-1.5"><MessageSquareText className="size-3.5" /> Observaciones del solicitante</p>
+            <p className="mt-1.5 text-[15px] leading-6 whitespace-pre-line">{observacionesSolicitante}</p>
+          </section>
+        )}
+        {p.adjuntos.length > 0 && (
+          <section className="mb-3">
+            <p className="etiqueta mb-2">Archivos adjuntos ({p.adjuntos.length})</p>
+            <ListaAdjuntos adjuntos={p.adjuntos} />
+          </section>
+        )}
+        {p.renglones.length > 0 && (
+          <section className="mb-3 overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
+            <table className="tabla">
+              <thead><tr><th>Material</th><th className="num">Cantidad</th><th>Unidad</th></tr></thead>
+              <tbody>
+                {p.renglones.map((r, i) => (
+                  <tr key={i}><td>{r.descripcion}</td><td className="num">{r.cantidad != null ? Number(r.cantidad).toLocaleString("es-AR") : "—"}</td><td className="text-suave">{r.cantidad != null ? r.unidad ?? "" : ""}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )}
         <dl className="grid grid-cols-2 gap-4 rounded-[var(--radius-caja)] border border-linea bg-papel p-4 sm:grid-cols-3">
           {[
             ["Para cuándo", paraElDia(delDia(p.paraCuando)).replace(/^para /, "")],
@@ -101,7 +129,12 @@ export async function DetalleMaterial({ id, vista }: { id: string; vista: "compr
               </div>
             ))}
         </dl>
-        {p.observaciones && <p className="mt-3 rounded-[var(--radius-caja)] border border-linea bg-papel px-4 py-3 text-sm text-suave">{p.observaciones}</p>}
+        {gestiona && (
+          <section className="mt-3 flex flex-col gap-4 rounded-[var(--radius-caja)] border border-linea bg-papel p-4">
+            <NotasCompras id={p.id} inicial={p.notasCompras ?? ""} />
+            <AdjuntarCompras id={p.id} />
+          </section>
+        )}
         {gestiona && p.solicitante.telefono && (
           <a href={`tel:${p.solicitante.telefono.replace(/\s/g, "")}`} className="mt-2 inline-flex min-h-9 items-center gap-1.5 text-sm font-medium underline"><Phone className="size-4" /> Llamar a {p.solicitante.nombre}</a>
         )}

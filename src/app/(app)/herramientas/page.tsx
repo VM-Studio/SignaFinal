@@ -45,7 +45,7 @@ export default async function PaginaHerramientas({ searchParams }: { searchParam
               <>
                 <BotonLink href="/herramientas/importar" variante="secundario" icono={<Upload />}>Importar CSV</BotonLink>
                 <ConHoja titulo="Nueva herramienta" etiqueta="Agregar" icono={<Plus />}>
-                  <FormularioHerramienta categorias={ops.categorias.map((x) => x.nombre)} />
+                  <FormularioHerramienta categorias={ops.categorias.map((x) => x.nombre)} depositos={ops.depositos} />
                 </ConHoja>
               </>
             )}
@@ -64,12 +64,12 @@ export default async function PaginaHerramientas({ searchParams }: { searchParam
 
       <Pestanas items={(Object.keys(PESTANAS) as Pestana[]).map((k) => ({ href: qs({ tab: k }), etiqueta: PESTANAS[k], activa: k === tab }))} />
 
-      <Lista tab={tab} q={sp.q} donde={sp.donde} n={sp.n} obras={ops.obras} qs={qs} />
+      <Lista tab={tab} q={sp.q} donde={sp.donde} n={sp.n} obras={ops.obras} depositos={ops.depositos} qs={qs} />
     </div>
   );
 }
 
-async function Lista({ tab, q, donde, n, obras, qs }: { tab: Pestana; q?: string; donde?: string; n?: string; obras: { id: string; nombre: string }[]; qs: (e: Partial<P>) => string }) {
+async function Lista({ tab, q, donde, n, obras, depositos, qs }: { tab: Pestana; q?: string; donde?: string; n?: string; obras: { id: string; nombre: string }[]; depositos: { id: string; nombre: string }[]; qs: (e: Partial<P>) => string }) {
   const { limite, siguiente } = await limiteDe(n);
   const todas = await listar({ tab, q, ubicacion: donde, limite });
   const filas = todas.slice(0, limite);
@@ -77,7 +77,7 @@ async function Lista({ tab, q, donde, n, obras, qs }: { tab: Pestana; q?: string
     <>
       <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_16rem] lg:grid-cols-[minmax(0,420px)_16rem]">
         <Buscador accion="/herramientas" valor={q} placeholder="Buscar por nombre o código (SIG-0001)" ocultos={{ tab, donde }} />
-        <FiltroUbicacion valor={donde ?? ""} obras={obras} base={qs({ donde: undefined })} />
+        <FiltroUbicacion valor={donde ?? ""} obras={obras} depositos={depositos} base={qs({ donde: undefined })} />
       </div>
       {filas.length === 0 ? (
         <Vacio icono={<Wrench className="size-10" />} titulo="No se encontró nada">{q || donde ? "Probá con otra búsqueda u otra ubicación." : undefined}</Vacio>

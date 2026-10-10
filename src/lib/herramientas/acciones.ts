@@ -11,7 +11,7 @@ import { guardarArchivo } from "@/lib/archivos";
 import { aFecha, diaISO, elDiaALas, paraElDia, sumarDias } from "@/lib/formato";
 import { choferesQueLoVen } from "@/lib/pedidos/reglas";
 import { FRANJA } from "@/lib/pedidos/presentacion";
-import { auditar, depositoId, moverUnitaria, restar, siguienteCodigo, stockEn, sumar, viajeQueLaLleva } from "./servicio";
+import { auditar, depositoCon, depositoId, moverUnitaria, restar, siguienteCodigo, stockEn, sumar, viajeQueLaLleva } from "./servicio";
 import { auditar as auditarBase } from "@/lib/auditoria";
 import { conAlcance, esObraDelUsuario } from "@/lib/alcance";
 import { resolverPuntos } from "@/lib/pedidos/puntos";
@@ -70,7 +70,7 @@ export async function entregar(entrada: DatosEntrega): Promise<Resultado<{ viaje
 
     const r = await db.$transaction(async (tx) => {
       const h = await tx.herramienta.findUniqueOrThrow({ where: { id: d.herramientaId }, select: { tipoControl: true, nombre: true, activo: true } });
-      const dep = await depositoId(tx);
+      const dep = (await depositoCon(tx, d.herramientaId, d.cantidad)) ?? (await depositoId(tx));
       const viaje = d.viajeId ? { id: d.viajeId, chofer: null } : await viajeQueLaLleva(tx, d.herramientaId, obra.id);
       if (h.tipoControl === "CANTIDAD") {
         if (!h.activo) throw new ErrorNegocio("Está dada de baja.");
@@ -277,14 +277,18 @@ export async function darDeBaja(herramientaId: string, motivo: string): Promise<
       }
       const enObras = await tx.existenciaHerramienta.aggregate({ where: { herramientaId, obraId: { not: null } }, _sum: { cantidad: true } });
       if ((enObras._sum.cantidad ?? 0) > 0) throw new ErrorNegocio(`Todavía hay ${enObras._sum.cantidad} en obras. Que vuelvan antes de darlas de baja.`);
-      const dep = await depositoId(tx);
-      const enDep = await stockEn(tx, herramientaId, { ubicacionId: dep });
-      if (enDep > 0) {
+      // En cada depósito donde haya.
+      const depositos = await tx.existenciaHerramienta.findMany({ where: { herramientaId, ubicacionId: { not: null }, cantidad: { gt: 0 } }, select: { ubicacionId: true } });
+      let total = 0;
+      for (const { ubicacionId } of depositos) {
+        const dep = ubicacionId!;
+        const enDep = await stockEn(tx, herramientaId, { ubicacionId: dep });
+        total += enDep;
         await restar(tx, herramientaId, { ubicacionId: dep }, enDep, "el depósito");
         await tx.movimientoHerramienta.create({ data: { herramientaId, tipo: "BAJA", cantidad: enDep, desdeUbicacionId: dep, registradoPorId: yo.id, observaciones: motivo.trim() } });
       }
       await tx.herramienta.update({ where: { id: herramientaId }, data: { estado: "BAJA", activo: false } });
-      await auditar(tx, yo.id, "herramienta.baja", herramientaId, `${yo.nombre} dio de baja ${h.nombre}: ${motivo.trim()}`, undefined, { motivo: motivo.trim(), cantidad: enDep });
+      await auditar(tx, yo.id, "herramienta.baja", herramientaId, `${yo.nombre} dio de baja ${h.nombre}: ${motivo.trim()}`, undefined, { motivo: motivo.trim(), cantidad: total });
     });
     refrescar();
     return null;
@@ -394,14 +398,18 @@ export async function pedirHerramienta(entrada: DatosPedirHerramienta): Promise<
       }
     }
 
-    const dep = await db.ubicacion.findFirst({ where: { tipo: "DEPOSITO" }, orderBy: { nombre: "asc" }, select: { id: true } });
     const desdeObra = h.tipoControl === "UNITARIA" && h.estado === "EN_OBRA" ? h.obra : null;
-    if (h.tipoControl === "CANTIDAD" && dep) {
-      const hay = await db.existenciaHerramienta.findFirst({ where: { herramientaId: h.id, ubicacionId: dep.id } });
-      if ((hay?.cantidad ?? 0) < d.cantidad) throw new ErrorNegocio(`En el depósito hay ${hay?.cantidad ?? 0}.`);
+    // Sale del depósito donde está (la unitaria) o del que tenga stock suficiente (la de cantidad).
+    const dep = desdeObra ? null : await db.$transaction((tx) => depositoCon(tx, h.id, d.cantidad));
+    if (!desdeObra && !dep) {
+      if (h.tipoControl === "CANTIDAD") {
+        const hay = await db.existenciaHerramienta.aggregate({ where: { herramientaId: h.id, ubicacionId: { not: null } }, _sum: { cantidad: true } });
+        throw new ErrorNegocio(`En los depósitos hay ${hay._sum.cantidad ?? 0}.`);
+      }
+      throw new ErrorNegocio("No sabemos en qué depósito está. Avisale al depósito.");
     }
 
-    const origen = { origenTipo: desdeObra ? ("OBRA" as const) : ("DEPOSITO" as const), origenId: desdeObra ? desdeObra.id : dep!.id };
+    const origen = { origenTipo: desdeObra ? ("OBRA" as const) : ("DEPOSITO" as const), origenId: desdeObra ? desdeObra.id : dep! };
     const puntos = await resolverPuntos(db, { ...origen, obraId: obra.id });
     const nombreH = h.tipoControl === "CANTIDAD" ? `${d.cantidad} ${h.nombre.toLowerCase()}` : h.nombre;
     const responsablesOrigen = desdeObra
@@ -468,6 +476,8 @@ const esquemaHerramienta = z.object({
   valorCompra: z.preprocess(vacio, z.coerce.number().min(0).optional()),
   mantenimientoCadaDias: z.preprocess(vacio, z.coerce.number().int().min(1).max(3650).optional()),
   cantidadInicial: z.preprocess(vacio, z.coerce.number().int().min(0).max(100_000).optional()),
+  // En qué depósito queda al darla de alta (si no, el principal).
+  depositoId: z.preprocess(vacio, z.string().optional()),
   foto: z.preprocess(vacio, z.string().optional()),
 });
 export type DatosHerramienta = z.input<typeof esquemaHerramienta>;
@@ -490,7 +500,9 @@ export async function guardarHerramienta(entrada: DatosHerramienta): Promise<Res
         return h;
       }
       const codigo = (await siguienteCodigo(tx))();
-      const dep = await depositoId(tx);
+      const elegido = d.depositoId ? await tx.ubicacion.findFirst({ where: { id: d.depositoId, tipo: "DEPOSITO", activa: true }, select: { id: true } }) : null;
+      if (d.depositoId && !elegido) throw new ErrorNegocio("Ese depósito no existe.");
+      const dep = elegido?.id ?? (await depositoId(tx));
       const h = await tx.herramienta.create({
         data: { ...datos, codigo, tipoControl: d.tipoControl, estado: "DISPONIBLE", ubicacionId: d.tipoControl === "UNITARIA" ? dep : null },
         select: { id: true, codigo: true },
