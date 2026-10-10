@@ -1,5 +1,5 @@
 import "server-only";
-import type { EtapaViaje, Prisma } from "@prisma/client";
+import type { EtapaViaje, Franja, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { conAlcance, viajesVisibles } from "@/lib/alcance";
@@ -9,14 +9,23 @@ import { ETAPAS_EN_CURSO } from "./etapas";
 import { estadoMotor, senalDe } from "./motor";
 import { PARAMETROS_MOTOR } from "./parametros";
 import { baseDe, destinoDe, origenDe, rutaSegura } from "./tramos";
+import { paradaActual } from "./paradas";
+import { textoLlegue, textoSalgo, type LugarManual } from "./manual";
+import type { LugarParada, OrigenTipo } from "@prisma/client";
+
+const LUGAR_ORIGEN: Record<OrigenTipo, LugarParada> = { PROVEEDOR: "PROVEEDOR_SUCURSAL", DEPOSITO: "DEPOSITO", OBRA: "OBRA", BASE: "BASE" };
 import type { Punto } from "@/lib/geo";
 
 /** Lo que muestra cada tarjeta del chofer, en el orden en que se lee. */
 export type Tarjeta = {
   pedidoId: string;
   numero: number;
-  /** Salida estimada si ya lo aceptó; si no, para cuándo lo necesitan. */
+  /** paraCuando del pedido (nunca la fecha de aceptación): lo que se muestra grande arriba. */
   fecha: Date;
+  franja: Franja;
+  /** Ya salió (o terminó): una fecha pasada no es "atrasado". */
+  iniciado: boolean;
+  salidaEstimada: Date | null;
   retirar: { nombre: string; direccion: string };
   entregar: { nombre: string; direccion: string };
   que: string;
@@ -34,7 +43,7 @@ export type Tarjeta = {
 };
 
 const seleccion = {
-  id: true, numero: true, descripcion: true, paraCuando: true, pesoKg: true, necesitaCamion: true, prioridad: true,
+  id: true, numero: true, descripcion: true, paraCuando: true, franja: true, pesoKg: true, necesitaCamion: true, prioridad: true,
   origenNombre: true, origenDireccion: true, destinoNombre: true, destinoDireccion: true, esRetiroMaterial: true, ordenCompraLebane: true,
   materialesListos: { where: { estado: { not: "CANCELADO" } }, select: { descripcion: true, horarioRetiro: true, contactoRetiro: true, ordenCompraNumero: true } },
   solicitante: { select: { nombre: true } },
@@ -48,7 +57,7 @@ function tarjeta(p: Prisma.PedidoViajeGetPayload<{ select: typeof seleccion }>):
   const ml = p.esRetiroMaterial ? p.materialesListos : [];
   return {
     pedidoId: p.id, numero: p.numero,
-    fecha: v?.etapa === "FINALIZADO" && v.llegadaReal ? v.llegadaReal : v?.salidaEstimada ?? p.paraCuando,
+    fecha: p.paraCuando, franja: p.franja, iniciado: !!v && v.etapa !== "PROGRAMADO", salidaEstimada: v?.salidaEstimada ?? null,
     retirar: { nombre: p.origenNombre, direccion: p.origenDireccion },
     entregar: { nombre: p.destinoNombre, direccion: p.destinoDireccion },
     que: ml.length ? ml.map((m) => m.descripcion).join(" + ") : p.descripcion, pidio: p.solicitante.nombre, pesoKg: p.pesoKg, necesitaCamion: p.necesitaCamion, urgente: p.prioridad === "URGENTE",
@@ -80,15 +89,14 @@ export async function viajesDelChofer(vista: "hoy" | "proximos" | "todos", f: { 
     ]);
     return { tarjetas: filas.map(tarjeta), total, paginas: Math.max(1, Math.ceil(total / 20)) };
   }
-  // El día del viaje es el de la salida estimada; si no tiene, el de cuándo lo necesitan.
+  // El día del viaje es SIEMPRE el del pedido (paraCuando), no el de la aceptación.
   const fin = finDelDia();
-  const paraHoy: Prisma.PedidoViajeWhereInput = { OR: [{ viaje: { salidaEstimada: { lte: fin } } }, { viaje: { salidaEstimada: null }, paraCuando: { lte: fin } }] };
-  const despues: Prisma.PedidoViajeWhereInput = { OR: [{ viaje: { salidaEstimada: { gt: fin } } }, { viaje: { salidaEstimada: null }, paraCuando: { gt: fin } }] };
   const where =
     vista === "hoy"
-      ? conAlcance(u, { ...mios, OR: [{ estado: "EN_VIAJE" }, { estado: "TOMADO", ...paraHoy }] })
-      : conAlcance(u, { ...mios, estado: "TOMADO", ...despues });
+      ? conAlcance(u, { ...mios, OR: [{ estado: "EN_VIAJE" }, { estado: "TOMADO", paraCuando: { lte: fin } }] })
+      : conAlcance(u, { ...mios, estado: "TOMADO", paraCuando: { gt: fin } });
   const tarjetas = (await db.pedidoViaje.findMany({ where, select: seleccion, take: 100 })).map(tarjeta);
+  // Hoy: el que está en curso, después los atrasados (en rojo) y los de hoy por hora.
   const enCurso = tarjetas.filter((t) => t.etapa && ETAPAS_EN_CURSO.includes(t.etapa));
   return { tarjetas: [...enCurso, ...tarjetas.filter((t) => !enCurso.includes(t)).sort(ordenSalida)], total: tarjetas.length, paginas: 1 };
 }
@@ -138,6 +146,7 @@ export async function pantallaViaje(pedidoId: string) {
       viaje: {
         include: {
           vehiculo: { select: { nombre: true, patente: true, kmActual: true, baseId: true, ultimaLat: true, ultimaLng: true, ultimaFechaGps: true } },
+          paradas: { orderBy: { orden: "asc" }, select: { id: true, orden: true, tipo: true, estado: true, lugarTipo: true, lugarId: true } },
         },
       },
     },
@@ -151,16 +160,23 @@ export async function pantallaViaje(pedidoId: string) {
   const hasta = aRetiro ? origenDe(p) : destinoDe(p);
   const desde = aRetiro ? (v.etapa === "HACIA_RETIRO" ? ultima : null) ?? ultima ?? (await baseDe(v.vehiculo)) ?? origenDe(p) : v.etapa === "HACIA_DESTINO" && ultima ? ultima : origenDe(p);
   // Antes de salir no se muestra el tramo (ni se le pide la ruta al ruteo): la pantalla carga al instante.
-  const ruta = v.etapa === "FINALIZADO" || v.etapa === "EN_DESTINO" || v.etapa === "PROGRAMADO" ? null : await rutaSegura(desde, hasta);
+  const ruta = v.etapa === "FINALIZADO" || v.etapa === "EN_DESTINO" || v.etapa === "PROGRAMADO" ? null : await rutaSegura(desde, hasta, { transito: false });
   // Llegada que detectó el GPS y el chofer todavía puede negar ("No, todavía no").
   const pendiente = estadoMotor(v).pendiente;
   const confirmar = pendiente && pendiente.etapa === v.etapa && new Date(pendiente.hasta) > new Date() ? { etapa: pendiente.etapa, lugar: pendiente.etapa === "EN_RETIRO" ? p.origenNombre : p.destinoNombre } : null;
   const senal = v.etapa === "PROGRAMADO" || v.etapa === "FINALIZADO" ? null : await senalDe(v.vehiculoId, null);
+  // Botón manual: siempre de la parada actual del viaje (nunca de una que no es la que sigue), con la palabra del lugar.
+  const actual = paradaActual(v.paradas);
+  const lugarManual: LugarManual = actual
+    ? { lugarTipo: actual.lugarTipo, etiqueta: actual.lugarId && (actual.lugarTipo === "DEPOSITO" || actual.lugarTipo === "BASE") ? (await db.ubicacion.findUnique({ where: { id: actual.lugarId }, select: { etiqueta: true } }))?.etiqueta : null }
+    : { lugarTipo: aRetiro ? LUGAR_ORIGEN[p.origenTipo] : "OBRA" };
+  const manual = { paradaId: actual?.id ?? null, llegue: textoLlegue(lugarManual), salgo: textoSalgo(lugarManual) };
+  const sinGps = !!senal && (!senal.fecha || Date.now() - new Date(senal.fecha).getTime() > PARAMETROS_MOTOR.sinGpsManualMs);
   const enCursoOtro = v.etapa === "PROGRAMADO" ? await db.viaje.count({ where: { choferId: u.id, etapa: { in: ETAPAS_EN_CURSO } } }) : 0;
   const siguiente =
     v.etapa === "FINALIZADO"
       ? await db.pedidoViaje.findFirst({
-          where: conAlcance(u, { tomadoPorId: u.id, estado: "TOMADO", OR: [{ viaje: { salidaEstimada: { lte: finDelDia() } } }, { paraCuando: { lte: finDelDia() } }] }),
+          where: conAlcance(u, { tomadoPorId: u.id, estado: "TOMADO", paraCuando: { lte: finDelDia() } }),
           orderBy: [{ viaje: { ordenRuta: { sort: "asc", nulls: "last" } } }, { paraCuando: "asc" }],
           select: seleccion,
         })
@@ -175,9 +191,11 @@ export async function pantallaViaje(pedidoId: string) {
     salidaEstimada: v.salidaEstimada, etaRetiro: v.etaRetiro, etaDestino: v.etaDestino,
     retirar: { nombre: p.origenNombre, direccion: p.origenDireccion, ...origenDe(p) },
     entregar: { nombre: p.destinoNombre, direccion: p.destinoDireccion, ...destinoDe(p) },
-    tramo: ruta && { hacia: aRetiro ? "retiro" as const : "destino" as const, desde, hasta, distanciaM: ruta.distanciaM, duracionS: ruta.duracionS, geometria: ruta.geometria, estimada: ruta.fuente === "estimada" },
+    // Solo distancia y recorrido; la hora de llegada (etaRetiro/etaDestino) existe solo con tránsito real (Google).
+    tramo: ruta && { hacia: aRetiro ? "retiro" as const : "destino" as const, desde, hasta, distanciaM: ruta.distanciaM, geometria: ruta.geometria, estimada: ruta.fuente === "estimada" },
     otroEnCurso: enCursoOtro > 0,
-    confirmar, senal,
+    confirmar, senal, manual, sinGps,
+    paraCuando: p.paraCuando, franja: p.franja,
     kmRecorridos: v.kmLlegada != null && v.kmSalida != null ? v.kmLlegada - v.kmSalida : null,
     siguiente: siguiente ? tarjeta(siguiente) : null,
     hoy: inicioDelDia().toISOString(),

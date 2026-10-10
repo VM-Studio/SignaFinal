@@ -7,12 +7,12 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Flag, Navigation, PackageOpen, Satellite, Smartphone, WifiOff } from "lucide-react";
 import type { EtapaViaje } from "@prisma/client";
 import { BotonLink, claseBoton } from "@/components/ui/boton";
-import { TarjetaChofer } from "./tarjeta-chofer";
+import { FechaGrande, TarjetaChofer } from "./tarjeta-chofer";
 import { haceSeg, hora, km, peso } from "@/lib/formato";
-import { metros, minutos } from "@/lib/rutas";
+import { metros, minutos } from "@/lib/rutas/formato";
 import type { PantallaViaje as Datos } from "@/lib/viajes/chofer";
 import { useEscritorio } from "@/components/ui/escritorio";
-import { BotonEtapa, BotonLlegueDestino, BotonLlegueRetiro, BotonSalgo, ConfirmarLlegada } from "./acciones-viaje";
+import { BotonEtapa, BotonManual, ConfirmarLlegada } from "./acciones-viaje";
 import { PendienteEnvio } from "./pendiente-envio";
 import { useAlCambiar } from "@/components/layout/avisos-en-vivo";
 import { BotonSoltar } from "@/components/pedidos/acciones-detalle";
@@ -29,7 +29,7 @@ const CON_MOTOR: EtapaViaje[] = ["HACIA_RETIRO", "EN_RETIRO", "HACIA_DESTINO", "
 /**
  * La pantalla que el chofer tiene abierta mientras maneja. Toca dos botones: "Iniciar viaje" y
  * "Viaje terminado". Lo del medio (llegó al retiro, salió, llegó a la obra) lo detecta el GPS y la
- * pantalla cambia sola; abajo, chicos, los botones para marcarlo a mano si el GPS falla.
+ * pantalla cambia sola; abajo, el botón manual de la parada actual ("Llegué al proveedor") por si el GPS falla.
  */
 export function PantallaViaje({ d }: { d: Datos }) {
   const router = useRouter();
@@ -58,10 +58,11 @@ export function PantallaViaje({ d }: { d: Datos }) {
   const conMapa = tramo && (etapa === "HACIA_RETIRO" || etapa === "HACIA_DESTINO" || etapa === "EN_RETIRO");
   const mapaTramo = tramo && <MapaTramo geometria={tramo.geometria} desde={tramo.desde} hasta={tramo.hasta} nombreHasta={punto.nombre} />;
   const mapa = !escritorio && conMapa && <div className="relative isolate h-[200px] overflow-hidden rounded-[var(--radius-caja)] border border-linea">{mapaTramo}</div>;
+  // Sin tránsito real (sin Google) solo distancia; con Google, minutos y "llegás 11:04 (con tránsito)".
   const distancia = tramo && (
     <p className="mt-4 text-[15px] font-medium tabular-nums">
-      {metros(tramo.distanciaM)} · {minutos(tramo.duracionS)}
-      {eta && <> · llegás {hora(eta)}</>}
+      {metros(tramo.distanciaM)}
+      {eta && <span suppressHydrationWarning> · {minutos(Math.max(60, (new Date(eta).getTime() - Date.now()) / 1000))} · llegás {hora(eta)} (con tránsito)</span>}
       {tramo.estimada && <span className="block text-[12px] font-normal text-suave">Distancia aproximada (sin ruteo).</span>}
     </p>
   );
@@ -95,6 +96,9 @@ export function PantallaViaje({ d }: { d: Datos }) {
   const columna = (
     <div className="flex flex-col gap-3 lg:gap-4">
       <Link href="/hoy" className="inline-flex min-h-10 items-center gap-1 self-start text-sm font-medium text-suave hover:text-tinta lg:min-h-8"><ArrowLeft className="size-4" /> Hoy</Link>
+
+      {/* Primero, la fecha del viaje: la del pedido, grande y en palabras. */}
+      {etapa !== "FINALIZADO" && <FechaGrande fecha={d.paraCuando} franja={d.franja} iniciado={etapa !== "PROGRAMADO"} className="text-[22px] leading-7" />}
 
       {/* El GPS detectó una llegada: el chofer la confirma o la niega. */}
       {d.confirmar && etapa === d.etapa && <ConfirmarLlegada pedidoId={d.pedidoId} lugar={d.confirmar.lugar} />}
@@ -181,15 +185,15 @@ export function PantallaViaje({ d }: { d: Datos }) {
       {/* El botón grande: solo para empezar y para terminar. */}
       {(etapa === "PROGRAMADO" || etapa === "EN_DESTINO") && (
         <BotonEtapa
-          etapa={etapa} {...base} vehiculo={d.vehiculo} kmActual={d.kmActual} kmSalida={d.kmSalida} obra={d.entregar.nombre}
+          etapa={etapa} {...base} vehiculo={d.vehiculo} kmActual={d.kmActual} kmSalida={d.kmSalida} obra={d.entregar.nombre} paraCuando={d.paraCuando}
           bloqueado={etapa === "PROGRAMADO" && d.otroEnCurso ? "Tenés otro viaje en curso. Terminalo antes de iniciar este." : undefined}
         />
       )}
 
-      {/* Respaldo manual, chico: hace lo mismo que el GPS. */}
-      {etapa === "HACIA_RETIRO" && <BotonLlegueRetiro {...base} />}
-      {etapa === "EN_RETIRO" && <BotonSalgo {...base} />}
-      {(etapa === "HACIA_DESTINO" || etapa === "EN_RETIRO") && <BotonLlegueDestino {...base} />}
+      {/* Manual, de la parada actual y con la palabra del lugar: hace lo mismo que el GPS. Sin GPS, es el principal. */}
+      {etapa === "HACIA_RETIRO" && <BotonManual {...base} tipo="viaje.retiro" etiqueta={d.manual.llegue} paradaId={d.manual.paradaId} principal={d.sinGps} />}
+      {etapa === "EN_RETIRO" && <BotonManual {...base} tipo="viaje.salgo" etiqueta={d.manual.salgo} paradaId={d.manual.paradaId} principal={d.sinGps} />}
+      {etapa === "HACIA_DESTINO" && <BotonManual {...base} tipo="viaje.llegada" etiqueta={d.manual.llegue} paradaId={d.manual.paradaId} principal={d.sinGps} />}
 
       <section className="rounded-[var(--radius-caja)] border border-linea bg-papel p-4">
         <p className="etiqueta">Pedido {d.numero}</p>

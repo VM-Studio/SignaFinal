@@ -105,6 +105,25 @@ respaldo, que hacen la misma transición, y puede negar una llegada detectada ("
 no"). En cada transición se avisa al solicitante con distancia y hora estimada; sin señal
 más de 10 minutos, también. Parámetros en src/lib/viajes/parametros.ts.
 
+Reglas del chofer (src/lib/viajes/fecha.ts, recordatorios*.ts, manual.ts):
+- La fecha de un viaje es SIEMPRE paraCuando del pedido (hora argentina), nunca la de aceptación.
+  Toda tarjeta del chofer empieza con ella, grande y en palabras: "HOY · 8:30" (negro), "MAÑANA ·
+  por la tarde" (ámbar), "LUNES 13/10 · 8:30" (gris), "ATRASADO · ayer 8:30" (rojo, sin iniciar).
+- Bloqueo por fecha: "Iniciar viaje" solo el día del pedido o después (atrasado: avisa "Claudio
+  salió (estaba previsto para ayer)"). Futuro: botón deshabilitado con "Este viaje es para el lunes
+  13/10" y la action lo rechaza en el servidor. "Pedir que lo adelanten" avisa al que pidió y a
+  Dirección; ellos cambian la fecha con "Reprogramar" (detalle del pedido).
+- Recordatorios (solo CHOFER, job /api/jobs/recordatorios cada minuto, claveUnica): 18:00 del día
+  anterior, 7:00 del día (varios viajes = un aviso con la lista) y, si no inició, a la hora y cada 60
+  min hasta 4. Se programan al aceptar (crearViaje), se cancelan al iniciar/soltar/cancelar y se
+  recalculan al reprogramar. Dirección: resumen en bandeja a las 9:00 de los viajes sin iniciar.
+- Sin tránsito no hay minutos: sin GOOGLE_MAPS_API_KEY la app muestra solo distancia ("está a 7 km
+  de la obra"), nunca una hora. Con la clave, Google Routes (TRAFFIC_AWARE_OPTIMAL) solo para la hora
+  de llegada, "(con tránsito)". Detalle y costo en docs/rutas.md.
+- Botón manual de la parada actual, con la palabra del lugar: "Llegué al proveedor / al galpón / al
+  terreno / a la obra / a la base", "Salgo del…". Sin GPS en 3 minutos pasa a ser el principal ("Sin
+  señal GPS: marcá a mano"). Nunca marca una parada que no es la que sigue; queda en la auditoría como manual.
+
 ## Reglas de negocio
 
 - Un pedido tiene un solo estado. Solo un chofer puede aceptarlo; el segundo ve "Ya lo

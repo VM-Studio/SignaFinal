@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CloudOff, Flag, Navigation, Play } from "lucide-react";
+import { CloudOff, Flag, MapPinCheck, MapPinned, Navigation, Play, Satellite } from "lucide-react";
 import type { EtapaViaje } from "@prisma/client";
 import { Boton, BotonLink } from "@/components/ui/boton";
 import { Hoja } from "@/components/ui/hoja";
@@ -11,6 +11,8 @@ import { useAviso } from "@/components/ui/avisos";
 import { finalizarViaje, iniciarViaje, llegueAlDestino, llegueAlRetiro, responderLlegada, salgoHaciaDestino } from "@/lib/viajes/acciones";
 import { enviarOGuardar } from "@/lib/offline/cola";
 import { km } from "@/lib/formato";
+import { bloqueoPorFecha } from "@/lib/viajes/fecha";
+import { pedirAdelantar } from "@/lib/pedidos/acciones";
 import { CampoFoto } from "./campo-foto";
 import { posicionActual } from "./seguimiento-chofer";
 
@@ -18,9 +20,38 @@ const soloNumeros = (v: string) => v.replace(/\D/g, "");
 
 type Base = { pedidoId: string; numero: number; onGuardadoLocal?: (siguiente: EtapaViaje) => void };
 
-/** Botón 1 · "Iniciar viaje": km del tablero (precargado) y la posición del teléfono para la ruta al retiro. */
-export function BotonIniciar({ pedidoId, numero, vehiculo, kmActual, irAlViaje = false, bloqueado, onGuardadoLocal }: Base & {
-  vehiculo: string; kmActual: number; irAlViaje?: boolean; bloqueado?: string;
+/** "Pedir que lo adelanten": avisa al que pidió y a Dirección para que reprogramen la fecha. */
+export function BotonAdelantar({ pedidoId }: { pedidoId: string }) {
+  const [estado, setEstado] = useState<"listo" | "enviando" | "enviado">("listo");
+  const [error, setError] = useState<string>();
+  const aviso = useAviso();
+  async function pedir() {
+    setEstado("enviando");
+    setError(undefined);
+    const r = await pedirAdelantar(pedidoId);
+    if (!r.ok) {
+      setEstado("listo");
+      return setError(r.error);
+    }
+    setEstado("enviado");
+    aviso({ mensaje: "Listo: le avisamos al que lo pidió y a Dirección. Si lo reprograman para hoy, lo vas a poder iniciar." });
+  }
+  return (
+    <>
+      <MensajeError>{error}</MensajeError>
+      <Boton variante="secundario" ancho tamano="grande" cargando={estado === "enviando"} disabled={estado === "enviado"} onClick={pedir}>
+        {estado === "enviado" ? "Pedido enviado" : "Pedir que lo adelanten"}
+      </Boton>
+    </>
+  );
+}
+
+/**
+ * Botón 1 · "Iniciar viaje": km del tablero (precargado) y la posición del teléfono para la ruta al retiro.
+ * Bloqueo por fecha: si el pedido es para otro día, deshabilitado con el motivo (y la action lo rechaza igual).
+ */
+export function BotonIniciar({ pedidoId, numero, vehiculo, kmActual, irAlViaje = false, bloqueado, paraCuando, onGuardadoLocal }: Base & {
+  vehiculo: string; kmActual: number; irAlViaje?: boolean; bloqueado?: string; paraCuando?: Date | string;
 }) {
   const [abierta, setAbierta] = useState(false);
   const [valor, setValor] = useState(String(kmActual));
@@ -49,6 +80,16 @@ export function BotonIniciar({ pedidoId, numero, vehiculo, kmActual, irAlViaje =
   }
 
   if (bloqueado) return <p className="rounded-[var(--radius-caja)] bg-fondo px-4 py-3 font-semibold">{bloqueado}</p>;
+  const porFecha = paraCuando ? bloqueoPorFecha(new Date(paraCuando)) : null;
+  if (porFecha) {
+    return (
+      <div className="flex flex-col gap-2">
+        <Boton ancho tamano="grande" icono={<Play />} disabled aria-describedby={`fecha-${pedidoId}`}>Iniciar viaje</Boton>
+        <p id={`fecha-${pedidoId}`} suppressHydrationWarning className="text-center text-[15px] font-semibold">{porFecha}</p>
+        <BotonAdelantar pedidoId={pedidoId} />
+      </div>
+    );
+  }
   return (
     <>
       <Boton ancho tamano="grande" icono={<Play />} onClick={() => setAbierta(true)}>Iniciar viaje</Boton>
@@ -65,8 +106,14 @@ export function BotonIniciar({ pedidoId, numero, vehiculo, kmActual, irAlViaje =
   );
 }
 
-/** Botones chicos de respaldo: hacen la misma transición que el motor ("Marcar a mano"). */
-function BotonManual({ pedidoId, numero, tipo, etiqueta, onGuardadoLocal }: Base & { tipo: "viaje.retiro" | "viaje.salgo" | "viaje.llegada"; etiqueta: string }) {
+/**
+ * Botón manual de la parada actual ("Llegué al proveedor", "Salgo del galpón", "Llegué a la obra"): hace
+ * la misma transición que el motor y queda en la auditoría como manual. Secundario y visible; si no hay
+ * GPS hace más de 3 minutos, pasa a ser el principal ("Sin señal GPS: marcá a mano").
+ */
+export function BotonManual({ pedidoId, numero, tipo, etiqueta, paradaId, principal = false, onGuardadoLocal }: Base & {
+  tipo: "viaje.retiro" | "viaje.salgo" | "viaje.llegada"; etiqueta: string; paradaId: string | null; principal?: boolean;
+}) {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string>();
   const router = useRouter();
@@ -76,24 +123,22 @@ function BotonManual({ pedidoId, numero, tipo, etiqueta, onGuardadoLocal }: Base
     setEnviando(true);
     setError(undefined);
     const gps = await posicionActual();
-    const datos = { clientId: crypto.randomUUID(), pedidoId, ocurridoEn: new Date().toISOString(), ...(gps ?? {}) };
+    const datos = { clientId: crypto.randomUUID(), pedidoId, paradaId: paradaId ?? undefined, ocurridoEn: new Date().toISOString(), ...(gps ?? {}) };
     const r = await enviarOGuardar({ id: datos.clientId, tipo, pedidoId, descripcion: `${etiqueta} · pedido ${numero}`, datos }, () => accion(datos));
     setEnviando(false);
     if (r.estado === "error") return setError(r.error);
     if (r.estado === "guardado") return onGuardadoLocal?.(siguiente);
     router.refresh();
   }
+  const Icono = tipo === "viaje.salgo" ? Navigation : tipo === "viaje.llegada" ? MapPinCheck : MapPinned;
   return (
-    <>
+    <div className="flex flex-col gap-2">
+      {principal && <p className="flex items-center gap-1.5 text-sm font-semibold text-critico"><Satellite className="size-4" /> Sin señal GPS: marcá a mano</p>}
       <MensajeError>{error}</MensajeError>
-      <Boton variante="fantasma" ancho cargando={enviando} onClick={marcar} className="underline">{etiqueta}</Boton>
-    </>
+      <Boton variante={principal ? "primario" : "secundario"} ancho tamano="grande" cargando={enviando} onClick={marcar} icono={<Icono />}>{etiqueta}</Boton>
+    </div>
   );
 }
-
-export const BotonLlegueRetiro = (p: Base) => <BotonManual {...p} tipo="viaje.retiro" etiqueta="¿Ya llegaste? Marcar a mano" />;
-export const BotonSalgo = (p: Base) => <BotonManual {...p} tipo="viaje.salgo" etiqueta="Salgo ahora" />;
-export const BotonLlegueDestino = (p: Base) => <BotonManual {...p} tipo="viaje.llegada" etiqueta="Marcar llegada a mano" />;
 
 /** "Llegaste a Corralón San Martín": Sí, estoy acá / No, todavía no (lo detectó el GPS). */
 export function ConfirmarLlegada({ pedidoId, lugar }: { pedidoId: string; lugar: string }) {
@@ -199,15 +244,15 @@ export function BotonFinalizar({ pedidoId, numero, obra, kmSalida, onGuardadoLoc
 /**
  * El único botón que corresponde según la etapa (inicio del chofer y pantalla del viaje):
  * PROGRAMADO "Iniciar viaje"; EN_DESTINO "Viaje terminado". En el medio no hay que tocar nada:
- * lo detecta el GPS (en el inicio, "Abrir el viaje"; en la pantalla del viaje, los botones chicos de respaldo).
+ * lo detecta el GPS (en el inicio, "Abrir el viaje"; en la pantalla del viaje, los botones manuales de la parada).
  */
-export function BotonEtapa({ etapa, pedidoId, numero, vehiculo, kmActual, kmSalida, obra, irAlViaje, bloqueado, onGuardadoLocal }: Base & {
-  etapa: EtapaViaje; vehiculo: string; kmActual: number; kmSalida: number | null; obra: string; irAlViaje?: boolean; bloqueado?: string;
+export function BotonEtapa({ etapa, pedidoId, numero, vehiculo, kmActual, kmSalida, obra, irAlViaje, bloqueado, paraCuando, onGuardadoLocal }: Base & {
+  etapa: EtapaViaje; vehiculo: string; kmActual: number; kmSalida: number | null; obra: string; irAlViaje?: boolean; bloqueado?: string; paraCuando?: Date | string;
 }) {
   const base = { pedidoId, numero, onGuardadoLocal };
   switch (etapa) {
     case "PROGRAMADO":
-      return <BotonIniciar {...base} vehiculo={vehiculo} kmActual={kmActual} irAlViaje={irAlViaje} bloqueado={bloqueado} />;
+      return <BotonIniciar {...base} vehiculo={vehiculo} kmActual={kmActual} irAlViaje={irAlViaje} bloqueado={bloqueado} paraCuando={paraCuando} />;
     case "HACIA_RETIRO":
     case "EN_RETIRO":
     case "HACIA_DESTINO":

@@ -17,6 +17,8 @@ export const PARAMETROS_MOTOR = {
   velocidadImposibleKmh: 150,
   /** Si Cusat reportó hace menos que esto, se usa Cusat y se ignora el teléfono. */
   cusatVigenteMs: 3 * 60_000,
+  /** Sin posición (ni Cusat ni teléfono) en este tiempo, el botón manual pasa a ser el principal ("Sin señal GPS: marcá a mano"). */
+  sinGpsManualMs: 3 * 60_000,
   /** Sin ninguna posición en este tiempo: el viaje queda "sin señal" (solo avanzan los botones). */
   sinSenalMs: 5 * 60_000,
   /** Sin señal durante esto: se le avisa al que pidió. */

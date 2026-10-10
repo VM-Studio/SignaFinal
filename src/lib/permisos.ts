@@ -30,7 +30,7 @@ import type { Rol } from "@prisma/client";
 
 export const ACCIONES = [
   // Pedidos y viajes
-  "pedidos.ver", "pedidos.crear", "pedidos.cancelarPropios", "pedidos.cancelarCualquiera", "pedidos.tomar", "pedidos.reasignar",
+  "pedidos.ver", "pedidos.crear", "pedidos.cancelarPropios", "pedidos.cancelarCualquiera", "pedidos.tomar", "pedidos.reasignar", "pedidos.reprogramar",
   "viajes.verPropios", "viajes.verTodos", "viajes.ejecutar",
   // Flota
   "flota.ver", "flota.editar", "flota.documentacion", "flota.agenda", "combustible.cargar", "combustible.ver",
@@ -102,7 +102,7 @@ const DIRECCION: Entrada = {
     ]),
   ],
   acciones: [
-    "pedidos.ver", "pedidos.crear", "pedidos.cancelarPropios", "pedidos.cancelarCualquiera", "pedidos.reasignar", "viajes.verTodos",
+    "pedidos.ver", "pedidos.crear", "pedidos.cancelarPropios", "pedidos.cancelarCualquiera", "pedidos.reasignar", "pedidos.reprogramar", "viajes.verTodos",
     "flota.ver", "flota.editar", "flota.documentacion", "flota.agenda", "combustible.cargar", "combustible.ver", "mantenimiento.ver",
     "mantenimiento.registrar", "incidentes.registrar", "herramientas.ver", "herramientas.solicitar", "herramientas.mover", "herramientas.editar",
     "herramientas.mantenimiento", "sobrantes.ver", "sobrantes.editar", "mapa.ver", "alertas.ver", "avisos.ver", "costos.ver",

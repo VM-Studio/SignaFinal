@@ -1,10 +1,13 @@
 import "server-only";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { calcularRuta, rutaEstimada, type Ruta } from "@/lib/rutas";
+import { calcularRuta, hayTransito, llegadaCon, rutaEstimada, type Ruta } from "@/lib/rutas";
 import { baseViaje, notificarEvento } from "@/lib/notificaciones/enviar";
 import { EVENTO } from "@/lib/notificaciones/eventos";
 import type { Punto } from "@/lib/geo";
+
+/** Con Google, la hora estimada se recalcula como mucho cada 5 minutos por viaje. */
+const RECALCULAR_ETA_MS = 5 * 60_000;
 
 /** Lo que se tarda en cargar en el punto de retiro (para estimar la llegada a la obra). */
 export const CARGA_S = 20 * 60;
@@ -19,9 +22,9 @@ export async function baseDe(vehiculo: { baseId: string | null }): Promise<Punto
 }
 
 /** Ruta sin que nada la pueda trabar: si el ruteo falla, la estimada. */
-export async function rutaSegura(desde: Punto, hasta: Punto): Promise<Ruta> {
+export async function rutaSegura(desde: Punto, hasta: Punto, o: { transito?: boolean } = {}): Promise<Ruta> {
   try {
-    return await calcularRuta(desde, hasta);
+    return await calcularRuta(desde, hasta, o);
   } catch {
     return rutaEstimada(desde, hasta);
   }
@@ -36,7 +39,7 @@ type ViajeConPedido = Prisma.ViajeGetPayload<{ include: { pedido: true; chofer: 
 
 /**
  * La hora estimada que ya le dijimos al que pidió (la del último aviso del viaje). Si la nueva se
- * corre más de 15 minutos, se le avisa UNA vez: "Claudio viene con demora, ahora llega 10:05 aprox".
+ * corre más de 15 minutos, se le avisa UNA vez: "Claudio viene con demora, ahora llega 10:05". Solo con tránsito real (Google).
  */
 export async function avisarSiHayDemora(v: ViajeConPedido, nuevaEta: Date) {
   const avisos = await db.notificacion.findMany({
@@ -85,20 +88,31 @@ export async function registrarPosicion(
   return { etapa, eta, cambioDeEtapa: etapa !== v.etapa };
 }
 
-/** Recalcula la hora estimada del tramo desde una posición (y avisa si se corrió más de 15 min). */
+/**
+ * Recalcula la hora estimada del tramo desde una posición (y avisa si se corrió más de 15 min).
+ * Solo con tránsito real (Google): sin eso la hora queda vacía y la app muestra solo distancia.
+ */
 export async function recalcularEta(v: ViajeConPedido, aqui: Punto, ahora = new Date()) {
+  // Sin tránsito no hay hora que calcular. Con Google, como mucho cada 5 minutos por viaje (costo: docs/rutas.md).
+  if (!hayTransito()) return null;
+  // Se "toma el turno" de forma atómica (merge en el JSON del motor, sin pisar lo que escribió el motor).
+  const limite = new Date(ahora.getTime() - RECALCULAR_ETA_MS).toISOString();
+  const tomado = await db.$executeRaw`
+    UPDATE "Viaje" SET "motor" = COALESCE("motor", '{}'::jsonb) || jsonb_build_object('etaEn', ${ahora.toISOString()}::text)
+    WHERE "id" = ${v.id} AND (("motor"->>'etaEn') IS NULL OR ("motor"->>'etaEn') < ${limite})`;
+  if (!tomado) return v.etapa === "HACIA_RETIRO" ? v.etaRetiro : v.etaDestino;
   let eta: Date | null = null;
   if (v.etapa === "HACIA_RETIRO") {
     const [aRetiro, aDestino] = await Promise.all([rutaSegura(aqui, origenDe(v.pedido)), rutaSegura(origenDe(v.pedido), destinoDe(v.pedido))]);
-    eta = new Date(ahora.getTime() + aRetiro.duracionS * 1000);
-    const etaDestino = new Date(eta.getTime() + (CARGA_S + aDestino.duracionS) * 1000);
+    eta = llegadaCon(aRetiro, ahora);
+    const etaDestino = eta && llegadaCon(aDestino, eta, CARGA_S);
     await db.viaje.update({ where: { id: v.id }, data: { etaRetiro: eta, etaDestino } });
-    await avisarSiHayDemora(v, etaDestino);
+    if (etaDestino) await avisarSiHayDemora(v, etaDestino);
   } else if (v.etapa === "HACIA_DESTINO") {
     const aDestino = await rutaSegura(aqui, destinoDe(v.pedido));
-    eta = new Date(ahora.getTime() + aDestino.duracionS * 1000);
+    eta = llegadaCon(aDestino, ahora);
     await db.viaje.update({ where: { id: v.id }, data: { etaDestino: eta } });
-    await avisarSiHayDemora(v, eta);
+    if (eta) await avisarSiHayDemora(v, eta);
   }
   return eta;
 }

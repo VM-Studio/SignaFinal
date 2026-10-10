@@ -16,6 +16,8 @@ import { IconoTipo } from "@/components/pedidos/iconos";
 import { BotonReasignar, BotonTomar } from "@/components/pedidos/tomar";
 import { BotonCancelar, BotonSoltar } from "@/components/pedidos/acciones-detalle";
 import { BotonIniciar } from "@/components/viajes/acciones-viaje";
+import { FechaGrande } from "@/components/viajes/tarjeta-chofer";
+import { BotonReprogramar } from "@/components/pedidos/reprogramar";
 import { cuando, hora, peso, plata } from "@/lib/formato";
 import { claseBoton } from "@/components/ui/boton";
 
@@ -39,6 +41,8 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
     (p.estado === "PENDIENTE" && p.solicitanteId === u.id && puede(u.rol, "pedidos.cancelarPropios")) ||
     (["PENDIENTE", "TOMADO"].includes(p.estado) && puede(u.rol, "pedidos.cancelarCualquiera"));
   const puedeReasignar = ["PENDIENTE", "TOMADO"].includes(p.estado) && puede(u.rol, "pedidos.reasignar");
+  // Cambiar la fecha: Dirección y quien lo pidió, mientras no salió.
+  const puedeReprogramar = (p.estado === "PENDIENTE" || (p.estado === "TOMADO" && (!p.viaje || p.viaje.etapa === "PROGRAMADO"))) && (puede(u.rol, "pedidos.reprogramar") || p.solicitanteId === u.id);
 
   const [vehiculos, reasignar, vehiculoActual] = await Promise.all([
     esChofer && p.estado === "PENDIENTE" ? vehiculosParaTomar(p) : Promise.resolve(null),
@@ -53,8 +57,8 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
   const momentos: { titulo: string; hecho: boolean; fecha: Date | null; detalle?: string }[] = [
     { titulo: `${p.solicitante.nombre} lo pidió`, hecho: true, fecha: p.creadoEn },
     { titulo: p.tomadoEn ? `Lo aceptó ${p.tomadoPor?.nombre ?? "un chofer"}` : "Que lo acepte un chofer", hecho: !!p.tomadoEn, fecha: p.tomadoEn, detalle: v ? `${v.vehiculo.nombre}${v.salidaEstimada && !v.salidaReal ? ` · sale ${hora(v.salidaEstimada)}` : ""}` : undefined },
-    { titulo: enRetiro ? `Retiró en ${p.origen.nombre}` : `Retiro en ${p.origen.nombre}`, hecho: !!enRetiro, fecha: enRetiro, detalle: !enRetiro && v?.etaRetiro ? `llega ${hora(v.etaRetiro)} aprox` : undefined },
-    { titulo: p.estado === "ENTREGADO" ? `Entregado en Obra ${p.obra.nombre}` : enDestino ? `Llegó a Obra ${p.obra.nombre}` : `Llegada a Obra ${p.obra.nombre}`, hecho: !!enDestino, fecha: enDestino, detalle: !enDestino && v?.etaDestino ? `llega ${hora(v.etaDestino)} aprox` : undefined },
+    { titulo: enRetiro ? `Retiró en ${p.origen.nombre}` : `Retiro en ${p.origen.nombre}`, hecho: !!enRetiro, fecha: enRetiro, detalle: !enRetiro && v?.etaRetiro ? `llega ${hora(v.etaRetiro)} (con tránsito)` : undefined },
+    { titulo: p.estado === "ENTREGADO" ? `Entregado en Obra ${p.obra.nombre}` : enDestino ? `Llegó a Obra ${p.obra.nombre}` : `Llegada a Obra ${p.obra.nombre}`, hecho: !!enDestino, fecha: enDestino, detalle: !enDestino && v?.etaDestino ? `llega ${hora(v.etaDestino)} (con tránsito)` : undefined },
   ];
 
   const destino = `${p.obra.direccion}, ${p.obra.localidad}`;
@@ -63,10 +67,11 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
       {esChofer && p.estado === "PENDIENTE" && vehiculos && <BotonTomar pedidoId={p.id} numero={p.numero} vehiculos={vehiculos} ancho />}
       {esMio && p.estado === "TOMADO" && p.viaje && (
         <>
-          <BotonIniciar pedidoId={p.id} numero={p.numero} vehiculo={p.viaje.vehiculo.nombre} kmActual={vehiculoActual?.kmActual ?? 0} />
+          <BotonIniciar pedidoId={p.id} numero={p.numero} vehiculo={p.viaje.vehiculo.nombre} kmActual={vehiculoActual?.kmActual ?? 0} paraCuando={p.paraCuando} />
           <BotonSoltar pedidoId={p.id} numero={p.numero} />
         </>
       )}
+      {puedeReprogramar && <BotonReprogramar pedidoId={p.id} paraCuando={p.paraCuando} franja={p.franja} />}
       {reasignar && <BotonReasignar pedidoId={p.id} numero={p.numero} choferes={reasignar.choferes} vehiculos={reasignar.vehiculos} />}
       {puedeCancelar && <BotonCancelar pedidoId={p.id} />}
     </>
@@ -76,7 +81,7 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
     u.rol === "CHOFER" ? { href: "/hoy", titulo: "Hoy" } :
     u.rol === "RESPONSABLE_OBRA" || u.rol === "CAPATAZ" ? { href: "/mis-pedidos", titulo: "Mis pedidos" } :
     { href: "/solicitudes", titulo: "Solicitudes" };
-  const hayAcciones = (esChofer && p.estado === "PENDIENTE") || (esMio && p.estado === "TOMADO") || puedeReasignar || puedeCancelar;
+  const hayAcciones = (esChofer && p.estado === "PENDIENTE") || (esMio && p.estado === "TOMADO") || puedeReasignar || puedeCancelar || puedeReprogramar;
 
   const cabecera = (
     <header className="min-w-0">
@@ -86,6 +91,8 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
       <p className="flex items-center gap-1.5 etiqueta [&_svg]:size-3.5">
         <IconoTipo tipo={p.tipo} /> {TIPO[p.tipo].titulo} · Pedido {p.numero}
       </p>
+      {/* El chofer lee primero la fecha del viaje, grande y en palabras. */}
+      {esChofer && p.estado !== "CANCELADO" && p.estado !== "ENTREGADO" && <FechaGrande fecha={p.paraCuando} franja={p.franja} iniciado={p.estado === "EN_VIAJE"} className="mt-1" />}
       <h1 className="mt-1 text-xl leading-7 font-semibold lg:text-[22px]">{p.descripcion}</h1>
       <div className="mt-2 flex flex-wrap gap-1.5">
         <EstadoPedido p={p} />

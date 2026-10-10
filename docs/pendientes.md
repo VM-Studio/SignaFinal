@@ -8,7 +8,7 @@ Cada pieza externa tiene un único punto de entrada en el código, así que cone
 | Pieza | Estado hoy | Qué falta |
 |---|---|---|
 | **Cusat (rastreo)** | **Conectado** a Cusat View con el usuario de la cuenta (adaptador que reproduce la web, `docs/cusat/`). Los seis vehículos con posición real, historial y dirección. Sincroniza cada minuto (cron de Vercel, verificado: 200 cada minuto). | API oficial de Cusat (punto 2). Confirmar la Hilux y la retro (punto 1). |
-| **Cron** | Vercel Cron cada minuto: `/api/cusat/sincronizar` (Cusat) y `/api/jobs/eta` (horas estimadas y "sin señal"). | Nada mientras el plan de Vercel admita cron por minuto. Si no, cron-job.org (`docs/cusat/cron.md`). `/configuracion/rastreo` avisa si pasan 5 minutos sin sincronizar. |
+| **Cron** | Vercel Cron cada minuto: `/api/cusat/sincronizar` (Cusat), `/api/jobs/eta` (horas estimadas con tránsito y "sin señal") y `/api/jobs/recordatorios` (recordatorios del chofer y resumen de las 9:00 para Dirección). | Nada mientras el plan de Vercel admita cron por minuto. Si no, cron-job.org (`docs/cusat/cron.md`). `/configuracion/rastreo` avisa si pasan 5 minutos sin sincronizar. |
 | **Lebane** | Obras y proveedores cargados a mano (demo); la OC se escribe en Compras. | API de Lebane (punto 3). |
 | **Datos del dueño** | Marcados `// confirmar` en `src/lib/demo/datos.ts`. | Punto 1. |
 | **Claves VAPID (push)** | Cargadas en Vercel, sirven para producción. | Solo si se pasa a dominio propio: `VAPID_SUBJECT`. |

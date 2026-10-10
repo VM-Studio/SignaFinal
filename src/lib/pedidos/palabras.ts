@@ -13,7 +13,7 @@ type Viaje = {
 /**
  * El estado de un pedido como lo dice una persona:
  * "Pendiente, lo ven los choferes" · "Aceptado por Claudio · sale 8:30" ·
- * "En viaje · llega 10:40 aprox" · "Entregado 10:15".
+ * "En viaje · llega 10:40 (con tránsito)" · "Entregado 10:15".
  */
 export function estadoEnPalabras(p: { estado: EstadoPedido; tomadoPor?: { nombre: string } | null; viaje?: Viaje }) {
   const v = p.viaje;
@@ -23,7 +23,7 @@ export function estadoEnPalabras(p: { estado: EstadoPedido; tomadoPor?: { nombre
     case "TOMADO":
       return `Aceptado por ${p.tomadoPor?.nombre ?? "un chofer"}${v?.salidaEstimada ? ` · sale ${hora(v.salidaEstimada)}` : ""}`;
     case "EN_VIAJE":
-      return v?.etaDestino ? `En viaje · llega ${hora(v.etaDestino)} aprox` : `En viaje con ${p.tomadoPor?.nombre ?? "el chofer"}`;
+      return v?.etaDestino ? `En viaje · llega ${hora(v.etaDestino)} (con tránsito)` : `En viaje con ${p.tomadoPor?.nombre ?? "el chofer"}`;
     case "ENTREGADO": {
       const llego = v?.llegadaDestinoEn ?? v?.llegadaReal;
       return llego ? `Entregado ${hora(llego)}` : "Entregado";
@@ -56,5 +56,5 @@ export function horaEstimada(v: NonNullable<Viaje>) {
   if (v.etapa === "PROGRAMADO") return v.salidaEstimada ? `sale ${hora(v.salidaEstimada)}` : null;
   if (v.etapa === "HACIA_RETIRO") return v.etaRetiro ? `llega al retiro ${hora(v.etaRetiro)}` : null;
   if (v.etapa === "FINALIZADO" || v.etapa === "EN_DESTINO") return v.llegadaDestinoEn ?? v.llegadaReal ? `llegó ${hora((v.llegadaDestinoEn ?? v.llegadaReal)!)}` : null;
-  return v.etaDestino ? `llega ${hora(v.etaDestino)} aprox` : null;
+  return v.etaDestino ? `llega ${hora(v.etaDestino)} (con tránsito)` : null;
 }

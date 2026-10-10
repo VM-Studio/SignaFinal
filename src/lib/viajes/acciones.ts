@@ -10,8 +10,11 @@ import { ejecutar, ErrorNegocio, type Resultado } from "@/lib/resultado";
 import { auditar, describirPedido, validarChoferYVehiculo } from "@/lib/pedidos/reglas";
 import { responsablePrincipal } from "@/lib/alcance";
 import { conEtapa } from "./etapas";
-import { sincronizarParadas } from "./paradas";
+import { paradaActual, sincronizarParadas } from "./paradas";
 import { baseDe, CARGA_S, destinoDe, origenDe, rutaSegura } from "./tramos";
+import { llegadaCon } from "@/lib/rutas";
+import { bloqueoPorFecha, diasEntre, previstoPara } from "./fecha";
+import { cancelarRecordatorios } from "./recordatorios-agenda";
 import { baseViaje, notificarEvento } from "@/lib/notificaciones/enviar";
 import { EVENTO } from "@/lib/notificaciones/eventos";
 import { finDelDia, hora } from "@/lib/formato";
@@ -78,10 +81,15 @@ export async function iniciarViaje(entrada: DatosInicio): Promise<Resultado<{ ve
     ]);
 
     const r = await db.$transaction(async (tx) => {
-      const viaje = await tx.viaje.findFirst({ where: { pedidos: { some: { id: d.pedidoId } } }, include: { pedido: true } });
+      const viaje = await tx.viaje.findFirst({ where: { pedidos: { some: { id: d.pedidoId } } }, include: { pedido: true, pedidos: { select: { id: true, paraCuando: true } } } });
       if (!viaje || viaje.pedido.tomadoPorId !== yo.id || viaje.pedido.estado !== "TOMADO" || viaje.estado !== "PROGRAMADO") {
         throw new ErrorNegocio("Este viaje no está listo para salir.");
       }
+      // Bloqueo por fecha: solo se inicia el día del pedido (o después, atrasado). Aunque se fuerce desde el teléfono.
+      const paraCuando = new Date(Math.min(...viaje.pedidos.map((p) => p.paraCuando.getTime())));
+      const bloqueo = bloqueoPorFecha(paraCuando);
+      if (bloqueo) throw new ErrorNegocio(`${bloqueo}. Si lo necesitás hacer antes, tocá "Pedir que lo adelanten".`);
+      const atrasado = diasEntre(paraCuando) < 0 ? previstoPara(paraCuando) : null;
       const enCurso = await tx.viaje.findFirst({ where: { estado: "EN_CURSO", OR: [{ choferId: yo.id }, { vehiculoId: viaje.vehiculoId }] }, select: { choferId: true } });
       if (enCurso) throw new ErrorNegocio(enCurso.choferId === yo.id ? "Ya tenés un viaje en curso. Terminalo antes de salir de nuevo." : "Ese vehículo está en otro viaje.");
 
@@ -90,8 +98,9 @@ export async function iniciarViaje(entrada: DatosInicio): Promise<Resultado<{ ve
       if (d.kmSalida > vehiculo.kmActual + 3000) throw new ErrorNegocio(`Son ${fmtKm(d.kmSalida - vehiculo.kmActual)} más que los registrados. Revisá el número.`);
 
       const salidaReal = momento(d.ocurridoEn);
-      const etaRetiro = directo ? null : new Date(salidaReal.getTime() + aRetiro.duracionS * 1000);
-      const etaDestino = directo ? new Date(salidaReal.getTime() + aDestino.duracionS * 1000) : new Date(etaRetiro!.getTime() + (CARGA_S + aDestino.duracionS) * 1000);
+      // Horas de llegada solo con tránsito real (Google); sin eso, null y la app muestra solo distancia.
+      const etaRetiro = directo ? null : llegadaCon(aRetiro, salidaReal);
+      const etaDestino = directo ? llegadaCon(aDestino, salidaReal) : etaRetiro && llegadaCon(aDestino, etaRetiro, CARGA_S);
       await tx.viaje.update({
         where: { id: viaje.id },
         data: {
@@ -106,12 +115,14 @@ export async function iniciarViaje(entrada: DatosInicio): Promise<Resultado<{ ve
         await tx.posicionVehiculo.create({ data: { vehiculoId: viaje.vehiculoId, viajeId: viaje.id, usuarioId: yo.id, fuente: "TELEFONO", latitud: gps.lat, longitud: gps.lng, precisionM: d.precisionM ?? null, motorEncendido: true, fecha: salidaReal } });
       }
       await notificarEvento(EVENTO.viajeSalio({
-        ...(await baseViaje(tx, viaje.pedido.id, yo.nombre)), origen: viaje.pedido.origenNombre, distanciaM: directo ? aDestino.distanciaM : aRetiro.distanciaM, etaRetiro, etaDestino, directo,
+        ...(await baseViaje(tx, viaje.pedido.id, yo.nombre)), origen: viaje.pedido.origenNombre, distanciaM: directo ? aDestino.distanciaM : aRetiro.distanciaM, etaRetiro, etaDestino, directo, atrasado,
       }), { tx, actor: yo.id });
+      // Salió: los recordatorios que faltaban ("Todavía no iniciaste…") ya no van.
+      await cancelarRecordatorios(tx, viaje.pedidos.map((p) => p.id));
       await tx.pedidoViaje.update({ where: { id: d.pedidoId }, data: { estado: "EN_VIAJE" } });
       await alCambiarElViaje(tx, d.pedidoId, "EN_VIAJE", yo.id);
       await tx.vehiculo.update({ where: { id: vehiculo.id }, data: { estado: "EN_VIAJE", kmActual: d.kmSalida } });
-      await auditar(tx, { usuarioId: yo.id, accion: "viaje.iniciar", entidadId: d.pedidoId, resumen: `${yo.nombre} salió con ${vehiculo.nombre} para ${await describirPedido(tx, d.pedidoId)}`, antes: { estado: "TOMADO" }, despues: { estado: "EN_VIAJE", kmSalida: d.kmSalida, vehiculo: vehiculo.nombre } });
+      await auditar(tx, { usuarioId: yo.id, accion: "viaje.iniciar", entidadId: d.pedidoId, resumen: `${yo.nombre} salió con ${vehiculo.nombre} para ${await describirPedido(tx, d.pedidoId)}${atrasado ? ` (estaba previsto para ${atrasado})` : ""}`, antes: { estado: "TOMADO" }, despues: { estado: "EN_VIAJE", kmSalida: d.kmSalida, vehiculo: vehiculo.nombre } });
       return { vehiculo: vehiculo.nombre };
     });
     refrescar();
@@ -121,8 +132,18 @@ export async function iniciarViaje(entrada: DatosInicio): Promise<Resultado<{ ve
 
 // ═══════════════════════════ Llegué al punto de retiro ═══════════════════════════
 
-const esquemaTramo = z.object({ clientId: z.string().uuid(), pedidoId: z.string().min(1), ocurridoEn: z.coerce.date().optional(), ...posicion });
+const esquemaTramo = z.object({ clientId: z.string().uuid(), pedidoId: z.string().min(1), paradaId: z.string().optional(), ocurridoEn: z.coerce.date().optional(), ...posicion });
 export type DatosTramo = z.input<typeof esquemaTramo>;
+
+/**
+ * El botón manual marca SIEMPRE la parada actual del viaje: si la que manda el teléfono ya no es la que
+ * sigue (reenvío sin señal, doble toque, o el GPS ya la marcó), no se toca nada.
+ */
+async function esLaQueSigue(viajeId: string, paradaId: string | undefined) {
+  if (!paradaId) return true;
+  const paradas = await db.viajeParada.findMany({ where: { viajeId }, select: { id: true, orden: true, estado: true } });
+  return !paradas.length || paradaActual(paradas)?.id === paradaId;
+}
 
 /** A mano: "¿Ya llegaste? Marcar a mano" (llegó al retiro). Misma transición que el motor. Idempotente. */
 export async function llegueAlRetiro(entrada: DatosTramo): Promise<Resultado<{ etapa: string }>> {
@@ -133,7 +154,7 @@ export async function llegueAlRetiro(entrada: DatosTramo): Promise<Resultado<{ e
     if (!v || v.choferId !== yo.id) throw new ErrorNegocio("Este viaje no es tuyo.");
     if (v.etapa === "PROGRAMADO") throw new ErrorNegocio("Primero iniciá el viaje.");
     // Reenvío sin señal o doble toque: si ya pasó esta etapa, no hace nada.
-    if (v.etapa === "HACIA_RETIRO") await transicionar(v.id, "EN_RETIRO", momento(d.ocurridoEn, v.inicioEn), { porGps: false, usuarioId: yo.id });
+    if (v.etapa === "HACIA_RETIRO" && (await esLaQueSigue(v.id, d.paradaId))) await transicionar(v.id, "EN_RETIRO", momento(d.ocurridoEn, v.inicioEn), { porGps: false, usuarioId: yo.id });
     refrescar();
     return { etapa: (await db.viaje.findUniqueOrThrow({ where: { id: v.id }, select: { etapa: true } })).etapa };
   });
@@ -146,7 +167,7 @@ export async function salgoHaciaDestino(entrada: DatosTramo): Promise<Resultado<
     const d = esquemaTramo.parse(entrada);
     const v = await db.viaje.findFirst({ where: { pedidos: { some: { id: d.pedidoId } } }, select: { id: true, choferId: true, etapa: true, llegadaRetiroEn: true } });
     if (!v || v.choferId !== yo.id) throw new ErrorNegocio("Este viaje no es tuyo.");
-    if (v.etapa === "EN_RETIRO") await transicionar(v.id, "HACIA_DESTINO", momento(d.ocurridoEn, v.llegadaRetiroEn), { porGps: false, usuarioId: yo.id });
+    if (v.etapa === "EN_RETIRO" && (await esLaQueSigue(v.id, d.paradaId))) await transicionar(v.id, "HACIA_DESTINO", momento(d.ocurridoEn, v.llegadaRetiroEn), { porGps: false, usuarioId: yo.id });
     refrescar();
     return { etapa: (await db.viaje.findUniqueOrThrow({ where: { id: v.id }, select: { etapa: true } })).etapa };
   });
@@ -160,9 +181,9 @@ export async function llegueAlDestino(entrada: DatosTramo): Promise<Resultado<{ 
     const v = await db.viaje.findFirst({ where: { pedidos: { some: { id: d.pedidoId } } }, select: { id: true, choferId: true, etapa: true, inicioEn: true } });
     if (!v || v.choferId !== yo.id) throw new ErrorNegocio("Este viaje no es tuyo.");
     if (v.etapa === "PROGRAMADO") throw new ErrorNegocio("Primero iniciá el viaje.");
-    if (["HACIA_RETIRO", "EN_RETIRO", "HACIA_DESTINO"].includes(v.etapa)) await transicionar(v.id, "EN_DESTINO", momento(d.ocurridoEn, v.inicioEn), { porGps: false, usuarioId: yo.id });
+    if (["HACIA_RETIRO", "EN_RETIRO", "HACIA_DESTINO"].includes(v.etapa) && (await esLaQueSigue(v.id, d.paradaId))) await transicionar(v.id, "EN_DESTINO", momento(d.ocurridoEn, v.inicioEn), { porGps: false, usuarioId: yo.id });
     refrescar();
-    return { etapa: "EN_DESTINO" };
+    return { etapa: (await db.viaje.findUniqueOrThrow({ where: { id: v.id }, select: { etapa: true } })).etapa };
   });
 }
 

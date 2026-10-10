@@ -8,6 +8,7 @@ import { distancia, type Punto } from "@/lib/geo";
 import { conEtapa } from "./etapas";
 import { sincronizarParadas } from "./paradas";
 import { CARGA_S, destinoDe, origenDe, rutaSegura } from "./tramos";
+import { hayTransito, llegadaCon } from "@/lib/rutas";
 import { decidir, type EstadoMotor, type Llegada, type Transicion } from "./motor-reglas";
 import { PARAMETROS_MOTOR as P } from "./parametros";
 
@@ -43,8 +44,6 @@ async function radioRetiro(v: ViajeMotor) {
   return o?.radioGeocercaM ?? P.radioLlegadaM;
 }
 
-const sumar = (d: Date, s: number) => new Date(d.getTime() + s * 1000);
-
 type Origen = { porGps: true; distanciaM: number; velocidadKmh: number; fuente: FuentePosicion } | { porGps: false; usuarioId: string };
 
 /**
@@ -61,21 +60,22 @@ export async function transicionar(viajeId: string, a: Transicion["a"], fecha: D
   };
   if (!desde[a].includes(v.etapa)) return false;
 
-  // El ruteo va antes de la transacción (es una llamada externa).
-  const aDestino = a !== "EN_DESTINO" && !v.duracionDestinoS ? await rutaSegura(origenDe(v.pedido), destinoDe(v.pedido)) : null;
+  // El ruteo va antes de la transacción (es una llamada externa). La hora de llegada, solo con tránsito real.
+  const aDestino = a !== "EN_DESTINO" && (!v.duracionDestinoS || hayTransito()) ? await rutaSegura(origenDe(v.pedido), destinoDe(v.pedido)) : null;
   const durDestino = aDestino?.duracionS ?? v.duracionDestinoS ?? 0;
   const distDestino = aDestino?.distanciaM ?? v.distanciaDestinoM ?? 0;
+  const etaDestino = llegadaCon(aDestino, fecha, a === "EN_RETIRO" ? CARGA_S : 0);
   const estado = estadoMotor(v);
   const pendiente: EstadoMotor["pendiente"] = origen.porGps && a !== "HACIA_DESTINO" ? { etapa: a, hasta: new Date(Date.now() + P.confirmarLlegadaMs).toISOString() } : undefined;
   const motor = json({ ...estado, pendiente, ...(origen.porGps ? {} : { rechazo: undefined }) });
 
   const datos: Prisma.ViajeUpdateManyMutationInput =
     a === "EN_RETIRO"
-      ? { ...conEtapa("EN_RETIRO"), llegadaRetiroEn: fecha, distanciaDestinoM: distDestino, duracionDestinoS: durDestino, etaDestino: sumar(fecha, CARGA_S + durDestino), etaRetiro: null, motor }
+      ? { ...conEtapa("EN_RETIRO"), llegadaRetiroEn: fecha, distanciaDestinoM: distDestino, duracionDestinoS: durDestino, etaDestino, etaRetiro: null, motor }
       : a === "HACIA_DESTINO"
         ? {
             ...conEtapa("HACIA_DESTINO"), salidaRetiroEn: fecha, llegadaRetiroEn: v.llegadaRetiroEn ?? fecha, distanciaDestinoM: distDestino, duracionDestinoS: durDestino,
-            etaDestino: sumar(fecha, durDestino), etaRetiro: null, motor,
+            etaDestino, etaRetiro: null, motor,
           }
         : { ...conEtapa("EN_DESTINO"), llegadaDestinoEn: fecha, llegadaReal: v.llegadaReal ?? fecha, salidaRetiroEn: v.salidaRetiroEn ?? v.llegadaRetiroEn ?? fecha, etaDestino: null, etaRetiro: null, motor };
 
@@ -91,9 +91,9 @@ export async function transicionar(viajeId: string, a: Transicion["a"], fecha: D
     await sincronizarParadas(tx, v.id, a, fecha);
     const base = await baseViaje(tx, v.pedido.id, v.chofer.nombre);
     if (a === "EN_RETIRO") {
-      await notificarEvento(EVENTO.viajeEnRetiro({ ...base, origen: v.pedido.origenNombre, distanciaM: distDestino, etaDestino: sumar(fecha, CARGA_S + durDestino) }), { tx });
+      await notificarEvento(EVENTO.viajeEnRetiro({ ...base, origen: v.pedido.origenNombre, distanciaM: distDestino, etaDestino }), { tx });
     } else if (a === "HACIA_DESTINO") {
-      await notificarEvento(EVENTO.viajeSalioRetiro({ ...base, distanciaM: distDestino, etaDestino: sumar(fecha, durDestino) }), { tx });
+      await notificarEvento(EVENTO.viajeSalioRetiro({ ...base, distanciaM: distDestino, etaDestino }), { tx });
     } else {
       await notificarEvento(EVENTO.viajeEnDestino({ ...base, llego: fecha }), { tx });
     }

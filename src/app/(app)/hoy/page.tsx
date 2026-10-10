@@ -11,7 +11,8 @@ import { Buscador } from "@/components/ui/campos";
 import { Pestanas, Subtitulo, Vacio } from "@/components/ui/basicos";
 import { TarjetaChofer } from "@/components/viajes/tarjeta-chofer";
 import { BotonEtapa } from "@/components/viajes/acciones-viaje";
-import { dia, diaISO } from "@/lib/formato";
+import { diaISO } from "@/lib/formato";
+import { ddmm, diaSemana, diasEntre } from "@/lib/viajes/fecha";
 
 export const metadata: Metadata = { title: "Hoy" };
 
@@ -76,7 +77,7 @@ function Hoy({ tarjetas }: { tarjetas: Tarjeta[] }) {
           href={`/viaje/${t.pedidoId}`}
           destacada={t === conBoton}
           accion={t === conBoton && t.etapa ? (
-            <BotonEtapa etapa={t.etapa} pedidoId={t.pedidoId} numero={t.numero} vehiculo={t.vehiculo ?? ""} kmActual={t.kmActual} kmSalida={t.kmSalida} obra={t.entregar.nombre} irAlViaje />
+            <BotonEtapa etapa={t.etapa} pedidoId={t.pedidoId} numero={t.numero} vehiculo={t.vehiculo ?? ""} kmActual={t.kmActual} kmSalida={t.kmSalida} obra={t.entregar.nombre} paraCuando={t.fecha} irAlViaje />
           ) : undefined}
         />
       ))}
@@ -93,11 +94,17 @@ function Proximos({ tarjetas }: { tarjetas: Tarjeta[] }) {
         const delDia = tarjetas.filter((t) => diaISO(t.fecha) === d);
         return (
           <section key={d}>
-            <Subtitulo>{dia(delDia[0].fecha)} · {d.split("-").reverse().slice(0, 2).join("/")}</Subtitulo>
+            <Subtitulo>{tituloDia(delDia[0].fecha)}</Subtitulo>
             <ul className="flex flex-col gap-3">{delDia.map((t) => <TarjetaChofer key={t.pedidoId} t={t} href={`/viaje/${t.pedidoId}`} />)}</ul>
           </section>
         );
       })}
     </>
   );
+}
+
+/** "Mañana · sábado 11/10", "Lunes 13/10". */
+function tituloDia(f: Date) {
+  const t = `${diaSemana(f)} ${ddmm(f)}`;
+  return diasEntre(f) === 1 ? `Mañana · ${t}` : `${t[0].toUpperCase()}${t.slice(1)}`;
 }

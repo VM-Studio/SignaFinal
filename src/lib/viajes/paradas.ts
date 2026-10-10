@@ -1,6 +1,7 @@
 import type { EtapaViaje, LugarParada, OrigenTipo, Prisma, PrismaClient, TipoParada } from "@prisma/client";
 import { distancia, type Punto } from "@/lib/geo";
 import { PARAMETROS_RUTEO } from "./parametros";
+import { cancelarRecordatorios, programarRecordatorios } from "./recordatorios-agenda";
 
 type Cliente = Prisma.TransactionClient | PrismaClient;
 
@@ -240,6 +241,8 @@ export async function crearViaje(tx: Prisma.TransactionClient, d: { pedidoIds: s
   });
   await tx.pedidoViaje.updateMany({ where: { id: { in: d.pedidoIds } }, data: { viajeId: v.id } });
   await rearmarParadas(tx, v.id, d.pedidoIds);
+  // Recordatorios del chofer: 18:00 del día anterior, 7:00 del día y "Todavía no iniciaste".
+  await programarRecordatorios(tx, d.pedidoIds, { choferId: d.choferId });
   return v.id;
 }
 
@@ -250,6 +253,7 @@ export async function crearViaje(tx: Prisma.TransactionClient, d: { pedidoIds: s
  */
 export async function quitarDelViaje(tx: Prisma.TransactionClient, pedidoId: string, conservarPuntero = false) {
   const p = await tx.pedidoViaje.findUnique({ where: { id: pedidoId }, select: { viajeId: true } });
+  await cancelarRecordatorios(tx, [pedidoId]);
   if (!p?.viajeId) return null;
   const v = await tx.viaje.findUniqueOrThrow({ where: { id: p.viajeId }, select: { id: true, estado: true, vehiculoId: true, salidaEstimada: true, pedidos: { select: { id: true } }, viajePedidos: { orderBy: { orden: "asc" }, select: { pedidoViajeId: true } } } });
   const otros = v.viajePedidos.map((x) => x.pedidoViajeId).filter((id) => id !== pedidoId && v.pedidos.some((q) => q.id === id));

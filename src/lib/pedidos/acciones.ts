@@ -13,6 +13,8 @@ import { auditar, buscarDuplicado, choferesQueLoVen, describirPedido, necesitaCa
 import { resolverPuntos } from "./puntos";
 import { esObraDelUsuario } from "@/lib/alcance";
 import { crearViaje, quitarDelViaje } from "@/lib/viajes/paradas";
+import { cancelarRecordatorios, programarRecordatorios } from "@/lib/viajes/recordatorios-agenda";
+import { bloqueoPorFecha, ddmm, diaSemana, diasEntre } from "@/lib/viajes/fecha";
 import { conEtapa } from "@/lib/viajes/etapas";
 import { avisarSolicitudNueva } from "./avisos";
 import { baseViaje, notificarEvento } from "@/lib/notificaciones/enviar";
@@ -178,11 +180,15 @@ const esquemaTomar = z.object({
 
 export type DatosTomar = z.input<typeof esquemaTomar>;
 
-/** Día en que sale: el del pedido, o hoy si el pedido era para antes. */
+/**
+ * Día en que sale: el del pedido (nunca antes: un viaje para el lunes no se inicia hoy), o hoy si el
+ * pedido era para antes. "Sale ahora" (saleHoy) solo vale si el pedido es para hoy o ya pasó.
+ */
 function salidaPara(paraCuando: Date, hhmm: string, saleHoy = false) {
   const diaPedido = diaISO(paraCuando);
   const hoy = diaISO();
-  return aFecha(saleHoy || diaPedido < hoy ? hoy : diaPedido, hhmm);
+  if (diaPedido > hoy) return saleHoy ? paraCuando : aFecha(diaPedido, hhmm);
+  return aFecha(hoy, hhmm);
 }
 
 async function siguienteEnRuta(tx: Prisma.TransactionClient, choferId: string) {
@@ -305,12 +311,84 @@ export async function deshacerCancelacion(pedidoId: string): Promise<Resultado> 
       // Vuelve su viaje (si quedó cancelado con él; si se había combinado con otros, ya siguió sin él).
       const pv = await tx.pedidoViaje.findUniqueOrThrow({ where: { id: pedidoId }, select: { viajeId: true } });
       if (vuelveA === "TOMADO" && pv.viajeId) await tx.viaje.updateMany({ where: { id: pv.viajeId, estado: "CANCELADO" }, data: conEtapa("PROGRAMADO") });
+      if (vuelveA === "TOMADO") await programarRecordatorios(tx, [pedidoId]);
       // El material que se iba a retirar vuelve a "retiro pedido".
       await alCambiarElViaje(tx, pedidoId, "TOMADO", yo.id);
       await auditar(tx, { usuarioId: yo.id, accion: "pedido.deshacerCancelacion", entidadId: pedidoId, resumen: `${yo.nombre} deshizo la cancelación de ${await describirPedido(tx, pedidoId)}`, antes: { estado: "CANCELADO" }, despues: { estado: vuelveA } });
     });
     refrescar();
     return null;
+  });
+}
+
+// ═══════════════════════════ Fecha: adelantar y reprogramar ═══════════════════════════
+
+/** "mañana (sábado 11/10)", "el lunes 13/10", "hoy". */
+function elDia(d: Date) {
+  const n = diasEntre(d);
+  return n === 0 ? "hoy" : n === 1 ? `mañana (${diaSemana(d)} ${ddmm(d)})` : n === -1 ? "ayer" : `el ${diaSemana(d)} ${ddmm(d)}`;
+}
+
+/**
+ * El chofer aceptó un viaje para otro día y lo puede hacer antes: avisa al que pidió y a Dirección
+ * (push) para que lo reprogramen. No cambia nada por sí solo.
+ */
+export async function pedirAdelantar(pedidoId: string): Promise<Resultado<{ para: string }>> {
+  return ejecutar(async () => {
+    const yo = await exigirPermiso("viajes.ejecutar");
+    const p = await db.pedidoViaje.findUnique({ where: { id: pedidoId }, select: { estado: true, tomadoPorId: true, paraCuando: true } });
+    if (!p || p.tomadoPorId !== yo.id || p.estado !== "TOMADO") throw new ErrorNegocio("Este viaje no es tuyo.");
+    if (!bloqueoPorFecha(p.paraCuando)) throw new ErrorNegocio("Este viaje ya es para hoy: lo podés iniciar.");
+    const para = elDia(p.paraCuando);
+    await db.$transaction(async (tx) => {
+      await notificarEvento(EVENTO.pedirAdelantar({ ...(await baseViaje(tx, pedidoId, yo.nombre)), para }), { tx, actor: yo.id });
+      await auditar(tx, { usuarioId: yo.id, accion: "pedido.pedirAdelantar", entidadId: pedidoId, resumen: `${yo.nombre} pidió adelantar ${await describirPedido(tx, pedidoId)} (era para ${para})` });
+    });
+    return { para };
+  });
+}
+
+const esquemaReprogramar = z
+  .object({
+    pedidoId: z.string().min(1),
+    dia: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Elegí el día."),
+    franja: z.enum(["MANANA", "TARDE", "HORA_EXACTA"]),
+    hora: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  })
+  .superRefine((d, ctx) => {
+    if (d.franja === "HORA_EXACTA" && !d.hora) ctx.addIssue({ code: "custom", message: "Poné la hora.", path: ["hora"] });
+  });
+export type DatosReprogramar = z.input<typeof esquemaReprogramar>;
+
+/**
+ * Cambia la fecha de un pedido pendiente o aceptado (todavía sin salir). Lo pueden hacer Dirección y
+ * quien lo pidió. Si ya tiene chofer, se le avisa y se reprograman sus recordatorios.
+ */
+export async function reprogramarPedido(entrada: DatosReprogramar): Promise<Resultado<{ para: string }>> {
+  return ejecutar(async () => {
+    const yo = await exigirSesion();
+    const d = esquemaReprogramar.parse(entrada);
+    const p = await db.pedidoViaje.findUnique({ where: { id: d.pedidoId }, select: { estado: true, solicitanteId: true, tomadoPorId: true, paraCuando: true, viaje: { select: { id: true, etapa: true } } } });
+    if (!p) throw new ErrorNegocio("No existe ese pedido.");
+    if (!puede(yo.rol, "pedidos.reprogramar") && p.solicitanteId !== yo.id) throw new ErrorNegocio("Solo quien lo pidió o Dirección pueden cambiar la fecha.");
+    if (p.estado !== "PENDIENTE" && !(p.estado === "TOMADO" && (!p.viaje || p.viaje.etapa === "PROGRAMADO"))) throw new ErrorNegocio("El viaje ya salió: no se puede cambiar la fecha.");
+    if (d.dia < diaISO()) throw new ErrorNegocio("El día ya pasó. Elegí hoy o una fecha futura.");
+    const paraCuando = aFecha(d.dia, d.franja === "HORA_EXACTA" ? d.hora! : FRANJA[d.franja].hora);
+    const antes = elDia(p.paraCuando);
+    const ahora = elDia(paraCuando);
+    await db.$transaction(async (tx) => {
+      const r = await tx.pedidoViaje.updateMany({ where: { id: d.pedidoId, estado: p.estado }, data: { paraCuando, franja: d.franja, fechaNecesaria: aFecha(d.dia, "12:00") } });
+      if (!r.count) throw new ErrorNegocio("El pedido cambió mientras lo reprogramabas. Volvé a intentar.");
+      if (p.viaje && p.estado === "TOMADO") {
+        await tx.viaje.update({ where: { id: p.viaje.id }, data: { salidaEstimada: paraCuando } });
+        await cancelarRecordatorios(tx, [d.pedidoId]);
+        await programarRecordatorios(tx, [d.pedidoId]);
+      }
+      await notificarEvento(EVENTO.pedidoReprogramado({ ...(await baseViaje(tx, d.pedidoId)), quien: yo.nombre, antes, ahora, choferId: p.estado === "TOMADO" ? p.tomadoPorId : null }), { tx, actor: yo.id });
+      await auditar(tx, { usuarioId: yo.id, accion: "pedido.reprogramar", entidadId: d.pedidoId, resumen: `${yo.nombre} reprogramó ${await describirPedido(tx, d.pedidoId)}: era para ${antes}, ahora para ${ahora}`, antes: { paraCuando: p.paraCuando.toISOString() }, despues: { paraCuando: paraCuando.toISOString(), franja: d.franja } });
+    });
+    refrescar();
+    return { para: ahora };
   });
 }
 

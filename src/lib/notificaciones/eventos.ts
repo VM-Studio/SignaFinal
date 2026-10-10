@@ -98,27 +98,28 @@ export const EVENTO = {
     para: [usuario(v.solicitanteId, push), usuario(v.choferId, push, "/hoy"), rol("DIRECCION", bandeja)],
   }),
 
-  viajeSalio: (v: V & { origen: string; distanciaM: number; etaRetiro: Date | null; etaDestino: Date; directo: boolean }): Evento => ({
+  /** atrasado: "ayer" / "el lunes 13/10" si sale después del día previsto ("Claudio salió (estaba previsto para ayer)"). */
+  viajeSalio: (v: V & { origen: string; distanciaM: number; etaRetiro: Date | null; etaDestino: Date | null; directo: boolean; atrasado?: string | null }): Evento => ({
     nombre: "viaje.salio", tipo: "VIAJE_INICIADO",
-    ...(v.directo || !v.etaRetiro
-      ? TEXTO.salioDelRetiro(v.chofer, { descripcion: v.descripcion, destino: v.destino, distanciaM: v.distanciaM, etaDestino: v.etaDestino })
-      : TEXTO.iniciado(v.chofer, { descripcion: v.descripcion, destino: v.destino, origen: v.origen, distanciaM: v.distanciaM, etaRetiro: v.etaRetiro, etaDestino: v.etaDestino })),
+    ...(v.directo
+      ? TEXTO.salioDelRetiro(v.chofer, { descripcion: v.descripcion, destino: v.destino, distanciaM: v.distanciaM, etaDestino: v.etaDestino, atrasado: v.atrasado })
+      : TEXTO.iniciado(v.chofer, { descripcion: v.descripcion, destino: v.destino, origen: v.origen, distanciaM: v.distanciaM, etaRetiro: v.etaRetiro, etaDestino: v.etaDestino, atrasado: v.atrasado })),
     enlace: enlacePedido(v.pedidoId), entidad: `viaje:${v.pedidoId}:salio`, obraId: v.obraId,
-    datos: { pedidoId: v.pedidoId, distanciaM: v.distanciaM, eta: v.etaDestino.toISOString() }, para: etapaDelViaje(v),
+    datos: { pedidoId: v.pedidoId, distanciaM: v.distanciaM, ...(v.etaDestino ? { eta: v.etaDestino.toISOString() } : {}) }, para: etapaDelViaje(v),
   }),
 
-  viajeEnRetiro: (v: V & { origen: string; distanciaM: number; etaDestino: Date }): Evento => ({
+  viajeEnRetiro: (v: V & { origen: string; distanciaM: number; etaDestino: Date | null }): Evento => ({
     nombre: "viaje.enRetiro", tipo: "LLEGO_RETIRO",
     ...TEXTO.enRetiro(v.chofer, { descripcion: v.descripcion, destino: v.destino, origen: v.origen, distanciaM: v.distanciaM, etaDestino: v.etaDestino }),
     enlace: enlacePedido(v.pedidoId), entidad: `viaje:${v.pedidoId}:enRetiro`, obraId: v.obraId,
-    datos: { pedidoId: v.pedidoId, distanciaM: v.distanciaM, eta: v.etaDestino.toISOString() }, para: etapaDelViaje(v),
+    datos: { pedidoId: v.pedidoId, distanciaM: v.distanciaM, ...(v.etaDestino ? { eta: v.etaDestino.toISOString() } : {}) }, para: etapaDelViaje(v),
   }),
 
-  viajeSalioRetiro: (v: V & { distanciaM: number; etaDestino: Date }): Evento => ({
+  viajeSalioRetiro: (v: V & { distanciaM: number; etaDestino: Date | null }): Evento => ({
     nombre: "viaje.salioRetiro", tipo: "SALIO_RETIRO",
     ...TEXTO.salioDelRetiro(v.chofer, { descripcion: v.descripcion, destino: v.destino, distanciaM: v.distanciaM, etaDestino: v.etaDestino }),
     enlace: enlacePedido(v.pedidoId), entidad: `viaje:${v.pedidoId}:salioRetiro`, obraId: v.obraId,
-    datos: { pedidoId: v.pedidoId, distanciaM: v.distanciaM, eta: v.etaDestino.toISOString() }, para: etapaDelViaje(v),
+    datos: { pedidoId: v.pedidoId, distanciaM: v.distanciaM, ...(v.etaDestino ? { eta: v.etaDestino.toISOString() } : {}) }, para: etapaDelViaje(v),
   }),
 
   viajeEnDestino: (v: V & { llego: Date }): Evento => ({
@@ -149,9 +150,34 @@ export const EVENTO = {
     para: [usuario(v.solicitanteId, push)],
   }),
 
-  resumenChofer: (p: { choferId: string; viajes: { salida: Date | null; descripcion: string; destino: string }[] }): Evento => ({
-    nombre: "chofer.resumenDia", tipo: "GENERAL", ...TEXTO.resumenDia(p.viajes),
-    enlace: "/hoy", entidad: `resumen:${p.choferId}`, datos: { resumen: true }, para: [usuario(p.choferId, push)],
+  // ─── Recordatorios (src/lib/viajes/recordatorios.ts): solo CHOFER; Dirección, un resumen en bandeja ───
+
+  recordatorioChofer: (p: { choferId: string; titulo: string; cuerpo: string; entidad: string; enlace: string; pedidoIds: string[] }): Evento => ({
+    nombre: "chofer.recordatorio", tipo: "RECORDATORIO", titulo: p.titulo, cuerpo: p.cuerpo,
+    enlace: p.enlace, entidad: p.entidad, datos: { recordatorio: true, pedidoIds: p.pedidoIds }, para: [usuario(p.choferId, push)],
+  }),
+
+  resumenDireccion: (p: { titulo: string; cuerpo: string; dia: string }): Evento => ({
+    nombre: "direccion.resumenSinIniciar", tipo: "RECORDATORIO", titulo: p.titulo, cuerpo: p.cuerpo,
+    enlace: "/viajes", entidad: `resumen:${p.dia}`, datos: { resumen: true }, para: [rol("DIRECCION", bandeja)],
+  }),
+
+  /** El chofer necesita hacerlo antes: le pide al que pidió (y a Dirección) que adelanten la fecha. */
+  pedirAdelantar: (v: V & { para: string }): Evento => ({
+    nombre: "pedido.pedirAdelantar", tipo: "GENERAL",
+    titulo: `${v.chofer} pide adelantar un viaje`,
+    cuerpo: `${v.chofer} puede llevar ${queLleva(v.descripcion)} a ${v.destino} antes (estaba para ${v.para}). Si te sirve, tocá Reprogramar y elegí el día.`,
+    enlace: enlacePedido(v.pedidoId), entidad: `pedido:${v.pedidoId}:adelantar`, obraId: v.obraId, datos: { pedidoId: v.pedidoId },
+    para: [usuario(v.solicitanteId, push), rol("DIRECCION", push)],
+  }),
+
+  /** Cambió la fecha de un pedido aceptado: el chofer (push) y, si no fue él, el que pidió. */
+  pedidoReprogramado: (v: V & { quien: string; antes: string; ahora: string; choferId: string | null }): Evento => ({
+    nombre: "pedido.reprogramado", tipo: "GENERAL",
+    titulo: `Viaje reprogramado para ${v.ahora}`,
+    cuerpo: `${v.quien} cambió la fecha del pedido de ${queLleva(v.descripcion)} a ${v.destino}: era para ${v.antes}, ahora es para ${v.ahora}.`,
+    enlace: enlacePedido(v.pedidoId), entidad: `pedido:${v.pedidoId}:reprogramado`, obraId: v.obraId, datos: { pedidoId: v.pedidoId },
+    para: [usuario(v.choferId, push, `/viaje/${v.pedidoId}`), usuario(v.solicitanteId, push), rol("DIRECCION", bandeja)],
   }),
 
   // ═══════════════════════════════ Materiales y Compras ═══════════════════════════════

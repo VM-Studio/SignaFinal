@@ -1,5 +1,5 @@
 import { dia, hora } from "@/lib/formato";
-import { metros } from "@/lib/rutas";
+import { metros } from "@/lib/rutas/formato";
 
 /** "Hierro del 10, 40 barras" → "hierro del 10": lo que se lleva, corto y en minúscula, para frases. */
 export function queLleva(descripcion: string) {
@@ -20,17 +20,18 @@ export const TEXTO = {
     titulo: `${chofer} aceptó tu pedido`,
     cuerpo: `${chofer} aceptó tu pedido de ${queLleva(p.descripcion)} para ${p.destino}. Sale ${hora(p.salida)} aprox con ${conArticulo(p.vehiculo)}.`,
   }),
-  iniciado: (chofer: string, p: P & { origen: string; distanciaM: number; etaRetiro: Date; etaDestino: Date }) => ({
-    titulo: `${chofer} salió a buscar tu pedido`,
-    cuerpo: `${chofer} salió a buscar tu pedido. Está a ${metros(p.distanciaM)} de ${p.origen}, llega al retiro ${hora(p.etaRetiro)} y a ${p.destino} ${hora(p.etaDestino)} aprox.`,
+  /** Sin tránsito real (sin Google) solo distancia: "está a 7 km de la obra". Con Google, la hora "(con tránsito)". */
+  iniciado: (chofer: string, p: P & { origen: string; distanciaM: number; etaRetiro: Date | null; etaDestino: Date | null; atrasado?: string | null }) => ({
+    titulo: p.atrasado ? `${chofer} salió (estaba previsto para ${p.atrasado})` : `${chofer} salió a buscar tu pedido`,
+    cuerpo: `${chofer} salió a buscar tu pedido${p.atrasado ? ` (estaba previsto para ${p.atrasado})` : ""}. Está a ${metros(p.distanciaM)} de ${p.origen}.${p.etaDestino ? ` Llega a ${p.destino} ${hora(p.etaDestino)} (con tránsito).` : ""}`,
   }),
-  enRetiro: (chofer: string, p: P & { origen: string; distanciaM: number; etaDestino: Date }) => ({
+  enRetiro: (chofer: string, p: P & { origen: string; distanciaM: number; etaDestino: Date | null }) => ({
     titulo: `${chofer} está cargando tu pedido`,
-    cuerpo: `${chofer} llegó a ${p.origen} y está cargando tu pedido. Llega a ${p.destino} ${hora(p.etaDestino)} aprox (${metros(p.distanciaM)}).`,
+    cuerpo: `${chofer} llegó a ${p.origen} y está cargando tu pedido. ${p.destino} está a ${metros(p.distanciaM)}${p.etaDestino ? `, llega ${hora(p.etaDestino)} (con tránsito)` : ""}.`,
   }),
-  salioDelRetiro: (chofer: string, p: P & { distanciaM: number; etaDestino: Date | null }) => ({
-    titulo: `${chofer} va camino a ${p.destino}`,
-    cuerpo: `${chofer} salió hacia ${p.destino} con tu pedido${p.etaDestino ? `, llega ${hora(p.etaDestino)} aprox` : ""} (${metros(p.distanciaM)}).`,
+  salioDelRetiro: (chofer: string, p: P & { distanciaM: number; etaDestino: Date | null; atrasado?: string | null }) => ({
+    titulo: p.atrasado ? `${chofer} salió (estaba previsto para ${p.atrasado})` : `${chofer} va camino a ${p.destino}`,
+    cuerpo: `${chofer} salió hacia ${p.destino} con tu pedido${p.atrasado ? ` (estaba previsto para ${p.atrasado})` : ""}. Está a ${metros(p.distanciaM)} de la obra${p.etaDestino ? `, llega ${hora(p.etaDestino)} (con tránsito)` : ""}.`,
   }),
   llegoAlDestino: (chofer: string, p: P & { llego: Date }) => ({
     titulo: `Tu pedido llegó a ${p.destino}`,
@@ -58,11 +59,7 @@ export const TEXTO = {
   }),
   demora: (chofer: string, eta: Date) => ({
     titulo: `${chofer} viene con demora`,
-    cuerpo: `${chofer} viene con demora, ahora llega ${hora(eta)} aprox.`,
-  }),
-  resumenDia: (viajes: { salida: Date | null; descripcion: string; destino: string }[]) => ({
-    titulo: viajes.length === 1 ? "Hoy tenés 1 viaje" : `Hoy tenés ${viajes.length} viajes`,
-    cuerpo: viajes.map((v) => `${v.salida ? hora(v.salida) : "Sin hora"} ${queLleva(v.descripcion)} → ${v.destino}`).join(" · "),
+    cuerpo: `${chofer} viene con demora por el tránsito, ahora llega ${hora(eta)}.`,
   }),
 };
 

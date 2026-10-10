@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Insignia } from "@/components/ui/basicos";
-import { dia, hora, km, peso } from "@/lib/formato";
+import { km, peso } from "@/lib/formato";
+import { CLASE_TONO, fechaViaje } from "@/lib/viajes/fecha";
 import type { Tarjeta } from "@/lib/viajes/chofer";
 import { PendienteEnvio } from "./pendiente-envio";
 
@@ -14,8 +15,11 @@ const ETAPA: Record<NonNullable<Tarjeta["etapa"]>, string> = {
   FINALIZADO: "Entregado",
 };
 
-/** "HOY 8:30", "MAÑANA 10:30", "JUE 9 OCT 8:00". */
-export const fechaGrande = (d: Date) => `${dia(d).toUpperCase()} ${hora(d)}`;
+/** La primera línea de toda tarjeta del chofer: "HOY · 8:30", "MAÑANA · por la tarde", "ATRASADO · ayer 8:30". */
+export function FechaGrande({ fecha, franja, iniciado, className = "" }: { fecha: Date; franja: Tarjeta["franja"]; iniciado: boolean; className?: string }) {
+  const f = fechaViaje(fecha, franja, { iniciado });
+  return <p suppressHydrationWarning className={`text-lg leading-6 font-semibold tabular-nums ${CLASE_TONO[f.tono]} ${className}`}>{f.texto}</p>;
+}
 
 /**
  * Tarjeta del chofer: lo que necesita saber de un vistazo, con letra grande y en este orden:
@@ -25,7 +29,7 @@ export function TarjetaChofer({ t, href, accion }: { t: Tarjeta; href?: string; 
   const cuerpo = (
     <>
       <div className="flex items-start justify-between gap-2">
-        <p className="text-lg font-semibold tabular-nums">{fechaGrande(t.fecha)}</p>
+        <FechaGrande fecha={t.fecha} franja={t.franja} iniciado={t.iniciado} />
         <div className="flex flex-col items-end gap-1">
           {t.urgente && <Insignia tono="critico">Urgente</Insignia>}
           {t.etapa && <Insignia tono={t.etapa === "FINALIZADO" ? "ok" : t.etapa === "PROGRAMADO" ? "aviso" : "activo"}>{ETAPA[t.etapa]}</Insignia>}
