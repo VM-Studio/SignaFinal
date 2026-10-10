@@ -5,6 +5,11 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
   // PDF de las órdenes de compra y lectura de planillas Excel: solo en el servidor, sin empaquetar.
   serverExternalPackages: ["@react-pdf/renderer", "exceljs"],
+  // pdfkit (dentro de @react-pdf) lee sus fuentes estándar (Helvetica) con un require dinámico que el
+  // rastreo de archivos de Vercel no ve: se incluyen a mano en las funciones que generan el PDF de la OC.
+  outputFileTracingIncludes: {
+    "/**": ["./node_modules/pdfkit/js/standard-fonts/**", "./node_modules/pdfkit/js/data/**"],
+  },
   experimental: {
     // Fotos de remitos y tickets (ya comprimidas en el teléfono a ~200 KB).
     serverActions: { bodySizeLimit: "4mb" },
