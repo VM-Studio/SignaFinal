@@ -1,7 +1,9 @@
 import { defineConfig } from "vitest/config";
+import { loadEnv } from "vite";
 import { fileURLToPath } from "node:url";
 
 export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
-  test: { include: ["src/**/*.test.ts"], environment: "node" },
+  // .env (DATABASE_URL) para las pruebas que usan la base, como la numeración de OC en paralelo.
+  test: { include: ["src/**/*.test.ts"], environment: "node", env: loadEnv("test", process.cwd(), "") },
 });

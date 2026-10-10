@@ -40,13 +40,15 @@ aceptan viajes; el que pidió ve en vivo cómo viene su pedido sin llamar a nadi
   (al lado de la casa de Claudio).
 - Camión solo para materiales pesados de corralón y traslado de maquinaria. Camioneta
   para el día a día.
-- Viaje típico: Martínez → proveedor (retiro) → obra (entrega). La dirección del proveedor
-  sale de la orden de compra de Lebane.
-- Depósito: uno solo. Las herramientas y la maquinaria están en el depósito o en una
-  obra, nunca en otro lado; en la app se ven en "Depósito" con el filtro Maquinaria /
-  Herramientas (sin escaneo ni etiquetas QR: se buscan por nombre). Materiales casi no se
-  guardan: los que sobran de una obra van a "Sobrantes". Los acopios van del corralón a la
-  obra sin pasar por el depósito.
+- Viaje típico: Martínez → proveedor (retiro) → obra (entrega). La dirección de retiro es la
+  de la sucursal del proveedor elegida en la orden de compra.
+- Depósitos: Depósito Florida ("galpón", donde está el inventario) y Terreno Humboldt 2417
+  (Villa Crespo). La gente le dice "galpón" al depósito: cada Ubicacion tiene una etiqueta
+  ("Galpón", "Terreno", "Base") que se usa en los textos del chofer. Las herramientas y la
+  maquinaria están en un depósito o en una obra, nunca en otro lado; en la app se ven en
+  "Depósito" con el filtro Maquinaria / Herramientas (sin escaneo ni etiquetas QR: se buscan
+  por nombre). Materiales casi no se guardan: los que sobran de una obra van a "Sobrantes".
+  Los acopios van del corralón a la obra sin pasar por el depósito.
 
 ## Principio rector
 
@@ -143,7 +145,7 @@ Next.js 15 (App Router), React 19, TypeScript estricto, Tailwind v4. PostgreSQL 
 6 (no 7). Zod, Server Actions, Server Components. Auth propia: jose JWT en cookie
 httpOnly + bcryptjs. Leaflet + OpenStreetMap. Ruteo: OSRM público (lib/rutas) con
 respaldo por distancia en línea recta. Push: web-push (VAPID). lucide-react, date-fns
-es. PWA. Vercel + Postgres administrado.
+es. @vercel/blob (adjuntos y PDFs). PWA. Vercel + Postgres administrado.
 
 ## Diseño visual
 
@@ -192,8 +194,8 @@ RETIRO_PEDIDO → EN_CAMINO → ENTREGADO, o CANCELADO.
 
 - El responsable de obra (o el capataz) pide el material: obra, qué y cuánto, para cuándo,
   prioridad. Lo ve Compras (con copia al dueño).
-- Compras lo toma (EN_COMPRA), cotiza y arma la orden de compra en Lebane; carga el número de
-  OC y el monto y pide aprobación (ESPERANDO_APROBACION).
+- Compras lo toma (EN_COMPRA), cotiza y arma la ORDEN DE COMPRA en el sistema (ver "Órdenes de
+  compra, proveedores y viajes con paradas") y la envía a aprobación (ESPERANDO_APROBACION).
 - El dueño (DIRECCION) aprueba o rechaza en /aprobaciones. Si rechaza, vuelve a EN_COMPRA con
   el motivo.
 - Cuando el proveedor lo tiene, Compras lo **habilita para retirar** (MaterialListo):
@@ -209,6 +211,42 @@ RETIRO_PEDIDO → EN_CAMINO → ENTREGADO, o CANCELADO.
 - Rol nuevo COMPRAS. El dueño aprueba en /aprobaciones.
 - A futuro, los pedidos pueden venir de Lebane (fuente LEBANE, ordenCompraLebaneId).
 
+## Órdenes de compra, proveedores y viajes con paradas
+
+Reglas (reemplazan lo que diga otra cosa más arriba):
+
+- **Pedido de material**: admite adjuntos (PDF, Excel, Word, CSV, fotos) y observaciones. Con un
+  adjunto alcanza: los renglones son opcionales. Compras puede sumar sus adjuntos (presupuestos) y
+  notas internas que el solicitante no ve.
+- **Orden de compra**: Compras la arma en el sistema con un formulario (proveedor y sucursal,
+  renglones, método de pago, condiciones, totales). El sistema genera el PDF con la plantilla de
+  Signa y le asigna el número único **OC-AAAA-NNNN** al enviarla a aprobación (src/lib/compras/
+  numerar.ts: fila del año bloqueada, nunca se repite ni se reutiliza, arranca de nuevo cada año;
+  los borradores no gastan número). El dueño aprueba viendo los datos escritos y el PDF. **Nunca se
+  parsea un archivo para leer los datos de una OC: los datos son la fuente, el PDF sale de ellos.**
+  Una OC vigente por pedido; puede haber otras si una se rechazó o se anuló.
+- **Métodos de pago**: ACOPIO, CUENTA_CORRIENTE, TRANSFERENCIA, EFECTIVO, ECHEQ.
+- **Proveedores**: un proveedor tiene una o más **sucursales**; lo que se elige, se habilita y
+  adonde va el chofer es la sucursal. No se habilita ni se arma una OC sin sucursal con coordenadas.
+- **Direcciones**: toda dirección nueva (obra, sede, sucursal, depósito) se geocodifica al cargarla
+  (src/lib/geo: Nominatim, 1 consulta por segundo, caché en GeocodeCache) y se confirma en un mapa
+  con el pin arrastrable (componente SelectorDireccion). Si el buscador no responde, el pin se pone a
+  mano. Una obra puede tener **sedes** (ObraSede) si tiene más de un frente; el pedido elige a cuál va.
+- **Viajes con paradas**: un viaje es una lista ordenada de PARADAS (RETIRO o ENTREGA), cada una con
+  los pedidos que atiende (ViajePedido) y su lista de verificación con cantidades por obra
+  (ItemParada). Un pedido simple = 2 paradas (1 si no tiene retiro). Al aceptar, el sistema sugiere
+  otros pedidos pendientes del mismo lugar o cercanos a la ruta y ordena las paradas para recorrer
+  menos (parámetros en src/lib/viajes/parametros.ts, PARAMETROS_RUTEO). La etapa del viaje se deriva
+  de la parada actual (src/lib/viajes/paradas.ts). Viaje.pedidoId es el pedido principal (el primero
+  aceptado); PedidoViaje.viajeId apunta al viaje que lo lleva ahora.
+- **Fechas del chofer**: no puede iniciar un viaje antes de su fecha. Recibe recordatorio el día
+  anterior y el mismo día hasta que inicia (Recordatorio, clave única: nunca se duplica).
+- **Ruteo**: la distancia siempre; el tiempo estimado solo si hay un proveedor con tránsito (Google,
+  GOOGLE_MAPS_API_KEY). Sin eso no se muestran minutos ni horas de llegada.
+- **Adjuntos**: en Vercel Blob (src/lib/archivos.ts, BLOB_READ_WRITE_TOKEN; en la máquina de
+  desarrollo, sin token, se guardan en la base). Se sirven solo con sesión y permiso en
+  /api/adjuntos/[id]. Tipos: pdf, xls, xlsx, doc, docx, csv, jpg, png, heic; hasta 20 MB.
+
 ## Flota real (datos de Cusat, confirmar con el dueño)
 
 | Cusat | Patente | En la app | Tipo | Cola |
@@ -220,8 +258,8 @@ RETIRO_PEDIDO → EN_CAMINO → ENTREGADO, o CANCELADO.
 | KANGOO | AF399OO | Kangoo | Utilitario (interior, Cusat la mostró en Lincoln) | No |
 | KANGOO LL | AF399OP | Kangoo LL | Utilitario | No |
 
-Base: Martínez (Triunfo Argentino / Granada y Maestro). Depósito: Terreno 1 y Terreno 2
-// confirmar. Los vehículos viejos que no estén en esta lista quedan con activo=false, no se
+Base: Martínez (Triunfo Argentino / Granada y Maestro). Depósitos: Depósito Florida (galpón) y
+Terreno Humboldt 2417 (Villa Crespo). Terreno 1 y Terreno 2 eran provisorios: quedan inactivos. Los vehículos viejos que no estén en esta lista quedan con activo=false, no se
 borran. Vehiculo.cusatNombre guarda el nombre tal cual aparece en Cusat.
 
 ## Rastreo (Cusat View, plataforma de Suartec)
@@ -235,19 +273,23 @@ borran. Vehiculo.cusatNombre guarda el nombre tal cual aparece en Cusat.
 
 ## Integraciones (puntos de extensión)
 
-- Lebane: lib/lebane, interfaz para obras, proveedores y órdenes de compra. Mock hasta
-  tener la API. Obra.idLebane.
+- Lebane: lib/lebane, interfaz para obras y proveedores. Mock hasta tener la API. Obra.idLebane.
+  La OC se arma en este sistema; cuando exista la API, se le enviará a Lebane y el número que
+  asigne Lebane queda en OrdenCompra.ordenCompraLebaneId.
 - Cusat: lib/cusat (ver "Rastreo" y docs/cusat/). CUSAT_MODO=cusatview usa la web real;
   mock, el simulador. Vehiculo.idCusat se completa al emparejar (patente o cusatNombre).
   Sincroniza cada minuto (/api/cusat/sincronizar) y cada 20 s mientras alguien mira el mapa.
 
 ## Datos base (lo único fijo)
 
-La app no tiene datos de demostración. src/lib/base/ define lo que queda siempre: usuarios con
-su rol, base Martínez y Depósito Florida, los seis vehículos reales y el inventario de herramientas
-(todo en el depósito). prisma/seed.ts, scripts/cargar-base.ts y el botón "Dejar solo los datos
-base" cargan eso y borran el resto. Obras y proveedores se cargan a mano desde la app (Nueva obra,
-Nuevo proveedor) mientras no haya API de Lebane; las coordenadas se buscan por la dirección.
+src/lib/base/ define lo que queda siempre (datos.ts): usuarios con su rol, base Martínez, Depósito
+Florida y Terreno Humboldt 2417, las nueve obras reales con sus responsables (obras.ts, ubicadas con
+el geocodificador; las marcadas "confirmar" quedan con coordenadas aproximadas), los seis vehículos
+reales y el inventario de herramientas (todo en el depósito). scripts/cargar-base.ts y el botón
+"Dejar solo los datos base" cargan eso y borran el resto. prisma/seed.ts (solo desarrollo) suma los
+datos de prueba (prueba.ts: proveedores con sucursales, pedidos de material con adjunto, OC, un viaje
+combinable). En producción nunca se siembra: scripts/obras-reales.ts agrega las obras reales sin
+borrar ni duplicar. Proveedores se cargan desde la app mientras no haya API de Lebane.
 
 ## Forma de trabajar
 

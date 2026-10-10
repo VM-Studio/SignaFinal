@@ -14,7 +14,7 @@ import { notificarEvento } from "@/lib/notificaciones/enviar";
 import { EVENTO } from "@/lib/notificaciones/eventos";
 import { queLleva } from "@/lib/notificaciones/textos";
 import { aFecha, diaISO, fecha, plata } from "@/lib/formato";
-import { resolverPuntos } from "@/lib/pedidos/puntos";
+import { nombreSucursal, resolverPuntos, sucursalDe } from "@/lib/pedidos/puntos";
 import { describirPedido, necesitaCamion } from "@/lib/pedidos/reglas";
 import { avisarSolicitudNueva } from "@/lib/pedidos/avisos";
 import { FRANJA } from "@/lib/pedidos/presentacion";
@@ -269,6 +269,10 @@ const esquemaHabilitar = z
   .object({
     id: z.string().min(1),
     proveedorId: z.string().min(1, "Elegí el proveedor."),
+    // La sucursal donde se retira (si no viene, la principal del proveedor).
+    sucursalId: z.preprocess(vacio, z.string().optional()),
+    // Renglones de la OC que entran en este retiro (lista de verificación del chofer).
+    renglones: z.array(z.object({ descripcion: z.string().trim().min(1).max(200), cantidad: z.coerce.number().positive().nullable().optional(), unidad: z.string().trim().max(20).nullable().optional() })).max(200).optional(),
     horario: z.preprocess(vacio, z.string().trim().max(120).optional()),
     contacto: z.preprocess(vacio, z.string().trim().max(120).optional()),
     ordenCompra: z.preprocess(vacio, z.string().trim().max(40).optional()),
@@ -294,15 +298,17 @@ export async function habilitarRetiro(entrada: DatosHabilitar): Promise<Resultad
         throw new ErrorNegocio(p.estado === "ESPERANDO_APROBACION" ? "Falta la aprobación del dueño." : "Este pedido no está para habilitar.");
       }
       if (p.completo) throw new ErrorNegocio("Ya se habilitó todo este pedido.");
-      const prov = await tx.proveedor.findUnique({ where: { id: d.proveedorId } });
-      if (!prov) throw new ErrorNegocio("Ese proveedor no existe.");
+      const suc = await sucursalDe(tx, d.sucursalId ?? d.proveedorId);
+      if (!suc || suc.proveedorId !== d.proveedorId) throw new ErrorNegocio("Elegí la sucursal del proveedor donde se retira.");
+      if (!Number.isFinite(suc.latitud) || !Number.isFinite(suc.longitud)) throw new ErrorNegocio("Esa sucursal no tiene ubicación en el mapa. Cargala de nuevo con la dirección.");
+      const prov = { id: suc.proveedorId, nombre: nombreSucursal(suc) };
       const max = (await tx.vehiculo.aggregate({ where: { activo: true }, _max: { capacidadCargaKg: true } }))._max.capacidadCargaKg ?? 0;
       if (d.modo === "RETIRA_CHOFER" && d.pesoKg > max) throw new ErrorNegocio(`Ningún vehículo carga más de ${max.toLocaleString("es-AR")} kg. Habilitalo en dos partes.`);
 
       const ml = await tx.materialListo.create({
         data: {
-          pedidoMaterialId: p.id, obraId: p.obraId, proveedorId: prov.id, proveedorDireccion: `${prov.direccion}, ${prov.localidad}`, proveedorLat: prov.latitud, proveedorLng: prov.longitud,
-          horarioRetiro: d.horario ?? null, contactoRetiro: d.contacto ?? null, ordenCompraNumero: d.ordenCompra ?? p.ordenCompraNumero, descripcion: d.descripcion,
+          pedidoMaterialId: p.id, obraId: p.obraId, proveedorId: prov.id, sucursalId: suc.id, proveedorDireccion: `${suc.direccion}, ${suc.localidad}`, proveedorLat: suc.latitud, proveedorLng: suc.longitud,
+          horarioRetiro: d.horario ?? suc.horarioRetiro ?? null, contactoRetiro: d.contacto ?? suc.contacto ?? null, renglones: d.renglones?.length ? d.renglones : undefined, ordenCompraNumero: d.ordenCompra ?? p.ordenCompraNumero, descripcion: d.descripcion,
           pesoKg: d.pesoKg, necesitaCamion: necesitaCamion("RETIRO_PROVEEDOR", d.pesoKg), modoEntrega: d.modo,
           fechaEntregaEstimada: d.fechaEstimada ? aFecha(d.fechaEstimada, "12:00") : null,
           // Lo entrega el proveedor: ya viene en camino, no hace falta viaje.
@@ -394,22 +400,24 @@ export async function pedirRetiro(entrada: DatosRetiro): Promise<Resultado<{ ped
         if (m.modoEntrega !== "RETIRA_CHOFER") throw new ErrorNegocio(`${m.descripcion}: lo entrega el proveedor, no hace falta viaje.`);
         if (m.estado !== "LISTO") throw new ErrorNegocio(`${m.descripcion} ya tiene el retiro pedido.`);
       }
-      // Varios proveedores = varios viajes.
+      // Varios lugares de retiro (proveedor y sucursal) = varios pedidos de viaje.
       const porProveedor = new Map<string, typeof ml>();
-      for (const m of ml) porProveedor.set(m.proveedorId, [...(porProveedor.get(m.proveedorId) ?? []), m]);
+      for (const m of ml) porProveedor.set(m.sucursalId, [...(porProveedor.get(m.sucursalId) ?? []), m]);
 
       const out: { id: string; numero: number; proveedor: string }[] = [];
-      for (const [proveedorId, grupo] of porProveedor) {
+      for (const [sucursalId, grupo] of porProveedor) {
         const peso = grupo.reduce((s, m) => s + (m.pesoKg ?? 0), 0);
         if (peso > max) throw new ErrorNegocio(`Lo de ${grupo[0].proveedor.nombre} pesa ${peso.toLocaleString("es-AR")} kg y ningún vehículo carga más de ${max.toLocaleString("es-AR")} kg. Marcalo en dos viajes.`);
-        const puntos = await resolverPuntos(tx, { origenTipo: "PROVEEDOR", origenId: proveedorId, obraId: obra.id });
+        const puntos = await resolverPuntos(tx, { origenTipo: "PROVEEDOR", origenId: sucursalId, obraId: obra.id });
         const primero = grupo[0];
+        const proveedorId = primero.proveedorId;
         const p = await tx.pedidoViaje.create({
           data: {
-            solicitanteId: yo.id, obraId: obra.id, tipo: "RETIRO_PROVEEDOR", origenTipo: "PROVEEDOR", origenId: proveedorId, proveedorId, esRetiroMaterial: true,
+            solicitanteId: yo.id, obraId: obra.id, tipo: "RETIRO_PROVEEDOR", origenTipo: "PROVEEDOR", esRetiroMaterial: true,
             ...puntos,
+            origenId: sucursalId, sucursalId, proveedorId,
             // Copiados de la habilitación (lo que Compras acordó con el proveedor).
-            origenNombre: primero.proveedor.nombre, origenDireccion: primero.proveedorDireccion, origenLat: primero.proveedorLat, origenLng: primero.proveedorLng,
+            origenNombre: puntos.origenNombre, origenDireccion: primero.proveedorDireccion, origenLat: primero.proveedorLat, origenLng: primero.proveedorLng,
             descripcion: descripcionRetiro(grupo), ordenCompraLebane: [...new Set(grupo.map((m) => m.ordenCompraNumero).filter(Boolean))].join(", ").slice(0, 120) || null,
             pesoKg: peso || null, necesitaCamion: grupo.some((m) => m.necesitaCamion) || necesitaCamion("RETIRO_PROVEEDOR", peso),
             paraCuando, fechaNecesaria: aFecha(d.dia, "12:00"), franja: d.franja, prioridad: d.prioridad,

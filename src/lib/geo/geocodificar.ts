@@ -47,3 +47,6 @@ export async function geocodificar(direccion: string, localidad: string): Promis
   const mejor = candidatos.filter((r) => sinAcentos(r.display_name).includes(lugar)).sort((a, b) => puntaje(b) - puntaje(a))[0];
   return mejor ? { lat: Number(mejor.lat), lng: Number(mejor.lon), encontrada: mejor.display_name } : null;
 }
+
+// El buscador de direcciones (caché + cola de 1 por segundo) vive aparte: lo usan también el seed y los scripts.
+export { buscarDireccion, normalizar, type Candidato } from "./buscar";

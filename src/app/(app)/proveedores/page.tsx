@@ -20,10 +20,14 @@ export default async function PaginaProveedores({ searchParams }: { searchParams
   const { limite, siguiente } = await limiteDe(n);
   const desde = new Date(Date.now() - 30 * 86_400_000);
   const filas = await db.proveedor.findMany({
-    where: q ? { OR: [{ nombre: { contains: q, mode: "insensitive" } }, { localidad: { contains: q, mode: "insensitive" } }] } : {},
+    where: { activo: true, ...(q ? { OR: [{ nombre: { contains: q, mode: "insensitive" } }, { cuit: { contains: q } }, { sucursales: { some: { localidad: { contains: q, mode: "insensitive" } } } }] } : {}) },
     orderBy: { nombre: "asc" },
     take: limite + 1,
-    select: { id: true, nombre: true, direccion: true, localidad: true, telefono: true, latitud: true, longitud: true, idLebane: true, _count: { select: { pedidos: { where: { creadoEn: { gte: desde } } } } } },
+    select: {
+      id: true, nombre: true, telefono: true, idLebane: true,
+      sucursales: { where: { activa: true }, orderBy: [{ principal: "desc" }, { nombre: "asc" }], select: { direccion: true, localidad: true, latitud: true, longitud: true } },
+      _count: { select: { pedidos: { where: { creadoEn: { gte: desde } } } } },
+    },
   });
   return (
     <div>
@@ -33,11 +37,11 @@ export default async function PaginaProveedores({ searchParams }: { searchParams
         <Vacio icono={<Store className="size-10" />} titulo={q ? `Ningún proveedor con "${q}"` : "Todavía no hay proveedores cargados"}>{!q && carga ? "Cargá el primero con “Nuevo proveedor”." : null}</Vacio>
       ) : (
         <ul className="divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
-          {filas.slice(0, limite).map((p) => (
+          {filas.slice(0, limite).map(({ sucursales, ...p }) => ({ ...p, ...(sucursales[0] ?? { direccion: "Sin sucursal", localidad: "", latitud: 0, longitud: 0 }), sucursales: sucursales.length })).map((p) => (
             <li key={p.id} className="flex items-center gap-3 px-4 py-3">
               <div className="min-w-0 flex-1">
                 <Link href={`/proveedores/${p.id}`} className="font-semibold underline-offset-2 hover:underline">{p.nombre}</Link>
-                <p className="text-sm text-suave">{p.direccion}, {p.localidad}</p>
+                <p className="text-sm text-suave">{p.direccion}{p.localidad ? `, ${p.localidad}` : ""}{p.sucursales > 1 ? ` · ${p.sucursales} sucursales` : ""}</p>
                 <p className="text-sm text-suave">{p._count.pedidos ? `${p._count.pedidos} ${p._count.pedidos === 1 ? "viaje" : "viajes"} en los últimos 30 días` : "Sin viajes en los últimos 30 días"}</p>
               </div>
               {p.telefono && (

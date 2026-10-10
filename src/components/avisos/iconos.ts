@@ -1,5 +1,5 @@
 import type { TipoNotificacion } from "@prisma/client";
-import { Bell, Check, CopyX, Flag, Hand, MapPinCheck, PackageOpen, Play, Siren, Truck, Undo2, WifiOff, Wrench, X, type LucideIcon } from "lucide-react";
+import { AlarmClock, Bell, Check, CopyX, FileText, Flag, Hand, MapPinCheck, PackageOpen, Play, Siren, Truck, Undo2, WifiOff, Wrench, X, type LucideIcon } from "lucide-react";
 
 /** Ícono de cada tipo de aviso en la bandeja. */
 export const ICONO_AVISO: Record<TipoNotificacion, LucideIcon> = {
@@ -16,5 +16,7 @@ export const ICONO_AVISO: Record<TipoNotificacion, LucideIcon> = {
   HERRAMIENTA_VENCIDA: Wrench,
   DUPLICADO: CopyX,
   MATERIAL: PackageOpen,
+  ORDEN_COMPRA: FileText,
+  RECORDATORIO: AlarmClock,
   GENERAL: Bell,
 };

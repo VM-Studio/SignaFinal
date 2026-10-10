@@ -26,3 +26,21 @@ export const PARAMETROS_MOTOR = {
   /** Si el punto de retiro está a menos que esto de donde arranca, el viaje no tiene retiro: va directo a la obra. */
   mismoLugarM: 150,
 } as const;
+
+/**
+ * Parámetros de los viajes con varias paradas (src/lib/viajes/paradas.ts y sugerencias al aceptar).
+ * Distancias en metros.
+ */
+export const PARAMETROS_RUTEO = {
+  /** Dos orígenes a menos de esto son "el mismo lugar" (mismo corralón, mismo galpón). */
+  radioMismoLugarM: 200,
+  /** Un pedido cuyo origen o destino queda a menos de esto de una parada del viaje está "cerca de tu camino". */
+  radioCercaM: 3000,
+  /** Desvío máximo que se le propone al chofer para sumar un pedido. */
+  desvioMaximoM: 5000,
+  /** Paradas como máximo en un viaje. */
+  maxParadasPorViaje: 8,
+} as const;
+
+/** Minutos y hora de llegada solo con un proveedor que sepa el tránsito (Google). Sin eso, solo distancia. */
+export const mostrarMinutos = () => !!process.env.GOOGLE_MAPS_API_KEY;

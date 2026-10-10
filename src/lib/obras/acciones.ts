@@ -6,7 +6,7 @@ import { exigirPermiso } from "@/lib/auth/sesion";
 import { ejecutar, ErrorNegocio, type Resultado } from "@/lib/resultado";
 import { auditar } from "@/lib/auditoria";
 import { revalidar } from "@/lib/revalidar";
-import { geocodificar } from "@/lib/geocodificar";
+import { geocodificar } from "@/lib/geo/geocodificar";
 
 const esquema = z.object({
   nombre: z.string().trim().min(2, "Poné el nombre de la obra.").max(80),

@@ -58,7 +58,7 @@ export async function simularEtapa(pedidoId: string, paso: PasoDemo): Promise<Re
   return ejecutar(async () => {
     const yo = await exigirSesion();
     if (!modoDemo() || yo.rol !== "DIRECCION") throw new ErrorNegocio("Solo en modo demo, para Dirección.");
-    const v = await db.viaje.findFirst({ where: { pedidoId, etapa: { in: ETAPAS_EN_CURSO } }, include: { pedido: true } });
+    const v = await db.viaje.findFirst({ where: { pedidos: { some: { id: pedidoId } }, etapa: { in: ETAPAS_EN_CURSO } }, include: { pedido: true } });
     if (!v) throw new ErrorNegocio("Este viaje no está en curso. Primero el chofer tiene que tocar \"Iniciar viaje\".");
     // La demo "teletransporta" el vehículo: se olvida la última lectura para que no cuente como salto imposible.
     const { estadoMotor } = await import("./motor");

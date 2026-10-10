@@ -1,3 +1,4 @@
+import { quitarDelViaje } from "@/lib/viajes/paradas";
 import "server-only";
 import type { Condicion, Prisma, TipoMovimiento } from "@prisma/client";
 import { ErrorNegocio } from "@/lib/resultado";
@@ -142,7 +143,7 @@ export async function moverUnitaria(tx: Tx, m: Mov) {
     const pedidos = await tx.pedidoViaje.findMany({ where: { herramientaId: h.id, estado: { in: ["PENDIENTE", "TOMADO"] } }, select: { id: true } });
     for (const p of pedidos) {
       await tx.pedidoViaje.update({ where: { id: p.id }, data: { estado: "CANCELADO", canceladoEn: new Date(), motivoCancelacion: `${h.nombre} ${m.estado === "BAJA" ? "fue dada de baja" : "está extraviada"}` } });
-      await tx.viaje.updateMany({ where: { pedidoId: p.id, estado: "PROGRAMADO" }, data: { estado: "CANCELADO", ordenRuta: null } }); // la etapa queda en PROGRAMADO
+      await quitarDelViaje(tx, p.id, true); // si el viaje llevaba otros pedidos, sigue sin este
     }
   }
   return { movimientoId: mov.id, herramienta: h };

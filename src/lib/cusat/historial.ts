@@ -1,3 +1,4 @@
+import { nombreSucursal } from "@/lib/pedidos/puntos";
 import "server-only";
 import { db } from "@/lib/db";
 import { aFecha, diaISO, sumarDias } from "@/lib/formato";
@@ -90,12 +91,12 @@ export async function paradasDelDia(rastro: PuntoRastro[]): Promise<ParadaDetect
 async function lugaresConocidos() {
   const [obras, proveedores, ubicaciones] = await Promise.all([
     db.obra.findMany({ select: { nombre: true, latitud: true, longitud: true } }),
-    db.proveedor.findMany({ select: { nombre: true, latitud: true, longitud: true } }),
+    db.sucursalProveedor.findMany({ where: { activa: true }, select: { latitud: true, longitud: true, nombre: true, proveedor: { select: { nombre: true } } } }),
     db.ubicacion.findMany({ select: { nombre: true, latitud: true, longitud: true } }),
   ]);
   return [
     ...obras.map((o) => ({ nombre: `Obra ${o.nombre}`, lat: o.latitud, lng: o.longitud })),
-    ...proveedores.map((o) => ({ nombre: o.nombre, lat: o.latitud, lng: o.longitud })),
+    ...proveedores.map((o) => ({ nombre: nombreSucursal(o), lat: o.latitud, lng: o.longitud })),
     ...ubicaciones.map((o) => ({ nombre: o.nombre, lat: o.latitud, lng: o.longitud })),
   ];
 }

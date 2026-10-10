@@ -12,6 +12,7 @@ import { ejecutar, ErrorNegocio, type Resultado } from "@/lib/resultado";
 import { auditar, buscarDuplicado, choferesQueLoVen, describirPedido, necesitaCamion, validarChoferYVehiculo, type Duplicado } from "./reglas";
 import { resolverPuntos } from "./puntos";
 import { esObraDelUsuario } from "@/lib/alcance";
+import { crearViaje, quitarDelViaje } from "@/lib/viajes/paradas";
 import { conEtapa } from "@/lib/viajes/etapas";
 import { avisarSolicitudNueva } from "./avisos";
 import { baseViaje, notificarEvento } from "@/lib/notificaciones/enviar";
@@ -36,6 +37,8 @@ const esquemaPedido = z
     obraId: z.string().min(1, "Elegí la obra."),
     origenTipo: z.enum(["BASE", "PROVEEDOR", "DEPOSITO", "OBRA"], { error: "Elegí desde dónde." }),
     origenId: z.string().min(1, "Elegí desde dónde."),
+    // Si la obra tiene sedes (más de un frente): a cuál va.
+    destinoSedeId: z.preprocess(vacio, z.string().optional()),
     ordenCompraLebane: z.preprocess(vacio, z.string().trim().max(40).optional()),
     descripcion: z.string().trim().min(3, "Contá qué hay que llevar.").max(240),
     pesoKg: z.preprocess(vacio, z.coerce.number().int().positive().max(30_000).optional()),
@@ -81,7 +84,9 @@ export async function crearPedido(entrada: DatosPedido): Promise<Resultado<Respu
     if (!(await esObraDelUsuario(yo, obra.id))) throw new ErrorNegocio(`No sos responsable de Obra ${obra.nombre}.`);
 
     // De dónde sale y a dónde va, resuelto una sola vez (el origen tiene que existir y ser del tipo que dice).
-    const puntos = await resolverPuntos(db, { origenTipo: d.origenTipo, origenId: d.origenId, obraId: obra.id });
+    const puntos = await resolverPuntos(db, { origenTipo: d.origenTipo, origenId: d.origenId, obraId: obra.id, destinoSedeId: d.destinoSedeId ?? null });
+    const sedes = await db.obraSede.count({ where: { obraId: obra.id, activa: true } });
+    if (sedes > 1 && !d.destinoSedeId) throw new ErrorNegocio(`Obra ${obra.nombre} tiene varias sedes: elegí a cuál va.`);
 
     // Peso: tiene que haber un vehículo de la cola que lo pueda llevar.
     if (d.pesoKg) {
@@ -94,7 +99,7 @@ export async function crearPedido(entrada: DatosPedido): Promise<Resultado<Respu
     const paraCuando = aFecha(d.dia, horaElegida);
     if (d.dia < diaISO()) throw new ErrorNegocio("El día ya pasó. Elegí hoy o una fecha futura.");
 
-    const proveedorId = d.origenTipo === "PROVEEDOR" ? d.origenId : null;
+    const proveedorId = puntos.proveedorId;
 
     // Lo que más valor tiene: no duplicar pedidos.
     if (!d.forzar) {
@@ -112,8 +117,10 @@ export async function crearPedido(entrada: DatosPedido): Promise<Resultado<Respu
           obraId: d.obraId,
           tipo: d.tipo,
           origenTipo: d.origenTipo,
-          origenId: d.origenId,
           ...puntos,
+          // Proveedor: el origen es la sucursal.
+          origenId: puntos.sucursalId ?? d.origenId,
+          destinoSedeId: d.destinoSedeId ?? null,
           proveedorId,
           ordenCompraLebane: d.ordenCompraLebane ?? null,
           descripcion: d.descripcion,
@@ -207,8 +214,7 @@ export async function tomarPedido(entrada: DatosTomar): Promise<Resultado<{ nume
       }
 
       const salidaEstimada = salidaPara(pedido.paraCuando, d.salida, d.saleHoy);
-      const viaje = { vehiculoId: vehiculo.id, choferId: yo.id, ...conEtapa("PROGRAMADO"), salidaEstimada, ordenRuta: await siguienteEnRuta(tx, yo.id) };
-      await tx.viaje.upsert({ where: { pedidoId: pedido.id }, create: { pedidoId: pedido.id, ...viaje }, update: viaje });
+      await crearViaje(tx, { pedidoIds: [pedido.id], vehiculoId: vehiculo.id, choferId: yo.id, salidaEstimada, ordenRuta: await siguienteEnRuta(tx, yo.id) });
       await alCambiarElViaje(tx, pedido.id, "TOMADO", yo.id);
       await auditar(tx, {
         usuarioId: yo.id, accion: "pedido.tomar", entidadId: pedido.id,
@@ -234,8 +240,7 @@ export async function soltarPedido(pedidoId: string): Promise<Resultado<{ vehicu
         data: { estado: "PENDIENTE", tomadoPorId: null, tomadoEn: null },
       });
       if (!soltado.count) throw new ErrorNegocio("Ya no se puede soltar: el viaje empezó o el pedido cambió.");
-      const viaje = await tx.viaje.findUnique({ where: { pedidoId } });
-      if (viaje) await tx.viaje.update({ where: { pedidoId }, data: { estado: "CANCELADO", ordenRuta: null } });
+      const viaje = await quitarDelViaje(tx, pedidoId);
       await alCambiarElViaje(tx, pedidoId, "LIBERADO", yo.id);
       await notificarEvento(EVENTO.pedidoSoltado(await baseViaje(tx, pedidoId, yo.nombre)), { tx, actor: yo.id });
       await auditar(tx, { usuarioId: yo.id, accion: "pedido.soltar", entidadId: pedidoId, resumen: `${yo.nombre} soltó ${await describirPedido(tx, pedidoId)}: vuelve a las solicitudes`, antes: { estado: "TOMADO", chofer: yo.nombre }, despues: { estado: "PENDIENTE" } });
@@ -271,7 +276,7 @@ export async function cancelarPedido(pedidoId: string, motivo: string): Promise<
         data: { estado: "CANCELADO", motivoCancelacion: m, canceladoEn: new Date() },
       });
       if (!r.count) throw new ErrorNegocio("El pedido cambió mientras lo cancelabas.");
-      await tx.viaje.updateMany({ where: { pedidoId, estado: "PROGRAMADO" }, data: { estado: "CANCELADO", ordenRuta: null } });
+      await quitarDelViaje(tx, pedidoId, true);
       await alCambiarElViaje(tx, pedidoId, "CANCELADO", yo.id);
       // Al que lo pidió (si no fue él) y al chofer que lo había aceptado: que no tiene que ir.
       await notificarEvento(EVENTO.pedidoCancelado({ ...(await baseViaje(tx, pedidoId)), quien: yo.nombre, motivo: m, choferId: pedido.tomadoPorId }), { tx, actor: yo.id });
@@ -297,7 +302,9 @@ export async function deshacerCancelacion(pedidoId: string): Promise<Resultado> 
         where: { id: pedidoId },
         data: { estado: vuelveA, motivoCancelacion: null, canceladoEn: null, ...(vuelveA === "PENDIENTE" ? { tomadoPorId: null, tomadoEn: null } : {}) },
       });
-      if (vuelveA === "TOMADO") await tx.viaje.updateMany({ where: { pedidoId, estado: "CANCELADO" }, data: conEtapa("PROGRAMADO") });
+      // Vuelve su viaje (si quedó cancelado con él; si se había combinado con otros, ya siguió sin él).
+      const pv = await tx.pedidoViaje.findUniqueOrThrow({ where: { id: pedidoId }, select: { viajeId: true } });
+      if (vuelveA === "TOMADO" && pv.viajeId) await tx.viaje.updateMany({ where: { id: pv.viajeId, estado: "CANCELADO" }, data: conEtapa("PROGRAMADO") });
       // El material que se iba a retirar vuelve a "retiro pedido".
       await alCambiarElViaje(tx, pedidoId, "TOMADO", yo.id);
       await auditar(tx, { usuarioId: yo.id, accion: "pedido.deshacerCancelacion", entidadId: pedidoId, resumen: `${yo.nombre} deshizo la cancelación de ${await describirPedido(tx, pedidoId)}`, antes: { estado: "CANCELADO" }, despues: { estado: vuelveA } });
@@ -327,8 +334,9 @@ export async function reasignarPedido(entrada: DatosReasignar): Promise<Resultad
       });
       if (!cambio.count) throw new ErrorNegocio("El pedido cambió mientras lo reasignabas. Probá de nuevo.");
       const salidaEstimada = salidaPara(pedido.paraCuando, d.salida);
-      const viaje = { vehiculoId: vehiculo.id, choferId: d.choferId, ...conEtapa("PROGRAMADO"), salidaEstimada, ordenRuta: await siguienteEnRuta(tx, d.choferId) };
-      await tx.viaje.upsert({ where: { pedidoId: pedido.id }, create: { pedidoId: pedido.id, ...viaje }, update: viaje });
+      // Si ya tenía viaje programado, sale de ese (el viaje sigue con sus otros pedidos) y va en uno nuevo del chofer elegido.
+      if (pedido.viajeId) await quitarDelViaje(tx, pedido.id);
+      await crearViaje(tx, { pedidoIds: [pedido.id], vehiculoId: vehiculo.id, choferId: d.choferId, salidaEstimada, ordenRuta: await siguienteEnRuta(tx, d.choferId) });
       await alCambiarElViaje(tx, pedido.id, "TOMADO", yo.id);
       // Al que pidió y al chofer al que se lo asignaron (push a los dos).
       await notificarEvento(EVENTO.pedidoAceptado({ ...(await baseViaje(tx, pedido.id, chofer.nombre)), choferId: d.choferId, salida: salidaEstimada, vehiculo: vehiculo.nombre }), { tx, actor: yo.id });

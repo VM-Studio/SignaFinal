@@ -141,7 +141,14 @@ export type DetalleMaterial = NonNullable<Awaited<ReturnType<typeof detalleMater
 /** Proveedores para la hoja "Habilitar para retirar". */
 export async function proveedoresParaHabilitar() {
   await exigirPermiso("materiales.gestionar");
-  return db.proveedor.findMany({ orderBy: { nombre: "asc" }, select: { id: true, nombre: true, direccion: true, localidad: true, telefono: true } });
+  const ps = await db.proveedor.findMany({
+    where: { activo: true },
+    orderBy: { nombre: "asc" },
+    select: { id: true, nombre: true, telefono: true, sucursales: { where: { activa: true }, orderBy: [{ principal: "desc" }, { nombre: "asc" }], select: { id: true, nombre: true, direccion: true, localidad: true, horarioRetiro: true, contacto: true, telefono: true } } },
+  });
+  // Mientras la hoja de habilitar elija proveedor (el selector de sucursal llega con la pantalla nueva):
+  // dirección = la de la sucursal principal.
+  return ps.map((p) => ({ ...p, direccion: p.sucursales[0]?.direccion ?? "", localidad: p.sucursales[0]?.localidad ?? "" }));
 }
 
 /** Habilitados por estado, con hace cuánto (Compras ve lo que quedó colgado del lado de la obra). */

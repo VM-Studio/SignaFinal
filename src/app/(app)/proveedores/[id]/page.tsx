@@ -19,6 +19,7 @@ export default async function PaginaProveedor({ params }: { params: Promise<{ id
   const p = await db.proveedor.findUnique({
     where: { id },
     include: {
+      sucursales: { where: { activa: true }, orderBy: [{ principal: "desc" }, { nombre: "asc" }] },
       pedidos: { where: { estado: "ENTREGADO" }, orderBy: { paraCuando: "desc" }, take: 10, select: { id: true, numero: true, descripcion: true, paraCuando: true, obra: { select: { nombre: true } } } },
     },
   });
@@ -30,11 +31,22 @@ export default async function PaginaProveedor({ params }: { params: Promise<{ id
     <div>
       <Link href="/proveedores" className="mb-2 hidden min-h-11 items-center gap-1 font-semibold text-suave lg:inline-flex"><ArrowLeft className="size-5" /> Proveedores</Link>
       <h1 className="text-2xl font-semibold lg:text-3xl">{p.nombre}</h1>
-      <p className="mt-1 text-suave">{p.direccion}, {p.localidad}{p.idLebane ? ` · Lebane ${p.idLebane}` : ""}</p>
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        {p.telefono ? <a href={`tel:${p.telefono.replace(/\s/g, "")}`} className="flex min-h-12 lg:min-h-9 items-center justify-center gap-2 rounded-[var(--radius-caja)] border border-linea font-semibold"><Phone className="size-5" /> {p.telefono}</a> : <span />}
-        <a href={`https://www.google.com/maps/dir/?api=1&destination=${p.latitud},${p.longitud}`} target="_blank" rel="noopener" className="flex min-h-12 lg:min-h-9 items-center justify-center gap-2 rounded-[var(--radius-caja)] bg-negro font-semibold text-white"><Navigation className="size-5" /> Cómo llegar</a>
-      </div>
+      {p.idLebane && <p className="mt-1 text-suave">Lebane {p.idLebane}</p>}
+      <Subtitulo>Sucursales</Subtitulo>
+      <ul className="flex flex-col gap-2">
+        {p.sucursales.map((s) => (
+          <li key={s.id}>
+            <Tarjeta className="flex items-center gap-3 p-4">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">{s.nombre}{s.principal ? " · principal" : ""}</p>
+                <p className="text-sm text-suave">{s.direccion}, {s.localidad}{s.horarioRetiro ? ` · ${s.horarioRetiro}` : ""}</p>
+              </div>
+              {(s.telefono ?? p.telefono) && <a href={`tel:${(s.telefono ?? p.telefono)!.replace(/\s/g, "")}`} aria-label={`Llamar a ${s.nombre}`} className="grid size-10 shrink-0 place-items-center rounded-md border border-linea"><Phone className="size-4" /></a>}
+              <a href={`https://www.google.com/maps/dir/?api=1&destination=${s.latitud},${s.longitud}`} target="_blank" rel="noopener" aria-label={`Cómo llegar a ${s.nombre}`} className="grid size-10 shrink-0 place-items-center rounded-md border border-linea"><Navigation className="size-4" /></a>
+            </Tarjeta>
+          </li>
+        ))}
+      </ul>
       {compras && (
         <>
           <Subtitulo>Habilitado acá, sin entregar</Subtitulo>

@@ -1,3 +1,4 @@
+import { nombreSucursal } from "@/lib/pedidos/puntos";
 import "server-only";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -13,7 +14,8 @@ const seleccion = {
   motivoCancelacion: true, canceladoEn: true, creadoEn: true, tomadoEn: true, solicitanteId: true, tomadoPorId: true,
   origenNombre: true, destinoNombre: true,
   obra: { select: { id: true, nombre: true, direccion: true, localidad: true } },
-  proveedor: { select: { nombre: true, direccion: true, localidad: true, telefono: true } },
+  proveedor: { select: { nombre: true, telefono: true } },
+  sucursal: { select: { nombre: true, direccion: true, localidad: true, telefono: true, horarioRetiro: true, contacto: true } },
   solicitante: { select: { nombre: true } },
   tomadoPor: { select: { nombre: true } },
   viaje: {
@@ -40,7 +42,7 @@ async function nombresDeOrigen(filas: Fila[]) {
     ...u.map((x) => [x.id, { nombre: x.nombre, direccion: x.direccion }] as const),
   ]);
   return (f: Fila) =>
-    f.proveedor ? { nombre: f.proveedor.nombre, direccion: `${f.proveedor.direccion}, ${f.proveedor.localidad}` } : mapa.get(f.origenId) ?? { nombre: "—", direccion: "" };
+    f.proveedor ? { nombre: f.origenNombre, direccion: f.sucursal ? `${f.sucursal.direccion}, ${f.sucursal.localidad}` : "" } : mapa.get(f.origenId) ?? { nombre: "—", direccion: "" };
 }
 
 /** Plano y sin Decimal: listo para pasar a componentes cliente. */
@@ -178,8 +180,8 @@ export async function datosFormulario() {
       select: { id: true, nombre: true, direccion: true, localidad: true },
     }),
     db.obra.findMany({ where: { estado: "ACTIVA" }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true } }),
-    db.proveedor.findMany({ orderBy: { nombre: "asc" }, select: { id: true, nombre: true, direccion: true, localidad: true } }),
-    db.ubicacion.findMany({ orderBy: { tipo: "asc" }, select: { id: true, nombre: true, tipo: true } }),
+    db.sucursalProveedor.findMany({ where: { activa: true, proveedor: { activo: true } }, orderBy: [{ proveedor: { nombre: "asc" } }, { principal: "desc" }, { nombre: "asc" }], select: { id: true, nombre: true, direccion: true, localidad: true, proveedor: { select: { nombre: true, _count: { select: { sucursales: { where: { activa: true } } } } } } } }),
+    db.ubicacion.findMany({ where: { activa: true, tipo: { in: ["DEPOSITO", "BASE_VEHICULOS"] } }, orderBy: [{ tipo: "asc" }, { nombre: "asc" }], select: { id: true, nombre: true, tipo: true } }),
     db.herramienta.findMany({
       where: { activo: true, estado: { in: ["DISPONIBLE", "EN_OBRA"] } },
       orderBy: [{ esMaquina: "desc" }, { nombre: "asc" }],
@@ -189,7 +191,8 @@ export async function datosFormulario() {
   return {
     obras: obras.map((o) => ({ id: o.id, nombre: o.nombre, direccion: `${o.direccion}, ${o.localidad}` })),
     todasLasObras,
-    proveedores: proveedores.map((p) => ({ id: p.id, nombre: p.nombre, detalle: `${p.direccion}, ${p.localidad}` })),
+    // Lo que se elige es la sucursal.
+    proveedores: proveedores.map((s) => ({ id: s.id, nombre: nombreSucursal({ nombre: s.nombre, proveedor: s.proveedor }, s.proveedor._count.sucursales > 1), detalle: `${s.direccion}, ${s.localidad}` })),
     ubicaciones: ubicaciones.map((x) => ({ id: x.id, nombre: x.nombre, tipo: x.tipo === "DEPOSITO" ? ("DEPOSITO" as const) : ("BASE" as const) })),
     herramientas: herramientas.map((h) => ({
       id: h.id,

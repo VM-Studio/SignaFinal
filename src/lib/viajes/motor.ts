@@ -6,6 +6,7 @@ import { baseViaje, notificarEvento } from "@/lib/notificaciones/enviar";
 import { EVENTO } from "@/lib/notificaciones/eventos";
 import { distancia, type Punto } from "@/lib/geo";
 import { conEtapa } from "./etapas";
+import { sincronizarParadas } from "./paradas";
 import { CARGA_S, destinoDe, origenDe, rutaSegura } from "./tramos";
 import { decidir, type EstadoMotor, type Llegada, type Transicion } from "./motor-reglas";
 import { PARAMETROS_MOTOR as P } from "./parametros";
@@ -87,6 +88,7 @@ export async function transicionar(viajeId: string, a: Transicion["a"], fecha: D
   const hecho = await db.$transaction(async (tx) => {
     const r = await tx.viaje.updateMany({ where: { id: v.id, etapa: { in: desde[a] } }, data: datos });
     if (!r.count) return false;
+    await sincronizarParadas(tx, v.id, a, fecha);
     const base = await baseViaje(tx, v.pedido.id, v.chofer.nombre);
     if (a === "EN_RETIRO") {
       await notificarEvento(EVENTO.viajeEnRetiro({ ...base, origen: v.pedido.origenNombre, distanciaM: distDestino, etaDestino: sumar(fecha, CARGA_S + durDestino) }), { tx });
@@ -164,6 +166,7 @@ export async function responderLlegada(viajeId: string, si: boolean, usuarioId: 
         motor: json({ ...estado, pendiente: undefined, candidato: undefined, rechazo: { etapa, fuera: false } }),
       },
     });
+    await sincronizarParadas(tx, v.id, anterior, new Date());
     await auditar(tx, {
       usuarioId, accion: "viaje.llegada.rechazada", entidad: "PedidoViaje", entidadId: v.pedido.id,
       resumen: `${nombre} dijo que todavía no llegó a ${etapa === "EN_RETIRO" ? v.pedido.origenNombre : v.pedido.destinoNombre} (el GPS lo había detectado) · pedido #${v.pedido.numero}`,

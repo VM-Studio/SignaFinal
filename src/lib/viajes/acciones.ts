@@ -10,6 +10,7 @@ import { ejecutar, ErrorNegocio, type Resultado } from "@/lib/resultado";
 import { auditar, describirPedido, validarChoferYVehiculo } from "@/lib/pedidos/reglas";
 import { responsablePrincipal } from "@/lib/alcance";
 import { conEtapa } from "./etapas";
+import { sincronizarParadas } from "./paradas";
 import { baseDe, CARGA_S, destinoDe, origenDe, rutaSegura } from "./tramos";
 import { baseViaje, notificarEvento } from "@/lib/notificaciones/enviar";
 import { EVENTO } from "@/lib/notificaciones/eventos";
@@ -63,7 +64,7 @@ export async function iniciarViaje(entrada: DatosInicio): Promise<Resultado<{ ve
     if (ya) return { vehiculo: ya.vehiculo.nombre };
 
     // Ruta al punto de retiro desde donde está el teléfono (o la base del vehículo). Nunca traba: hay respaldo.
-    const previo = await db.viaje.findUnique({ where: { pedidoId: d.pedidoId }, include: { vehiculo: { select: { baseId: true, ultimaLat: true, ultimaLng: true } }, pedido: true } });
+    const previo = await db.viaje.findFirst({ where: { pedidos: { some: { id: d.pedidoId } } }, include: { vehiculo: { select: { baseId: true, ultimaLat: true, ultimaLng: true } }, pedido: true } });
     if (!previo) throw new ErrorNegocio("No existe ese viaje.");
     const gps = d.lat != null && d.lng != null ? { lat: d.lat, lng: d.lng } : null;
     const satelite = previo.vehiculo.ultimaLat != null && previo.vehiculo.ultimaLng != null ? { lat: previo.vehiculo.ultimaLat, lng: previo.vehiculo.ultimaLng } : null;
@@ -77,7 +78,7 @@ export async function iniciarViaje(entrada: DatosInicio): Promise<Resultado<{ ve
     ]);
 
     const r = await db.$transaction(async (tx) => {
-      const viaje = await tx.viaje.findUnique({ where: { pedidoId: d.pedidoId }, include: { pedido: true } });
+      const viaje = await tx.viaje.findFirst({ where: { pedidos: { some: { id: d.pedidoId } } }, include: { pedido: true } });
       if (!viaje || viaje.pedido.tomadoPorId !== yo.id || viaje.pedido.estado !== "TOMADO" || viaje.estado !== "PROGRAMADO") {
         throw new ErrorNegocio("Este viaje no está listo para salir.");
       }
@@ -100,6 +101,7 @@ export async function iniciarViaje(entrada: DatosInicio): Promise<Resultado<{ ve
           ...(directo ? { llegadaRetiroEn: salidaReal, salidaRetiroEn: salidaReal } : {}),
         },
       });
+      await sincronizarParadas(tx, viaje.id, directo ? "HACIA_DESTINO" : "HACIA_RETIRO", salidaReal);
       if (gps) {
         await tx.posicionVehiculo.create({ data: { vehiculoId: viaje.vehiculoId, viajeId: viaje.id, usuarioId: yo.id, fuente: "TELEFONO", latitud: gps.lat, longitud: gps.lng, precisionM: d.precisionM ?? null, motorEncendido: true, fecha: salidaReal } });
       }
@@ -127,7 +129,7 @@ export async function llegueAlRetiro(entrada: DatosTramo): Promise<Resultado<{ e
   return ejecutar(async () => {
     const yo = await exigirPermiso("viajes.ejecutar");
     const d = esquemaTramo.parse(entrada);
-    const v = await db.viaje.findUnique({ where: { pedidoId: d.pedidoId }, select: { id: true, choferId: true, etapa: true, inicioEn: true } });
+    const v = await db.viaje.findFirst({ where: { pedidos: { some: { id: d.pedidoId } } }, select: { id: true, choferId: true, etapa: true, inicioEn: true } });
     if (!v || v.choferId !== yo.id) throw new ErrorNegocio("Este viaje no es tuyo.");
     if (v.etapa === "PROGRAMADO") throw new ErrorNegocio("Primero iniciá el viaje.");
     // Reenvío sin señal o doble toque: si ya pasó esta etapa, no hace nada.
@@ -142,7 +144,7 @@ export async function salgoHaciaDestino(entrada: DatosTramo): Promise<Resultado<
   return ejecutar(async () => {
     const yo = await exigirPermiso("viajes.ejecutar");
     const d = esquemaTramo.parse(entrada);
-    const v = await db.viaje.findUnique({ where: { pedidoId: d.pedidoId }, select: { id: true, choferId: true, etapa: true, llegadaRetiroEn: true } });
+    const v = await db.viaje.findFirst({ where: { pedidos: { some: { id: d.pedidoId } } }, select: { id: true, choferId: true, etapa: true, llegadaRetiroEn: true } });
     if (!v || v.choferId !== yo.id) throw new ErrorNegocio("Este viaje no es tuyo.");
     if (v.etapa === "EN_RETIRO") await transicionar(v.id, "HACIA_DESTINO", momento(d.ocurridoEn, v.llegadaRetiroEn), { porGps: false, usuarioId: yo.id });
     refrescar();
@@ -155,7 +157,7 @@ export async function llegueAlDestino(entrada: DatosTramo): Promise<Resultado<{ 
   return ejecutar(async () => {
     const yo = await exigirPermiso("viajes.ejecutar");
     const d = esquemaTramo.parse(entrada);
-    const v = await db.viaje.findUnique({ where: { pedidoId: d.pedidoId }, select: { id: true, choferId: true, etapa: true, inicioEn: true } });
+    const v = await db.viaje.findFirst({ where: { pedidos: { some: { id: d.pedidoId } } }, select: { id: true, choferId: true, etapa: true, inicioEn: true } });
     if (!v || v.choferId !== yo.id) throw new ErrorNegocio("Este viaje no es tuyo.");
     if (v.etapa === "PROGRAMADO") throw new ErrorNegocio("Primero iniciá el viaje.");
     if (["HACIA_RETIRO", "EN_RETIRO", "HACIA_DESTINO"].includes(v.etapa)) await transicionar(v.id, "EN_DESTINO", momento(d.ocurridoEn, v.inicioEn), { porGps: false, usuarioId: yo.id });
@@ -168,7 +170,7 @@ export async function llegueAlDestino(entrada: DatosTramo): Promise<Resultado<{ 
 export async function responderLlegada(pedidoId: string, si: boolean): Promise<Resultado> {
   return ejecutar(async () => {
     const yo = await exigirPermiso("viajes.ejecutar");
-    const v = await db.viaje.findUnique({ where: { pedidoId }, select: { id: true, choferId: true } });
+    const v = await db.viaje.findFirst({ where: { pedidos: { some: { id: pedidoId } } }, select: { id: true, choferId: true } });
     if (!v || v.choferId !== yo.id) throw new ErrorNegocio("Este viaje no es tuyo.");
     await responderLlegadaMotor(v.id, si, yo.id, yo.nombre);
     refrescar();
@@ -204,7 +206,7 @@ export async function finalizarViaje(entrada: DatosFin): Promise<Resultado<Resul
     const d = esquemaFin.parse(entrada);
 
     const r = await db.$transaction(async (tx) => {
-      const viaje = await tx.viaje.findUnique({ where: { pedidoId: d.pedidoId }, include: { vehiculo: true, pedido: { include: { obra: true, solicitante: { select: { nombre: true } } } } } });
+      const viaje = await tx.viaje.findFirst({ where: { pedidos: { some: { id: d.pedidoId } } }, include: { vehiculo: true, pedido: { include: { obra: true, solicitante: { select: { nombre: true } } } } } });
       if (!viaje) throw new ErrorNegocio("No existe ese viaje.");
       if (viaje.choferId !== yo.id) throw new ErrorNegocio("Este viaje no es tuyo.");
 
@@ -233,6 +235,7 @@ export async function finalizarViaje(entrada: DatosFin): Promise<Resultado<Resul
           remitoUrl, observaciones: d.observaciones ?? null, clientIdFin: d.clientId,
         },
       });
+      await sincronizarParadas(tx, viaje.id, "FINALIZADO", viaje.llegadaReal ?? momento(d.ocurridoEn, viaje.salidaReal));
       await tx.pedidoViaje.update({ where: { id: d.pedidoId }, data: { estado: "ENTREGADO" } });
       await alCambiarElViaje(tx, d.pedidoId, "ENTREGADO", yo.id);
       // Si el viaje llevaba una máquina o herramienta y nadie registró la entrega, queda en la obra.

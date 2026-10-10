@@ -2,10 +2,11 @@
  * DATOS BASE de SIGNA · Logística: lo único que queda fijo para empezar a usar la app de verdad.
  *   - Los usuarios con su rol (se conservan: mismo id, contraseña y avisos del celular; solo se
  *     crean los que falten, con la contraseña inicial).
- *   - La base de camiones (Martínez) y el depósito real (Av. Mitre 1254, Florida).
+ *   - La base de camiones (Martínez), el depósito (Av. Mitre 1254, Florida) y el Terreno Humboldt 2417.
+ *   - Las obras reales con sus responsables (src/lib/base/obras.ts), ubicadas con el geocodificador.
  *   - Los seis vehículos reales, tal como los muestra Cusat (el rastreo los enlaza solo por patente).
  *   - El inventario real de herramientas (src/lib/base/herramientas.ts), todo en el depósito.
- * Todo lo demás se borra: obras, proveedores, pedidos, viajes, materiales, avisos, alertas,
+ * Todo lo demás se borra: proveedores, pedidos, viajes, materiales, órdenes de compra, avisos, alertas,
  * posiciones, combustible, mantenimiento y actividad. Eso se carga desde la app.
  *
  * La usan prisma/seed.ts, scripts/cargar-base.ts y el botón "Dejar solo los datos base" (MODO_DEMO).
@@ -13,6 +14,7 @@
 import { type PrismaClient, Prisma, type Rol } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { INVENTARIO_HERRAMIENTAS } from "./herramientas";
+import { OBRAS_REALES, UBICACIONES_REALES, ubicar } from "./obras";
 
 export const CONTRASENA_INICIAL = "signa2026";
 
@@ -49,8 +51,19 @@ async function limpiar(db: PrismaClient) {
   await db.categoriaHerramienta.deleteMany();
   await db.posicionVehiculo.deleteMany();
   await db.estadoSistema.deleteMany();
+  await db.recordatorio.deleteMany();
+  await db.itemParada.deleteMany();
+  await db.viajePedido.deleteMany();
+  await db.pedidoViaje.updateMany({ data: { viajeId: null } });
+  await db.viajeParada.deleteMany();
   await db.viaje.deleteMany();
   await db.materialListo.deleteMany();
+  await db.pedidoMaterial.updateMany({ data: { ordenCompraId: null } });
+  await db.renglonOC.deleteMany();
+  await db.ordenCompra.deleteMany();
+  await db.numeradorOC.deleteMany();
+  await db.adjunto.deleteMany();
+  await db.archivo.deleteMany();
   await db.cambioEstadoMaterial.deleteMany();
   await db.pedidoMaterial.deleteMany();
   await db.pedidoViaje.deleteMany();
@@ -61,7 +74,9 @@ async function limpiar(db: PrismaClient) {
   await db.usuario.updateMany({ data: { vehiculoAsignadoId: null } });
   await db.vehiculo.deleteMany();
   await db.responsableObra.deleteMany();
+  await db.obraSede.deleteMany();
   await db.obra.deleteMany();
+  await db.sucursalProveedor.deleteMany();
   await db.proveedor.deleteMany();
   await db.ubicacion.deleteMany();
   // Los números de pedido vuelven a empezar en 1.
@@ -105,15 +120,30 @@ export async function cargarDatosBase(db: PrismaClient) {
     usuarios.set(u.email, x.id);
   }
 
-  // ────────────────────── Base y depósito ──────────────────────
-  const base = await db.ubicacion.create({
-    // Donde Cusat muestra los camiones parados (Triunfo Argentino / Granada y Maestro).
-    data: { nombre: "Base de camiones Martínez", tipo: "BASE_VEHICULOS", direccion: "Triunfo Argentino y Granada, Martínez, San Isidro", latitud: -34.49902, longitud: -58.54408 },
-  });
-  const deposito = await db.ubicacion.create({
-    // La dirección del depósito que figura en el inventario.
-    data: { nombre: "Depósito Florida", tipo: "DEPOSITO", direccion: "Av. Bartolomé Mitre 1254, Florida, Vicente López", latitud: -34.53837, longitud: -58.50767 },
-  });
+  // ────────────────────── Base y depósitos ──────────────────────
+  // Base: donde Cusat muestra los camiones parados. Depósito Florida: la dirección del inventario.
+  const ubicaciones = new Map<string, string>();
+  for (const x of UBICACIONES_REALES) {
+    const punto = await ubicar(db, x.busqueda, x.aprox);
+    const u = await db.ubicacion.create({ data: { nombre: x.nombre, tipo: x.tipo, etiqueta: x.etiqueta, direccion: x.direccion, localidad: x.localidad, latitud: punto.lat, longitud: punto.lng } });
+    ubicaciones.set(x.nombre, u.id);
+  }
+  const base = { id: ubicaciones.get("Base de camiones Martínez")! };
+  const deposito = { id: ubicaciones.get("Depósito Florida")! };
+
+  // ─────────────────────────── Obras reales ───────────────────────────
+  const sinUbicar: string[] = [];
+  for (const o of OBRAS_REALES) {
+    const punto = await ubicar(db, o.busqueda, o.aprox);
+    if (!punto.geocodificada) sinUbicar.push(o.nombre);
+    const obra = await db.obra.create({ data: { codigo: o.codigo, nombre: o.nombre, direccion: o.direccion, localidad: o.localidad, latitud: punto.lat, longitud: punto.lng } });
+    // Lolo (capataz) y César en todas; los responsables de cada una; un solo principal.
+    const quienes = [...new Set([...o.responsables, ...(o.principal ? [o.principal] : []), "cesar", "lolo"])];
+    for (const email of quienes) {
+      const usuarioId = usuarios.get(email);
+      if (usuarioId) await db.responsableObra.create({ data: { obraId: obra.id, usuarioId, principal: email === o.principal } });
+    }
+  }
 
   // ─────────────────────────── Flota real ───────────────────────────
   // Tal cual aparece en Cusat. idCusat se completa solo al sincronizar (empareja por patente).
@@ -152,7 +182,7 @@ export async function cargarDatosBase(db: PrismaClient) {
   await db.auditoria.create({
     data: {
       usuarioId: usuarios.get("direccion") ?? null, rol: "DIRECCION", accion: "datos.base", entidad: "Sistema", entidadId: "base",
-      resumen: `Se dejaron solo los datos base: ${USUARIOS.length} usuarios, ${flota.length} vehículos y ${INVENTARIO_HERRAMIENTAS.length} herramientas en el depósito`,
+      resumen: `Se dejaron solo los datos base: ${USUARIOS.length} usuarios, ${OBRAS_REALES.length} obras, ${flota.length} vehículos y ${INVENTARIO_HERRAMIENTAS.length} herramientas en el depósito`,
     },
   });
 
@@ -165,6 +195,8 @@ export async function cargarDatosBase(db: PrismaClient) {
     Herramienta: await db.herramienta.count(),
     "Unidades en depósito": INVENTARIO_HERRAMIENTAS.reduce((s, h) => s + h.cantidad, 0),
     Obra: await db.obra.count(),
+    "Obras con coordenadas aproximadas (confirmar)": sinUbicar.length,
+    ResponsableObra: await db.responsableObra.count(),
     Proveedor: await db.proveedor.count(),
     PedidoViaje: await db.pedidoViaje.count(),
     PedidoMaterial: await db.pedidoMaterial.count(),
