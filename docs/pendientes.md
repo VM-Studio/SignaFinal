@@ -55,18 +55,20 @@ Cada pieza externa tiene un único punto de entrada en el código, así que cone
 
 ## 3. Lebane (obras, proveedores, órdenes de compra)
 
-- **Hoy**: obras y proveedores cargados a mano con `idLebane` como clave. En Compras, el número de OC
-  y el monto se escriben al pedir la aprobación.
+- **Hoy**: obras y proveedores (con sus sucursales) cargados a mano con `idLebane` como clave. La
+  **orden de compra se arma en este sistema** (formulario + PDF + número OC-AAAA-NNNN) y la aprueba el
+  dueño acá. El listado completo está en *Compras → Órdenes de compra* (con exportación CSV).
 - **Falta**: documentación y credenciales de la API de Lebane.
-- **Dónde va**: un adaptador `src/lib/lebane/` (mismo patrón que `src/lib/cusat`) con obras,
-  proveedores y **órdenes de compra**. Con eso: Compras elige la OC de una lista (con monto y
-  proveedor ya cargados) en vez de escribirla, y los pedidos de material pueden nacer en Lebane
-  (`fuente = LEBANE`, `ordenCompraLebaneId`).
+- **Dónde va**: un adaptador `src/lib/lebane/` (mismo patrón que `src/lib/cusat`) con obras y
+  proveedores, y el **envío de la OC del sistema a Lebane**: al aprobarse, la OC (datos, renglones y
+  PDF) se manda a Lebane y el número que le asigne Lebane se guarda en `OrdenCompra.ordenCompraLebaneId`
+  (el número OC-AAAA-NNNN de Signa no cambia). Los pedidos de material también pueden nacer en Lebane
+  (`fuente = LEBANE`).
 - **Regla**: obras y proveedores no se editan en Signa; se leen de Lebane.
 
 ## 4. Almacenamiento de fotos
 
-- **Qué hay hoy**: remitos, tickets, documentos y fotos de herramientas se comprimen en el teléfono (~200 KB) y se guardan en Postgres (tabla `Archivo`), servidos con sesión en `/api/archivos/[id]`.
+- **Qué hay hoy**: los adjuntos nuevos (pedidos de material, OC y sus PDF) van a **Vercel Blob privado** (`BLOB_READ_WRITE_TOKEN`), servidos con sesión y permiso en `/api/adjuntos/[id]` y `/api/oc/[id]/pdf`. Los remitos, tickets y fotos de herramientas siguen comprimidos en Postgres (tabla `Archivo`, `/api/archivos/[id]`).
 - **Para producción**: con el volumen real, pasar a almacenamiento de objetos (Vercel Blob privado, S3 o R2). El cambio está en un solo lugar: `src/lib/archivos.ts` (`guardarArchivo`) y la ruta que los sirve. Migrar los existentes con un script.
 
 ## 5. Avisos

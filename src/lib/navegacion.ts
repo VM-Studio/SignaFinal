@@ -20,6 +20,7 @@ export const SECCIONES = {
   // Compras
   compras: { href: "/compras", titulo: "Pedidos de material", corto: "Pedidos", icono: "compras" },
   habilitados: { href: "/habilitados", titulo: "Habilitados", icono: "habilitados" },
+  ordenes: { href: "/compras/ordenes", titulo: "Órdenes de compra", icono: "aprobaciones" },
   aprobaciones: { href: "/aprobaciones", titulo: "Aprobaciones", icono: "aprobaciones" },
   // Chofer
   hoy: { href: "/hoy", titulo: "Hoy", icono: "hoy" },
@@ -63,7 +64,7 @@ type GrupoClaves = { titulo: string | null; claves: Clave[] };
  * Dirección ve todo: su "Más" va agrupado por tema.
  */
 const NAV: Record<Rol, { barra: Clave[]; mas: GrupoClaves[] }> = {
-  COMPRAS: { barra: ["compras", "habilitados", "proveedores"], mas: [{ titulo: null, claves: ["inicio", "pedirMateriales", "misAvisos", "cuenta"] }] },
+  COMPRAS: { barra: ["compras", "habilitados", "proveedores"], mas: [{ titulo: null, claves: ["inicio", "ordenes", "pedirMateriales", "misAvisos", "cuenta"] }] },
   RESPONSABLE_OBRA: { barra: ["obras", "pedir", "viajesObra", "herramientas"], mas: [] },
   CAPATAZ: { barra: ["obras", "pedir", "viajesObra", "herramientas"], mas: [] },
   CHOFER: { barra: ["hoy", "solicitudes", "combustible"], mas: [{ titulo: null, claves: ["cuenta", "misAvisos"] }] },
@@ -74,7 +75,7 @@ const NAV: Record<Rol, { barra: Clave[]; mas: GrupoClaves[] }> = {
     mas: [
       { titulo: null, claves: ["inicio"] },
       { titulo: "Pedidos y viajes", claves: ["pedir", "misPedidos", "viajesAObras"] },
-      { titulo: "Compras", claves: ["aprobaciones", "compras", "habilitados"] },
+      { titulo: "Compras", claves: ["aprobaciones", "compras", "ordenes", "habilitados"] },
       { titulo: "Flota", claves: ["flota", "agenda", "mantenimiento", "combustible"] },
       { titulo: "Depósito", claves: ["deposito", "sobrantes", "entregas", "importar"] },
       { titulo: "Mapa", claves: ["historial", "rastreo"] },

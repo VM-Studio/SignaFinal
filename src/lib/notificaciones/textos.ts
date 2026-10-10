@@ -67,7 +67,8 @@ export const TEXTO = {
 };
 
 /** "OC 3141", "#3141" o "3141" → "OC #3141". */
-export const oc = (n: string | null | undefined) => (n ? `OC #${n.replace(/^\s*(OC)?\s*#?\s*/i, "")}` : "la OC");
+/** "OC-2026-0012" (las del sistema) tal cual; las viejas cargadas a mano, "OC #4512". */
+export const oc = (n: string | null | undefined) => (!n ? "la OC" : /^OC-\d{4}-\d+$/.test(n.trim()) ? n.trim() : `OC #${n.replace(/^\s*(OC)?\s*#?\s*/i, "")}`);
 
 type M = { que: string; obra: string };
 

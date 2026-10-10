@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Solo desarrollo: permite abrir la app también en 127.0.0.1.
   allowedDevOrigins: ["127.0.0.1"],
+  // PDF de las órdenes de compra y lectura de planillas Excel: solo en el servidor, sin empaquetar.
+  serverExternalPackages: ["@react-pdf/renderer", "exceljs"],
   experimental: {
     // Fotos de remitos y tickets (ya comprimidas en el teléfono a ~200 KB).
     serverActions: { bodySizeLimit: "4mb" },

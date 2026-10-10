@@ -14,7 +14,8 @@ export const PASOS_MATERIAL: { estado: EstadoMaterial; titulo: string }[] = [
 ];
 
 /** "3150", "OC 3150", "#3150" → "OC 3150". */
-export const nroOC = (n: string | null | undefined) => (n ? `OC ${n.replace(/^\s*(OC)?\s*#?\s*/i, "")}` : null);
+/** "OC-2026-0012" (las del sistema) tal cual; las viejas cargadas a mano, "OC 4512". */
+export const nroOC = (n: string | null | undefined) => (!n ? null : /^OC-\d{4}-\d+$/.test(n.trim()) ? n.trim() : `OC ${n.replace(/^\s*(OC)?\s*#?\s*/i, "")}`);
 
 export const ordenEstado = (e: EstadoMaterial) => PASOS_MATERIAL.findIndex((p) => p.estado === e);
 

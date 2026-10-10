@@ -1,8 +1,8 @@
 "use server";
 
-import { engancharAdjuntos } from "@/lib/archivos";
+import { eliminar, engancharAdjuntos } from "@/lib/archivos";
+import { guardarPDF } from "@/lib/compras/servicio";
 import { z } from "zod";
-import { Prisma, type EstadoMaterial } from "@prisma/client";
 import { db } from "@/lib/db";
 import { exigirPermiso, exigirSesion } from "@/lib/auth/sesion";
 import { puede } from "@/lib/permisos";
@@ -14,14 +14,14 @@ import { esObraDelUsuario } from "@/lib/alcance";
 import { notificarEvento } from "@/lib/notificaciones/enviar";
 import { EVENTO } from "@/lib/notificaciones/eventos";
 import { queLleva } from "@/lib/notificaciones/textos";
-import { aFecha, diaISO, fecha, plata } from "@/lib/formato";
+import { aFecha, diaISO, fecha } from "@/lib/formato";
 import { nombreSucursal, resolverPuntos, sucursalDe } from "@/lib/pedidos/puntos";
 import { describirPedido, necesitaCamion } from "@/lib/pedidos/reglas";
 import { avisarSolicitudNueva } from "@/lib/pedidos/avisos";
 import { FRANJA } from "@/lib/pedidos/presentacion";
 import { cambiarEstado, recalcular } from "./circuito";
+import { auditar, deMaterial, describir, exigirEstado, pedidoOError } from "./comun";
 
-type Tx = Prisma.TransactionClient;
 
 const refrescar = () => {
   revalidar("materiales", "pedidos");
@@ -31,34 +31,6 @@ const vacio = (v: unknown) => (v === "" || v === null ? undefined : v);
 const DIA = /^\d{4}-\d{2}-\d{2}$/;
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-const auditar = (tx: Tx, d: { usuarioId: string; accion: string; entidadId: string; resumen: string; antes?: Prisma.InputJsonValue; despues?: Prisma.InputJsonValue }) =>
-  auditarBase(tx, { entidad: "PedidoMaterial", ...d });
-
-/** Lo común de los avisos de un pedido de material. */
-const deMaterial = (p: { id: string; solicitanteId: string; obraId: string; descripcion: string; obra: { nombre: string } }) => ({
-  pedidoMaterialId: p.id, solicitanteId: p.solicitanteId, obraId: p.obraId, que: p.descripcion, obra: p.obra.nombre,
-});
-
-/** "#12 (cemento portland) para Obra Darwin" */
-const describir = (p: { numero: number; descripcion: string; obra: { nombre: string } }) => `el pedido de material #${p.numero} (${queLleva(p.descripcion)}) para Obra ${p.obra.nombre}`;
-
-async function pedidoOError(tx: Tx, id: string) {
-  const p = await tx.pedidoMaterial.findUnique({ where: { id }, include: { obra: { select: { nombre: true } }, tomadoPor: { select: { nombre: true } } } });
-  if (!p) throw new ErrorNegocio("No existe ese pedido de material.");
-  return p;
-}
-
-function exigirEstado(p: { estado: EstadoMaterial; tomadoPor?: { nombre: string } | null }, ...estados: EstadoMaterial[]) {
-  if (estados.includes(p.estado)) return;
-  const ahora: Partial<Record<EstadoMaterial, string>> = {
-    EN_COMPRA: `Ya lo está comprando ${p.tomadoPor?.nombre ?? "Compras"}.`,
-    ESPERANDO_APROBACION: "Ya está esperando la aprobación del dueño.",
-    APROBADO: "Ya está aprobado.",
-    CANCELADO: "Este pedido fue cancelado.",
-    ENTREGADO: "Este pedido ya se entregó.",
-  };
-  throw new ErrorNegocio(ahora[p.estado] ?? "El pedido cambió. Actualizá la pantalla.");
-}
 
 // ═══════════════════════════ Pedir materiales (obra) ═══════════════════════════
 
@@ -245,34 +217,6 @@ export async function tomarMaterial(id: string): Promise<Resultado> {
   });
 }
 
-const esquemaAprobacion = z.object({
-  id: z.string().min(1),
-  ordenCompra: z.string().trim().min(1, "Poné el número de OC.").max(40),
-  monto: z.preprocess((v) => (typeof v === "string" ? v.replace(/[^\d,]/g, "").replace(",", ".") : v), z.preprocess(vacio, z.coerce.number().positive("Revisá el monto.").max(1e12).optional())),
-});
-export type DatosAprobacion = z.input<typeof esquemaAprobacion>;
-
-/** EN_COMPRA → ESPERANDO_APROBACION: la OC está armada en Lebane; le llega al dueño. */
-export async function pedirAprobacion(entrada: DatosAprobacion): Promise<Resultado> {
-  return ejecutar(async () => {
-    const yo = await exigirPermiso("materiales.gestionar");
-    const d = esquemaAprobacion.parse(entrada);
-    await db.$transaction(async (tx) => {
-      const p = await pedidoOError(tx, d.id);
-      exigirEstado(p, "EN_COMPRA");
-      const monto = d.monto != null ? new Prisma.Decimal(d.monto) : null;
-      const nota = `OC ${d.ordenCompra.replace(/^\s*(OC)?\s*#?\s*/i, "")}${monto ? ` · ${plata(monto.toNumber())}` : ""}`;
-      const ok = await cambiarEstado(tx, p, "ESPERANDO_APROBACION", yo.id, nota, { ordenCompraNumero: d.ordenCompra, montoAprobado: monto, ...(p.tomadoPorId ? {} : { tomadoPorId: yo.id, tomadoEn: new Date() }) });
-      if (!ok) throw new ErrorNegocio("El pedido cambió. Actualizá la pantalla.");
-      await notificarEvento(EVENTO.materialParaAprobar({ ...deMaterial(p), oc: d.ordenCompra, monto: monto ? plata(monto.toNumber()) : null }), { tx, actor: yo.id });
-      await notificarEvento(EVENTO.materialOcArmada(deMaterial(p)), { tx, actor: yo.id });
-      await auditar(tx, { usuarioId: yo.id, accion: "material.pedirAprobacion", entidadId: p.id, resumen: `${yo.nombre} armó la ${nota} de ${describir(p)} y pidió la aprobación del dueño`, antes: { estado: "EN_COMPRA" }, despues: { estado: "ESPERANDO_APROBACION", ordenCompra: d.ordenCompra, monto: monto?.toString() ?? null } });
-    });
-    refrescar();
-    return null;
-  });
-}
-
 /**
  * ESPERANDO_APROBACION → APROBADO. El dueño desde /aprobaciones; Compras solo con "El dueño ya aprobó
  * en papel" (queda en la auditoría que lo marcó Compras).
@@ -280,6 +224,7 @@ export async function pedirAprobacion(entrada: DatosAprobacion): Promise<Resulta
 export async function aprobarMaterial(id: string, enPapel = false): Promise<Resultado> {
   return ejecutar(async () => {
     const yo = await exigirSesion();
+    let ocAprobada: string | null = null;
     if (enPapel ? !puede(yo.rol, "materiales.gestionar") : !puede(yo.rol, "materiales.aprobar")) throw new ErrorNegocio("Solo el dueño aprueba las órdenes de compra.");
     await db.$transaction(async (tx) => {
       const p = await pedidoOError(tx, id);
@@ -287,6 +232,9 @@ export async function aprobarMaterial(id: string, enPapel = false): Promise<Resu
       const nota = enPapel ? `El dueño aprobó en papel (lo marcó ${yo.nombre})` : undefined;
       const ok = await cambiarEstado(tx, p, "APROBADO", yo.id, nota, { aprobadoPorId: yo.id, aprobadoEn: new Date() });
       if (!ok) throw new ErrorNegocio("El pedido cambió. Actualizá la pantalla.");
+      // La orden de compra del sistema queda aprobada con quién y cuándo (el PDF con el sello, después).
+      if (p.ordenCompraId) await tx.ordenCompra.updateMany({ where: { id: p.ordenCompraId, estado: "ESPERANDO_APROBACION" }, data: { estado: "APROBADA", aprobadaPorId: yo.id, aprobadaEn: new Date() } });
+      ocAprobada = p.ordenCompraId;
       await notificarEvento(EVENTO.materialAprobado({ ...deMaterial(p), oc: p.ordenCompraNumero, enPapel, compradorId: p.tomadoPorId }), { tx, actor: yo.id });
       await auditar(tx, {
         usuarioId: yo.id, accion: enPapel ? "material.aprobadoEnPapel" : "material.aprobar", entidadId: id,
@@ -294,6 +242,7 @@ export async function aprobarMaterial(id: string, enPapel = false): Promise<Resu
         antes: { estado: "ESPERANDO_APROBACION" }, despues: { estado: "APROBADO", enPapel },
       });
     });
+    if (ocAprobada) await guardarPDF(ocAprobada, true);
     refrescar();
     return null;
   });
@@ -303,13 +252,20 @@ export async function aprobarMaterial(id: string, enPapel = false): Promise<Resu
 export async function deshacerAprobacion(id: string): Promise<Resultado> {
   return ejecutar(async () => {
     const yo = await exigirSesion();
+    let pdfViejo: string | null = null;
     await db.$transaction(async (tx) => {
       const p = await pedidoOError(tx, id);
       if (p.estado !== "APROBADO" || p.aprobadoPorId !== yo.id || !p.aprobadoEn || Date.now() - p.aprobadoEn.getTime() > 120_000) throw new ErrorNegocio("Ya no se puede deshacer.");
       if (await tx.materialListo.count({ where: { pedidoMaterialId: id } })) throw new ErrorNegocio("Compras ya lo habilitó para retirar.");
       await cambiarEstado(tx, p, "ESPERANDO_APROBACION", yo.id, "Se deshizo la aprobación", { aprobadoPorId: null, aprobadoEn: null });
+      if (p.ordenCompraId) {
+        const oc = await tx.ordenCompra.findUnique({ where: { id: p.ordenCompraId }, select: { pdfAprobadaUrl: true } });
+        await tx.ordenCompra.updateMany({ where: { id: p.ordenCompraId, estado: "APROBADA" }, data: { estado: "ESPERANDO_APROBACION", aprobadaPorId: null, aprobadaEn: null, pdfAprobadaUrl: null } });
+        pdfViejo = oc?.pdfAprobadaUrl ?? null;
+      }
       await auditar(tx, { usuarioId: yo.id, accion: "material.deshacerAprobacion", entidadId: id, resumen: `${yo.nombre} deshizo la aprobación de ${describir(p)}`, antes: { estado: "APROBADO" }, despues: { estado: "ESPERANDO_APROBACION" } });
     });
+    if (pdfViejo) await eliminar(pdfViejo);
     refrescar();
     return null;
   });
@@ -324,8 +280,10 @@ export async function rechazarMaterial(id: string, motivo: string): Promise<Resu
     await db.$transaction(async (tx) => {
       const p = await pedidoOError(tx, id);
       exigirEstado(p, "ESPERANDO_APROBACION");
-      const ok = await cambiarEstado(tx, p, "EN_COMPRA", yo.id, `Rechazado: ${m}`);
+      // La OC del sistema queda RECHAZADA (con el motivo) y deja de ser la vigente: Compras la corrige y reenvía con número nuevo.
+      const ok = await cambiarEstado(tx, p, "EN_COMPRA", yo.id, `Rechazado: ${m}`, p.ordenCompraId ? { ordenCompraId: null, ordenCompraNumero: null, montoAprobado: null } : {});
       if (!ok) throw new ErrorNegocio("El pedido cambió. Actualizá la pantalla.");
+      if (p.ordenCompraId) await tx.ordenCompra.updateMany({ where: { id: p.ordenCompraId, estado: "ESPERANDO_APROBACION" }, data: { estado: "RECHAZADA", motivoRechazo: m } });
       await notificarEvento(EVENTO.materialRechazado({ ...deMaterial(p), oc: p.ordenCompraNumero, motivo: m, compradorId: p.tomadoPorId }), { tx, actor: yo.id });
       await auditar(tx, { usuarioId: yo.id, accion: "material.rechazar", entidadId: id, resumen: `${yo.nombre} rechazó la OC de ${describir(p)}: ${m}`, antes: { estado: "ESPERANDO_APROBACION" }, despues: { estado: "EN_COMPRA", motivo: m } });
     });

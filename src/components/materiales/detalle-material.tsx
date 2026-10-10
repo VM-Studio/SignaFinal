@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Clock, MessageSquareText, Phone, Truck } from "lucide-react";
+import { ArrowLeft, Clock, FileText, MessageSquareText, Phone, Truck } from "lucide-react";
 import { ListaAdjuntos } from "@/components/adjuntos/lista";
+import { ocsDePedido } from "@/lib/compras/consultas";
+import { BloqueOC } from "@/components/compras/bloque-oc";
+import { BotonAnularOC, BotonCorregirOC } from "@/components/compras/botones-oc";
 import { AdjuntarCompras, NotasCompras } from "./extras-compras";
 import { exigirSesion } from "@/lib/auth/sesion";
 import { detalleMaterial, proveedoresParaHabilitar } from "@/lib/materiales/consultas";
@@ -14,7 +17,7 @@ import { Insignia, Subtitulo, Tarjeta } from "@/components/ui/basicos";
 import { BotonLink } from "@/components/ui/boton";
 import { SeguimientoViaje } from "@/components/viajes/seguimiento-viaje";
 import {
-  BotonAprobadoEnPapel, BotonCancelarMaterial, BotonesAprobacion, BotonHabilitar, BotonPedirAprobacion, BotonRecibido, BotonTomarMaterial,
+  BotonAprobadoEnPapel, BotonCancelarMaterial, BotonesAprobacion, BotonHabilitar, BotonRecibido, BotonTomarMaterial,
 } from "./acciones-material";
 
 /** Fecha sin hora (@db.Date): el mediodía argentino de ese día. */
@@ -28,6 +31,9 @@ export async function DetalleMaterial({ id, vista }: { id: string; vista: "compr
   const gestiona = vista === "compras" && p.gestiona;
   const habilitable = gestiona && !p.completo && ["APROBADO", "LISTO_PARA_RETIRAR", "RETIRO_PEDIDO", "EN_CAMINO"].includes(p.estado);
   const proveedores = habilitable ? await proveedoresParaHabilitar() : [];
+  const ocs = await ocsDePedido(p.id);
+  const ocVigente = ocs.find((o) => o.id === p.ordenCompraId) ?? null;
+  const ocAprobada = ocs.find((o) => o.estado === "APROBADA") ?? null;
   const conViaje = p.materialesListos.filter((m) => m.pedidoViaje && m.estado !== "CANCELADO" && m.pedidoViaje.estado !== "CANCELADO" && m.pedidoViaje.estado !== "PENDIENTE");
   const viajes = [...new Map(conViaje.map((m) => [m.pedidoViaje!.id, m.pedidoViaje!])).values()];
   const seguimientos = (await Promise.all(viajes.map(async (v) => ({ v, s: await seguimiento(u, v.id) })))).filter((x) => x.s);
@@ -44,14 +50,26 @@ export async function DetalleMaterial({ id, vista }: { id: string; vista: "compr
   let principal: React.ReactNode = null;
   if (gestiona) {
     if (p.estado === "SOLICITADO") principal = <BotonTomarMaterial id={p.id} />;
-    else if (p.estado === "EN_COMPRA") principal = <BotonPedirAprobacion id={p.id} ocInicial={p.ordenCompraNumero} />;
+    else if (p.estado === "EN_COMPRA") {
+      const rechazada = ocs.find((o) => o.estado === "RECHAZADA" || o.estado === "ANULADA");
+      const borrador = ocs.find((o) => o.estado === "BORRADOR");
+      principal = (
+        <>
+          {!borrador && rechazada ? <BotonCorregirOC ocId={rechazada.id} /> : <BotonLink href={`/compras/${p.id}/oc`} ancho icono={<FileText />}>{borrador ? "Seguir con el borrador de la OC" : "Armar orden de compra"}</BotonLink>}
+          {!borrador && rechazada && <BotonLink href={`/compras/${p.id}/oc`} ancho variante="secundario">Armar una orden nueva</BotonLink>}
+          {borrador && <BotonAnularOC ocId={borrador.id} numero={null} />}
+        </>
+      );
+    }
     else if (p.estado === "ESPERANDO_APROBACION") principal = p.aprueba ? <BotonesAprobacion id={p.id} oc={p.ordenCompraNumero} /> : (
       <>
         <p className="flex min-h-12 items-center justify-center gap-2 rounded-md bg-aviso-fondo px-4 text-center text-sm font-medium text-aviso lg:min-h-9"><Clock className="size-4" /> Esperando al dueño</p>
         <BotonAprobadoEnPapel id={p.id} />
+        {ocVigente && <BotonAnularOC ocId={ocVigente.id} numero={ocVigente.numero} />}
       </>
     );
-    else if (habilitable) principal = <BotonHabilitar id={p.id} proveedores={proveedores} oc={p.ordenCompraNumero} descripcion={p.descripcion} otraParte={p.estado !== "APROBADO"} destino={p.obraSede ? { lat: p.obraSede.latitud, lng: p.obraSede.longitud } : { lat: p.obra.latitud, lng: p.obra.longitud }} />;
+    else if (habilitable) principal = <BotonHabilitar id={p.id} proveedores={proveedores} oc={p.ordenCompraNumero} descripcion={p.descripcion} otraParte={p.estado !== "APROBADO"}
+      ocAprobada={ocAprobada ? { proveedorId: ocAprobada.proveedorId, sucursalId: ocAprobada.sucursalId, numero: ocAprobada.numero, renglones: ocAprobada.renglones.map((r) => ({ descripcion: r.descripcion, cantidad: r.cantidad, unidad: r.unidad })) } : null} destino={p.obraSede ? { lat: p.obraSede.latitud, lng: p.obraSede.longitud } : { lat: p.obra.latitud, lng: p.obra.longitud }} />;
   } else if (obraPuedePedir && listo) {
     principal = <BotonLink href={`/pedir/retiro?obra=${p.obraId}&material=${listo.id}`} ancho icono={<Truck />}>Pedir el viaje</BotonLink>;
   }
@@ -93,6 +111,15 @@ export async function DetalleMaterial({ id, vista }: { id: string; vista: "compr
             <p className="etiqueta flex items-center gap-1.5"><MessageSquareText className="size-3.5" /> Observaciones del solicitante</p>
             <p className="mt-1.5 text-[15px] leading-6 whitespace-pre-line">{observacionesSolicitante}</p>
           </section>
+        )}
+        {(ocVigente ?? ocAprobada) && (
+          <div className="mb-3"><BloqueOC oc={(ocVigente ?? ocAprobada)!} completo={gestiona || p.aprueba} /></div>
+        )}
+        {(gestiona || p.aprueba) && ocs.filter((o) => o.id !== (ocVigente ?? ocAprobada)?.id && o.numero).length > 0 && (
+          <details className="mb-3 rounded-[var(--radius-caja)] border border-linea bg-papel p-3 text-sm">
+            <summary className="cursor-pointer font-medium">Órdenes anteriores ({ocs.filter((o) => o.id !== (ocVigente ?? ocAprobada)?.id && o.numero).length})</summary>
+            <div className="mt-3 flex flex-col gap-3">{ocs.filter((o) => o.id !== (ocVigente ?? ocAprobada)?.id && o.numero).map((o) => <BloqueOC key={o.id} oc={o} completo />)}</div>
+          </details>
         )}
         {p.adjuntos.length > 0 && (
           <section className="mb-3">

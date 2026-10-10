@@ -16,7 +16,7 @@
  * │ Demora > 15 min            │ solicitante (una vez)         │ —                             │
  * │ Material nuevo             │ Compras                       │ Dirección                     │
  * │ Tomado / OC armada         │ —                             │ solicitante                   │
- * │ Esperando aprobación       │ Dirección                     │ —                             │
+ * │ Esperando aprobación (OC)  │ Dirección                     │ —                             │
  * │ Aprobado / rechazado       │ Compras                       │ solicitante                   │
  * │ Habilitado                 │ solicitante, responsables obra│ Compras                       │
  * │ Retiro pedido              │ —                             │ Compras                       │
@@ -174,6 +174,14 @@ export const EVENTO = {
 
   materialParaAprobar: (m: M & { oc: string | null; monto: string | null }): Evento => ({
     nombre: "material.paraAprobar", tipo: "MATERIAL", ...TEXTO_MATERIAL.paraAprobar(m),
+    ...material(m, "paraAprobar"), enlace: "/aprobaciones", para: [rol("DIRECCION", push)],
+  }),
+
+  /** Orden de compra del sistema enviada a aprobación: el dueño ve todo en una línea. */
+  ocParaAprobar: (m: M & { numero: string; proveedor: string; renglones: string; total: string | null; quien: string }): Evento => ({
+    nombre: "oc.paraAprobar", tipo: "ORDEN_COMPRA",
+    titulo: `${m.numero} para aprobar`,
+    cuerpo: [m.numero, m.proveedor, m.renglones, m.total, `Obra ${m.obra}`, `pidió ${m.quien}`].filter(Boolean).join(" · "),
     ...material(m, "paraAprobar"), enlace: "/aprobaciones", para: [rol("DIRECCION", push)],
   }),
 

@@ -1233,6 +1233,8 @@ model OrdenCompra {
   notasInternas       String?
   subtotal            Decimal?    @db.Decimal(14, 2)
   iva                 Decimal?    @db.Decimal(14, 2)
+  // 21 por defecto; null = sin IVA.
+  ivaPorcentaje       Decimal?    @db.Decimal(5, 2)
   total               Decimal?    @db.Decimal(14, 2)
   estado              EstadoOC    @default(BORRADOR)
   creadaPorId         String
@@ -1240,6 +1242,7 @@ model OrdenCompra {
   aprobadaPorId       String?
   aprobadaEn          DateTime?
   motivoRechazo       String?
+  motivoAnulacion     String?
   pdfUrl              String?
   pdfAprobadaUrl      String?
   // Sube con cada edición.
