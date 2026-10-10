@@ -52,8 +52,10 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
 
   // Los cuatro momentos: pedido, aceptado, retiro y destino, con hora (o la estimada si todavía no pasó).
   const v = p.viaje && p.estado !== "PENDIENTE" ? p.viaje : null;
-  const enRetiro = v?.llegadaRetiroEn ?? v?.salidaRetiroEn ?? null;
-  const enDestino = v?.llegadaDestinoEn ?? v?.llegadaReal ?? null;
+  // Sus paradas en el viaje (si lleva otros pedidos, los tiempos son los de SU retiro y SU entrega).
+  const mio = p.enViaje;
+  const enRetiro = mio ? mio.retiro?.llegadaEn ?? mio.retiro?.salidaEn ?? (mio.retiro ? null : v?.inicioEn ?? null) : v?.llegadaRetiroEn ?? v?.salidaRetiroEn ?? null;
+  const enDestino = mio ? mio.entrega?.llegadaEn ?? null : v?.llegadaDestinoEn ?? v?.llegadaReal ?? null;
   const momentos: { titulo: string; hecho: boolean; fecha: Date | null; detalle?: string }[] = [
     { titulo: `${p.solicitante.nombre} lo pidió`, hecho: true, fecha: p.creadoEn },
     { titulo: p.tomadoEn ? `Lo aceptó ${p.tomadoPor?.nombre ?? "un chofer"}` : "Que lo acepte un chofer", hecho: !!p.tomadoEn, fecha: p.tomadoEn, detalle: v ? `${v.vehiculo.nombre}${v.salidaEstimada && !v.salidaReal ? ` · sale ${hora(v.salidaEstimada)}` : ""}` : undefined },
@@ -64,7 +66,7 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
   const destino = `${p.obra.direccion}, ${p.obra.localidad}`;
   const acciones = (
     <>
-      {esChofer && p.estado === "PENDIENTE" && vehiculos && <BotonTomar pedidoId={p.id} numero={p.numero} vehiculos={vehiculos} ancho />}
+      {esChofer && p.estado === "PENDIENTE" && vehiculos && <BotonTomar pedidoId={p.id} numero={p.numero} vehiculos={vehiculos} pesoKg={p.pesoKg} tipo={p.tipo} ancho />}
       {esMio && p.estado === "TOMADO" && p.viaje && (
         <>
           <BotonIniciar pedidoId={p.id} numero={p.numero} vehiculo={p.viaje.vehiculo.nombre} kmActual={vehiculoActual?.kmActual ?? 0} paraCuando={p.paraCuando} />
@@ -146,7 +148,7 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
           p.cantidadPersonas ? ["Personas", String(p.cantidadPersonas)] : null,
           p.ordenCompraLebane ? ["Orden de compra", p.ordenCompraLebane] : null,
           p.viaje && p.estado !== "PENDIENTE" && p.estado !== "CANCELADO" ? ["Vehículo", `${p.viaje.vehiculo.nombre} · ${p.viaje.vehiculo.patente}`] : null,
-          p.viaje?.costoCalculado != null && puede(u.rol, "costos.ver") ? ["Costo a la obra", plata(p.viaje.costoCalculado)] : null,
+          (p.enViaje?.costo ?? p.viaje?.costoCalculado) != null && puede(u.rol, "costos.ver") ? ["Costo a la obra", `${plata(p.enViaje?.costo ?? p.viaje!.costoCalculado)}${p.viaje && p.viaje._count.pedidos > 1 ? ` (su parte de un viaje con ${p.viaje._count.pedidos} pedidos)` : ""}`] : null,
         ]
           .filter((x): x is [string, string] => !!x)
           .map(([k, v]) => (

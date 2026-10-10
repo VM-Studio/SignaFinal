@@ -20,13 +20,19 @@ async function viajesDelPeriodo({ desde, hasta }: Periodo) {
   const u = await exigirSesion();
   return db.viaje.findMany({
     where: { ...viajesVisibles(u), estado: "FINALIZADO", llegadaReal: { gte: desde, lt: hasta } },
-    select: { vehiculoId: true, kmSalida: true, kmLlegada: true, costoCalculado: true, peajes: true, pedido: { select: { obraId: true } } },
+    select: {
+      vehiculoId: true, kmSalida: true, kmLlegada: true, costoCalculado: true, peajes: true, pedido: { select: { obraId: true } },
+      viajePedidos: { select: { costoImputado: true, kmImputado: true, peajesImputado: true, pedido: { select: { obraId: true } } } },
+    },
   });
 }
 
 export type FilaObra = { obraId: string; codigo: string; idLebane: string | null; obra: string; viajes: number; km: number; peajes: number; costoViajes: number; combustible: number; litros: number; total: number };
 
-/** Por obra: viajes, km, costo de viajes y combustible imputado. */
+/**
+ * Por obra: viajes, km, costo de viajes y combustible imputado. Un viaje con varias paradas reparte su
+ * costo entre las obras (ViajePedido.costoImputado, fórmula en CLAUDE.md); los viajes viejos, a la obra de su pedido.
+ */
 export async function costosPorObra(p: Periodo): Promise<FilaObra[]> {
   await exigirPermiso("costos.ver");
   const [viajes, cargas, obras] = await Promise.all([
@@ -43,11 +49,24 @@ export async function costosPorObra(p: Periodo): Promise<FilaObra[]> {
     return filas.get(id)!;
   };
   for (const v of viajes) {
-    const f = fila(v.pedido.obraId);
-    f.viajes++;
-    f.km += (v.kmLlegada ?? 0) - (v.kmSalida ?? 0);
-    f.peajes += n(v.peajes);
-    f.costoViajes += n(v.costoCalculado);
+    const repartido = v.viajePedidos.length > 0 && v.viajePedidos.every((vp) => vp.costoImputado != null);
+    if (!repartido) {
+      const f = fila(v.pedido.obraId);
+      f.viajes++;
+      f.km += (v.kmLlegada ?? 0) - (v.kmSalida ?? 0);
+      f.peajes += n(v.peajes);
+      f.costoViajes += n(v.costoCalculado);
+      continue;
+    }
+    const obrasDelViaje = new Set<string>();
+    for (const vp of v.viajePedidos) {
+      const f = fila(vp.pedido.obraId);
+      if (!obrasDelViaje.has(vp.pedido.obraId)) f.viajes++;
+      obrasDelViaje.add(vp.pedido.obraId);
+      f.km += vp.kmImputado ?? 0;
+      f.peajes += n(vp.peajesImputado);
+      f.costoViajes += n(vp.costoImputado);
+    }
   }
   for (const c of cargas) {
     const f = fila(c.obraId!);

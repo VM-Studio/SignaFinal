@@ -15,23 +15,28 @@ const conArticulo = (vehiculo: string) => `${/^(camioneta|oroch|kangoo|zanella)/
 
 type P = { descripcion: string; destino: string };
 
+/** "Chubut", "Chubut y Darwin", "Chubut, Darwin y Edén". */
+const lista = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
+
 export const TEXTO = {
-  aceptado: (chofer: string, p: P & { salida: Date; vehiculo: string }) => ({
+  aceptado: (chofer: string, p: P & { salida: Date; vehiculo: string; combinado?: string | null }) => ({
     titulo: `${chofer} aceptó tu pedido`,
-    cuerpo: `${chofer} aceptó tu pedido de ${queLleva(p.descripcion)} para ${p.destino}. Sale ${hora(p.salida)} aprox con ${conArticulo(p.vehiculo)}.`,
+    cuerpo: `${chofer} aceptó tu pedido de ${queLleva(p.descripcion)} para ${p.destino}. Sale ${dia(p.salida)} ${hora(p.salida)} aprox con ${conArticulo(p.vehiculo)}.${p.combinado ? ` ${chofer} ${p.combinado}.` : ""}`,
   }),
   /** Sin tránsito real (sin Google) solo distancia: "está a 7 km de la obra". Con Google, la hora "(con tránsito)". */
   iniciado: (chofer: string, p: P & { origen: string; distanciaM: number; etaRetiro: Date | null; etaDestino: Date | null; atrasado?: string | null }) => ({
     titulo: p.atrasado ? `${chofer} salió (estaba previsto para ${p.atrasado})` : `${chofer} salió a buscar tu pedido`,
     cuerpo: `${chofer} salió a buscar tu pedido${p.atrasado ? ` (estaba previsto para ${p.atrasado})` : ""}. Está a ${metros(p.distanciaM)} de ${p.origen}.${p.etaDestino ? ` Llega a ${p.destino} ${hora(p.etaDestino)} (con tránsito).` : ""}`,
   }),
-  enRetiro: (chofer: string, p: P & { origen: string; distanciaM: number; etaDestino: Date | null }) => ({
+  /** tambien: otras obras que se cargan en el mismo lugar ("también lleva material para Chubut"). */
+  enRetiro: (chofer: string, p: P & { origen: string; distanciaM: number; etaDestino: Date | null; tambien?: string[] }) => ({
     titulo: `${chofer} está cargando tu pedido`,
-    cuerpo: `${chofer} llegó a ${p.origen} y está cargando tu pedido. ${p.destino} está a ${metros(p.distanciaM)}${p.etaDestino ? `, llega ${hora(p.etaDestino)} (con tránsito)` : ""}.`,
+    cuerpo: `${chofer} llegó a ${p.origen} y está cargando tu pedido${p.tambien?.length ? ` (también lleva material para ${lista(p.tambien)})` : ""}. ${p.destino} está a ${metros(p.distanciaM)}${p.etaDestino ? `, llega ${hora(p.etaDestino)} (con tránsito)` : ""}.`,
   }),
-  salioDelRetiro: (chofer: string, p: P & { distanciaM: number; etaDestino: Date | null; atrasado?: string | null }) => ({
+  /** antes: entregas que hace antes de la tuya ("antes pasa por Chubut"). */
+  salioDelRetiro: (chofer: string, p: P & { distanciaM: number; etaDestino: Date | null; atrasado?: string | null; antes?: string[] }) => ({
     titulo: p.atrasado ? `${chofer} salió (estaba previsto para ${p.atrasado})` : `${chofer} va camino a ${p.destino}`,
-    cuerpo: `${chofer} salió hacia ${p.destino} con tu pedido${p.atrasado ? ` (estaba previsto para ${p.atrasado})` : ""}. Está a ${metros(p.distanciaM)} de la obra${p.etaDestino ? `, llega ${hora(p.etaDestino)} (con tránsito)` : ""}.`,
+    cuerpo: `${chofer} salió hacia ${p.destino} con tu pedido${p.atrasado ? ` (estaba previsto para ${p.atrasado})` : ""}${p.antes?.length ? `, antes pasa por ${lista(p.antes)}` : ""}. Está a ${metros(p.distanciaM)} de la obra${p.etaDestino ? `, llega ${hora(p.etaDestino)} (con tránsito)` : ""}.`,
   }),
   llegoAlDestino: (chofer: string, p: P & { llego: Date }) => ({
     titulo: `Tu pedido llegó a ${p.destino}`,

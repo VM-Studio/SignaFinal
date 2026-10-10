@@ -49,7 +49,7 @@ async function VistaChofer({ filtro: f, n }: { filtro?: string; n?: string }) {
       ) : (
         <ul className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
           {lista.map((t) => (
-            <TarjetaChofer key={t.pedidoId} t={t} href={`/solicitudes/${t.pedidoId}`} accion={<BotonTomar pedidoId={t.pedidoId} numero={t.numero} vehiculos={t.vehiculos} ancho tamano="grande" />} />
+            <TarjetaChofer key={t.pedidoId} t={t} href={`/solicitudes/${t.pedidoId}`} accion={<BotonTomar pedidoId={t.pedidoId} numero={t.numero} vehiculos={t.vehiculos} pesoKg={t.pesoKg} tipo={t.tipo} ancho tamano="grande" />} />
           ))}
         </ul>
       )}
@@ -75,7 +75,7 @@ async function VistaDireccion({ searchParams }: { searchParams: Promise<{ filtro
     ? Object.fromEntries(await Promise.all(pedidos.filter((p) => p.estado === "PENDIENTE").map(async (p) => [p.id, await opcionesReasignar(p)] as const)))
     : {};
   const tomar = (p: (typeof pedidos)[number], ancho = false) =>
-    esChofer && p.estado === "PENDIENTE" ? <BotonTomar pedidoId={p.id} numero={p.numero} vehiculos={vehiculos[p.id] ?? []} ancho={ancho} /> :
+    esChofer && p.estado === "PENDIENTE" ? <BotonTomar pedidoId={p.id} numero={p.numero} vehiculos={vehiculos[p.id] ?? []} pesoKg={p.pesoKg} tipo={p.tipo} ancho={ancho} /> :
     asignar[p.id] ? <BotonReasignar pedidoId={p.id} numero={p.numero} choferes={asignar[p.id].choferes} vehiculos={asignar[p.id].vehiculos} etiqueta="Asignar" /> : undefined;
   const conAccion = esChofer || puede(u.rol, "pedidos.reasignar");
 

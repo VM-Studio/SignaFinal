@@ -116,7 +116,7 @@ export function SeguimientoViaje({ pedidoId, inicial, demo = false, cabecera, re
       </div>
     </section>
   );
-  const mapa = conMapa && d.posicion && <MapaSeguimiento retiro={d.retiro} destino={d.destino} vehiculo={d.posicion} ruta={d.ruta} etapaRetiro={d.etapa === "HACIA_RETIRO"} />;
+  const mapa = conMapa && d.posicion && <MapaSeguimiento retiro={d.retiro} destino={d.destino} vehiculo={d.posicion} ruta={d.ruta} etapaRetiro={d.etapa === "HACIA_RETIRO"} paradas={d.paradas} />;
   // Dentro de otra pantalla (pedido de material): la tarjeta y el mapa debajo.
   if (embebido) {
     return (

@@ -52,6 +52,12 @@ export function TarjetaChofer({ t, href, accion }: { t: Tarjeta; href?: string; 
         <p className="font-semibold">{t.entregar.nombre}</p>
         <p className="text-sm text-suave">{t.entregar.direccion}</p>
       </div>
+      {t.combinado && (
+        <p className="mt-3 rounded-md bg-fondo px-3 py-2 text-sm">
+          <b>{t.combinado.pedidos} pedidos · {t.combinado.paradas} paradas{t.combinado.km ? ` · ${t.combinado.km} km` : ""}</b>
+          <span className="block text-suave">{t.combinado.obras.join(" · ")}</span>
+        </p>
+      )}
       <p className="mt-3 border-t border-linea pt-3 font-medium">{t.que}</p>
       <p className="text-sm text-suave">
         {[`Pidió ${t.pidio}`, t.pesoKg ? `hasta ${peso(t.pesoKg)}` : null, t.necesitaCamion && !t.vehiculo ? "necesita camión" : null, t.vehiculo, t.km != null ? km(t.km) : null].filter(Boolean).join(" · ")}

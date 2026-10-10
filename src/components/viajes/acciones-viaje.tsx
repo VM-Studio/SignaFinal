@@ -140,8 +140,11 @@ export function BotonManual({ pedidoId, numero, tipo, etiqueta, paradaId, princi
   );
 }
 
-/** "Llegaste a Corralón San Martín": Sí, estoy acá / No, todavía no (lo detectó el GPS). */
-export function ConfirmarLlegada({ pedidoId, lugar }: { pedidoId: string; lugar: string }) {
+/**
+ * "Llegaste a Corralón San Martín": Sí, estoy acá / No, todavía no (lo detectó el GPS). Si llegó a otra
+ * parada antes que la que tocaba: "Llegaste a Chubut antes que a Darwin, ¿seguimos así?".
+ */
+export function ConfirmarLlegada({ pedidoId, lugar, antesDe = null }: { pedidoId: string; lugar: string; antesDe?: string | null }) {
   const [enviando, setEnviando] = useState<"si" | "no" | null>(null);
   const router = useRouter();
   const aviso = useAviso();
@@ -156,9 +159,9 @@ export function ConfirmarLlegada({ pedidoId, lugar }: { pedidoId: string; lugar:
   return (
     <section className="rounded-[var(--radius-caja)] border border-ok/15 bg-ok-fondo p-4">
       <p className="etiqueta !text-ok">El GPS te ubicó</p>
-      <p className="mt-1 text-2xl leading-tight font-semibold">Llegaste a {lugar}</p>
+      <p className="mt-1 text-2xl leading-tight font-semibold">{antesDe ? `Llegaste a ${lugar} antes que a ${antesDe}, ¿seguimos así?` : `Llegaste a ${lugar}`}</p>
       <div className="mt-4 grid grid-cols-2 gap-2">
-        <Boton tamano="grande" cargando={enviando === "si"} onClick={() => responder(true)}>Sí, estoy acá</Boton>
+        <Boton tamano="grande" cargando={enviando === "si"} onClick={() => responder(true)}>{antesDe ? "Sí, seguimos así" : "Sí, estoy acá"}</Boton>
         <Boton tamano="grande" variante="secundario" cargando={enviando === "no"} onClick={() => responder(false)}>No, todavía no</Boton>
       </div>
       <p className="mt-2 text-sm text-suave">Si no tocás nada en 5 minutos, vale lo del GPS.</p>
@@ -258,7 +261,8 @@ export function BotonEtapa({ etapa, pedidoId, numero, vehiculo, kmActual, kmSali
     case "HACIA_DESTINO":
       return irAlViaje ? <BotonLink href={`/viaje/${pedidoId}`} ancho tamano="grande" icono={<Navigation />}>Abrir el viaje</BotonLink> : null;
     case "EN_DESTINO":
-      return <BotonFinalizar {...base} obra={obra} kmSalida={kmSalida} />;
+      // Desde una tarjeta, al viaje (con varias paradas puede quedar otra entrega); ahí está "Viaje terminado".
+      return irAlViaje ? <BotonLink href={`/viaje/${pedidoId}`} ancho tamano="grande" icono={<Flag />}>Abrir el viaje</BotonLink> : <BotonFinalizar {...base} obra={obra} kmSalida={kmSalida} />;
     case "FINALIZADO":
       return null;
   }

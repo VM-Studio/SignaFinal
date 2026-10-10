@@ -45,7 +45,7 @@ describe.skipIf(!hayBase)("recordatorios del chofer (con base)", () => {
       await db.viaje.delete({ where: { id: f.viajeId } });
       await db.pedidoViaje.delete({ where: { id: f.pedidoId } });
       await db.obra.delete({ where: { id: f.obraId } });
-      await db.usuario.delete({ where: { id: f.choferId } });
+      await db.usuario.update({ where: { id: f.choferId }, data: { activo: false } });
     }
     await db.$disconnect();
   });

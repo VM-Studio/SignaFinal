@@ -1,4 +1,4 @@
-import type { EtapaViaje, LugarParada, OrigenTipo, Prisma, PrismaClient, TipoParada } from "@prisma/client";
+import type { LugarParada, OrigenTipo, Prisma, PrismaClient, TipoParada } from "@prisma/client";
 import { distancia, type Punto } from "@/lib/geo";
 import { PARAMETROS_RUTEO } from "./parametros";
 import { cancelarRecordatorios, programarRecordatorios } from "./recordatorios-agenda";
@@ -177,59 +177,6 @@ export async function rearmarParadas(tx: Prisma.TransactionClient, viajeId: stri
 export async function viajeDe<I extends Prisma.ViajeInclude>(cliente: Cliente, pedidoId: string, include: I) {
   return cliente.viaje.findFirst({ where: { pedidos: { some: { id: pedidoId } } }, include }) as Promise<Prisma.ViajeGetPayload<{ include: I }> | null>;
 }
-
-/**
- * Compatibilidad con el ciclo de etapas de un viaje simple: cuando el viaje pasa de etapa, sus paradas
- * quedan en el estado que corresponde (retiros antes, entregas después).
- */
-export async function sincronizarParadas(tx: Prisma.TransactionClient, viajeId: string, etapa: EtapaViaje, fecha: Date) {
-  const set = (tipo: TipoParada, data: Prisma.ViajeParadaUpdateManyMutationInput, estados?: Prisma.EnumEstadoParadaFilter) =>
-    tx.viajeParada.updateMany({ where: { viajeId, tipo, ...(estados ? { estado: estados } : {}) }, data });
-  const completar = async (tipo: TipoParada) => {
-    await set(tipo, { estado: "COMPLETADA", salidaEn: fecha }, { in: ["PENDIENTE", "EN_CAMINO", "LLEGO"] });
-    await tx.itemParada.updateMany({ where: { parada: { viajeId, tipo }, marcado: false }, data: { marcado: true, marcadoEn: fecha } });
-  };
-  switch (etapa) {
-    case "PROGRAMADO":
-      await tx.viajeParada.updateMany({ where: { viajeId }, data: { estado: "PENDIENTE", llegadaEn: null, salidaEn: null } });
-      break;
-    case "HACIA_RETIRO":
-      await set("RETIRO", { estado: "EN_CAMINO", llegadaEn: null }, { in: ["PENDIENTE", "LLEGO"] });
-      break;
-    case "EN_RETIRO":
-      await set("RETIRO", { estado: "LLEGO", llegadaEn: fecha }, { in: ["PENDIENTE", "EN_CAMINO"] });
-      break;
-    case "HACIA_DESTINO":
-      await completar("RETIRO");
-      await set("ENTREGA", { estado: "EN_CAMINO", llegadaEn: null }, { in: ["PENDIENTE", "LLEGO"] });
-      break;
-    case "EN_DESTINO":
-      await completar("RETIRO");
-      await set("ENTREGA", { estado: "LLEGO", llegadaEn: fecha }, { in: ["PENDIENTE", "EN_CAMINO"] });
-      break;
-    case "FINALIZADO":
-      await completar("RETIRO");
-      await completar("ENTREGA");
-      break;
-  }
-}
-
-/**
- * La etapa del viaje se deriva de la parada actual (la primera no completada ni salteada):
- * retiro en camino → HACIA_RETIRO; retiro con llegada → EN_RETIRO; entrega en camino → HACIA_DESTINO;
- * entrega con llegada → EN_DESTINO; todas completas → FINALIZADO. Sin salir: PROGRAMADO.
- */
-export function etapaDesdeParadas(paradas: { orden: number; tipo: TipoParada; estado: string }[], iniciado: boolean): EtapaViaje {
-  if (!iniciado) return "PROGRAMADO";
-  const actual = [...paradas].sort((a, b) => a.orden - b.orden).find((p) => p.estado !== "COMPLETADA" && p.estado !== "SALTEADA");
-  if (!actual) return "FINALIZADO";
-  if (actual.tipo === "RETIRO") return actual.estado === "LLEGO" ? "EN_RETIRO" : "HACIA_RETIRO";
-  return actual.estado === "LLEGO" ? "EN_DESTINO" : "HACIA_DESTINO";
-}
-
-/** La parada que sigue (la primera no completada ni salteada). */
-export const paradaActual = <T extends { orden: number; estado: string }>(paradas: T[]) =>
-  [...paradas].sort((a, b) => a.orden - b.orden).find((p) => p.estado !== "COMPLETADA" && p.estado !== "SALTEADA") ?? null;
 
 export const puntoDe = (p: { latitud: number; longitud: number }): Punto => ({ lat: p.latitud, lng: p.longitud });
 

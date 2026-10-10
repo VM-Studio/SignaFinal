@@ -92,18 +92,21 @@ Escritorio (1024px+): barra lateral negra de 232px con las mismas entradas del r
 Pedido: PENDIENTE → TOMADO (se muestra "Aceptado por Claudio") → EN_VIAJE → ENTREGADO,
 o CANCELADO. El chofer que lo aceptó puede soltarlo (vuelve a PENDIENTE).
 
-Viaje (se crea al aceptar), etapas:
-  PROGRAMADO → HACIA_RETIRO → EN_RETIRO → HACIA_DESTINO → EN_DESTINO → FINALIZADO.
-El chofer toca "Iniciar viaje" (PROGRAMADO → HACIA_RETIRO) y "Viaje terminado"
-(EN_DESTINO → FINALIZADO: km de llegada, peajes, foto opcional; pedido ENTREGADO y costo
-imputado a la obra). Las otras transiciones las hace el motor de viajes
-(src/lib/viajes/motor.ts) a partir de posiciones (Cusat primero, teléfono de respaldo):
-llegó al retiro (150 m, quieto, 2 lecturas), salió del retiro (más de 300 m), llegó a la obra
-(radio de la geocerca, quieto, 2 lecturas). Si el viaje no tiene un retiro distinto de donde
-arranca, empieza directo en HACIA_DESTINO. El chofer siempre tiene botones manuales de
-respaldo, que hacen la misma transición, y puede negar una llegada detectada ("No, todavía
-no"). En cada transición se avisa al solicitante con distancia y hora estimada; sin señal
-más de 10 minutos, también. Parámetros en src/lib/viajes/parametros.ts.
+Viaje (se crea al aceptar): una lista ordenada de PARADAS (RETIRO o ENTREGA). Etapa del viaje:
+  PROGRAMADO → HACIA_RETIRO → EN_RETIRO → HACIA_DESTINO → EN_DESTINO → FINALIZADO,
+derivada de la PARADA ACTUAL (la primera que falta): retiro en camino / con llegada, entrega en
+camino / con llegada. El chofer toca "Iniciar viaje" y, cuando llegó a la última parada, "Viaje
+terminado" (km de llegada y peajes una sola vez, foto opcional; pedidos ENTREGADOS y costo repartido).
+Lo del medio lo hace el motor de viajes (src/lib/viajes/motor.ts, reglas puras en motor-reglas.ts)
+con cada posición (Cusat primero, teléfono de respaldo) sobre la parada actual: llegó (geocerca de
+la parada: radio de la obra o 150 m, quieto, 2 lecturas) → LLEGO; se fue (más de 300 m) → COMPLETADA
+y la siguiente EN_CAMINO. Si llega a otra parada que ya se puede hacer (sus retiros hechos), se
+reordena y la pantalla pregunta "Llegaste a Chubut antes que a Darwin, ¿seguimos así?". Si arranca
+en el mismo lugar del primer retiro, empieza "cargando" ahí. El chofer siempre tiene el botón manual
+de la parada actual, que hace la misma transición, y puede negar una llegada ("No, todavía no").
+Los avisos van SOLO a los solicitantes de los pedidos de esa parada (con distancia; la hora solo con
+tránsito real); al completar una entrega, esos pedidos quedan ENTREGADOS. Sin señal más de 10
+minutos, también se avisa. Parámetros en src/lib/viajes/parametros.ts.
 
 Reglas del chofer (src/lib/viajes/fecha.ts, recordatorios*.ts, manual.ts):
 - La fecha de un viaje es SIEMPRE paraCuando del pedido (hora argentina), nunca la de aceptación.
@@ -136,7 +139,7 @@ Reglas del chofer (src/lib/viajes/fecha.ts, recordatorios*.ts, manual.ts):
   parecida) en 48 h → aviso con quién y cuándo, antes de guardar.
 - Duplicados de herramienta: misma herramienta + misma obra + misma fecha → aviso con
   quién lo pidió y cuándo, antes de guardar.
-- Al finalizar: km llegada ≥ km salida; costo = km × costoKm + peajes, imputado a la obra.
+- Al finalizar: km llegada ≥ km salida; costo = km × costoKm + peajes, repartido entre los pedidos del viaje por tramo (ver "Viajes con paradas").
 - Herramienta UNITARIA está en el depósito o en una obra, nunca en ambos. Cambia de
   lugar solo con un movimiento registrado. Por CANTIDAD: stock por ubicación.
 - Alertas con clave única por regla + entidad; se resuelven solas. Cada alerta tiene
@@ -251,13 +254,30 @@ Reglas (reemplazan lo que diga otra cosa más arriba):
   (src/lib/geo: Nominatim, 1 consulta por segundo, caché en GeocodeCache) y se confirma en un mapa
   con el pin arrastrable (componente SelectorDireccion). Si el buscador no responde, el pin se pone a
   mano. Una obra puede tener **sedes** (ObraSede) si tiene más de un frente; el pedido elige a cuál va.
-- **Viajes con paradas**: un viaje es una lista ordenada de PARADAS (RETIRO o ENTREGA), cada una con
-  los pedidos que atiende (ViajePedido) y su lista de verificación con cantidades por obra
-  (ItemParada). Un pedido simple = 2 paradas (1 si no tiene retiro). Al aceptar, el sistema sugiere
-  otros pedidos pendientes del mismo lugar o cercanos a la ruta y ordena las paradas para recorrer
-  menos (parámetros en src/lib/viajes/parametros.ts, PARAMETROS_RUTEO). La etapa del viaje se deriva
-  de la parada actual (src/lib/viajes/paradas.ts). Viaje.pedidoId es el pedido principal (el primero
-  aceptado); PedidoViaje.viajeId apunta al viaje que lo lleva ahora.
+- **Viajes con paradas** (src/lib/viajes/paradas.ts, combinar.ts, sugerencias.ts, optimizar.ts, reparto.ts):
+  un viaje es una lista ordenada de PARADAS (RETIRO o ENTREGA), cada una con los pedidos que atiende
+  (ViajePedido) y su lista de verificación con cantidades por obra (ItemParada: renglones de Compras
+  o la descripción). Un retiro por cada lugar de origen distinto, una entrega por cada destino; un
+  pedido sin retiro (sale de la base) aporta solo entrega. Un pedido simple = 2 paradas.
+  - "Aprovechá el viaje": al aceptar (y con "Agregar parada" mientras no llegó a ninguna) se sugieren
+    pendientes (y los propios del mismo día) del MISMO LUGAR (mismo id o a menos de radioMismoLugarM)
+    y CERCA DE TU CAMINO (origen o destino a menos de radioCercaM de una parada, o desvío menor que
+    desvioMaximoM). Los de otro día van en gris; personas y escombros no se combinan; peso total ≤
+    capacidad del vehículo; máximo maxParadasPorViaje. A cada solicitante le llega su aviso normal
+    más "Claudio lo combinó con otro retiro en el mismo lugar".
+  - Orden: vecino más cercano con precedencia (cada entrega después de su retiro) + 2-opt, sobre la
+    matriz de OSRM table (o línea recta × 1,3), desde el vehículo o su base; nunca empeora. El chofer
+    puede "Reordenar" (se valida igual). Google Maps abre con las paradas pendientes como waypoints (9).
+  - Lista de verificación: el chofer tilda cada ítem; "Faltó" pide la cantidad real y avisa al que
+    pidió y a Compras ("Retiraron 30 de 40 bolsas"). "Cargué todo, salgo" / "Entregado acá" (o el GPS).
+  - **Costo por pedido** (reparto.ts, al finalizar): km de cada tramo = km reales del viaje ×
+    (distancia planeada del tramo / suma de las distancias); costo del tramo = km × costoKm. El costo
+    de cada tramo va a los pedidos de la PARADA DE LLEGADA de ese tramo en partes iguales (el tramo
+    hasta un retiro compartido se reparte entre los pedidos que se cargan ahí); los peajes, en partes
+    iguales entre todos. Queda en ViajePedido.costoImputado/kmImputado/peajesImputado y /costos lo
+    suma por obra. Centavos exactos: lo que sobra del redondeo va al último.
+  Viaje.pedidoId es el pedido principal (el primero aceptado); PedidoViaje.viajeId apunta al viaje
+  que lo lleva ahora. En Hoy un viaje combinado es UNA tarjeta ("3 pedidos · 4 paradas · 31 km").
 - **Fechas del chofer**: no puede iniciar un viaje antes de su fecha. Recibe recordatorio el día
   anterior y el mismo día hasta que inicia (Recordatorio, clave única: nunca se duplica).
 - **Ruteo**: la distancia siempre; el tiempo estimado solo si hay un proveedor con tránsito (Google,

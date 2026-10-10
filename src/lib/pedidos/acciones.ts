@@ -12,7 +12,10 @@ import { ejecutar, ErrorNegocio, type Resultado } from "@/lib/resultado";
 import { auditar, buscarDuplicado, choferesQueLoVen, describirPedido, necesitaCamion, validarChoferYVehiculo, type Duplicado } from "./reglas";
 import { resolverPuntos } from "./puntos";
 import { esObraDelUsuario } from "@/lib/alcance";
-import { crearViaje, quitarDelViaje } from "@/lib/viajes/paradas";
+import { aPedidoParaParadas, armarParadas, crearViaje, quitarDelViaje, rearmarParadas, selectPedidoParadas } from "@/lib/viajes/paradas";
+import { validarCombinacion } from "@/lib/viajes/sugerencias";
+import { planificarOrden, reordenar } from "@/lib/viajes/combinar";
+import { arrancarParadas } from "@/lib/viajes/motor";
 import { cancelarRecordatorios, programarRecordatorios } from "@/lib/viajes/recordatorios-agenda";
 import { bloqueoPorFecha, ddmm, diaSemana, diasEntre } from "@/lib/viajes/fecha";
 import { conEtapa } from "@/lib/viajes/etapas";
@@ -176,9 +179,55 @@ const esquemaTomar = z.object({
   saleHoy: z.boolean().optional(),
   // Aceptado sin señal: la hora real en que tocó "Aceptar".
   ocurridoEn: z.coerce.date().optional(),
+  // "Aprovechá el viaje": otros pedidos que lleva en el mismo viaje (pendientes, o suyos del mismo día sin iniciar).
+  extras: z.array(z.string().min(1)).max(10).optional(),
 });
 
 export type DatosTomar = z.input<typeof esquemaTomar>;
+
+/**
+ * Suma pedidos a un viaje (al aceptar o con "Agregar parada"): los pendientes pasan a ser del chofer y
+ * los suyos de otro viaje programado se mudan a este. Valida capacidad, paradas y fechas. Devuelve los
+ * que sumó (para los avisos).
+ */
+async function sumarAlViaje(tx: Prisma.TransactionClient, yo: { id: string }, base: { id: string; paraCuando: Date }[], extras: string[]) {
+  if (!extras.length) return [];
+  const dia = [diaISO(), ...base.map((p) => diaISO(p.paraCuando))].sort().pop()!;
+  const filas = await tx.pedidoViaje.findMany({ where: { id: { in: extras } }, select: { id: true, estado: true, tomadoPorId: true, paraCuando: true, descripcion: true, tipo: true, pesoKg: true, tomadoPor: { select: { nombre: true } }, obra: { select: { nombre: true } }, viaje: { select: { estado: true } } } });
+  for (const id of extras) {
+    const p = filas.find((x) => x.id === id);
+    if (!p) throw new ErrorNegocio("Uno de los pedidos ya no existe.");
+    if (diaISO(p.paraCuando) > dia) throw new ErrorNegocio(`El pedido de ${p.descripcion} es para otro día: no se puede combinar.`);
+    if (p.estado === "PENDIENTE") {
+      const r = await tx.pedidoViaje.updateMany({ where: { id, estado: "PENDIENTE" }, data: { estado: "TOMADO", tomadoPorId: yo.id, tomadoEn: new Date() } });
+      if (!r.count) {
+        const ahora = await tx.pedidoViaje.findUniqueOrThrow({ where: { id }, select: { tomadoPor: { select: { nombre: true } } } });
+        throw new ErrorNegocio(`Ya lo aceptó ${ahora.tomadoPor?.nombre ?? "otro chofer"}: ${p.descripcion} para ${p.obra.nombre}. Volvé a mirar las sugerencias.`);
+      }
+    } else if (p.estado === "TOMADO" && p.tomadoPorId === yo.id && p.viaje?.estado === "PROGRAMADO") {
+      await quitarDelViaje(tx, id); // se muda a este viaje
+    } else {
+      throw new ErrorNegocio(p.tomadoPor ? `Ya lo aceptó ${p.tomadoPor.nombre}: ${p.descripcion}.` : `El pedido de ${p.descripcion} ya no está disponible.`);
+    }
+  }
+  return filas;
+}
+
+/** Valida la combinación completa (capacidad del vehículo, máximo de paradas, personas con escombros). */
+async function validarViajeCombinado(tx: Prisma.TransactionClient, pedidoIds: string[], vehiculo: { nombre: string; capacidadCargaKg: number }) {
+  const pedidos = await tx.pedidoViaje.findMany({ where: { id: { in: pedidoIds } }, select: { ...selectPedidoParadas, tipo: true, pesoKg: true } });
+  const paradas = armarParadas(pedidos.map((p) => aPedidoParaParadas(p))).paradas.length;
+  const error = validarCombinacion(pedidos, vehiculo, paradas);
+  if (error) throw new ErrorNegocio(error);
+}
+
+/** "lo combinó con otro retiro en el mismo lugar" o "con otros pedidos de la zona". */
+async function textoCombinado(tx: Prisma.TransactionClient, pedidoId: string, viajeId: string) {
+  const paradas = await tx.viajeParada.findMany({ where: { viajeId }, select: { tipo: true, _count: { select: { pedidosRetiro: true } } } });
+  const vp = await tx.viajePedido.findFirst({ where: { viajeId, pedidoViajeId: pedidoId }, select: { paradaRetiro: { select: { _count: { select: { pedidosRetiro: true } } } } } });
+  if (paradas.length <= 2) return null;
+  return (vp?.paradaRetiro?._count.pedidosRetiro ?? 0) > 1 ? "lo combinó con otro retiro en el mismo lugar" : "lo combinó con otros pedidos de la zona";
+}
 
 /**
  * Día en que sale: el del pedido (nunca antes: un viaje para el lunes no se inicia hoy), o hoy si el
@@ -220,19 +269,29 @@ export async function tomarPedido(entrada: DatosTomar): Promise<Resultado<{ nume
       }
 
       const salidaEstimada = salidaPara(pedido.paraCuando, d.salida, d.saleHoy);
-      await crearViaje(tx, { pedidoIds: [pedido.id], vehiculoId: vehiculo.id, choferId: yo.id, salidaEstimada, ordenRuta: await siguienteEnRuta(tx, yo.id) });
-      await alCambiarElViaje(tx, pedido.id, "TOMADO", yo.id);
-      await auditar(tx, {
-        usuarioId: yo.id, accion: "pedido.tomar", entidadId: pedido.id,
-        resumen: `${yo.nombre} aceptó ${await describirPedido(tx, pedido.id)} con ${vehiculo.nombre}`,
-        antes: { estado: "PENDIENTE" }, despues: { estado: "TOMADO", chofer: yo.nombre, vehiculo: vehiculo.nombre, salida: salidaEstimada.toISOString() },
-      });
-      await notificarEvento(EVENTO.pedidoAceptado({ ...(await baseViaje(tx, pedido.id, yo.nombre)), choferId: yo.id, salida: salidaEstimada, vehiculo: vehiculo.nombre }), { tx, actor: yo.id });
-      return { numero: pedido.numero, vehiculo: vehiculo.nombre, salida: hora(salidaEstimada) };
+      // "Aprovechá el viaje": los otros pedidos que lleva en el mismo viaje.
+      const extras = [...new Set(d.extras ?? [])].filter((id) => id !== pedido.id);
+      await sumarAlViaje(tx, yo, [pedido], extras);
+      const ids = [pedido.id, ...extras];
+      if (extras.length) await validarViajeCombinado(tx, ids, vehiculo);
+      const viajeId = await crearViaje(tx, { pedidoIds: ids, vehiculoId: vehiculo.id, choferId: yo.id, salidaEstimada, ordenRuta: await siguienteEnRuta(tx, yo.id) });
+      for (const id of ids) {
+        await alCambiarElViaje(tx, id, "TOMADO", yo.id);
+        await auditar(tx, {
+          usuarioId: yo.id, accion: "pedido.tomar", entidadId: id,
+          resumen: `${yo.nombre} aceptó ${await describirPedido(tx, id)} con ${vehiculo.nombre}${extras.length ? ` (viaje combinado: ${ids.length} pedidos)` : ""}`,
+          antes: { estado: "PENDIENTE" }, despues: { estado: "TOMADO", chofer: yo.nombre, vehiculo: vehiculo.nombre, salida: salidaEstimada.toISOString() },
+        });
+        const combinado = extras.length ? await textoCombinado(tx, id, viajeId) : null;
+        await notificarEvento(EVENTO.pedidoAceptado({ ...(await baseViaje(tx, id, yo.nombre)), choferId: yo.id, salida: salidaEstimada, vehiculo: vehiculo.nombre, combinado }), { tx, actor: yo.id });
+      }
+      return { numero: pedido.numero, vehiculo: vehiculo.nombre, salida: hora(salidaEstimada), viajeId, combinados: extras.length };
     });
 
+    // Orden estratégico de las paradas (fuera de la transacción: consulta el ruteo).
+    if ("viajeId" in r && r.viajeId) await planificarOrden(r.viajeId);
     refrescar();
-    return r;
+    return { numero: r.numero, vehiculo: r.vehiculo, salida: r.salida };
   });
 }
 
@@ -240,6 +299,7 @@ export async function tomarPedido(entrada: DatosTomar): Promise<Resultado<{ nume
 export async function soltarPedido(pedidoId: string): Promise<Resultado<{ vehiculoId: string; salida: string } | null>> {
   return ejecutar(async () => {
     const yo = await exigirPermiso("pedidos.tomar");
+    let viajeId: string | null = null;
     const r = await db.$transaction(async (tx) => {
       const soltado = await tx.pedidoViaje.updateMany({
         where: { id: pedidoId, estado: "TOMADO", tomadoPorId: yo.id },
@@ -247,12 +307,15 @@ export async function soltarPedido(pedidoId: string): Promise<Resultado<{ vehicu
       });
       if (!soltado.count) throw new ErrorNegocio("Ya no se puede soltar: el viaje empezó o el pedido cambió.");
       const viaje = await quitarDelViaje(tx, pedidoId);
+      viajeId = viaje?.id ?? null;
       await alCambiarElViaje(tx, pedidoId, "LIBERADO", yo.id);
       await notificarEvento(EVENTO.pedidoSoltado(await baseViaje(tx, pedidoId, yo.nombre)), { tx, actor: yo.id });
       await auditar(tx, { usuarioId: yo.id, accion: "pedido.soltar", entidadId: pedidoId, resumen: `${yo.nombre} soltó ${await describirPedido(tx, pedidoId)}: vuelve a las solicitudes`, antes: { estado: "TOMADO", chofer: yo.nombre }, despues: { estado: "PENDIENTE" } });
       // Para poder deshacer: con qué vehículo y a qué hora iba a salir.
       return viaje ? { vehiculoId: viaje.vehiculoId, salida: viaje.salidaEstimada ? hora(viaje.salidaEstimada) : "08:00" } : null;
     });
+    // Si el viaje sigue con otros pedidos, se vuelve a ordenar sin este.
+    if (viajeId) await planificarOrden(viajeId);
     refrescar();
     return r;
   });
@@ -316,6 +379,64 @@ export async function deshacerCancelacion(pedidoId: string): Promise<Resultado> 
       await alCambiarElViaje(tx, pedidoId, "TOMADO", yo.id);
       await auditar(tx, { usuarioId: yo.id, accion: "pedido.deshacerCancelacion", entidadId: pedidoId, resumen: `${yo.nombre} deshizo la cancelación de ${await describirPedido(tx, pedidoId)}`, antes: { estado: "CANCELADO" }, despues: { estado: vuelveA } });
     });
+    refrescar();
+    return null;
+  });
+}
+
+// ═══════════════════════════ Agregar parada / reordenar ═══════════════════════════
+
+/**
+ * "Agregar parada": suma pedidos a un viaje propio mientras está PROGRAMADO o en el primer tramo (todavía
+ * no llegó a ninguna parada). Se rearman las paradas y se vuelve a calcular el orden.
+ */
+export async function agregarParadas(entrada: { pedidoId: string; extras: string[] }): Promise<Resultado<{ agregados: number }>> {
+  return ejecutar(async () => {
+    const yo = await exigirPermiso("pedidos.tomar");
+    const d = z.object({ pedidoId: z.string().min(1), extras: z.array(z.string().min(1)).min(1, "Elegí al menos un pedido.").max(10) }).parse(entrada);
+    const r = await db.$transaction(async (tx) => {
+      const v = await tx.viaje.findFirst({
+        where: { pedidos: { some: { id: d.pedidoId } } },
+        include: { pedidos: { select: { id: true, paraCuando: true } }, paradas: { select: { estado: true } }, vehiculo: { select: { nombre: true, capacidadCargaKg: true } } },
+      });
+      if (!v || v.choferId !== yo.id) throw new ErrorNegocio("Este viaje no es tuyo.");
+      const empezo = v.paradas.some((p) => p.estado === "LLEGO" || p.estado === "COMPLETADA");
+      if (!(v.estado === "PROGRAMADO" || (v.estado === "EN_CURSO" && !empezo))) throw new ErrorNegocio("Ya llegaste a la primera parada: no se pueden sumar más.");
+      const extras = [...new Set(d.extras)].filter((id) => !v.pedidos.some((p) => p.id === id));
+      await sumarAlViaje(tx, yo, v.pedidos, extras);
+      const ids = [...v.pedidos.map((p) => p.id), ...extras];
+      await validarViajeCombinado(tx, ids, v.vehiculo);
+      await tx.pedidoViaje.updateMany({ where: { id: { in: extras } }, data: { viajeId: v.id } });
+      await rearmarParadas(tx, v.id, ids);
+      if (v.estado === "EN_CURSO") {
+        await arrancarParadas(tx, v.id, null, new Date());
+        await tx.pedidoViaje.updateMany({ where: { id: { in: extras } }, data: { estado: "EN_VIAJE" } });
+      } else {
+        await programarRecordatorios(tx, extras);
+      }
+      for (const id of extras) {
+        await alCambiarElViaje(tx, id, v.estado === "EN_CURSO" ? "EN_VIAJE" : "TOMADO", yo.id);
+        await auditar(tx, { usuarioId: yo.id, accion: "pedido.tomar", entidadId: id, resumen: `${yo.nombre} sumó ${await describirPedido(tx, id)} a su viaje con ${v.vehiculo.nombre} (${ids.length} pedidos)`, antes: { estado: "PENDIENTE" }, despues: { estado: "TOMADO", chofer: yo.nombre } });
+        await notificarEvento(EVENTO.pedidoAceptado({ ...(await baseViaje(tx, id, yo.nombre)), choferId: yo.id, salida: v.salidaEstimada ?? new Date(), vehiculo: v.vehiculo.nombre, combinado: await textoCombinado(tx, id, v.id) }), { tx, actor: yo.id });
+      }
+      return { viajeId: v.id, agregados: extras.length };
+    });
+    await planificarOrden(r.viajeId);
+    refrescar();
+    return { agregados: r.agregados };
+  });
+}
+
+/** "Reordenar": el chofer cambia el orden de las paradas (se valida que cada entrega vaya después de su retiro). */
+export async function reordenarParadas(pedidoId: string, orden: string[]): Promise<Resultado> {
+  return ejecutar(async () => {
+    const yo = await exigirPermiso("pedidos.tomar");
+    const v = await db.viaje.findFirst({ where: { pedidos: { some: { id: pedidoId } } }, select: { id: true, choferId: true, paradas: { orderBy: { orden: "asc" }, select: { nombre: true } } } });
+    if (!v || v.choferId !== yo.id) throw new ErrorNegocio("Este viaje no es tuyo.");
+    const error = await reordenar(v.id, z.array(z.string().min(1)).max(20).parse(orden));
+    if (error) throw new ErrorNegocio(error);
+    const nuevo = await db.viajeParada.findMany({ where: { viajeId: v.id }, orderBy: { orden: "asc" }, select: { nombre: true } });
+    await auditar(db, { usuarioId: yo.id, accion: "viaje.reordenar", entidadId: pedidoId, resumen: `${yo.nombre} reordenó las paradas: ${nuevo.map((p) => p.nombre).join(" → ")}`, antes: { orden: v.paradas.map((p) => p.nombre) }, despues: { orden: nuevo.map((p) => p.nombre) } });
     refrescar();
     return null;
   });

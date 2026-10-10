@@ -68,7 +68,7 @@ async function sincronizarAhora() {
       const viajeId = viajes.get(p.vehiculoId);
       if (!viajeId) continue;
       const m = await evaluarViaje(viajeId, { lat: p.latitud, lng: p.longitud, velocidadKmh: p.velocidad, fecha: p.fecha, fuente: fuente.modo === "mock" ? "MOCK" : "CUSAT" });
-      if (m.transicion) eventos.push(`${p.vehiculoId}: ${m.transicion.a}`);
+      if (m.transicion) eventos.push(`${p.vehiculoId}: ${m.transicion.tipo} ${m.transicion.clave}`);
     }
     await avisarAlertas((await evaluarAlertas(["cusat", "pedidos"])).nuevas);
 

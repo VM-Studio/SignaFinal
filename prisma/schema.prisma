@@ -615,8 +615,10 @@ model ViajePedido {
   paradaRetiroId  String?
   paradaEntregaId String
   orden           Int      @default(0)
-  // Parte del costo del viaje imputada a este pedido (se calcula al finalizar).
+  // Parte del costo del viaje imputada a este pedido (se calcula al finalizar; fórmula en CLAUDE.md).
   costoImputado   Decimal? @db.Decimal(12, 2)
+  kmImputado      Float?
+  peajesImputado  Decimal? @db.Decimal(12, 2)
 
   viaje         Viaje        @relation(fields: [viajeId], references: [id])
   pedido        PedidoViaje  @relation(fields: [pedidoViajeId], references: [id])

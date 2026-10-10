@@ -33,20 +33,31 @@ function Encuadre({ puntos }: { puntos: [number, number][] }) {
   return null;
 }
 
-export default function MapaSeguimiento({ retiro, destino, vehiculo, ruta, etapaRetiro }: {
+export default function MapaSeguimiento({ retiro, destino, vehiculo, ruta, etapaRetiro, paradas = [] }: {
   retiro: { nombre: string; lat: number; lng: number };
   destino: { nombre: string; lat: number; lng: number };
   vehiculo: { lat: number; lng: number };
   ruta: [number, number][] | null;
   etapaRetiro: boolean;
+  /** Viaje con varias paradas: el recorrido completo, con las propias resaltadas (nombre en negro). */
+  paradas?: { n: number; nombre: string; lat: number; lng: number; propia: boolean; hecha: boolean }[];
 }) {
-  const puntos: [number, number][] = [[retiro.lat, retiro.lng], [destino.lat, destino.lng], [vehiculo.lat, vehiculo.lng]];
+  const varias = paradas.length > 2;
+  const puntos: [number, number][] = [[retiro.lat, retiro.lng], [destino.lat, destino.lng], [vehiculo.lat, vehiculo.lng], ...paradas.map((p) => [p.lat, p.lng] as [number, number])];
+  const restantes = paradas.filter((p) => !p.hecha).map((p) => [p.lat, p.lng] as [number, number]);
   return (
     <MapContainer center={[vehiculo.lat, vehiculo.lng]} zoom={13} zoomControl={false} attributionControl={false} className="h-full w-full">
       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
       {ruta && <Polyline positions={ruta} pathOptions={{ color: "#000", weight: 5, opacity: 0.85 }} />}
-      <Marker position={[retiro.lat, retiro.lng]} icon={etiqueta(retiro.nombre, etapaRetiro)} />
-      <Marker position={[destino.lat, destino.lng]} icon={etiqueta(destino.nombre, !etapaRetiro)} />
+      {varias && restantes.length > 1 && <Polyline positions={restantes} pathOptions={{ color: "#111827", weight: 3, opacity: 0.6, dashArray: "6 6" }} />}
+      {varias
+        ? paradas.map((p) => <Marker key={p.n} position={[p.lat, p.lng]} icon={etiqueta(p.propia ? `${p.n}. ${p.nombre}` : String(p.n), p.propia)} opacity={p.hecha && !p.propia ? 0.5 : 1} />)
+        : (
+          <>
+            <Marker position={[retiro.lat, retiro.lng]} icon={etiqueta(retiro.nombre, etapaRetiro)} />
+            <Marker position={[destino.lat, destino.lng]} icon={etiqueta(destino.nombre, !etapaRetiro)} />
+          </>
+        )}
       <Marker position={[vehiculo.lat, vehiculo.lng]} icon={camion} />
       <Encuadre puntos={puntos} />
     </MapContainer>

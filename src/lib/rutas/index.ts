@@ -117,3 +117,39 @@ export async function calcularRuta(desde: Punto, hasta: Punto, o: { transito?: b
 /** Hora de llegada SOLO si la ruta sabe el tránsito; si no, null (la app no inventa horas). */
 export const llegadaCon = (ruta: Pick<Ruta, "duracionS" | "conTransito"> | null | undefined, desde: Date, extraS = 0) =>
   ruta?.conTransito ? new Date(desde.getTime() + (ruta.duracionS + extraS) * 1000) : null;
+
+// ─────────────────────────────── Matriz de distancias ───────────────────────────────
+
+const OSRM_TABLA = "https://router.project-osrm.org/table/v1/driving";
+/** OSRM table solo con pocos puntos (el servidor público limita): hasta 8 paradas + la partida. */
+const MAX_PUNTOS_TABLA = 9;
+const cacheTabla = new Map<string, { m: number[][]; vence: number }>();
+
+/** Línea recta × 1,3 (respaldo). */
+export const matrizEstimada = (puntos: Punto[]) => puntos.map((a) => puntos.map((b) => Math.round(distancia(a, b) * FACTOR_CALLES)));
+
+/**
+ * Metros por calle entre todos los puntos (para ordenar paradas y medir desvíos). OSRM table si hay
+ * pocos puntos; si falla, tarda o son muchos, línea recta × 1,3. Caché de 10 minutos. Nunca falla.
+ */
+export async function matrizDistancias(puntos: Punto[]): Promise<number[][]> {
+  if (puntos.length < 2) return puntos.map(() => puntos.map(() => 0));
+  if (puntos.length > MAX_PUNTOS_TABLA) return matrizEstimada(puntos);
+  const k = puntos.map((p) => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join(";");
+  const guardada = cacheTabla.get(k);
+  if (guardada && guardada.vence > Date.now()) return guardada.m;
+  let m: number[][];
+  try {
+    const r = await fetch(`${OSRM_TABLA}/${puntos.map((p) => `${p.lng},${p.lat}`).join(";")}?annotations=distance`, { signal: AbortSignal.timeout(TIMEOUT_MS), headers: { "User-Agent": "signa-logistica" } });
+    if (!r.ok) throw new Error(`OSRM ${r.status}`);
+    const j = (await r.json()) as { code: string; distances?: (number | null)[][] };
+    if (j.code !== "Ok" || !j.distances) throw new Error(`OSRM ${j.code}`);
+    const recta = matrizEstimada(puntos);
+    m = j.distances.map((fila, i) => fila.map((d, jj) => (d == null ? recta[i][jj] : Math.round(d))));
+  } catch {
+    m = matrizEstimada(puntos);
+  }
+  cacheTabla.set(k, { m, vence: Date.now() + CACHE_OSRM_MS });
+  if (cacheTabla.size > 200) for (const [c, v] of cacheTabla) if (v.vence < Date.now()) cacheTabla.delete(c);
+  return m;
+}

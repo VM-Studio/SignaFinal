@@ -23,15 +23,18 @@ function Encuadre({ puntos }: { puntos: [number, number][] }) {
 }
 
 /** Mapa chico del tramo actual: de dónde sale, a dónde va y por dónde. */
-export default function MapaTramo({ geometria, desde, hasta, nombreHasta }: {
+export default function MapaTramo({ geometria, desde, hasta, nombreHasta, otras = [] }: {
   geometria: [number, number][]; desde: { lat: number; lng: number }; hasta: { lat: number; lng: number }; nombreHasta: string;
+  /** Las otras paradas que faltan, con su número (viajes con varias paradas). */
+  otras?: { lat: number; lng: number; n: number }[];
 }) {
-  const puntos: [number, number][] = [[desde.lat, desde.lng], [hasta.lat, hasta.lng], ...geometria];
+  const puntos: [number, number][] = [[desde.lat, desde.lng], [hasta.lat, hasta.lng], ...geometria, ...otras.map((o) => [o.lat, o.lng] as [number, number])];
   return (
     <MapContainer center={[hasta.lat, hasta.lng]} zoom={13} zoomControl={false} attributionControl={false} className="h-full w-full">
       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
       <Polyline positions={geometria} pathOptions={{ color: "#000", weight: 5, opacity: 0.85 }} />
       <CircleMarker center={[desde.lat, desde.lng]} radius={8} pathOptions={{ color: "#fff", weight: 3, fillColor: "#1F7A4D", fillOpacity: 1 }} />
+      {otras.map((o) => <Marker key={`${o.lat},${o.lng},${o.n}`} position={[o.lat, o.lng]} icon={pin(String(o.n), false)} />)}
       <Marker position={[hasta.lat, hasta.lng]} icon={pin(nombreHasta, true)} />
       <Encuadre puntos={puntos} />
     </MapContainer>

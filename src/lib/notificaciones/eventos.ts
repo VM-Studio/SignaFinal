@@ -77,9 +77,10 @@ export const EVENTO = {
     para: [rol("CHOFER", p.urgente), rol("DIRECCION", bandeja)],
   }),
 
-  pedidoAceptado: (v: V & { choferId: string; salida: Date; vehiculo: string }): Evento => ({
+  /** combinado: "lo combinó con otro retiro en el mismo lugar" (viaje con varias paradas). */
+  pedidoAceptado: (v: V & { choferId: string; salida: Date; vehiculo: string; combinado?: string | null }): Evento => ({
     nombre: "pedido.aceptado", tipo: "PEDIDO_ACEPTADO",
-    ...TEXTO.aceptado(v.chofer, { descripcion: v.descripcion, destino: v.destino, salida: v.salida, vehiculo: v.vehiculo }),
+    ...TEXTO.aceptado(v.chofer, { descripcion: v.descripcion, destino: v.destino, salida: v.salida, vehiculo: v.vehiculo, combinado: v.combinado }),
     enlace: enlacePedido(v.pedidoId), entidad: `pedido:${v.pedidoId}`, obraId: v.obraId, datos: { pedidoId: v.pedidoId, salida: v.salida.toISOString() },
     // El chofer recibe push cuando no lo aceptó él (lo asignó Dirección).
     para: [usuario(v.solicitanteId, push), usuario(v.choferId, push, `/viaje/${v.pedidoId}`), rol("DIRECCION", bandeja)],
@@ -108,16 +109,16 @@ export const EVENTO = {
     datos: { pedidoId: v.pedidoId, distanciaM: v.distanciaM, ...(v.etaDestino ? { eta: v.etaDestino.toISOString() } : {}) }, para: etapaDelViaje(v),
   }),
 
-  viajeEnRetiro: (v: V & { origen: string; distanciaM: number; etaDestino: Date | null }): Evento => ({
+  viajeEnRetiro: (v: V & { origen: string; distanciaM: number; etaDestino: Date | null; tambien?: string[] }): Evento => ({
     nombre: "viaje.enRetiro", tipo: "LLEGO_RETIRO",
-    ...TEXTO.enRetiro(v.chofer, { descripcion: v.descripcion, destino: v.destino, origen: v.origen, distanciaM: v.distanciaM, etaDestino: v.etaDestino }),
+    ...TEXTO.enRetiro(v.chofer, { descripcion: v.descripcion, destino: v.destino, origen: v.origen, distanciaM: v.distanciaM, etaDestino: v.etaDestino, tambien: v.tambien }),
     enlace: enlacePedido(v.pedidoId), entidad: `viaje:${v.pedidoId}:enRetiro`, obraId: v.obraId,
     datos: { pedidoId: v.pedidoId, distanciaM: v.distanciaM, ...(v.etaDestino ? { eta: v.etaDestino.toISOString() } : {}) }, para: etapaDelViaje(v),
   }),
 
-  viajeSalioRetiro: (v: V & { distanciaM: number; etaDestino: Date | null }): Evento => ({
+  viajeSalioRetiro: (v: V & { distanciaM: number; etaDestino: Date | null; antes?: string[] }): Evento => ({
     nombre: "viaje.salioRetiro", tipo: "SALIO_RETIRO",
-    ...TEXTO.salioDelRetiro(v.chofer, { descripcion: v.descripcion, destino: v.destino, distanciaM: v.distanciaM, etaDestino: v.etaDestino }),
+    ...TEXTO.salioDelRetiro(v.chofer, { descripcion: v.descripcion, destino: v.destino, distanciaM: v.distanciaM, etaDestino: v.etaDestino, antes: v.antes }),
     enlace: enlacePedido(v.pedidoId), entidad: `viaje:${v.pedidoId}:salioRetiro`, obraId: v.obraId,
     datos: { pedidoId: v.pedidoId, distanciaM: v.distanciaM, ...(v.etaDestino ? { eta: v.etaDestino.toISOString() } : {}) }, para: etapaDelViaje(v),
   }),
@@ -128,6 +129,27 @@ export const EVENTO = {
     enlace: enlacePedido(v.pedidoId), entidad: `viaje:${v.pedidoId}:enDestino`, obraId: v.obraId,
     datos: { pedidoId: v.pedidoId, distanciaM: 0, eta: v.llego.toISOString() }, para: etapaDelViaje(v),
   }),
+
+  /** Viaje con varias paradas: este pedido quedó entregado en su parada (el viaje sigue). */
+  pedidoEntregado: (v: V & { llego: Date }): Evento => ({
+    nombre: "viaje.pedidoEntregado", tipo: "LLEGO_DESTINO",
+    titulo: `Entregado: ${queLleva(v.descripcion)}`,
+    cuerpo: `${v.chofer} entregó tu pedido de ${queLleva(v.descripcion)} en ${v.destino} (${hora(v.llego)}).`,
+    enlace: enlacePedido(v.pedidoId), entidad: `viaje:${v.pedidoId}:terminado`, obraId: v.obraId,
+    datos: { pedidoId: v.pedidoId, distanciaM: 0 }, para: etapaDelViaje(v),
+  }),
+
+  /** En la carga faltó algo: al que pidió (push) y, si es material, a Compras. "Retiraron 30 de 40 bolsas". */
+  faltante: (v: V & { item: string; real: number | null; total: number | null; unidad: string | null; nota: string | null; lugar: string }): Evento => {
+    const cuanto = v.real != null && v.total != null ? `Retiraron ${v.real} de ${v.total}${v.unidad ? ` ${v.unidad}` : ""}` : "No se pudo retirar todo";
+    return {
+      nombre: "viaje.faltante", tipo: "GENERAL",
+      titulo: `Faltó material: ${queLleva(v.item)}`,
+      cuerpo: `${cuanto} de ${queLleva(v.item)} en ${v.lugar}.${v.nota ? ` ${v.chofer}: "${v.nota}".` : ""}`,
+      enlace: enlacePedido(v.pedidoId), entidad: `viaje:${v.pedidoId}:faltante:${v.item}`, obraId: v.obraId, datos: { pedidoId: v.pedidoId },
+      para: [usuario(v.solicitanteId, push), rol("DIRECCION", bandeja), ...(v.pedidoMaterialId ? [rol("COMPRAS", push, `/materiales/${v.pedidoMaterialId}`)] : [])],
+    };
+  },
 
   viajeTerminado: (v: V & { llego: Date; km: number }): Evento => ({
     nombre: "viaje.terminado", tipo: "LLEGO_DESTINO",

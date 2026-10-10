@@ -23,8 +23,11 @@ const seleccion = {
       id: true, estado: true, salidaEstimada: true, salidaReal: true, llegadaReal: true, kmSalida: true, kmLlegada: true,
       ordenRuta: true, peajes: true, costoCalculado: true, vehiculo: { select: { id: true, nombre: true, patente: true } },
       etapa: true, inicioEn: true, llegadaRetiroEn: true, salidaRetiroEn: true, llegadaDestinoEn: true, etaRetiro: true, etaDestino: true,
+      _count: { select: { pedidos: true } },
     },
   },
+  // Su parte en el viaje (puede llevar otros pedidos): sus paradas y el costo que le tocó.
+  enViajes: { select: { viajeId: true, costoImputado: true, paradaRetiro: { select: { nombre: true, llegadaEn: true, salidaEn: true } }, paradaEntrega: { select: { nombre: true, llegadaEn: true } } } },
 } satisfies Prisma.PedidoViajeSelect;
 
 type Fila = Prisma.PedidoViajeGetPayload<{ select: typeof seleccion }>;
@@ -47,9 +50,12 @@ async function nombresDeOrigen(filas: Fila[]) {
 
 /** Plano y sin Decimal: listo para pasar a componentes cliente. */
 function plano(f: Fila, origen: { nombre: string; direccion: string }) {
+  const { enViajes, ...resto } = f;
+  const mio = enViajes.find((x) => x.viajeId === f.viaje?.id) ?? null;
   return {
-    ...f,
+    ...resto,
     origen,
+    enViaje: mio ? { costo: mio.costoImputado == null ? null : Number(mio.costoImputado), retiro: mio.paradaRetiro, entrega: mio.paradaEntrega } : null,
     viaje: f.viaje ? { ...f.viaje, peajes: Number(f.viaje.peajes), costoCalculado: f.viaje.costoCalculado == null ? null : Number(f.viaje.costoCalculado) } : null,
   };
 }
@@ -126,7 +132,7 @@ export async function historia(id: string) {
 
 // ─────────────────────────── Para tomar ───────────────────────────
 
-export type OpcionVehiculo = { id: string; nombre: string; detalle: string; apto: boolean; motivo?: string };
+export type OpcionVehiculo = { id: string; nombre: string; detalle: string; apto: boolean; motivo?: string; capacidadCargaKg: number };
 
 export async function vehiculosParaTomar(p: { pesoKg: number | null; necesitaCamion: boolean }, choferId?: string): Promise<OpcionVehiculo[]> {
   const u = choferId ? await exigirPermiso("pedidos.reasignar") : await exigirPermiso("pedidos.tomar");
@@ -138,6 +144,7 @@ export async function vehiculosParaTomar(p: { pesoKg: number | null; necesitaCam
       detalle: aviso ?? `${v.patente}${v.capacidadCargaKg ? ` · carga ${v.capacidadCargaKg >= 1000 ? `${v.capacidadCargaKg / 1000} tn` : `${v.capacidadCargaKg} kg`}` : ""}`,
       apto,
       motivo,
+      capacidadCargaKg: v.capacidadCargaKg,
     }))
     .sort((a, b) => Number(b.apto) - Number(a.apto));
 }

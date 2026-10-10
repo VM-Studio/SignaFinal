@@ -7,7 +7,8 @@ import { modoDemo } from "@/lib/demo";
 import { ejecutar, ErrorNegocio, type Resultado } from "@/lib/resultado";
 import { distancia, puntoEn } from "@/lib/geo";
 import { ETAPAS_EN_CURSO } from "./etapas";
-import { baseDe, destinoDe, origenDe, registrarPosicion, rutaSegura } from "./tramos";
+import { baseDe, registrarPosicion, rutaSegura } from "./tramos";
+import { pendientes, puntoDeParada } from "./motor";
 import { auditar } from "@/lib/auditoria";
 
 const PASO_M = 1000;
@@ -21,14 +22,18 @@ export async function avanzarSimulado(pedidoId: string): Promise<Resultado<{ eta
     const yo = await exigirSesion();
     if (!modoDemo() || yo.rol !== "DIRECCION") throw new ErrorNegocio("Solo en modo demo, para Dirección.");
     const v = await db.viaje.findFirst({
-      where: { pedidoId, etapa: { in: ETAPAS_EN_CURSO } },
-      include: { pedido: true, vehiculo: { select: { baseId: true } }, posiciones: { orderBy: { fecha: "desc" }, take: 1 } },
+      where: { pedidos: { some: { id: pedidoId } }, etapa: { in: ETAPAS_EN_CURSO } },
+      include: { pedido: true, vehiculo: { select: { baseId: true } }, posiciones: { orderBy: { fecha: "desc" }, take: 1 }, paradas: { orderBy: { orden: "asc" } } },
     });
     if (!v) throw new ErrorNegocio("Este viaje no está en curso.");
+    const faltan = pendientes(v.paradas);
+    const actual = faltan[0];
+    if (!actual) throw new ErrorNegocio("No quedan paradas: falta tocar Viaje terminado.");
     const ultima = v.posiciones[0] ? { lat: v.posiciones[0].latitud, lng: v.posiciones[0].longitud } : null;
-    // Cargando: arranca desde el punto de retiro hacia la obra (al alejarse, el viaje pasa solo a "en camino").
-    const desde = v.etapa === "EN_RETIRO" ? origenDe(v.pedido) : ultima ?? (await baseDe(v.vehiculo)) ?? origenDe(v.pedido);
-    const hasta = v.etapa === "HACIA_RETIRO" ? origenDe(v.pedido) : destinoDe(v.pedido);
+    // En una parada: arranca desde ahí hacia la siguiente (al alejarse, la parada queda hecha).
+    const desde = actual.estado === "LLEGO" ? puntoDeParada(actual) : ultima ?? (await baseDe(v.vehiculo)) ?? puntoDeParada(actual);
+    const objetivo = actual.estado === "LLEGO" ? faltan[1] ?? actual : actual;
+    const hasta = puntoDeParada(objetivo);
     const ruta = await rutaSegura(desde, hasta);
     const linea = ruta.geometria.map(([lat, lng]) => ({ lat, lng }));
     const punto = ruta.distanciaM <= PASO_M ? hasta : puntoEn(linea, PASO_M).punto;
@@ -58,19 +63,20 @@ export async function simularEtapa(pedidoId: string, paso: PasoDemo): Promise<Re
   return ejecutar(async () => {
     const yo = await exigirSesion();
     if (!modoDemo() || yo.rol !== "DIRECCION") throw new ErrorNegocio("Solo en modo demo, para Dirección.");
-    const v = await db.viaje.findFirst({ where: { pedidos: { some: { id: pedidoId } }, etapa: { in: ETAPAS_EN_CURSO } }, include: { pedido: true } });
+    const v = await db.viaje.findFirst({ where: { pedidos: { some: { id: pedidoId } }, etapa: { in: ETAPAS_EN_CURSO } }, include: { pedido: true, paradas: { orderBy: { orden: "asc" } } } });
     if (!v) throw new ErrorNegocio("Este viaje no está en curso. Primero el chofer tiene que tocar \"Iniciar viaje\".");
+    const faltan = pendientes(v.paradas);
+    if (!faltan[0]) throw new ErrorNegocio("No quedan paradas: falta tocar Viaje terminado.");
     // La demo "teletransporta" el vehículo: se olvida la última lectura para que no cuente como salto imposible.
     const { estadoMotor } = await import("./motor");
     await db.viaje.update({ where: { id: v.id }, data: { motor: { ...estadoMotor(v), ultima: undefined, rechazo: undefined, demo: true } as object } });
 
-    const retiro = origenDe(v.pedido);
-    const obra = destinoDe(v.pedido);
+    // Sobre la parada actual: "retiro"/"destino" = llegar (dos lecturas quieto); "salio" = 600 m hacia la siguiente.
+    const actual = puntoDeParada(faltan[0]);
+    const siguiente = faltan[1] ? puntoDeParada(faltan[1]) : actual;
     const lecturas: { punto: { lat: number; lng: number }; velocidadKmh: number }[] =
-      paso === "retiro" ? [{ punto: retiro, velocidadKmh: 0 }, { punto: retiro, velocidadKmh: 0 }]
-      // 600 m en línea recta hacia la obra: bien afuera del radio de salida (300 m).
-      : paso === "salio" ? [{ punto: haciaLaObra(retiro, obra, 600), velocidadKmh: 25 }]
-      : [{ punto: obra, velocidadKmh: 0 }, { punto: obra, velocidadKmh: 0 }];
+      paso === "salio" ? [{ punto: haciaLaObra(actual, siguiente === actual ? { lat: actual.lat + 0.01, lng: actual.lng } : siguiente, 600), velocidadKmh: 25 }]
+      : [{ punto: actual, velocidadKmh: 0 }, { punto: actual, velocidadKmh: 0 }];
     let r: Awaited<ReturnType<typeof registrarPosicion>> = null;
     for (const l of lecturas) {
       r = await registrarPosicion(v.id, l.punto, { fuente: "MOCK", velocidadKmh: l.velocidadKmh, demo: true });

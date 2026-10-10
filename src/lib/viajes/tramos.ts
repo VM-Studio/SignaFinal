@@ -101,18 +101,15 @@ export async function recalcularEta(v: ViajeConPedido, aqui: Punto, ahora = new 
     UPDATE "Viaje" SET "motor" = COALESCE("motor", '{}'::jsonb) || jsonb_build_object('etaEn', ${ahora.toISOString()}::text)
     WHERE "id" = ${v.id} AND (("motor"->>'etaEn') IS NULL OR ("motor"->>'etaEn') < ${limite})`;
   if (!tomado) return v.etapa === "HACIA_RETIRO" ? v.etaRetiro : v.etaDestino;
-  let eta: Date | null = null;
-  if (v.etapa === "HACIA_RETIRO") {
-    const [aRetiro, aDestino] = await Promise.all([rutaSegura(aqui, origenDe(v.pedido)), rutaSegura(origenDe(v.pedido), destinoDe(v.pedido))]);
-    eta = llegadaCon(aRetiro, ahora);
-    const etaDestino = eta && llegadaCon(aDestino, eta, CARGA_S);
-    await db.viaje.update({ where: { id: v.id }, data: { etaRetiro: eta, etaDestino } });
-    if (etaDestino) await avisarSiHayDemora(v, etaDestino);
-  } else if (v.etapa === "HACIA_DESTINO") {
-    const aDestino = await rutaSegura(aqui, destinoDe(v.pedido));
-    eta = llegadaCon(aDestino, ahora);
-    await db.viaje.update({ where: { id: v.id }, data: { etaDestino: eta } });
-    if (eta) await avisarSiHayDemora(v, eta);
-  }
+  // Hora de llegada a la PARADA ACTUAL (la primera que falta), si va en camino.
+  const paradas = await db.viajeParada.findMany({ where: { viajeId: v.id }, orderBy: { orden: "asc" }, select: { tipo: true, estado: true, latitud: true, longitud: true } });
+  const actual = paradas.find((p) => p.estado !== "COMPLETADA" && p.estado !== "SALTEADA");
+  if (!actual || actual.estado === "LLEGO") return null;
+  const ruta = await rutaSegura(aqui, { lat: actual.latitud, lng: actual.longitud });
+  const eta = llegadaCon(ruta, ahora);
+  await db.viaje.update({ where: { id: v.id }, data: actual.tipo === "RETIRO" ? { etaRetiro: eta } : { etaDestino: eta } });
+  // Demora: solo en viajes de un pedido (con varias paradas cada uno recibe el aviso de su parada).
+  const varios = paradas.filter((p) => p.tipo === "ENTREGA").length > 1 || paradas.filter((p) => p.tipo === "RETIRO").length > 1;
+  if (eta && actual.tipo === "ENTREGA" && !varios) await avisarSiHayDemora(v, eta);
   return eta;
 }
