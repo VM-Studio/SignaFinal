@@ -34,17 +34,16 @@ Por eso la app separa **distancia** de **tiempo**:
    - **Restricciones de API**: "Restringir clave" → marcar solo **Routes API**.
    - **Restricciones de aplicación**: "Sitios web" → agregar el dominio de la app
      (ej. `https://signa-logistica.vercel.app/*`). La app llama a Google desde el servidor y manda
-     ese dominio en el encabezado `Referer`, así que hay que cargar también la variable
-     `GOOGLE_MAPS_REFERER` con el mismo dominio (ej. `https://signa-logistica.vercel.app/`).
+     su dominio (`APP_URL`, que ya está en Vercel) en el encabezado `Referer`. Si el dominio de la
+     clave fuera otro, se puede forzar con `GOOGLE_MAPS_REFERER`.
 6. **Presupuesto y alertas** (Facturación → Presupuestos): crear uno de USD 5 con aviso al 50 % y al 100 %.
-7. Cargar las variables en Vercel (Production). Las sube el dueño, no se commitean:
+7. Cargar la clave en Vercel (Production). La sube el dueño, no se commitea:
 
 ```bash
 vercel env add GOOGLE_MAPS_API_KEY production
-vercel env add GOOGLE_MAPS_REFERER production
 ```
 
-Después de cargarlas hace falta un deploy nuevo para que las tome.
+Después de cargarla hace falta un deploy nuevo para que la tome.
 
 ## Costo estimado
 
@@ -52,7 +51,7 @@ Después de cargarlas hace falta un deploy nuevo para que las tome.
 pedidos, con 5.000 pedidos gratis por mes). Para no gastar de más, Google se usa **solo para la
 hora de llegada**:
 
-- al iniciar el viaje (2 pedidos), en cada transición (llegó / salió, 1 pedido cada una);
+- al iniciar el viaje (1 pedido) y en algunas transiciones (1 pedido cada una);
 - el job de cada minuto recalcula la hora como mucho **cada 5 minutos por viaje en curso**;
 - las pantallas que se refrescan solas (chofer, seguimiento, mapa) usan OSRM (gratis) y leen la hora guardada.
 

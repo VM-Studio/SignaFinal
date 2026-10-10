@@ -58,7 +58,7 @@ export function FormularioPedirHerramienta({ h, obras, cerrar }: { h: Herramient
     return (
       <div className="flex flex-col gap-4">
         <div className="flex gap-3 rounded-[var(--radius-caja)] border border-aviso/15 bg-aviso-fondo p-4">
-          <Copy className="mt-0.5 size-6 shrink-0 text-aviso" />
+          <Copy className="mt-0.5 size-6 shrink-0 text-aviso-texto" />
           <p className="text-lg font-semibold">{duplicado.mensaje}</p>
         </div>
         {igual ? (

@@ -130,7 +130,7 @@ export function FormularioOC({ d }: { d: FormularioOCDatos }) {
           <p className="etiqueta">Número</p>
           <p className="mt-1 text-lg font-semibold tabular-nums text-suave">Se asigna al enviar</p>
         </div>
-        <Campo etiqueta="Fecha de emisión" htmlFor="oc-fecha"><Fecha id="oc-fecha" value={fecha} onChange={(e) => setFecha(e.target.value)} /></Campo>
+        <div className="col-span-2 sm:col-span-1"><Campo etiqueta="Fecha de emisión" htmlFor="oc-fecha"><Fecha id="oc-fecha" value={fecha} onChange={(e) => setFecha(e.target.value)} /></Campo></div>
         <div><p className="etiqueta">Obra</p><p className="mt-1 text-sm font-medium">Obra {d.pedido.obra}{d.pedido.sede ? ` · ${d.pedido.sede}` : ""}</p></div>
         <div><p className="etiqueta">Solicitante</p><p className="mt-1 text-sm font-medium">{d.pedido.solicitante}</p></div>
       </section>

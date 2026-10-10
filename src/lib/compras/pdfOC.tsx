@@ -2,6 +2,7 @@ import { Document, Font, Image, Page, StyleSheet, Text, View, renderToBuffer } f
 import type { MetodoPago, Moneda } from "@prisma/client";
 import { LOGO_SIGNA } from "./logo";
 import { METODO_PAGO } from "./estados";
+import { diaISO } from "@/lib/formato";
 
 /**
  * PDF DE LA ORDEN DE COMPRA (A4, una hoja). Sale SIEMPRE de los datos de la OC (nunca al revés).
@@ -73,7 +74,8 @@ const e = StyleSheet.create({
   sello: { marginTop: 10, borderWidth: 1.5, borderColor: OK, borderRadius: 4, padding: 8, color: OK },
 });
 
-const fecha = (d: Date) => new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", year: "numeric" }).format(d);
+/** dd/mm/aaaa del día argentino (las fechas sin hora de la base llegan a medianoche UTC: diaISO las toma tal cual). */
+const fecha = (d: Date) => diaISO(d).split("-").reverse().join("/");
 const fechaHora = (d: Date) => {
   const p = Object.fromEntries(new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(d).map((x) => [x.type, x.value]));
   return `${p.day}/${p.month}/${p.year} a las ${p.hour}:${p.minute}`;
@@ -156,7 +158,7 @@ export function DocumentoOC({ d, borrador = false }: { d: DatosPDFOC; borrador?:
             {conPrecios ? (
               <View style={e.totales}>
                 <View style={e.filaTotal}><Text>Subtotal</Text><Text>{plata(d.subtotal ?? 0, d.moneda)}</Text></View>
-                <View style={e.filaTotal}><Text>{d.ivaPorcentaje != null ? `IVA ${num(d.ivaPorcentaje)} %` : "Sin IVA"}</Text><Text>{plata(d.iva ?? 0, d.moneda)}</Text></View>
+                <View style={e.filaTotal}><Text>{d.ivaPorcentaje != null ? `IVA ${num(d.ivaPorcentaje)} %` : d.iva ? "IVA" : "Sin IVA"}</Text><Text>{plata(d.iva ?? 0, d.moneda)}</Text></View>
                 <View style={[e.filaTotal, { borderTopWidth: 1, borderTopColor: TINTA, marginTop: 2, paddingTop: 4 }]}><Text style={e.fuerte}>Total</Text><Text style={e.fuerte}>{plata(d.total ?? 0, d.moneda)}</Text></View>
               </View>
             ) : (

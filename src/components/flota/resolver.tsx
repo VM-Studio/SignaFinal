@@ -20,7 +20,7 @@ export function BotonResolver({ id, resuelto }: { id: string; resuelto: boolean 
           router.refresh();
         })
       }
-      className={`min-h-11 rounded-full px-3 text-[13px] font-semibold disabled:opacity-50 ${resuelto ? "bg-ok-fondo text-ok" : "bg-aviso-fondo text-aviso"}`}
+      className={`min-h-11 rounded-full px-3 text-[13px] font-semibold disabled:opacity-50 ${resuelto ? "bg-ok-fondo text-ok" : "bg-aviso-fondo text-aviso-texto"}`}
     >
       {resuelto ? "Resuelto" : "Abierto · marcar resuelto"}
     </button>

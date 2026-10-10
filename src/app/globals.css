@@ -23,6 +23,8 @@
   --color-ok-fondo: rgb(31 122 77 / 0.08);
   --color-aviso: #b7791f;
   --color-aviso-fondo: rgb(183 121 31 / 0.08);
+  /* Ámbar para TEXTO chico (el #b7791f no llega a 4,5:1 sobre blanco): mismo tono, más oscuro. */
+  --color-aviso-texto: #92600f;
   --color-critico: #b42318;
   --color-critico-fondo: rgb(180 35 24 / 0.08);
 

@@ -63,7 +63,7 @@ export async function DetalleMaterial({ id, vista }: { id: string; vista: "compr
     }
     else if (p.estado === "ESPERANDO_APROBACION") principal = p.aprueba ? <BotonesAprobacion id={p.id} oc={p.ordenCompraNumero} /> : (
       <>
-        <p className="flex min-h-12 items-center justify-center gap-2 rounded-md bg-aviso-fondo px-4 text-center text-sm font-medium text-aviso lg:min-h-9"><Clock className="size-4" /> Esperando al dueño</p>
+        <p className="flex min-h-12 items-center justify-center gap-2 rounded-md bg-aviso-fondo px-4 text-center text-sm font-medium text-aviso-texto lg:min-h-9"><Clock className="size-4" /> Esperando al dueño</p>
         <BotonAprobadoEnPapel id={p.id} />
         {ocVigente && <BotonAnularOC ocId={ocVigente.id} numero={ocVigente.numero} />}
       </>

@@ -117,9 +117,11 @@ export function tituloDeRuta(pathname: string, propias: Seccion[] = []): string 
   const todas = Object.values(SECCIONES) as Seccion[];
   const exacta = todas.find((s) => s.href === pathname);
   if (exacta) return exacta.titulo;
+  if (/^\/compras\/[^/]+\/oc$/.test(pathname)) return "Orden de compra";
   if (pathname.startsWith("/compras/") || pathname.startsWith("/mis-pedidos/material/")) return "Pedido de material";
+  if (pathname.startsWith("/viaje/")) return "Viaje";
   if (pathname.startsWith("/proveedores/")) return "Proveedor";
-  if (pathname.startsWith("/solicitudes/") || pathname.startsWith("/mis-pedidos/") || pathname.startsWith("/viaje/") || pathname.startsWith("/viajes-en-curso/")) return "Pedido";
+  if (pathname.startsWith("/solicitudes/") || pathname.startsWith("/mis-pedidos/") || pathname.startsWith("/viajes-en-curso/")) return "Pedido";
   const prefijo = todas.filter((s) => pathname.startsWith(s.href + "/")).sort((a, b) => b.href.length - a.href.length)[0];
   return prefijo?.titulo ?? "SIGNA";
 }

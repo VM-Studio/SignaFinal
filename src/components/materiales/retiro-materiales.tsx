@@ -121,7 +121,7 @@ export function RetiroMateriales({ obras, listos, obraInicial, materialInicial }
               </ul>
               {proveedores.length > 1 && (
                 <p className="flex gap-2 rounded-[var(--radius-caja)] border border-aviso/15 bg-aviso-fondo p-3 font-semibold">
-                  <Split className="mt-0.5 size-5 shrink-0 text-aviso" /> Son {proveedores.length} proveedores, se van a crear {proveedores.length} viajes.
+                  <Split className="mt-0.5 size-5 shrink-0 text-aviso-texto" /> Son {proveedores.length} proveedores, se van a crear {proveedores.length} viajes.
                 </p>
               )}
               <MensajeError>{error}</MensajeError>

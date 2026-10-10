@@ -55,6 +55,9 @@ const seleccion = {
   },
 } satisfies Prisma.PedidoViajeSelect;
 
+/** "OC-2026-0012" (las del sistema) tal cual; las viejas cargadas a mano, sin el "OC #" del principio. */
+const numeroOC = (n: string | null) => (!n ? null : /^OC-\d{4}-\d+$/.test(n.trim()) ? n.trim() : n.replace(/^\s*(OC)?\s*#?\s*/i, ""));
+
 const juntar = (xs: (string | null)[]) => [...new Set(xs.filter((x): x is string => !!x))].join(" / ") || null;
 
 function tarjeta(p: Prisma.PedidoViajeGetPayload<{ select: typeof seleccion }>): Tarjeta {
@@ -71,7 +74,7 @@ function tarjeta(p: Prisma.PedidoViajeGetPayload<{ select: typeof seleccion }>):
     kmActual: v?.vehiculo.kmActual ?? 0,
     kmSalida: v?.kmSalida ?? null,
     retiro: p.esRetiroMaterial
-      ? { horario: juntar(ml.map((m) => m.horarioRetiro)), contacto: juntar(ml.map((m) => m.contactoRetiro)), oc: juntar(ml.map((m) => m.ordenCompraNumero?.replace(/^\s*(OC)?\s*#?\s*/i, "") ?? null)) ?? p.ordenCompraLebane }
+      ? { horario: juntar(ml.map((m) => m.horarioRetiro)), contacto: juntar(ml.map((m) => m.contactoRetiro)), oc: juntar(ml.map((m) => numeroOC(m.ordenCompraNumero))) ?? p.ordenCompraLebane }
       : null,
     tipo: p.tipo,
     combinado: v && v.pedidos.length > 1

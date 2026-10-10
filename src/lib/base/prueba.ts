@@ -112,7 +112,7 @@ export async function cargarDatosPrueba(db: PrismaClient) {
       data: {
         numero: n.numero, anio: n.anio, secuencia: n.secuencia, pedidoMaterialId: pm.id, obraId: pm.obraId, solicitanteId: pm.solicitanteId, proveedorId: suc.proveedorId, sucursalId: suc.id,
         fechaNecesaria: aFecha(hoy, "12:00"), metodoPago: estado === "APROBADA" ? "ACOPIO" : "CUENTA_CORRIENTE", condiciones: estado === "APROBADA" ? "Acopio en el corralón, se retira en partes" : "30 días fecha factura",
-        subtotal: D(subtotal), iva: D(iva), total: D(subtotal + iva), estado, creadaPorId: compras.id, enviadaEn: new Date(),
+        subtotal: D(subtotal), ivaPorcentaje: D(21), iva: D(iva), total: D(subtotal + iva), estado, creadaPorId: compras.id, enviadaEn: new Date(),
         ...(estado === "APROBADA" ? { aprobadaPorId: direccion.id, aprobadaEn: new Date(), pdfAprobadaUrl: `db:${a.id}` } : {}), pdfUrl: `db:${a.id}`,
         renglones: { create: renglones.map((r, i) => ({ orden: i + 1, descripcion: r.descripcion, cantidad: D(r.cantidad), unidad: r.unidad, precioUnitario: D(r.precio), subtotal: D(r.cantidad * r.precio) })) },
       },

@@ -4,9 +4,10 @@ Cada persona tiene **su versión** de la app: ve solo lo que le sirve. Si entra 
 no es suya (por ejemplo, escribiendo la dirección a mano), la app la lleva a su inicio. Todo se
 controla en el servidor: no alcanza con esconder un botón.
 
-La regla de fondo: **cada dato vive en un solo sistema**. Obras, proveedores, órdenes de compra y
-stock de materiales están en Lebane; Signa organiza los viajes, la flota, las herramientas y el
-circuito de los pedidos de material (quién pidió qué, en qué paso está y cuándo se retira).
+La regla de fondo: **cada dato vive en un solo sistema**. Stock de materiales, cajas y contabilidad
+están en Lebane; Signa organiza los viajes, la flota, las herramientas y el circuito de los pedidos de
+material, **con la orden de compra armada acá** (número OC-AAAA-NNNN, PDF y aprobación del dueño).
+Obras y proveedores se cargan en Signa mientras no haya API de Lebane (docs/pendientes.md).
 
 ---
 
@@ -23,15 +24,22 @@ circuito de los pedidos de material (quién pidió qué, en qué paso está y cu
 - **Viajes**: todos los viajes de todos los choferes, en curso y terminados.
 - **Actividad**: cada acción de cada usuario en una lista, con filtros por persona, tipo de acción,
   obra y fecha, buscador y exportación a CSV. Una ficha por persona con su mes.
-- **Usuarios**: alta, rol, licencias, obras de cada responsable, desactivar. **Proveedores**: la
-  lista que viene de Lebane, con teléfono y "Cómo llegar".
+- **Usuarios**: alta, rol, licencias, obras de cada responsable, desactivar.
+- **Proveedores** con buscador y sus **sucursales** (cada una con dirección en el mapa, horario y
+  contacto); **Obras** con alta y edición (dirección ubicada en el mapa, sedes si tiene varios
+  frentes); **Configuración → Ubicaciones**: base y depósitos (Galpón Florida, Terreno Humboldt).
 - **Seguimiento**: en cualquier viaje en curso ve el mapa con el camión y la hora estimada.
   En modo demo tiene el botón **"Demo: avanzar 1 km"** para mostrar el seguimiento en una reunión.
 - **Avisos**: una copia de los avisos de cada viaje (aceptado, salió, cargando, llegó, demoras)
   en su bandeja, sin notificación en el celular para no llenarlo.
-- **Aprobaciones**: las órdenes de compra que armó Compras, con monto y OC. **Aprobar** (un toque,
-  con 10 s para deshacer) o **Rechazar** con motivo (vuelve a Compras). En el inicio, un aviso
-  amarillo cuando hay alguna esperando. También ve toda la pantalla de Compras.
+- **Aprobaciones**: cada orden de compra con **todos los datos escritos** (número, proveedor y
+  sucursal, renglones con cantidad y precio, subtotal, IVA, total, método de pago, condiciones, lo que
+  pidió la obra) y el **PDF**. **Aprobar** (un toque, con 10 s para deshacer; queda el PDF con el sello
+  "Aprobada por…") o **Rechazar** con motivo (vuelve a Compras). Le llega un push por cada OC nueva.
+  También ve toda la pantalla de Compras y **Órdenes de compra** (todas, con buscador y CSV).
+- **Fechas de los viajes**: si un chofer pide adelantar un viaje, le llega el aviso; desde el detalle
+  del pedido, **Reprogramar** (día y hora). A las 9:00, en su bandeja, el resumen de los viajes de hoy
+  que todavía no salieron.
 - **Rastreo (Cusat)**: estado de la conexión con Cusat, "Probar conexión", "Sincronizar ahora" y
   qué unidad de Cusat es cada vehículo (se enlazan solas por patente; las otras, a mano).
 - **Demo**: en un viaje en curso, los botones **Simular: llegó al retiro / salió / llegó a destino**.
@@ -55,8 +63,9 @@ Trabaja **solo con sus obras** (las que tiene asignadas en la tabla de responsab
     la app le avisa con nombre y fecha ("Lolo ya pidió esto hoy a las 9:00…") y decide él.
   - *Retiro en proveedor*: ya no se escribe el proveedor. Se elige de la lista de **lo que Compras
     dejó listo** en esa obra (marca uno o varios); si son de dos proveedores, se crean dos viajes.
-  - *Materiales*: obra, un renglón por material (con "+"), para cuándo y prioridad. "Pedido enviado
-    a Compras. Te avisamos en cada paso."
+  - *Materiales*: obra (y sede si tiene varias), un renglón por material **o la planilla / foto
+    adjunta** (Excel, PDF, Word, CSV o fotos, hasta 20 MB cada uno; con uno alcanza), **observaciones**
+    para Compras, para cuándo y prioridad. "Pedido enviado a Compras. Te avisamos en cada paso."
 - **Mis pedidos**: arriba **Viajes** y **Materiales**.
   - *Viajes*: Pendientes / Aceptados / Entregados. En el detalle, el **seguimiento en vivo** como
     PedidosYa: cinco pasos (Aceptado · Salió · En el retiro · En camino · Entregado), el mapa con el
@@ -64,7 +73,13 @@ Trabaja **solo con sus obras** (las que tiene asignadas en la tabla de responsab
     9:40 aprox" y el botón para llamar al chofer. Puede cancelar mientras está pendiente.
   - *Materiales*: cada pedido con su estado en palabras ("Compras lo está comprando", "Esperando
     aprobación del dueño"…). Lo **listo para retirar** aparece en verde con **Pedir el viaje**. En el
-    detalle, la línea de tiempo de 8 pasos y, si ya va en camino, el seguimiento del viaje.
+    detalle, sus observaciones y adjuntos, la **OC aprobada** (número, proveedor, sucursal, quién y
+    cuándo aprobó, **PDF aprobado**; nunca las notas internas de Compras), la línea de tiempo de 8
+    pasos y, si ya va en camino, el seguimiento del viaje.
+  - Un pedido de viaje pendiente o aceptado (sin salir) se puede **Reprogramar** (día y hora).
+  - Si el viaje lleva pedidos de otras obras, el seguimiento es de **su** parte: "Claudio está en el
+    corralón cargando tu pedido (también lleva material para Chubut)", "Salió, antes pasa por Chubut,
+    después Darwin · está a 9 km". Sin clave de Google, solo distancia (nunca una hora inventada).
 - **Viajes**: lo que ya aceptaron los choferes y va a sus obras ("hoy a Darwin llegan dos camiones").
 - **Herramientas**: las disponibles para pedir (botón "Pedir": obra y fecha), y un buscador de
   todas con dónde está cada una ("En Obra Chubut · la tiene César desde el 28/9"). Si pide la
@@ -99,29 +114,47 @@ La versión más simple: botones grandes y una cosa por pantalla.
 - **Inicio**: su viaje en curso con el botón de lo que sigue o, si no tiene, **"Solicitudes
   pendientes: 4"**, y los viajes aceptados de hoy.
 - **Barra**: Hoy · Solicitudes · Combustible · Más (Mi cuenta, Mis avisos, Cerrar sesión).
-- **Hoy**: sus viajes de hoy con letra grande: cuándo, **dónde retira**, **dónde entrega**, qué
-  lleva, quién pidió, vehículo. También "Próximos" (agrupados por día) y "Todos" (historial).
-- **Solicitudes**: todas las pendientes, urgentes primero, con un botón **"Aceptar"**: elige el
-  vehículo (los que no sirven aparecen en gris con el motivo) y a qué hora sale. Si otro la aceptó
-  un segundo antes, le dice "Ya lo aceptó Cristian". Un punto rojo en la barra avisa que hay nuevas.
-- **Pantalla del viaje**: **dos botones**, nada más: **Iniciar viaje** y **Viaje terminado**. Lo del
-  medio lo detecta el GPS (Cusat, o el teléfono si Cusat no reporta) y la pantalla cambia sola:
-  "Vas a Corralón San Martín · horario · OC · preguntar por…", **"Llegaste a Corralón San Martín"**
-  (Sí, estoy acá / No, todavía no), "Cargando…", camino a la obra, **"Llegaste a Obra Darwin"**.
-  Siempre: mapa del tramo, distancia, minutos y **Abrir en Google Maps**. Abajo, chicos, los botones
-  para marcarlo a mano si el GPS falla, y el estado de la señal ("GPS Cusat hace 30 seg").
-  Sin señal, cada botón se guarda en el teléfono con su hora real y se manda solo al volver.
-- **Retiros de material**: la tarjeta muestra el horario de retiro, a quién preguntar y la OC.
+- **La fecha, primero y grande**, en toda tarjeta: "HOY · 8:30" (negro), "MAÑANA · por la tarde"
+  (ámbar), "LUNES 13/10 · 8:30" (gris), "ATRASADO · ayer 8:30" (rojo). Es la fecha del pedido, nunca
+  la de aceptación.
+- **Hoy**: solo los de hoy (los atrasados arriba, en rojo); el que está en curso primero. **Próximos**:
+  agrupados por día con el día como título. **Todos**: historial con buscador por obra. Un viaje
+  combinado es una sola tarjeta: "3 pedidos · 4 paradas · 31 km" y las obras.
+- **Solicitudes**: todas las pendientes, urgentes primero. **Aceptar** abre **"Aprovechá el viaje"**:
+  lo que hay para retirar en el mismo lugar ("En Corralón San Martín también hay para retirar: hierro
+  para Chubut…") y lo que queda cerca de su camino ("A 1,2 km del corralón: hormigonera…"), con
+  casilla, fecha, peso y para quién (los de otro día en gris). Después el vehículo: si el peso total no
+  entra (ej. 5.200 kg en el Kia de 3.000), lo dice y no deja confirmar. Si otro lo aceptó un segundo
+  antes: "Ya lo aceptó Cristian".
+- **Bloqueo por fecha**: un viaje para otro día muestra **Iniciar viaje** deshabilitado con "Este viaje
+  es para el lunes 13/10" (el servidor lo rechaza igual) y **Pedir que lo adelanten** (avisa al que
+  pidió y al dueño, que lo reprograman).
+- **Pantalla del viaje, por paradas**: arriba la parada actual (retirar o entregar, dirección, horario,
+  contacto y OC del retiro, **solo distancia** salvo que haya Google con tránsito); la **lista de
+  verificación** de esa parada (al cargar, por obra: "→ Darwin: 40 bolsas cemento (OC-2026-0012)"; al
+  entregar, solo lo de esa obra), con **Faltó** (cantidad real y nota: avisa al que pidió y a Compras);
+  **Cargué todo, salgo** / **Entregado acá** (con foto del remito opcional); abajo, las paradas
+  numeradas con su estado y km, **Reordenar** y **Agregar parada** (mientras no llegó a ninguna).
+  **Abrir en Google Maps** arma la ruta con las paradas que faltan. **Viaje terminado** (km y peajes una
+  vez) aparece en la última parada.
+- **GPS y botón manual**: las llegadas y salidas las detecta el GPS (Cusat, o el teléfono). El botón
+  manual dice el lugar: **"Llegué al proveedor / al galpón / al terreno / a la obra / a la base"**; si no
+  hay GPS hace 3 minutos pasa a ser el principal ("Sin señal GPS: marcá a mano"). Si llega a otra parada
+  antes, la app pregunta "Llegaste a Chubut antes que a Darwin, ¿seguimos así?". Sin señal, cada botón
+  se guarda en el teléfono y se manda solo al volver.
 - Mientras viaja, el teléfono manda su posición cada 30 s (si dio permiso de ubicación).
 - **Combustible**: cuatro campos, con el vehículo del viaje en curso ya elegido y la carga imputada
   a esa obra.
 
-**Avisos**: solicitud urgente nueva; a las 7:00, el resumen de sus viajes del día; si cancelan un
-pedido que había aceptado. **Alertas**: urgentes sin aceptar, pedidos para hoy sin chofer, su
-licencia por vencer, documentos o service de su camioneta, su viaje de más de 10 h.
+**Avisos (recordatorios)**: el día anterior a las 18:00 ("Mañana tenés un retiro en Corralón San Martín
+a las 8:30 para Obra Darwin"), el mismo día a las 7:00 (con varios viajes, uno solo con la lista en
+orden) y, si llegó la hora y no inició, a la hora y cada 60 minutos (hasta 4). También: solicitud
+urgente nueva, le reprogramaron un viaje, cancelaron un pedido que había aceptado. **Alertas**:
+urgentes sin aceptar, pedidos para hoy sin chofer, su licencia por vencer, documentos o service de su
+camioneta, su viaje de más de 10 h.
 
-**No ve**: los pedidos ya aceptados por otros choferes, depósito, flota, costos, obras, mapa
-general, ni alertas de otros choferes.
+**No ve**: los pedidos ya aceptados por otros choferes, precios de las órdenes de compra (solo
+materiales y cantidades), depósito, flota, costos, obras, mapa general, ni alertas de otros choferes.
 
 ---
 
@@ -151,16 +184,29 @@ alertas de vehículos o choferes, ni la actividad de los demás.
 - **Pedidos** (la cola): Nuevos / En compra / Esperando aprobación / Aprobados / Listos. Urgentes
   primero, después por para cuándo; en rojo lo demorado (más de 2 días hábiles sin comprar, más de
   un día esperando al dueño). Filtro por obra. **Nuevo pedido** para lo que le piden por teléfono.
-- **Detalle**: UN botón con lo que sigue: **Tomar** → **OC armada, pedir aprobación** (número y
-  monto; le llega al dueño) → (esperando al dueño, con **El dueño ya aprobó en papel** por si no usa
-  la app ese día) → **Habilitar para retirar** (proveedor, horario, contacto, qué, peso, "lo retira
-  un chofer" o "lo entrega el proveedor", y "con esto no falta nada"). Cancelar con motivo.
+- **Detalle**: arriba las **observaciones** del que pidió y sus **adjuntos** (se ven en la app o se
+  descargan); **notas internas de Compras** y adjuntos propios (presupuestos) que el que pidió no ve.
+  UN botón con lo que sigue: **Tomar** → **Armar orden de compra** → (esperando al dueño) →
+  **Habilitar para retirar** → listo. Cancelar con motivo.
+- **Orden de compra** (`/compras/{pedido}/oc`): el formulario de la plantilla con los datos ya copiados
+  del pedido; **Importar desde la planilla adjunta** (xlsx o csv) para no transcribir; proveedor con
+  buscador y **sucursal** (o **Nuevo proveedor** / **Agregar sucursal** sin salir); renglones con precio,
+  IVA, método de pago (acopio, cuenta corriente, transferencia, efectivo o eCheq), condiciones
+  y observaciones; **Vista previa del PDF**. **Enviar a aprobación** le asigna el número (OC-2026-0001,
+  correlativo, nunca se repite) y le avisa al dueño. Si la rechazan: **Corregir y reenviar** (número
+  nuevo; la vieja queda como historial). **Anular** con motivo.
+- **Habilitar para retirar**: si hay OC aprobada, viene precargado (proveedor, sucursal, OC y renglones
+  para tildar lo que se retira ahora; retiros parciales).
+- **Órdenes de compra**: todas, con buscador (número, proveedor, obra), filtros por estado y fechas,
+  PDF y **CSV** (lo que va a recibir Lebane).
 - **Habilitados**: lo que habilitó y qué pasó después (sin retiro pedido, retiro pedido, en camino,
   entregado); en rojo lo que lleva 3 días o más sin que la obra pida el viaje.
-- **Proveedores**: la lista de Lebane con teléfono y "Cómo llegar"; en cada uno, lo habilitado ahí.
+- **Proveedores**: buscador, ficha con CUIT, teléfono, mail y sus **sucursales** (dirección en el mapa,
+  horario y contacto de retiro), y las OC de ese proveedor.
 
-**Avisos**: pedido de material nuevo (urgente con push), el dueño aprobó o rechazó, el material se
-entregó o volvió a quedar sin retirar. **Alertas**: pedidos demorados, material sin retirar.
+**Avisos**: pedido de material nuevo (con las primeras palabras de las observaciones y cuántos
+adjuntos trae), el dueño aprobó o rechazó la OC, faltó material en un retiro ("Retiraron 30 de 40
+bolsas"), el material se entregó o volvió a quedar sin retirar. **Alertas**: pedidos demorados, material sin retirar.
 
 **No ve**: solicitudes de viaje, flota, costos, mapa, depósito ni la actividad de los demás (solo
 el seguimiento de los viajes que retiran sus materiales).
@@ -170,9 +216,9 @@ el seguimiento de los viajes que retiran sus materiales).
 ## Administración (oficina)
 
 - **Inicio**: vencimientos de documentación de los próximos 30 días y el costo del mes por obra.
-- **Barra**: Flota · Costos · Alertas · Más (Inicio, Agenda, Mantenimiento, Obras, Usuarios).
+- **Barra**: Flota · Costos · Alertas · Más (Inicio, Agenda, Mantenimiento, Obras, Usuarios, Ubicaciones).
 - Documentación de vehículos, mantenimiento, incidentes, costos por obra y por vehículo con
-  exportación para Lebane.
+  exportación para Lebane. Un viaje con varias obras **reparte su costo** por tramo entre ellas.
 - **Usuarios**: alta de personas, rol, teléfono, licencia de los choferes y obras de cada
   responsable. Para sacar a alguien se lo desactiva (no se borra nada). No puede dar de alta a
   alguien de Dirección.

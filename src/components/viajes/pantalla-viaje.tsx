@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Camera, CheckCircle2, Flag, Navigation, PackageCheck, Satellite, Smartphone, Truck, WifiOff } from "lucide-react";
+import { ArrowLeft, Camera, CheckCircle2, Flag, Map as MapIcon, Navigation, PackageCheck, Satellite, Smartphone, Truck, WifiOff } from "lucide-react";
 import { BotonLink, claseBoton, Boton } from "@/components/ui/boton";
 import { Hoja } from "@/components/ui/hoja";
 import { MensajeError } from "@/components/ui/campos";
@@ -58,7 +58,11 @@ export function PantallaViaje({ d }: { d: Datos }) {
     <MapaTramo geometria={d.tramo.geometria} desde={d.tramo.desde} hasta={d.tramo.hasta} nombreHasta={actual.nombre}
       otras={d.paradas.filter((p) => p.id !== actual.id && p.estado !== "COMPLETADA").map((p) => ({ lat: p.lat, lng: p.lng, n: d.paradas.indexOf(p) + 1 }))} />
   );
-  const mapa = !escritorio && mapaTramo && <div className="relative isolate h-[200px] overflow-hidden rounded-[var(--radius-caja)] border border-linea">{mapaTramo}</div>;
+  // Celular: el mapa chico se abre a pedido (navega con Google Maps; así la pantalla carga rápido y gasta menos datos).
+  const [verMapa, setVerMapa] = useState(false);
+  const mapa = !escritorio && mapaTramo && (verMapa
+    ? <div className="relative isolate h-[220px] overflow-hidden rounded-[var(--radius-caja)] border border-linea">{mapaTramo}</div>
+    : <Boton variante="secundario" ancho icono={<MapIcon />} onClick={() => setVerMapa(true)}>Ver el recorrido en el mapa</Boton>);
   const telefono = actual?.retiro?.contacto?.match(/(\d[\d\s-]{6,}\d)/)?.[1];
 
   // La parada actual: qué hacer, dónde, a cuánto.
@@ -112,7 +116,6 @@ export function PantallaViaje({ d }: { d: Datos }) {
       {d.confirmar && <ConfirmarLlegada pedidoId={d.pedidoId} lugar={d.confirmar.lugar} antesDe={d.confirmar.adelantadaDe} />}
 
       {d.estado !== "FINALIZADO" && tarjetaActual}
-      {d.estado !== "FINALIZADO" && mapa}
 
       {/* Lista de verificación de la parada actual (tildable cuando llegó; antes, para saber qué se carga). */}
       {actual && actual.items.length > 0 && d.estado !== "FINALIZADO" && <ListaVerificacion parada={actual} editable={enCurso && llego} />}
@@ -146,6 +149,9 @@ export function PantallaViaje({ d }: { d: Datos }) {
           )}
         </>
       )}
+
+      {/* Celular: el mapa chico va después de lo que hay que tocar (primero a dónde y qué hacer). */}
+      {d.estado !== "FINALIZADO" && mapa}
 
       {/* Todas las paradas, numeradas, con su estado. */}
       {d.paradas.length > 1 && <ListaParadas paradas={d.paradas} actualId={d.actualId} totalM={d.totalM} />}

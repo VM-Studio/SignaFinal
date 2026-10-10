@@ -55,7 +55,19 @@ export default async function PaginaAprobaciones() {
                   <div><dt className="etiqueta">Método de pago</dt><dd className="mt-1 font-medium">{o.metodoPago ? METODO_PAGO[o.metodoPago] : "—"}{o.condiciones ? <span className="font-normal text-suave"> · {o.condiciones}</span> : null}</dd></div>
                 </dl>
 
-                <div className="overflow-x-auto rounded-md border border-linea">
+                {/* Celular: un renglón por fila (qué, cuánto y a cuánto); escritorio: la tabla. */}
+                <ul className="divide-y divide-linea rounded-md border border-linea sm:hidden">
+                  {o.renglones.map((r, i) => (
+                    <li key={i} className="px-3 py-2.5 text-sm">
+                      <p className="font-medium">{r.descripcion}</p>
+                      <p className="mt-0.5 flex justify-between gap-3 text-suave tabular-nums">
+                        <span>{num(r.cantidad)} {r.unidad}{r.precioUnitario != null ? ` × ${plata(r.precioUnitario)}` : ""}</span>
+                        <span className="font-medium text-tinta">{r.subtotal != null ? plata(r.subtotal) : "—"}</span>
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+                <div className="hidden overflow-x-auto rounded-md border border-linea sm:block">
                   <table className="tabla">
                     <thead><tr><th>Material</th><th className="num">Cantidad</th><th>Unidad</th><th className="num">Precio unit.</th><th className="num">Subtotal</th></tr></thead>
                     <tbody>
@@ -68,7 +80,7 @@ export default async function PaginaAprobaciones() {
                 {o.total != null && (
                   <div className="ml-auto grid w-full max-w-xs grid-cols-2 gap-1 text-sm tabular-nums">
                     <span>Subtotal</span><span className="text-right">{plata(o.subtotal)}</span>
-                    <span>{o.ivaPorcentaje != null ? `IVA ${num(o.ivaPorcentaje)} %` : "Sin IVA"}</span><span className="text-right">{plata(o.iva)}</span>
+                    <span>{o.ivaPorcentaje != null ? `IVA ${num(o.ivaPorcentaje)} %` : o.iva ? "IVA" : "Sin IVA"}</span><span className="text-right">{plata(o.iva)}</span>
                     <span className="border-t border-linea pt-1 font-semibold">Total</span><span className="border-t border-linea pt-1 text-right font-semibold">{plata(o.total)}</span>
                   </div>
                 )}

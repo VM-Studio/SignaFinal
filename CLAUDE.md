@@ -179,7 +179,7 @@ sale de un solo lugar: src/app/globals.css (tokens) y src/components/ui (compone
 - Colores: página #FAFAFA; superficies #FFFFFF; bordes #E5E7EB (1px, nunca más grueso); borde fuerte
   #D1D5DB solo para foco o selección; texto #111827, secundario #6B7280, terciario #9CA3AF (solo
   texto de 11px no esencial). Negro #0A0A0A solo en header de celular, barra lateral y botón
-  primario. Estado: verde #1F7A4D, ámbar #B7791F, rojo #B42318, como texto o punto de 8px al lado
+  primario. Estado: verde #1F7A4D, ámbar #B7791F (#92600F para texto chico, por contraste), rojo #B42318, como texto o punto de 8px al lado
   del texto, con fondo al 8% en insignias. Siempre con palabras. Nada más de color.
 - Tipografía Archivo (next/font): 13px base en escritorio, 15px en celular. Escala 11 (meta), 13
   (cuerpo), 15 (cuerpo celular / énfasis), 18 (título de sección), 22 (título de página), 28

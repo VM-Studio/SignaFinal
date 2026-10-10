@@ -75,7 +75,7 @@ export function AccionesHerramienta({ d, accionInicial }: { d: DatosAcciones; ac
 
   return (
     <div className="flex flex-col gap-2">
-      {d.pedidoActivo && <p className="rounded-[var(--radius-caja)] bg-aviso-fondo px-3 py-2 text-sm font-medium text-aviso">{d.pedidoActivo}</p>}
+      {d.pedidoActivo && <p className="rounded-[var(--radius-caja)] bg-aviso-fondo px-3 py-2 text-sm font-medium text-aviso-texto">{d.pedidoActivo}</p>}
       {visibles.map((b, i) => (
         <Boton key={b.id} ancho variante={b.variante ?? (i === 0 ? "primario" : "secundario")} tamano={i === 0 ? "grande" : "normal"} icono={b.icono} onClick={() => setAbierta(b.id)}>
           {b.texto}

@@ -54,7 +54,7 @@ export function fechaViaje(paraCuando: Date, franja: Franja, o: { iniciado?: boo
 /** Color de cada tono (hoy negro, mañana ámbar, futuro gris, atrasado rojo). */
 export const CLASE_TONO: Record<TonoFecha, string> = {
   hoy: "text-tinta",
-  manana: "text-aviso",
+  manana: "text-aviso-texto",
   futuro: "text-suave",
   atrasado: "text-critico",
   pasado: "text-suave",

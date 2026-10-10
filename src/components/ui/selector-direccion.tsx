@@ -103,7 +103,7 @@ export function SelectorDireccion({ valor, onCambio, nombre = "direccion", etiqu
         )}
       </div>
       {sinRespuesta && !punto && (
-        <p className="text-[12px] text-aviso">No encontramos esa dirección. Tocá el mapa donde queda para poner el pin a mano.</p>
+        <p className="text-[12px] text-aviso-texto">No encontramos esa dirección. Tocá el mapa donde queda para poner el pin a mano.</p>
       )}
       <div className="relative isolate h-[200px] overflow-hidden rounded-md border border-linea">
         <MapaPin punto={punto} onMover={(p) => onCambio({ ...valor, direccion: texto, lat: p.lat, lng: p.lng })} />

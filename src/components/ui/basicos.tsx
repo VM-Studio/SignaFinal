@@ -5,7 +5,7 @@ import type { Tono } from "@/lib/etiquetas";
 
 const tonos: Record<Tono, string> = {
   ok: "bg-ok-fondo text-ok",
-  aviso: "bg-aviso-fondo text-aviso",
+  aviso: "bg-aviso-fondo text-aviso-texto",
   critico: "bg-critico-fondo text-critico",
   activo: "bg-black/[0.06] text-tinta",
   neutro: "bg-black/[0.04] text-suave",
@@ -93,7 +93,7 @@ export function Esqueleto({ className = "" }: { className?: string }) {
 
 /** Número destacado: etiqueta de 11px y la cifra a 28px. */
 export function Cifra({ etiqueta, valor, detalle, tono }: { etiqueta: string; valor: ReactNode; detalle?: ReactNode; tono?: "ok" | "aviso" | "critico" }) {
-  const color = tono === "critico" ? "text-critico" : tono === "aviso" ? "text-aviso" : tono === "ok" ? "text-ok" : "";
+  const color = tono === "critico" ? "text-critico" : tono === "aviso" ? "text-aviso-texto" : tono === "ok" ? "text-ok" : "";
   return (
     <Tarjeta className="p-4">
       <p className="etiqueta">{etiqueta}</p>
@@ -144,7 +144,7 @@ export function AccionPrincipal({ href, icono, titulo, detalle, boton }: { href:
 
 /** Aviso de algo que hay que hacer (fondo suave del color de estado), en una línea con su enlace. */
 export function Llamado({ href, icono, tono, children, enlace }: { href: string; icono: ReactNode; tono: "ok" | "aviso" | "critico"; children: ReactNode; enlace: string }) {
-  const color = { ok: "bg-ok-fondo text-ok", aviso: "bg-aviso-fondo text-aviso", critico: "bg-critico-fondo text-critico" }[tono];
+  const color = { ok: "bg-ok-fondo text-ok", aviso: "bg-aviso-fondo text-aviso-texto", critico: "bg-critico-fondo text-critico" }[tono];
   return (
     <Link href={href} className={`flex min-h-12 items-center gap-3 rounded-[var(--radius-caja)] px-4 py-2 text-sm font-medium lg:min-h-10 [&_svg]:size-4 [&_svg]:shrink-0 ${color}`}>
       {icono}

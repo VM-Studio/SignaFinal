@@ -66,8 +66,8 @@ export async function rutaGoogle(desde: Punto, hasta: Punto, clave = process.env
       "Content-Type": "application/json",
       "X-Goog-Api-Key": clave,
       "X-Goog-FieldMask": "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline",
-      // Si la clave está restringida por sitio web (docs/rutas.md), Google mira este encabezado.
-      ...(process.env.GOOGLE_MAPS_REFERER ? { Referer: process.env.GOOGLE_MAPS_REFERER } : {}),
+      // Si la clave está restringida por sitio web (docs/rutas.md), Google mira este encabezado: el dominio de la app.
+      ...((process.env.GOOGLE_MAPS_REFERER ?? process.env.APP_URL) ? { Referer: process.env.GOOGLE_MAPS_REFERER ?? process.env.APP_URL } : {}),
     },
     body: JSON.stringify({
       origin: punto(desde), destination: punto(hasta), travelMode: "DRIVE", routingPreference: "TRAFFIC_AWARE_OPTIMAL",

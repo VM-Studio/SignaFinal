@@ -31,6 +31,13 @@ describe("PDF de la orden de compra", () => {
     expect(t).not.toContain("BORRADOR");
   }, 30_000);
 
+  it("las fechas sin hora de la base (medianoche UTC) salen con su día, no el anterior", async () => {
+    const t = await texto(await generarPDFOC({ ...base, fecha: new Date("2026-10-10T00:00:00Z"), fechaNecesaria: new Date("2026-10-11T00:00:00Z") }));
+    expect(t).toContain("10/10/2026");
+    expect(t).toContain("11/10/2026");
+    expect(t).not.toContain("09/10/2026");
+  });
+
   it("borrador: marca BORRADOR y sin número", async () => {
     const t = await texto(await generarPDFOC({ ...base, numero: null }, { borrador: true }));
     expect(t).toContain("BORRADOR");
