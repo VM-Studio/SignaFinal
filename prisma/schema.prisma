@@ -68,6 +68,7 @@ model Usuario {
   ocAprobadas               OrdenCompra[]              @relation("OCAprobadaPor")
   ocSolicitadas             OrdenCompra[]              @relation("OCSolicitante")
   recordatorios             Recordatorio[]
+  favoritos                 PedidoFavorito[]
 
   @@index([rol, activo])
 }
@@ -994,17 +995,19 @@ enum EntidadAdjunto {
 // Archivos adjuntos (PDF, Excel, Word, CSV, fotos) en Vercel Blob (src/lib/archivos.ts).
 // entidadId queda vacío mientras se suben y se completa al confirmar el formulario.
 model Adjunto {
-  id          String         @id @default(cuid())
-  entidadTipo EntidadAdjunto
-  entidadId   String?
-  nombre      String
-  url         String
-  tipoMime    String
-  tamanoBytes Int
+  id           String         @id @default(cuid())
+  entidadTipo  EntidadAdjunto
+  entidadId    String?
+  nombre       String
+  url          String
+  tipoMime     String
+  tamanoBytes  Int
   // Interno de Compras (presupuestos, notas): el solicitante no lo ve.
-  interno     Boolean        @default(false)
-  subidoPorId String
-  creadoEn    DateTime       @default(now())
+  interno      Boolean        @default(false)
+  // Copiado al repetir un pedido (mismo archivo, sin volver a subirlo): "del pedido #123".
+  referenciaDe String?
+  subidoPorId  String
+  creadoEn     DateTime       @default(now())
 
   subidoPor Usuario @relation(fields: [subidoPorId], references: [id])
 
@@ -1341,4 +1344,27 @@ model EventoCambio {
 
   @@index([usuarioId, id])
   @@index([fecha])
+}
+
+enum TipoFavorito {
+  MATERIALES
+  VIAJE
+}
+
+/// "Repetir pedido": un pedido marcado con estrella, con nombre ("Pedido semanal de cemento") y los
+/// datos para precargar el formulario (fecha en blanco). Nada se borra: quitar la estrella lo desactiva.
+model PedidoFavorito {
+  id        String       @id @default(cuid())
+  usuarioId String
+  tipo      TipoFavorito
+  nombre    String
+  /// El pedido del que salió (PedidoMaterial o PedidoViaje).
+  pedidoId  String
+  datos     Json
+  activo    Boolean      @default(true)
+  creadoEn  DateTime     @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@index([usuarioId, tipo, activo])
 }

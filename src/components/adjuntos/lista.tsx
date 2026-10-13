@@ -7,7 +7,7 @@ import { claseBoton } from "@/components/ui/boton";
 import { cuando } from "@/lib/formato";
 import { IconoArchivo, pesoLegible } from "./subir";
 
-export type AdjuntoVista = { id: string; nombre: string; tipoMime: string; tamanoBytes: number; interno: boolean; creadoEn: string; subidoPor: string };
+export type AdjuntoVista = { id: string; nombre: string; tipoMime: string; tamanoBytes: number; interno: boolean; creadoEn: string; subidoPor: string; referenciaDe?: string | null };
 
 const seVe = (tipo: string) => tipo === "application/pdf" || tipo.startsWith("image/");
 
@@ -32,7 +32,7 @@ export function ListaAdjuntos({ adjuntos }: { adjuntos: AdjuntoVista[] }) {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{a.nombre}</p>
               <p className="flex items-center gap-1 text-[12px] text-suave">
-                {a.interno && <><Lock className="size-3" /> Solo Compras ·</>} {pesoLegible(a.tamanoBytes)} · {a.subidoPor} · <span suppressHydrationWarning>{cuando(a.creadoEn)}</span>
+                {a.interno && <><Lock className="size-3" /> Solo Compras ·</>} {a.referenciaDe && <>{a.referenciaDe} ·</>} {pesoLegible(a.tamanoBytes)} · {a.subidoPor} · <span suppressHydrationWarning>{cuando(a.creadoEn)}</span>
               </p>
             </div>
             {seVe(a.tipoMime) && (

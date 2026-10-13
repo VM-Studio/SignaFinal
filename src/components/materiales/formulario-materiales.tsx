@@ -8,7 +8,8 @@ import { Opciones } from "@/components/ui/opciones";
 import { AreaTexto, Campo, Entrada, Fecha, MensajeError, Selector } from "@/components/ui/campos";
 import { Combobox } from "@/components/ui/combobox";
 import { useAviso } from "@/components/ui/avisos";
-import { SubirAdjuntos } from "@/components/adjuntos/subir";
+import { IconoArchivo, pesoLegible, SubirAdjuntos } from "@/components/adjuntos/subir";
+import type { PrecargaMateriales } from "@/lib/historial/consultas";
 import { NuevaObra, type ObraCreada, type Persona } from "@/components/obras/formulario-obra";
 import { deshacerPedidoMaterial, pedirMateriales } from "@/lib/materiales/acciones";
 import { diaISO, sumarDias } from "@/lib/formato";
@@ -25,31 +26,37 @@ const VACIO: Renglon = { descripcion: "", cantidad: "", unidad: "u" };
  * para cuándo y prioridad. En el celular va en dos pasos: lo que se pide y después los detalles.
  * Compras lo usa igual para cargar lo que le piden por teléfono (elige quién lo pidió).
  */
-export function FormularioMateriales({ obras: iniciales, obraInicial, compras = false, puedeCrearObra = false, responsables = [] }: {
+export function FormularioMateriales({ obras: iniciales, obraInicial, compras = false, puedeCrearObra = false, responsables = [], precarga = null }: {
   obras: ObraParaPedir[]; obraInicial?: string; compras?: boolean; puedeCrearObra?: boolean; responsables?: Persona[];
+  /** "Repetir": todo precargado del pedido anterior menos la fecha (queda en blanco). */
+  precarga?: PrecargaMateriales | null;
 }) {
   const router = useRouter();
   const aviso = useAviso();
   const [obras, setObras] = useState(iniciales);
-  const unaObra = obraInicial && obras.some((o) => o.id === obraInicial) ? obraInicial : obras.length === 1 ? obras[0].id : null;
+  // Al repetir: la obra del pedido anterior si sigue activa y sigue siendo suya; si no, la elige de nuevo.
+  const obraRepetida = precarga && obras.some((o) => o.id === precarga.obraId) ? precarga.obraId : null;
+  const unaObra = obraRepetida ?? (obraInicial && obras.some((o) => o.id === obraInicial) ? obraInicial : obras.length === 1 ? obras[0].id : null);
   const [obraId, setObraId] = useState<string | null>(unaObra);
   const obra = obras.find((o) => o.id === obraId) ?? null;
-  const [sedeId, setSedeId] = useState("");
+  const [sedeId, setSedeId] = useState(precarga?.sedeId ?? "");
   const [solicitanteId, setSolicitanteId] = useState(compras ? (obra?.personas?.[0]?.id ?? "") : "");
-  const [renglones, setRenglones] = useState<Renglon[]>([VACIO]);
+  const [renglones, setRenglones] = useState<Renglon[]>(precarga?.renglones.length ? precarga.renglones : [VACIO]);
   const [adjuntos, setAdjuntos] = useState<string[]>([]);
+  const [repetidos, setRepetidos] = useState(precarga?.adjuntos ?? []);
   const [subiendo, setSubiendo] = useState(false);
-  const [observaciones, setObservaciones] = useState("");
+  const [observaciones, setObservaciones] = useState(precarga?.observaciones ?? "");
   const hoy = diaISO();
-  const [cuando, setCuando] = useState<"hoy" | "manana" | "fecha">("manana");
+  const [cuando, setCuando] = useState<"hoy" | "manana" | "fecha" | null>(precarga ? null : "manana");
   const [fecha, setFecha] = useState(sumarDias(hoy, 2));
-  const [prioridad, setPrioridad] = useState<"NORMAL" | "URGENTE">("NORMAL");
-  const [paso, setPaso] = useState<1 | 2>(1);
+  const [prioridad, setPrioridad] = useState<"NORMAL" | "URGENTE">(precarga?.prioridad ?? "NORMAL");
+  // Repitiendo, en el celular va directo a la fecha (lo demás ya está): Repetir, fecha, enviar.
+  const [paso, setPaso] = useState<1 | 2>(precarga && obraRepetida ? 2 : 1);
   const [error, setError] = useState<string>();
   const [enviando, setEnviando] = useState(false);
 
   const items = useMemo(() => obras.map((o) => ({ id: o.id, titulo: `Obra ${o.nombre}`, detalle: o.localidad, buscar: o.sedes.map((s) => s.nombre).join(" ") })), [obras]);
-  const hayMateriales = renglones.some((r) => r.descripcion.trim()) || adjuntos.length > 0;
+  const hayMateriales = renglones.some((r) => r.descripcion.trim()) || adjuntos.length > 0 || repetidos.length > 0;
   const cambiar = (i: number, c: Partial<Renglon>) => setRenglones((r) => r.map((x, j) => (j === i ? { ...x, ...c } : x)));
 
   function elegirObra(id: string | null) {
@@ -69,14 +76,18 @@ export function FormularioMateriales({ obras: iniciales, obraInicial, compras = 
   }
 
   async function enviar() {
-    const e = validarPaso1();
+    const e = validarPaso1() ?? (!cuando ? "Elegí para cuándo." : undefined);
     setError(e);
-    if (e) return;
+    if (e) {
+      if (validarPaso1()) setPaso(1);
+      return;
+    }
     setEnviando(true);
     const r = await pedirMateriales({
       obraId: obra!.id, obraSedeId: sedeId || (obra!.sedes.length === 1 ? obra!.sedes[0].id : undefined),
       renglones: renglones.map((x) => ({ descripcion: x.descripcion, cantidad: x.cantidad.replace(",", "."), unidad: x.cantidad ? x.unidad : "" })),
       adjuntos, observaciones, prioridad, solicitanteId: compras ? solicitanteId : undefined,
+      repiteDe: precarga?.origen.id, adjuntosRepetidos: repetidos.map((a) => a.id),
       dia: cuando === "hoy" ? hoy : cuando === "manana" ? sumarDias(hoy, 1) : fecha,
     });
     setEnviando(false);
@@ -144,13 +155,24 @@ export function FormularioMateriales({ obras: iniciales, obraInicial, compras = 
               <div className="col-span-2 grid grid-cols-2 gap-2 sm:col-span-2 sm:contents">
                 <Entrada aria-label={`Cantidad del material ${i + 1}`} inputMode="decimal" value={r.cantidad} onChange={(e) => cambiar(i, { cantidad: e.target.value.replace(/[^\d.,]/g, "") })} placeholder="Cantidad" />
                 <Selector aria-label={`Unidad del material ${i + 1}`} value={r.unidad} onChange={(e) => cambiar(i, { unidad: e.target.value })}>
-                  {UNIDADES.map((u) => <option key={u} value={u}>{u}</option>)}
+                  {[...new Set([...UNIDADES, r.unidad])].map((u) => <option key={u} value={u}>{u}</option>)}
                 </Selector>
               </div>
             </div>
           ))}
           {renglones.length < 50 && (
             <Boton variante="fantasma" tamano="chico" icono={<Plus />} onClick={() => setRenglones((x) => [...x, VACIO])} className="self-start">Agregar material</Boton>
+          )}
+          {repetidos.length > 0 && (
+            <ul className="flex flex-col gap-1.5">
+              {repetidos.map((a) => (
+                <li key={a.id} className="flex min-h-11 items-center gap-2 rounded-md border border-linea bg-papel px-3 py-1.5 text-sm">
+                  <IconoArchivo nombre={a.nombre} />
+                  <span className="min-w-0 flex-1"><span className="block truncate font-medium">{a.nombre}</span><span className="text-[12px] text-suave">del pedido #{precarga!.origen.numero} · {pesoLegible(a.tamanoBytes)}</span></span>
+                  <button type="button" aria-label={`Sacar ${a.nombre}`} onClick={() => setRepetidos((xs) => xs.filter((x) => x.id !== a.id))} className="grid size-9 place-items-center rounded-md text-suave hover:text-tinta"><X className="size-4" /></button>
+                </li>
+              ))}
+            </ul>
           )}
           <SubirAdjuntos entidadTipo="PEDIDO_MATERIAL" etiqueta="Adjuntar lista de materiales" onCambio={(ids, s) => { setAdjuntos(ids); setSubiendo(s); }} />
           <p className="text-[12px] text-suave">PDF, Excel, Word, CSV o fotos (hasta 20 MB cada uno). Se pueden adjuntar varios.</p>
@@ -168,7 +190,7 @@ export function FormularioMateriales({ obras: iniciales, obraInicial, compras = 
         </Campo>
         <div className="flex flex-col gap-1.5">
           <p className="text-[12px] font-medium text-suave">¿Para cuándo?</p>
-          <Opciones nombre="Para cuándo" columnas={3} valor={cuando} onElegir={(v) => setCuando(v as typeof cuando)} opciones={[{ valor: "hoy", titulo: "Hoy" }, { valor: "manana", titulo: "Mañana" }, { valor: "fecha", titulo: "Elegir" }]} />
+          <Opciones nombre="Para cuándo" columnas={3} valor={cuando ?? undefined} onElegir={(v) => setCuando(v as typeof cuando)} opciones={[{ valor: "hoy", titulo: "Hoy" }, { valor: "manana", titulo: "Mañana" }, { valor: "fecha", titulo: "Elegir" }]} />
           {cuando === "fecha" && <Fecha aria-label="Fecha" value={fecha} min={hoy} onChange={(e) => setFecha(e.target.value)} />}
         </div>
         <div className="flex flex-col gap-1.5">
@@ -178,6 +200,14 @@ export function FormularioMateriales({ obras: iniciales, obraInicial, compras = 
         </div>
       </div>
 
+      {/* Antes de enviar, qué se está repitiendo. */}
+      {precarga && (
+        <div className="rounded-md border border-linea bg-fondo px-3 py-2.5 text-sm">
+          <p className="font-medium">Repetís el pedido #{precarga.origen.numero} del {precarga.origen.fecha.split("-").slice(1).reverse().map(Number).join("/")} para {precarga.origen.obra}, con {precarga.origen.items} {precarga.origen.items === 1 ? "ítem" : "ítems"}.</p>
+          {precarga.origen.oc && <p className="mt-0.5 text-suave">La vez anterior lo compró {precarga.origen.oc.proveedor}, {precarga.origen.oc.numero}. Compras lo va a ver en sus notas.</p>}
+          {!obraRepetida && <p className="mt-0.5 font-medium text-critico">La obra de ese pedido ya no está disponible: elegí la obra.</p>}
+        </div>
+      )}
       <MensajeError>{error}</MensajeError>
       {paso === 1 && (
         <div className="lg:hidden"><Boton ancho onClick={() => { const e = validarPaso1(); setError(e); if (!e) setPaso(2); }}>Siguiente</Boton></div>

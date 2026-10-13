@@ -286,6 +286,18 @@ Reglas (reemplazan lo que diga otra cosa más arriba):
   desarrollo, sin token, se guardan en la base). Se sirven solo con sesión y permiso en
   /api/adjuntos/[id]. Tipos: pdf, xls, xlsx, doc, docx, csv, jpg, png, heic; hasta 20 MB.
 
+## Repetir pedido e historial
+
+- /pedir, /pedir-materiales y /compras/nuevo tienen el panel "Pedidos anteriores" (columna derecha de
+  360 px en escritorio, hoja inferior en el celular): los últimos 20 (propios primero; Compras, de todas
+  las obras), buscador (material, obra, OC), Repetir y Ver, y arriba los **favoritos** (PedidoFavorito,
+  con nombre editable; quitar la estrella lo desactiva). src/lib/historial/.
+- Repetir precarga todo menos la **fecha** (en blanco, obligatoria). Materiales: obra (si sigue activa y
+  es suya), renglones (de un pedido viejo sin renglones se arman desde la descripción), adjuntos como
+  referencia (Adjunto.referenciaDe "del pedido #123", mismo archivo, sin volver a subirlo),
+  observaciones y prioridad; a Compras le queda en notas internas con quién se compró la vez anterior.
+  Un retiro en proveedor no se repite como viaje: se repite el pedido de materiales (?repetir=).
+
 ## Tiempo real (la pantalla siempre al día, sin recargar)
 
 - Cada cambio deja un **EventoCambio** por destinatario (src/lib/tiempo-real.ts). Se emite solo desde

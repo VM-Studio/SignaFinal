@@ -16,6 +16,7 @@ import type { Duplicado } from "@/lib/pedidos/reglas";
 import { PESOS, TIPO, TIPOS_PARA_PEDIR, VOLUMEN_ESCOMBROS } from "@/lib/pedidos/presentacion";
 import { diaISO, sumarDias } from "@/lib/formato";
 import type { DatosFormulario } from "@/lib/pedidos/consultas";
+import type { PrecargaViaje } from "@/lib/historial/consultas";
 import { IconoTipo } from "./iconos";
 
 type Lugar = { tipo: OrigenTipo; id: string };
@@ -23,32 +24,35 @@ const clave = (l?: Lugar) => (l ? `${l.tipo}:${l.id}` : "");
 const deClave = (k: string): Lugar | undefined => (k ? { tipo: k.split(":")[0] as OrigenTipo, id: k.split(":")[1] } : undefined);
 
 /** "Paso 1 ¿Qué hay que hacer? → Paso 2 Detalles → Paso 3 ¿Para cuándo?" */
-export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulario; obraInicial?: string }) {
+export function FormularioPedido({ datos, obraInicial, precarga = null }: { datos: DatosFormulario; obraInicial?: string; precarga?: PrecargaViaje | null }) {
   const router = useRouter();
   const aviso = useAviso();
-  const unaObra = obraInicial && datos.obras.some((o) => o.id === obraInicial) ? obraInicial : datos.obras.length === 1 ? datos.obras[0].id : "";
+  // Al repetir: la obra del pedido anterior si sigue siendo suya; si no, la elige de nuevo.
+  const obraRepetida = precarga && datos.obras.some((o) => o.id === precarga.obraId) ? precarga.obraId : "";
+  const unaObra = obraRepetida || (obraInicial && datos.obras.some((o) => o.id === obraInicial) ? obraInicial : datos.obras.length === 1 ? datos.obras[0].id : "");
 
-  const [paso, setPaso] = useState<1 | 2 | 3>(1);
+  // Repitiendo, va directo a "¿Para cuándo?" (todo lo demás ya está); si la obra no sirve, a los detalles.
+  const [paso, setPaso] = useState<1 | 2 | 3>(precarga ? (obraRepetida ? 3 : 2) : 1);
   const [verResumen, setVerResumen] = useState(false);
-  const [tipo, setTipo] = useState<TipoPedido>();
+  const [tipo, setTipo] = useState<TipoPedido | undefined>(precarga?.tipo);
   // Detalles
   const [obraId, setObraId] = useState(unaObra);
-  const [sedeId, setSedeId] = useState("");
+  const [sedeId, setSedeId] = useState(precarga?.sedeId ?? "");
   const sedes = datos.obras.find((o) => o.id === obraId)?.sedes ?? [];
-  const [que, setQue] = useState("");
-  const [pesoKg, setPesoKg] = useState("");
-  const [desde, setDesde] = useState<Lugar>();
-  const [herramientaId, setHerramientaId] = useState("");
+  const [que, setQue] = useState(precarga?.que ?? "");
+  const [pesoKg, setPesoKg] = useState(precarga?.pesoKg ?? "");
+  const [desde, setDesde] = useState<Lugar | undefined>(precarga?.desde ?? undefined);
+  const [herramientaId, setHerramientaId] = useState(precarga?.herramientaId ?? "");
   const [busqueda, setBusqueda] = useState("");
-  const [volumen, setVolumen] = useState("");
-  const [personas, setPersonas] = useState("");
-  // Cuándo
+  const [volumen, setVolumen] = useState<string>(precarga?.tipo === "RETIRO_ESCOMBROS" ? (VOLUMEN_ESCOMBROS.find((v) => String(v.kg) === precarga.pesoKg)?.valor ?? "") : "");
+  const [personas, setPersonas] = useState(precarga?.personas ?? "");
+  // Cuándo (al repetir, en blanco: se elige de nuevo)
   const hoy = diaISO();
-  const [diaElegido, setDiaElegido] = useState<"hoy" | "manana" | "fecha">("hoy");
+  const [diaElegido, setDiaElegido] = useState<"hoy" | "manana" | "fecha" | null>(precarga ? null : "hoy");
   const [fecha, setFecha] = useState(sumarDias(hoy, 2));
-  const [franja, setFranja] = useState<"MANANA" | "TARDE" | "HORA_EXACTA">("MANANA");
-  const [hora, setHora] = useState("09:00");
-  const [prioridad, setPrioridad] = useState<"NORMAL" | "URGENTE">("NORMAL");
+  const [franja, setFranja] = useState<"MANANA" | "TARDE" | "HORA_EXACTA">(precarga?.franja ?? "MANANA");
+  const [hora, setHora] = useState(precarga?.hora ?? "09:00");
+  const [prioridad, setPrioridad] = useState<"NORMAL" | "URGENTE">(precarga?.prioridad ?? "NORMAL");
 
   const [error, setError] = useState<string>();
   const [enviando, setEnviando] = useState(false);
@@ -94,6 +98,7 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
   /** Arma lo que va al servidor según el tipo. */
   function armar(): DatosPedido | string {
     if (!tipo) return "Elegí qué hay que hacer.";
+    if (!diaElegido && paso === 3) return "Elegí para cuándo.";
     if (!obraId) return "Elegí la obra.";
     if (sedes.length > 1 && !sedeId) return "Elegí a qué sede de la obra va.";
     const destinoSedeId = sedes.length > 1 ? sedeId : sedes.length === 1 ? sedes[0].id : undefined;
@@ -331,7 +336,7 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
             <Opciones
               nombre="Día"
               columnas={3}
-              valor={diaElegido}
+              valor={diaElegido ?? undefined}
               onElegir={(v) => setDiaElegido(v as typeof diaElegido)}
               opciones={[
                 { valor: "hoy", titulo: "Hoy" },
@@ -370,6 +375,11 @@ export function FormularioPedido({ datos, obraInicial }: { datos: DatosFormulari
             />
             <p className="text-sm text-suave">Urgente solo si la obra se para sin esto.</p>
           </div>
+          {precarga && (
+            <p className="rounded-md border border-linea bg-fondo px-3 py-2.5 text-sm font-medium">
+              Repetís el pedido #{precarga.origen.numero} del {precarga.origen.fecha.split("-").slice(1).reverse().map(Number).join("/")} para Obra {precarga.origen.obra}.
+            </p>
+          )}
           <MensajeError>{error}</MensajeError>
           <Boton ancho cargando={enviando} onClick={() => enviar(false)} icono={<Send />}>
             Pedir el viaje

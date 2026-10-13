@@ -139,14 +139,14 @@ export async function engancharAdjuntos(tx: Prisma.TransactionClient, ids: strin
   return r.count;
 }
 
-export type AdjuntoPlano = { id: string; nombre: string; tipoMime: string; tamanoBytes: number; interno: boolean; creadoEn: string; subidoPor: string };
+export type AdjuntoPlano = { id: string; nombre: string; tipoMime: string; tamanoBytes: number; interno: boolean; creadoEn: string; subidoPor: string; referenciaDe?: string | null };
 
 /** Los adjuntos de una entidad, para mostrar (sin las internas si no corresponde). */
 export async function adjuntosDe(entidadTipo: EntidadAdjunto, entidadId: string, conInternos: boolean): Promise<AdjuntoPlano[]> {
   const a = await db.adjunto.findMany({
     where: { entidadTipo, entidadId, ...(conInternos ? {} : { interno: false }) },
     orderBy: { creadoEn: "asc" },
-    select: { id: true, nombre: true, tipoMime: true, tamanoBytes: true, interno: true, creadoEn: true, subidoPor: { select: { nombre: true } } },
+    select: { id: true, nombre: true, tipoMime: true, tamanoBytes: true, interno: true, creadoEn: true, referenciaDe: true, subidoPor: { select: { nombre: true } } },
   });
   return a.map((x) => ({ ...x, creadoEn: x.creadoEn.toISOString(), subidoPor: x.subidoPor.nombre }));
 }

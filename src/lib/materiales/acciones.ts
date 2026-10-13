@@ -1,5 +1,6 @@
 "use server";
 
+import { precargaMaterial } from "@/lib/historial/consultas";
 import { eliminar, engancharAdjuntos } from "@/lib/archivos";
 import { guardarPDF } from "@/lib/compras/servicio";
 import { z } from "zod";
@@ -52,9 +53,12 @@ const esquemaPedir = z
     observaciones: z.preprocess(vacio, z.string().trim().max(2000).optional()),
     // Solo Compras: a nombre de quién (pedido que le hicieron por teléfono).
     solicitanteId: z.preprocess(vacio, z.string().optional()),
+    // "Repetir": el pedido de origen y sus adjuntos que se copian como referencia (sin volver a subirlos).
+    repiteDe: z.preprocess(vacio, z.string().optional()),
+    adjuntosRepetidos: z.array(z.string()).max(20).default([]),
   })
   .superRefine((d, ctx) => {
-    if (!d.renglones.length && !d.adjuntos.length) ctx.addIssue({ code: "custom", message: "Escribí qué necesitás o adjuntá la lista de materiales." });
+    if (!d.renglones.length && !d.adjuntos.length && !d.adjuntosRepetidos.length) ctx.addIssue({ code: "custom", message: "Escribí qué necesitás o adjuntá la lista de materiales." });
   });
 export type DatosPedirMateriales = z.input<typeof esquemaPedir>;
 
@@ -84,33 +88,46 @@ export async function pedirMateriales(entrada: DatosPedirMateriales): Promise<Re
     // En el orden en que se adjuntaron, con las planillas y los PDF antes que las fotos (la descripción nombra el primero).
     const adjuntos = [...encontrados].sort((a, b) => Number(a.tipoMime.startsWith("image/")) - Number(b.tipoMime.startsWith("image/")) || d.adjuntos.indexOf(a.id) - d.adjuntos.indexOf(b.id));
     if (adjuntos.length !== d.adjuntos.length) throw new ErrorNegocio("Algún archivo no se terminó de subir. Quitalo y adjuntalo de nuevo.");
-    if (!d.renglones.length && !adjuntos.length) throw new ErrorNegocio("Escribí qué necesitás o adjuntá la lista de materiales.");
+    // Repetir: el pedido de origen tiene que ser uno que puede ver; sus adjuntos se copian como referencia.
+    const origen = d.repiteDe ? await precargaMaterial(d.repiteDe, comoCompras) : null;
+    if (d.repiteDe && !origen) throw new ErrorNegocio("El pedido que querés repetir ya no está disponible.");
+    const repetidos = origen ? await db.adjunto.findMany({ where: { id: { in: d.adjuntosRepetidos }, entidadTipo: "PEDIDO_MATERIAL", entidadId: origen.origen.id, interno: false } }) : [];
+    if (repetidos.length !== d.adjuntosRepetidos.length) throw new ErrorNegocio("Algún archivo del pedido anterior ya no está. Quitalo y volvé a intentar.");
+    const todos = [...adjuntos, ...repetidos];
+    if (!d.renglones.length && !todos.length) throw new ErrorNegocio("Escribí qué necesitás o adjuntá la lista de materiales.");
 
     const lineas = d.renglones.map(textoRenglon);
     const descripcion = lineas.length
       ? lineas.join("\n")
-      : `Ver lista adjunta (${adjuntos[0].nombre}${adjuntos.length > 1 ? ` y ${adjuntos.length - 1} más` : ""})`;
+      : `Ver lista adjunta (${todos[0].nombre}${todos.length > 1 ? ` y ${todos.length - 1} más` : ""})`;
     const observaciones = [comoCompras ? `Lo cargó ${yo.nombre} (Compras) por pedido de ${solicitante.nombre}.` : null, d.observaciones].filter(Boolean).join(" ") || null;
     const p = await db.$transaction(async (tx) => {
       const p = await tx.pedidoMaterial.create({
         data: {
           obraId: obra.id, obraSedeId: sede?.id ?? null, solicitanteId: solicitante.id, descripcion, paraCuando: aFecha(d.dia, "12:00"), prioridad: d.prioridad, observaciones,
           renglones: d.renglones.length ? d.renglones.map((r) => ({ descripcion: r.descripcion, cantidad: r.cantidad ?? null, unidad: r.unidad ?? null })) : undefined,
+          // Para que Compras cotice igual y más rápido: con quién se compró la vez anterior (nota interna).
+          notasCompras: origen ? `Repite el pedido #${origen.origen.numero}.${origen.origen.oc ? ` La vez anterior lo compró ${origen.origen.oc.proveedor}, ${origen.origen.oc.numero}.` : ""}` : null,
         },
         select: { id: true, numero: true },
       });
       await engancharAdjuntos(tx, adjuntos.map((a) => a.id), "PEDIDO_MATERIAL", p.id, yo.id);
+      if (repetidos.length) {
+        await tx.adjunto.createMany({
+          data: repetidos.map((a) => ({ entidadTipo: "PEDIDO_MATERIAL" as const, entidadId: p.id, nombre: a.nombre, url: a.url, tipoMime: a.tipoMime, tamanoBytes: a.tamanoBytes, subidoPorId: yo.id, referenciaDe: `del pedido #${origen!.origen.numero}` })),
+        });
+      }
       await tx.cambioEstadoMaterial.create({ data: { pedidoMaterialId: p.id, de: null, a: "SOLICITADO", usuarioId: yo.id, nota: comoCompras ? `Cargado por Compras a pedido de ${solicitante.nombre}` : null } });
       await auditar(tx, {
         usuarioId: yo.id, accion: "material.pedir", entidadId: p.id,
-        resumen: `${yo.nombre} pidió a Compras ${queLleva(descripcion)}${lineas.length > 1 ? ` y ${lineas.length - 1} más` : ""} para Obra ${obra.nombre}${sede ? ` (${sede.nombre})` : ""}${adjuntos.length ? ` con ${adjuntos.length} ${adjuntos.length === 1 ? "archivo adjunto" : "archivos adjuntos"}` : ""}${d.prioridad === "URGENTE" ? " (urgente)" : ""}${comoCompras ? ` a nombre de ${solicitante.nombre}` : ""}`,
+        resumen: `${yo.nombre} pidió a Compras ${queLleva(descripcion)}${lineas.length > 1 ? ` y ${lineas.length - 1} más` : ""} para Obra ${obra.nombre}${sede ? ` (${sede.nombre})` : ""}${todos.length ? ` con ${todos.length} ${todos.length === 1 ? "archivo adjunto" : "archivos adjuntos"}` : ""}${d.prioridad === "URGENTE" ? " (urgente)" : ""}${comoCompras ? ` a nombre de ${solicitante.nombre}` : ""}${origen ? ` (repite el pedido #${origen.origen.numero})` : ""}`,
         despues: { estado: "SOLICITADO", renglones: d.renglones, adjuntos: adjuntos.map((a) => a.nombre), dia: d.dia, prioridad: d.prioridad, observaciones: d.observaciones ?? null },
       });
       // A Compras (push) y al dueño (bandeja). Si lo cargó Compras, no se avisa a sí mismo.
       await notificarEvento(EVENTO.materialNuevo({
         pedidoMaterialId: p.id, solicitanteId: solicitante.id, obraId: obra.id, obra: obra.nombre, quien: solicitante.nombre, para: aFecha(d.dia, "12:00"), urgente: d.prioridad === "URGENTE",
-        que: lineas.length ? descripcion : `materiales (lista adjunta: ${adjuntos[0].nombre})`,
-        observaciones: d.observaciones ?? null, adjuntos: adjuntos.length,
+        que: lineas.length ? descripcion : `materiales (lista adjunta: ${todos[0].nombre})`,
+        observaciones: d.observaciones ?? null, adjuntos: todos.length,
       }), { tx, actor: yo.id });
       return p;
     });
