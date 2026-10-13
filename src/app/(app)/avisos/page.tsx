@@ -67,7 +67,7 @@ export default async function PaginaAvisos({ searchParams }: { searchParams: Pro
                 {g.items.map((n) => {
                   const Icono = ICONO_AVISO[n.tipo];
                   return (
-                    <li key={n.id}>
+                    <li key={n.id} data-vivo-id={n.id}>
                       <ItemAviso id={n.id} enlace={n.enlace} leida={!!n.leidaEn}>
                         <div className="flex items-start gap-3">
                           <Icono aria-hidden className={`mt-0.5 size-5 shrink-0 ${n.leidaEn ? "text-apagado" : ""}`} />

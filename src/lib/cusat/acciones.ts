@@ -1,12 +1,12 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { exigirPermiso } from "@/lib/auth/sesion";
+import { exigirPermiso, exigirSesion } from "@/lib/auth/sesion";
 import { auditar } from "@/lib/auditoria";
 import { ejecutar, ErrorNegocio, type Resultado } from "@/lib/resultado";
 import { revalidar } from "@/lib/revalidar";
 import { fuenteCusat } from "./index";
-import { sincronizar } from "./sincronizar";
+import { sincronizar, sincronizarSiHaceFalta } from "./sincronizar";
 import { CLAVE, guardarEstado, leerEstado, type SinEnlazar } from "./estado";
 import type { Prueba } from "./tipos";
 
@@ -56,4 +56,11 @@ export async function enlazar(idExterno: string, vehiculoId: string): Promise<Re
     refrescar();
     return null;
   });
+}
+
+/** Botón "Actualizar" en una pantalla con mapa (cualquier rol con sesión): trae las posiciones de Cusat ya, si no se trajeron hace instantes. */
+export async function sincronizarCusatAhora() {
+  await exigirSesion();
+  await sincronizarSiHaceFalta(); // nunca lanza
+  return true;
 }

@@ -85,7 +85,7 @@ async function Lista({ tab, q, donde, n, obras, depositos, qs }: { tab: Pestana;
         <>
           <ul className="-mx-4 divide-y divide-linea border-y border-linea bg-papel lg:hidden">
             {filas.map((h) => (
-              <li key={h.id}>
+              <li key={h.id} data-vivo-id={h.id}>
                 <Link href={`/herramientas/${h.id}`} className="flex min-h-14 items-start justify-between gap-3 px-4 py-3 active:bg-hover">
                   <div className="min-w-0">
                     <p className="font-medium">{h.nombre}</p>
@@ -104,7 +104,7 @@ async function Lista({ tab, q, donde, n, obras, depositos, qs }: { tab: Pestana;
               </thead>
               <tbody>
                 {filas.map((h) => (
-                  <tr key={h.id}>
+                  <tr key={h.id} data-vivo-id={h.id}>
                     <td className="font-medium"><Link href={`/herramientas/${h.id}`} className="hover:underline">{h.nombre}</Link></td>
                     <td className="text-suave tabular-nums">{h.codigo}</td>
                     <td className="text-suave">{h.categoria}</td>

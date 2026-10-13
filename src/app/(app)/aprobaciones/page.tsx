@@ -35,7 +35,7 @@ export default async function PaginaAprobaciones() {
       ) : (
         <ul className="flex flex-col gap-4">
           {ocs.map((o) => (
-            <li key={o.id}>
+            <li key={o.id} data-vivo-id={o.pedidoMaterialId}>
               <Tarjeta className="flex flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -100,7 +100,7 @@ export default async function PaginaAprobaciones() {
             </li>
           ))}
           {sinOC.map((f) => (
-            <li key={f.id}>
+            <li key={f.id} data-vivo-id={f.id}>
               <Tarjeta className="p-4">
                 <p className="etiqueta">{nroOC(f.ordenCompra) ?? "Sin número de OC"} · Obra {f.obra}</p>
                 <Link href={`/compras/${f.id}`} className="mt-1 block font-medium whitespace-pre-line hover:underline">{f.descripcion}</Link>

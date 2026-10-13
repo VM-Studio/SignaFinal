@@ -1317,3 +1317,28 @@ model Recordatorio {
   @@index([programadoPara, enviadoEn])
   @@index([entidadId])
 }
+
+enum EntidadCambio {
+  PEDIDO_VIAJE
+  VIAJE
+  PEDIDO_MATERIAL
+  ORDEN_COMPRA
+  MATERIAL_LISTO
+  HERRAMIENTA
+  ALERTA
+  AVISO
+}
+
+/// Tiempo real: "algo que este usuario puede estar mirando cambió". El stream por usuario
+/// (/api/tiempo-real/stream) los entrega en orden; se borran a las 24 h (job diario).
+model EventoCambio {
+  id        Int           @id @default(autoincrement())
+  usuarioId String
+  entidad   EntidadCambio
+  entidadId String
+  accion    String
+  fecha     DateTime      @default(now())
+
+  @@index([usuarioId, id])
+  @@index([fecha])
+}

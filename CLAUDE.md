@@ -286,6 +286,24 @@ Reglas (reemplazan lo que diga otra cosa más arriba):
   desarrollo, sin token, se guardan en la base). Se sirven solo con sesión y permiso en
   /api/adjuntos/[id]. Tipos: pdf, xls, xlsx, doc, docx, csv, jpg, png, heic; hasta 20 MB.
 
+## Tiempo real (la pantalla siempre al día, sin recargar)
+
+- Cada cambio deja un **EventoCambio** por destinatario (src/lib/tiempo-real.ts). Se emite solo desde
+  tres lugares: **auditar()** (toda acción audita: con la entidad auditada se resuelven los
+  destinatarios: pedido de viaje → el que pidió, el chofer, todos los choferes, Dirección, el capataz,
+  los responsables de la obra y Compras si retira material; pedido de material / OC / habilitación →
+  Compras, Dirección, el que pidió y los responsables; herramienta → Depósito, Dirección, capataz y
+  responsables), **notificar()** (AVISO) y **evaluarAlertas()** (ALERTA). Una acción nueva no tiene que
+  hacer nada extra mientras audite. Se borran a las 24 h (job diario de alertas).
+- UN stream por pestaña: /api/tiempo-real/stream (SSE, cada 2 s, corta a los 50 s y el navegador
+  reconecta con Last-Event-ID; ventana hacia atrás para los que confirman tarde; ?modo=json = polling
+  cada 8 s si no hay SSE). Proveedor en el layout de (app) (components/layout/tiempo-real.tsx).
+- Qué refresca cada pantalla: tabla POR_RUTA en components/layout/actualizar.tsx (los formularios, no).
+  router.refresh() directo (no dentro de una transición propia: eso lo demoraba segundos), debounce
+  500 ms, y si hay un campo con foco espera a que lo suelte. Las filas con data-vivo-id se resaltan 2 s.
+- Header: botón **Actualizar** (refresco + reconexión + Cusat en pantallas con mapa) con el punto de
+  conexión (verde en vivo, gris reconectando, rojo sin conexión); en celular, deslizar hacia abajo.
+
 ## Flota real (datos de Cusat, confirmar con el dueño)
 
 | Cusat | Patente | En la app | Tipo | Cola |

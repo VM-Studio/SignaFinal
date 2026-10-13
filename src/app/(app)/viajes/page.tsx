@@ -57,7 +57,7 @@ async function TodosLosViajes({ vista, pagina }: { vista: "activos" | "terminado
             </thead>
             <tbody>
               {viajes.map((v) => (
-                <tr key={v.id}>
+                <tr key={v.id} data-vivo-id={v.pedidoId}>
                   <td><Insignia tono={ESTADO[v.estado].tono}>{ESTADO[v.estado].t}</Insignia></td>
                   <td className="max-w-xs"><Link href={`/solicitudes/${v.pedidoId}`} className="line-clamp-1 font-medium hover:underline">{v.descripcion}</Link></td>
                   <td>Obra {v.obra}</td>

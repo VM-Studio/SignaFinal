@@ -1,4 +1,5 @@
 import "server-only";
+import { emitirCambio } from "@/lib/tiempo-real";
 import { after } from "next/server";
 import webpush from "web-push";
 import type { Prisma, PrismaClient, TipoNotificacion } from "@prisma/client";
@@ -168,5 +169,7 @@ export async function notificar(usuarioId: string, tipo: TipoNotificacion, c: Co
     select: { id: true },
   });
   if (o.push !== false || avisosATodos()) despues(() => enviarPush(n.id));
+  // Todo aviso es un cambio: la campana y la bandeja se actualizan al instante.
+  await emitirCambio([usuarioId], "AVISO", n.id, tipo, cliente);
   return n.id;
 }

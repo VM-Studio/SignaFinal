@@ -30,7 +30,7 @@ export function ColaMateriales({ filas, base = "/compras", compacta = false }: {
     <>
       <ul className={`divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel ${compacta ? "" : "lg:hidden"}`}>
         {filas.map((f) => (
-          <li key={f.id}>
+          <li key={f.id} data-vivo-id={f.id}>
             <Link href={`${base}/${f.id}`} className={`flex min-h-14 items-center gap-3 px-4 py-2 lg:min-h-11 hover:bg-hover ${f.demorado ? "" : ""}`}>
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-2"><span className="truncate font-medium">{primerRenglon(f.descripcion)}</span><Marcas f={f} /></p>
@@ -53,7 +53,7 @@ export function ColaMateriales({ filas, base = "/compras", compacta = false }: {
           </thead>
           <tbody>
             {filas.map((f) => (
-              <tr key={f.id} >
+              <tr key={f.id} data-vivo-id={f.id}>
                 <td className="tabular-nums"><Link href={`${base}/${f.id}`} className="font-medium text-suave hover:text-tinta">#{f.numero}</Link></td>
                 <td className="max-w-[320px]">
                   <span className="flex items-center gap-2"><Link href={`${base}/${f.id}`} className="truncate font-medium hover:underline">{primerRenglon(f.descripcion)}</Link><Marcas f={f} />{f.prioridad === "URGENTE" && <Insignia tono="critico">Urgente</Insignia>}</span>
@@ -80,7 +80,7 @@ export function MisMateriales({ filas }: { filas: FilaMaterial[] }) {
         const listo = !!f.listoId;
         const frase = fraseMaterial(listo ? "LISTO_PARA_RETIRAR" : f.estado, { proveedor: f.proveedorListo, llega: f.llega });
         return (
-          <li key={f.id} className="flex flex-col lg:flex-row lg:items-center">
+          <li key={f.id} data-vivo-id={f.id} className="flex flex-col lg:flex-row lg:items-center">
             <Link href={`/mis-pedidos/material/${f.id}`} className="flex min-h-14 min-w-0 flex-1 items-center gap-3 px-4 py-2.5 hover:bg-hover">
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{primerRenglon(f.descripcion)}</p>

@@ -181,3 +181,17 @@ html.splash-visto #splash {
 .pt-segura {
   padding-top: env(safe-area-inset-top);
 }
+
+/* Tiempo real: la fila que cambió se resalta 2 s con fondo suave (src/components/layout/tiempo-real.tsx). */
+@keyframes vivo-resaltado {
+  from { background-color: rgb(17 24 39 / 0.07); }
+  to { background-color: transparent; }
+}
+.vivo-resaltado {
+  animation: vivo-resaltado 2s ease-out;
+}
+/* El deslizar para actualizar es propio: que el navegador no recargue la página con el suyo. */
+html,
+body {
+  overscroll-behavior-y: contain;
+}

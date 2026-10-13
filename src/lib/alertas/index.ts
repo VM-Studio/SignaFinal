@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import type { AlertaCalculada, Modulo, Regla } from "./tipos";
 import { personasDeRegla, rolesDeRegla } from "./destinatarios";
+import { cambioDeAlertas } from "@/lib/tiempo-real";
 
 /* Sin "server-only" ni imports de Next: también lo usa la carga de datos de demo (prisma/seed.ts).
    Para reevaluar después de una acción, usar reevaluar() de ./reevaluar. */
@@ -47,6 +48,8 @@ export async function evaluarAlertas(modulos?: Modulo[]) {
     });
   }, { timeout: 60_000 });
 
+  // Tiempo real: las alertas nuevas aparecen al instante en la pantalla de quien corresponde.
+  await cambioDeAlertas(nuevas.map((a) => ({ claveUnica: a.claveUnica, personas: a.personas, rolesDestino: rolesDeRegla(a.regla) })));
   return { reglas: reglas.length, activas: calculadas.length, nuevas };
 }
 

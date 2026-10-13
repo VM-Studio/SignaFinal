@@ -4,10 +4,8 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { useRouter } from "next/navigation";
 import { Bell, X } from "lucide-react";
 import type { EstadoAvisos } from "@/lib/avisos/estado";
+import { useEventosCambio } from "./tiempo-real";
 
-/** El stream se considera caído si falla esto seguido sin abrir: se pasa a polling. */
-const FALLAS_PARA_POLLING = 3;
-const POLLING_MS = 15_000;
 const TOAST_MS = 5_000;
 
 type Contexto = { n: number; escuchar: (fn: (tipo: "aviso" | "viaje") => void) => () => void };
@@ -30,9 +28,8 @@ export function useAlCambiar(fn: (tipo: "aviso" | "viaje") => void) {
 }
 
 /**
- * Avisos en vivo: un solo EventSource por pestaña a /api/avisos/stream (el servidor corta a los
- * 50 s y el navegador reconecta solo). Si el stream no anda, polling cada 15 s. Cuando llega un
- * aviso nuevo, la campana cambia al instante y aparece un toast de 5 s que abre el enlace.
+ * Avisos en vivo, sobre el stream de tiempo real (tiempo-real.tsx): cuando llega un aviso nuevo, la
+ * campana cambia al instante y aparece un toast de 5 s que abre el enlace.
  */
 export function AvisosEnVivo({ inicial, children }: { inicial: number; children: ReactNode }) {
   const router = useRouter();
@@ -53,49 +50,21 @@ export function AvisosEnVivo({ inicial, children }: { inicial: number; children:
     if (e.viaje !== antes.viaje) oyentes.current.forEach((f) => f("viaje"));
   }, []);
 
-  useEffect(() => {
-    let fuente: EventSource | null = null;
-    let polling: number | undefined;
-    let fallas = 0;
-    let vivo = true;
-
-    const encuestar = async () => {
-      if (document.hidden) return;
-      try {
-        const r = await fetch("/api/avisos/contador", { cache: "no-store" });
-        if (r.ok && vivo) recibir((await r.json()) as EstadoAvisos);
-      } catch {}
-    };
-    const aPolling = () => {
-      fuente?.close();
-      fuente = null;
-      if (polling) return;
-      void encuestar();
-      polling = window.setInterval(encuestar, POLLING_MS);
-    };
-
-    if (typeof EventSource === "undefined") aPolling();
-    else {
-      fuente = new EventSource("/api/avisos/stream");
-      fuente.addEventListener("open", () => (fallas = 0));
-      fuente.addEventListener("avisos", (ev) => {
-        fallas = 0;
-        try {
-          recibir(JSON.parse((ev as MessageEvent<string>).data) as EstadoAvisos);
-        } catch {}
-      });
-      // El corte de los 50 s también llega como error: el navegador reconecta solo. Solo si falla
-      // varias veces seguidas sin volver a abrir, pasa a polling.
-      fuente.addEventListener("error", () => {
-        if (++fallas >= FALLAS_PARA_POLLING) aPolling();
-      });
-    }
-    return () => {
-      vivo = false;
-      fuente?.close();
-      if (polling) window.clearInterval(polling);
-    };
+  // Un solo stream por pestaña (tiempo-real.tsx): un aviso nuevo trae el estado de la campana; un
+  // cambio de viaje se lo pasa a la pantalla del viaje. Al reconectar después de una caída, también.
+  const traer = useCallback(async () => {
+    try {
+      const r = await fetch("/api/avisos/contador", { cache: "no-store" });
+      if (r.ok) recibir((await r.json()) as EstadoAvisos);
+    } catch {}
   }, [recibir]);
+  useEffect(() => {
+    void traer(); // punto de partida (lo que ya estaba no es "nuevo")
+  }, [traer]);
+  useEventosCambio((e) => {
+    if (e === "reconexion" || e.entidad === "AVISO") void traer();
+    if (e === "reconexion" || e.entidad === "VIAJE" || e.entidad === "PEDIDO_VIAJE") oyentes.current.forEach((f) => f("viaje"));
+  });
 
   useEffect(() => {
     if (!toast) return;

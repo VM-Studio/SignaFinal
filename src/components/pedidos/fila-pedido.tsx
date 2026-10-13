@@ -14,7 +14,7 @@ export function EstadoPedido({ p }: { p: PedidoPlano }) {
 export function FilaPedido({ p, accion }: { p: PedidoPlano; accion?: ReactNode }) {
   const urgente = p.prioridad === "URGENTE" && p.estado === "PENDIENTE";
   return (
-    <li className="flex items-stretch">
+    <li data-vivo-id={p.id} className="flex items-stretch">
       <Link href={`/solicitudes/${p.id}`} className="flex min-w-0 flex-1 gap-3 px-4 py-3 active:bg-hover">
         <IconoTipo tipo={p.tipo} className="mt-0.5 size-5 shrink-0 text-suave" />
         <span className="min-w-0 flex-1">

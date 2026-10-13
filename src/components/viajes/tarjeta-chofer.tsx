@@ -65,7 +65,7 @@ export function TarjetaChofer({ t, href, accion }: { t: Tarjeta; href?: string; 
     </>
   );
   return (
-    <li className="rounded-[var(--radius-caja)] border border-linea bg-papel">
+    <li data-vivo-id={t.pedidoId} className="rounded-[var(--radius-caja)] border border-linea bg-papel">
       {href ? <Link href={href} className="block p-4 hover:bg-hover active:bg-hover">{cuerpo}</Link> : <div className="p-4">{cuerpo}</div>}
       <div className="flex flex-col gap-2 px-4 pb-4 empty:hidden">
         <PendienteEnvio pedidoId={t.pedidoId} />

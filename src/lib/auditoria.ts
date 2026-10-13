@@ -2,6 +2,7 @@ import "server-only";
 import { headers } from "next/headers";
 import type { Prisma, PrismaClient, Rol } from "@prisma/client";
 import { obtenerSesion } from "@/lib/auth/sesion";
+import { cambioDeAuditoria } from "@/lib/tiempo-real";
 
 type Cliente = Prisma.TransactionClient | PrismaClient;
 
@@ -56,4 +57,6 @@ export async function auditar(cliente: Cliente, d: DatosAuditoria) {
       ...o,
     },
   });
+  // Tiempo real: lo que cambió le llega al instante a quien lo puede estar mirando (src/lib/tiempo-real.ts).
+  await cambioDeAuditoria(cliente, d);
 }

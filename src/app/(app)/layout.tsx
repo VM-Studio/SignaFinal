@@ -12,6 +12,8 @@ import { BarraInferior, BarraLateral, HeaderEscritorio, HeaderMovil } from "@/co
 import { ProveedorAvisos } from "@/components/ui/avisos";
 import { IndicadorConexion } from "@/components/layout/conexion";
 import { AvisosEnVivo } from "@/components/layout/avisos-en-vivo";
+import { TiempoReal } from "@/components/layout/tiempo-real";
+import { RefrescoPorRuta, TirarParaActualizar } from "@/components/layout/actualizar";
 import { SincronizarPush } from "@/components/layout/sincronizar-push";
 
 export default async function LayoutApp({ children }: { children: React.ReactNode }) {
@@ -37,7 +39,10 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
 
   return (
     <ProveedorAvisos>
+      <TiempoReal>
       <AvisosEnVivo inicial={avisos}>
+      <RefrescoPorRuta />
+      <TirarParaActualizar />
       <BarraLateral grupos={gruposEscritorio(u.rol)} />
       <div className="flex min-h-dvh flex-col bg-fondo lg:pt-12 lg:pl-[232px]">
         <HeaderMovil perfil={perfil} secciones={secciones} />
@@ -52,6 +57,7 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
       {chofer && <SeguimientoChofer activo={enViaje} />}
       <SincronizarPush />
       </AvisosEnVivo>
+      </TiempoReal>
     </ProveedorAvisos>
   );
 }

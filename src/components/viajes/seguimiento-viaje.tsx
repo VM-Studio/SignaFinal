@@ -39,7 +39,7 @@ export function SeguimientoViaje({ pedidoId, inicial, demo = false, cabecera, re
   }, [pedidoId]);
 
   // Cada aviso nuevo del viaje (aceptado, salió, llegó…) refresca el seguimiento sin esperar los 20 s.
-  useAlCambiar((tipo) => tipo === "aviso" && void actualizar());
+  useAlCambiar(() => void actualizar());
 
   const vivo = d.etapa !== null && d.etapa !== "FINALIZADO" && d.estado !== "ENTREGADO" && d.estado !== "CANCELADO";
   useEffect(() => {

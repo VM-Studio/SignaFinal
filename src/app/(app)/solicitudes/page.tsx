@@ -142,7 +142,7 @@ async function VistaDireccion({ searchParams }: { searchParams: Promise<{ filtro
               </thead>
               <tbody>
                 {pedidos.map((p) => (
-                  <tr key={p.id}>
+                  <tr key={p.id} data-vivo-id={p.id}>
                     <td>
                       <span className="flex items-center gap-2 whitespace-nowrap">
                         <IconoTipo tipo={p.tipo} />

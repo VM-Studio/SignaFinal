@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Bell, LogOut, UserCircle2 } from "lucide-react";
+import { BotonActualizar } from "./actualizar";
 import { tituloDeRuta, type Grupo, type Seccion } from "@/lib/navegacion";
 import { FormularioSalir } from "@/components/layout/salir";
 import { Hoja } from "@/components/ui/hoja";
@@ -138,6 +139,7 @@ export function HeaderEscritorio({ perfil, secciones }: { perfil: Perfil; seccio
   return (
     <header className="fixed top-0 right-0 left-[232px] z-20 hidden h-12 items-center gap-1 border-b border-linea bg-papel pr-4 pl-6 lg:flex">
       <p className="min-w-0 flex-1 truncate text-[22px] leading-7 font-semibold">{tituloDeRuta(pathname, secciones)}</p>
+      <BotonActualizar className="size-8 text-suave hover:bg-black/[0.04] hover:text-tinta disabled:opacity-100" iconos="size-4" />
       <Campana className="size-8 text-suave hover:bg-black/[0.04] hover:text-tinta" iconos="size-4" />
       <button onClick={() => setAbierta(true)} aria-label={`Mi cuenta: ${perfil.nombre}`} title={`${perfil.nombre} · ${perfil.rol}`} className="grid size-8 place-items-center rounded-md hover:bg-black/[0.04]">
         <span className="grid size-6 place-items-center rounded-full bg-negro text-[11px] font-semibold text-white">{perfil.nombre.slice(0, 1)}</span>
@@ -165,7 +167,8 @@ export function HeaderMovil({ perfil, secciones }: { perfil: Perfil; secciones: 
             <p className="min-w-0 flex-1 truncate text-[15px] font-medium">{titulo}</p>
           </>
         )}
-        <Campana className="ml-auto size-11" iconos="size-5" />
+        <BotonActualizar className="ml-auto size-11 disabled:opacity-100" iconos="size-5" oscuro />
+        <Campana className="size-11" iconos="size-5" />
         <button onClick={() => setAbierta(true)} aria-label="Mi cuenta" className="grid size-11 shrink-0 place-items-center">
           <span className="grid size-7 place-items-center rounded-full bg-white text-[13px] font-semibold text-negro">{perfil.nombre.slice(0, 1)}</span>
         </button>
