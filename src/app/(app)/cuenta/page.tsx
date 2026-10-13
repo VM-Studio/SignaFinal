@@ -23,6 +23,18 @@ export default async function PaginaCuenta() {
       </Tarjeta>
       <p className="mt-3 text-sm text-suave">La sesión dura 30 días en este dispositivo.</p>
       <div className="mt-6"><EstadoPush /></div>
+      {(u.rol === "CHOFER" || u.rol === "DIRECCION") && (
+        <Tarjeta className="mt-4 p-5 text-sm">
+          <p className="font-semibold">Avisos del viaje con botones</p>
+          <p className="mt-1 text-suave">
+            Cuando el GPS detecta que llegaste o saliste de una parada, te llega un aviso aunque estés en Google Maps.
+          </p>
+          <ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-suave">
+            <li><span className="font-medium text-tinta">Android:</span> el aviso trae los botones <b>Sí, llegué / Todavía no</b> (o <b>Sí, salí / Sigo acá</b>). Se responde ahí mismo, sin abrir Signa, y se le avisa al que pidió.</li>
+            <li><span className="font-medium text-tinta">iPhone:</span> el iPhone no muestra botones en los avisos de una app web. Tocá el aviso: se abre el modo conducción con el deslizador ya en verde, listo para confirmar.</li>
+          </ul>
+        </Tarjeta>
+      )}
       {modoDemo() && (u.rol === "DIRECCION" || u.rol === "ADMINISTRACION") && (
         <div className="mt-6">
           <ReiniciarDemo />

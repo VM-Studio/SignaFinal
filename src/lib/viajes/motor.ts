@@ -102,7 +102,13 @@ function compat(paradas: Parada[], fecha: Date, viaje: Pick<ViajeMotor, "llegada
   };
 }
 
-export type Origen = { porGps: true; distanciaM: number; velocidadKmh: number; fuente: FuentePosicion; adelantada?: boolean } | { porGps: false; usuarioId: string };
+/** Por dónde llegó la acción del chofer (queda en la auditoría). */
+export type Canal = "MANUAL" | "DESLIZADOR" | "NOTIFICACION";
+export type Origen = { porGps: true; distanciaM: number; velocidadKmh: number; fuente: FuentePosicion; adelantada?: boolean } | { porGps: false; usuarioId: string; canal?: Canal };
+
+/** Sufijo de la acción auditada y cómo se lo cuenta: "gps", "manual", "deslizador", "notificacion". */
+const sufijo = (o: Origen) => (o.porGps ? "gps" : (o.canal ?? "MANUAL").toLowerCase());
+const como = (o: Origen) => (o.porGps ? "" : o.canal === "DESLIZADOR" ? " con el deslizador" : o.canal === "NOTIFICACION" ? " desde la notificación" : " a mano");
 
 const cargar = (cliente: Cliente, viajeId: string) => cliente.viaje.findUnique({ where: { id: viajeId }, include: incluir });
 
@@ -172,9 +178,13 @@ export async function llegarAParada(viajeId: string, paradaId: string, fecha: Da
     const lugar = `${p.nombre}${adelantada ? ` (antes que ${adelantada.nombre})` : ""}`;
     const resumen = origen.porGps
       ? `GPS: ${despues.vehiculo.nombre} llegó a ${lugar} (a ${origen.distanciaM} m, ${Math.round(origen.velocidadKmh)} km/h, ${origen.fuente === "CUSAT" ? "Cusat" : origen.fuente === "TELEFONO" ? "teléfono" : "simulador"}) · pedido #${despues.pedido.numero}`
-      : `${despues.chofer.nombre} marcó a mano que llegó a ${lugar} · pedido #${despues.pedido.numero}`;
+      : `${despues.chofer.nombre} marcó${como(origen)} que llegó a ${lugar} · pedido #${despues.pedido.numero}`;
+    // Al chofer, cuando lo detectó el GPS: push con [Sí, llegué] [Todavía no] (responde sin abrir la app).
+    if (origen.porGps) {
+      await notificarEvento(EVENTO.llegadaDetectada({ choferId: despues.choferId, pedidoId: despues.pedido.id, viajeId, paradaId, lugar: p.nombre, antesDe: adelantada?.nombre ?? null }), { tx });
+    }
     await auditar(tx, {
-      usuarioId: origen.porGps ? null : origen.usuarioId, accion: `viaje.${p.tipo === "RETIRO" ? "llegadaRetiro" : "llegadaDestino"}.${origen.porGps ? "gps" : "manual"}`,
+      usuarioId: origen.porGps ? null : origen.usuarioId, accion: `viaje.${p.tipo === "RETIRO" ? "llegadaRetiro" : "llegadaDestino"}.${sufijo(origen)}`,
       entidad: "PedidoViaje", entidadId: despues.pedido.id, resumen, antes: { etapa: v.etapa, parada: actual.nombre }, despues: { etapa: etapaDe(despues.paradas), parada: p.nombre, fecha: fecha.toISOString() },
     });
     return true;
@@ -216,7 +226,12 @@ export async function salirDeParada(viajeId: string, paradaId: string, fecha: Da
     if (resto[0]) await tx.viajeParada.update({ where: { id: resto[0].id }, data: { estado: "EN_CAMINO" } });
 
     const despues = (await cargar(tx, viajeId))!;
-    await tx.viaje.update({ where: { id: viajeId }, data: { ...conEtapa(etapaDe(despues.paradas)), ...compat(despues.paradas, fecha, despues), motor: json({ ...estadoMotor(despues), pendiente: undefined, candidato: undefined, rechazo: undefined }) } });
+    // Si lo detectó el GPS, el chofer puede decir "Sigo acá" (desde la push o la pantalla) por 30 minutos.
+    const salidaPendiente: EstadoMotor["salidaPendiente"] = origen.porGps ? { clave: paradaId, hasta: new Date(Date.now() + SIGO_ACA_MS).toISOString() } : undefined;
+    await tx.viaje.update({ where: { id: viajeId }, data: { ...conEtapa(etapaDe(despues.paradas)), ...compat(despues.paradas, fecha, despues), motor: json({ ...estadoMotor(despues), pendiente: undefined, candidato: undefined, rechazo: undefined, salidaPendiente, sigoAca: undefined }) } });
+    if (origen.porGps) {
+      await notificarEvento(EVENTO.salidaDetectada({ choferId: despues.choferId, pedidoId: despues.pedido.id, viajeId, paradaId, lugar: p.nombre, tipo: p.tipo }), { tx });
+    }
 
     // Avisos: a los que se cargaron acá, que el chofer salió hacia su obra (y por dónde pasa antes).
     const deAca = pedidosDeParada(despues, p);
@@ -233,9 +248,9 @@ export async function salirDeParada(viajeId: string, paradaId: string, fecha: Da
       }
     }
     await auditar(tx, {
-      usuarioId: origen.porGps ? null : origen.usuarioId, accion: `viaje.${p.tipo === "RETIRO" ? "salidaRetiro" : "entregaParada"}.${origen.porGps ? "gps" : "manual"}`,
+      usuarioId: origen.porGps ? null : origen.usuarioId, accion: `viaje.${p.tipo === "RETIRO" ? "salidaRetiro" : "entregaParada"}.${sufijo(origen)}`,
       entidad: "PedidoViaje", entidadId: despues.pedido.id,
-      resumen: origen.porGps ? `GPS: ${despues.vehiculo.nombre} salió de ${p.nombre} · pedido #${despues.pedido.numero}` : `${despues.chofer.nombre} marcó ${p.tipo === "RETIRO" ? `"Cargué todo, salgo" en ${p.nombre}` : `"Entregado acá" en ${p.nombre}`} · pedido #${despues.pedido.numero}`,
+      resumen: origen.porGps ? `GPS: ${despues.vehiculo.nombre} salió de ${p.nombre} · pedido #${despues.pedido.numero}` : `${despues.chofer.nombre} marcó${como(origen)} ${p.tipo === "RETIRO" ? `"Cargué todo, salgo" en ${p.nombre}` : `"Entregado acá" en ${p.nombre}`} · pedido #${despues.pedido.numero}`,
       antes: { parada: p.nombre, estado: p.estado }, despues: { parada: p.nombre, estado: "COMPLETADA", siguiente: resto[0]?.nombre ?? null },
     });
     return true;
@@ -287,7 +302,7 @@ export async function evaluarViaje(viajeId: string, l: LecturaMotor): Promise<{ 
  * a otra parada antes). "No" vuelve la parada a EN_CAMINO, restaura el orden y el motor no vuelve a
  * disparar esa llegada hasta que el vehículo salga del radio y vuelva a entrar.
  */
-export async function responderLlegada(viajeId: string, si: boolean, usuarioId: string, nombre: string) {
+export async function responderLlegada(viajeId: string, si: boolean, usuarioId: string, nombre: string, canal: Canal = "MANUAL") {
   const v = await cargar(db, viajeId);
   if (!v) return false;
   const estado = estadoMotor(v);
@@ -298,7 +313,13 @@ export async function responderLlegada(viajeId: string, si: boolean, usuarioId: 
     return false;
   }
   if (si) {
-    await db.viaje.update({ where: { id: v.id }, data: { motor: json({ ...estado, pendiente: undefined }) } });
+    await db.$transaction(async (tx) => {
+      await tx.viaje.update({ where: { id: v.id }, data: { motor: json({ ...estado, pendiente: undefined }) } });
+      await auditar(tx, {
+        usuarioId, accion: `viaje.llegada.confirmada.${canal.toLowerCase()}`, entidad: "PedidoViaje", entidadId: v.pedido.id,
+        resumen: `${nombre} confirmó${como({ porGps: false, usuarioId, canal })} que llegó a ${parada.nombre} (lo había detectado el GPS) · pedido #${v.pedido.numero}`,
+      });
+    });
     return true;
   }
   await db.$transaction(async (tx) => {
@@ -317,12 +338,51 @@ export async function responderLlegada(viajeId: string, si: boolean, usuarioId: 
       data: { ...conEtapa(etapaDe(paradas)), ...compat(paradas as Parada[], new Date(), { llegadaRetiroEn: parada.tipo === "RETIRO" ? null : v.llegadaRetiroEn, salidaRetiroEn: v.salidaRetiroEn, llegadaDestinoEn: null, llegadaReal: null }), motor: json({ ...estado, pendiente: undefined, candidato: undefined, rechazo: { clave: parada.id, fuera: false } }) },
     });
     await auditar(tx, {
-      usuarioId, accion: "viaje.llegada.rechazada", entidad: "PedidoViaje", entidadId: v.pedido.id,
-      resumen: `${nombre} dijo que todavía no llegó a ${parada.nombre} (el GPS lo había detectado) · pedido #${v.pedido.numero}`,
+      usuarioId, accion: `viaje.llegada.rechazada.${canal.toLowerCase()}`, entidad: "PedidoViaje", entidadId: v.pedido.id,
+      resumen: `${nombre} dijo${como({ porGps: false, usuarioId, canal })} que todavía no llegó a ${parada.nombre} (el GPS lo había detectado) · pedido #${v.pedido.numero}`,
       antes: { parada: parada.nombre, estado: "LLEGO" }, despues: { parada: parada.nombre, estado: "PENDIENTE" },
     });
   });
   return true;
+}
+
+/** Cuánto tiempo se puede decir "Sigo acá" después de una salida que detectó el GPS. */
+const SIGO_ACA_MS = 30 * 60_000;
+/** Después de "Sigo acá", el motor no vuelve a marcar la salida de esa parada por este tiempo. */
+const NO_SALIR_MS = 10 * 60_000;
+
+/**
+ * "Sí, salí" / "Sigo acá" ante una salida que detectó el GPS. "Sigo acá" vuelve la parada a "estás acá"
+ * (y la siguiente a pendiente) si todavía no pasó nada después, y el motor no la vuelve a marcar por 10
+ * minutos. Lo que ya se avisó como entregado, queda (se avisó al salir).
+ */
+export async function responderSalida(viajeId: string, si: boolean, usuarioId: string, nombre: string, canal: Canal = "MANUAL") {
+  const v = await cargar(db, viajeId);
+  if (!v || v.estado !== "EN_CURSO") return false;
+  const estado = estadoMotor(v);
+  const sp = estado.salidaPendiente;
+  const parada = sp && v.paradas.find((x) => x.id === sp.clave);
+  if (!sp || !parada || parada.estado !== "COMPLETADA" || new Date(sp.hasta) < new Date()) return false;
+  const despuesDeEsta = v.paradas.filter((x) => x.orden > parada.orden);
+  // Si ya llegó a la siguiente, ya no se puede volver atrás.
+  if (despuesDeEsta.some((x) => x.estado === "LLEGO" || hecha(x))) return false;
+  return db.$transaction(async (tx) => {
+    if (si) {
+      await tx.viaje.update({ where: { id: v.id }, data: { motor: json({ ...estado, salidaPendiente: undefined }) } });
+      await auditar(tx, { usuarioId, accion: `viaje.salida.confirmada.${canal.toLowerCase()}`, entidad: "PedidoViaje", entidadId: v.pedido.id, resumen: `${nombre} confirmó${como({ porGps: false, usuarioId, canal })} que salió de ${parada.nombre} · pedido #${v.pedido.numero}` });
+      return true;
+    }
+    await tx.viajeParada.update({ where: { id: parada.id }, data: { estado: "LLEGO", salidaEn: null } });
+    await tx.viajeParada.updateMany({ where: { viajeId: v.id, id: { in: despuesDeEsta.map((x) => x.id) }, estado: "EN_CAMINO" }, data: { estado: "PENDIENTE" } });
+    const paradas = await tx.viajeParada.findMany({ where: { viajeId: v.id } });
+    await tx.viaje.update({ where: { id: v.id }, data: { ...conEtapa(etapaDe(paradas)), motor: json({ ...estado, salidaPendiente: undefined, sigoAca: { clave: parada.id, hasta: new Date(Date.now() + NO_SALIR_MS).toISOString() } }) } });
+    await auditar(tx, {
+      usuarioId, accion: `viaje.salida.rechazada.${canal.toLowerCase()}`, entidad: "PedidoViaje", entidadId: v.pedido.id,
+      resumen: `${nombre} dijo${como({ porGps: false, usuarioId, canal })} que sigue en ${parada.nombre} (el GPS había marcado la salida) · pedido #${v.pedido.numero}`,
+      antes: { parada: parada.nombre, estado: "COMPLETADA" }, despues: { parada: parada.nombre, estado: "LLEGO" },
+    });
+    return true;
+  });
 }
 
 // ─────────────────────────────── Señal ───────────────────────────────

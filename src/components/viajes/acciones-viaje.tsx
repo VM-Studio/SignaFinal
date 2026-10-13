@@ -50,8 +50,8 @@ export function BotonAdelantar({ pedidoId }: { pedidoId: string }) {
  * Botón 1 · "Iniciar viaje": km del tablero (precargado) y la posición del teléfono para la ruta al retiro.
  * Bloqueo por fecha: si el pedido es para otro día, deshabilitado con el motivo (y la action lo rechaza igual).
  */
-export function BotonIniciar({ pedidoId, numero, vehiculo, kmActual, irAlViaje = false, bloqueado, paraCuando, onGuardadoLocal }: Base & {
-  vehiculo: string; kmActual: number; irAlViaje?: boolean; bloqueado?: string; paraCuando?: Date | string;
+export function BotonIniciar({ pedidoId, numero, vehiculo, kmActual, bloqueado, paraCuando, onGuardadoLocal }: Base & {
+  vehiculo: string; kmActual: number; bloqueado?: string; paraCuando?: Date | string;
 }) {
   const [abierta, setAbierta] = useState(false);
   const [valor, setValor] = useState(String(kmActual));
@@ -75,8 +75,8 @@ export function BotonIniciar({ pedidoId, numero, vehiculo, kmActual, irAlViaje =
       return;
     }
     aviso({ mensaje: `Buen viaje. Saliste con ${r.datos.vehiculo}.` });
-    if (irAlViaje) router.push(`/viaje/${pedidoId}`);
-    router.refresh();
+    // Al salir, directo al modo conducción (pantalla completa con el deslizador).
+    router.push(`/viaje/${pedidoId}/conducir`);
   }
 
   if (bloqueado) return <p className="rounded-[var(--radius-caja)] bg-fondo px-4 py-3 font-semibold">{bloqueado}</p>;
@@ -170,8 +170,20 @@ export function ConfirmarLlegada({ pedidoId, lugar, antesDe = null }: { pedidoId
 }
 
 /** "Viaje terminado": km de llegada (≥ salida), peajes y foto del remito (opcionales). */
-export function BotonFinalizar({ pedidoId, numero, obra, kmSalida, onGuardadoLocal }: Base & { obra: string; kmSalida: number | null }) {
+export function BotonFinalizar(p: Base & { obra: string; kmSalida: number | null }) {
   const [abierta, setAbierta] = useState(false);
+  return (
+    <>
+      <Boton ancho tamano="grande" icono={<Flag />} onClick={() => setAbierta(true)}>Viaje terminado</Boton>
+      <HojaFinalizar {...p} abierta={abierta} onCerrar={() => setAbierta(false)} />
+    </>
+  );
+}
+
+/** La hoja de "Viaje terminado" (la abre el botón o el deslizador del modo conducción). */
+export function HojaFinalizar({ pedidoId, numero, obra, kmSalida, onGuardadoLocal, abierta, onCerrar, canal = "MANUAL", onTerminado }: Base & {
+  obra: string; kmSalida: number | null; abierta: boolean; onCerrar: () => void; canal?: "MANUAL" | "DESLIZADOR"; onTerminado?: () => void;
+}) {
   const [kmLlegada, setKmLlegada] = useState("");
   const [peajes, setPeajes] = useState("");
   const [foto, setFoto] = useState<string | null>(null);
@@ -189,7 +201,7 @@ export function BotonFinalizar({ pedidoId, numero, obra, kmSalida, onGuardadoLoc
     // Lo mismo que valida el servidor, para no guardar sin señal algo que después se va a rechazar.
     if (recorridos != null && recorridos > 2000) return setError("Son más de 2.000 km en un viaje. Revisá el número.");
     setEnviando(true);
-    const datos = { clientId: crypto.randomUUID(), pedidoId, kmLlegada: Number(kmLlegada), peajes: peajes || "0", observaciones: obs, foto: foto ?? undefined, ocurridoEn: new Date().toISOString() };
+    const datos = { clientId: crypto.randomUUID(), pedidoId, kmLlegada: Number(kmLlegada), peajes: peajes || "0", observaciones: obs, foto: foto ?? undefined, ocurridoEn: new Date().toISOString(), canal };
     const r = await enviarOGuardar({ id: datos.clientId, tipo: "viaje.finalizar", pedidoId, descripcion: `Llegada del pedido ${numero} a ${obra}`, datos }, () => finalizarViaje(datos));
     setEnviando(false);
     if (r.estado === "error") return setError(r.error);
@@ -198,49 +210,47 @@ export function BotonFinalizar({ pedidoId, numero, obra, kmSalida, onGuardadoLoc
       setTerminado("guardado");
       return;
     }
-    setAbierta(false);
+    onCerrar();
+    onTerminado?.();
     router.push(`/viaje/${pedidoId}`);
     router.refresh();
   }
 
   function cerrar() {
-    setAbierta(false);
+    onCerrar();
     setTerminado(null);
     router.refresh();
   }
 
   return (
-    <>
-      <Boton ancho tamano="grande" icono={<Flag />} onClick={() => setAbierta(true)}>Viaje terminado</Boton>
-      <Hoja abierta={abierta} onCerrar={cerrar} titulo={terminado ? "Viaje terminado" : `Llegada a ${obra}`}>
-        <div>
-          {terminado === "guardado" ? (
-            <div className="flex flex-col items-center gap-3 py-6 text-center">
-              <CloudOff className="size-10" />
-              <p className="text-lg font-semibold">Llegada guardada en el teléfono</p>
-              <p className="text-suave">Está pendiente de envío. Se manda sola cuando vuelva la señal.</p>
-              <Boton ancho onClick={cerrar}>Listo</Boton>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-4">
-              <Campo etiqueta="Km del tablero al llegar" htmlFor={`kml-${pedidoId}`} ayuda={kmSalida != null ? `Saliste con ${km(kmSalida)}` : undefined}>
-                <Entrada id={`kml-${pedidoId}`} inputMode="numeric" value={kmLlegada} onChange={(e) => setKmLlegada(soloNumeros(e.target.value))} placeholder={kmSalida != null ? String(kmSalida) : ""} className="text-2xl font-semibold tabular-nums lg:text-2xl" autoFocus />
-              </Campo>
-              {recorridos != null && recorridos >= 0 && <p className="-mt-2 font-semibold">{km(recorridos)} recorridos</p>}
-              <Campo etiqueta="Peajes ($, opcional)" htmlFor={`peajes-${pedidoId}`}>
-                <Entrada id={`peajes-${pedidoId}`} inputMode="decimal" value={peajes} onChange={(e) => setPeajes(e.target.value.replace(/[^\d.]/g, ""))} placeholder="0" />
-              </Campo>
-              <CampoFoto etiqueta="Foto del remito (opcional)" valor={foto} onCambio={setFoto} />
-              <Campo etiqueta="Observaciones (opcional)" htmlFor={`obs-${pedidoId}`}>
-                <AreaTexto id={`obs-${pedidoId}`} rows={2} value={obs} onChange={(e) => setObs(e.target.value)} maxLength={500} />
-              </Campo>
-              <MensajeError>{error}</MensajeError>
-              <Boton ancho tamano="grande" disabled={!kmLlegada} cargando={enviando} onClick={llegar} icono={<Flag />}>Terminar viaje</Boton>
-            </div>
-          )}
-        </div>
-      </Hoja>
-    </>
+    <Hoja abierta={abierta} onCerrar={cerrar} titulo={terminado ? "Viaje terminado" : `Llegada a ${obra}`}>
+      <div>
+        {terminado === "guardado" ? (
+          <div className="flex flex-col items-center gap-3 py-6 text-center">
+            <CloudOff className="size-10" />
+            <p className="text-lg font-semibold">Llegada guardada en el teléfono</p>
+            <p className="text-suave">Está pendiente de envío. Se manda sola cuando vuelva la señal.</p>
+            <Boton ancho onClick={cerrar}>Listo</Boton>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <Campo etiqueta="Km del tablero al llegar" htmlFor={`kml-${pedidoId}`} ayuda={kmSalida != null ? `Saliste con ${km(kmSalida)}` : undefined}>
+              <Entrada id={`kml-${pedidoId}`} inputMode="numeric" value={kmLlegada} onChange={(e) => setKmLlegada(soloNumeros(e.target.value))} placeholder={kmSalida != null ? String(kmSalida) : ""} className="text-2xl font-semibold tabular-nums lg:text-2xl" autoFocus />
+            </Campo>
+            {recorridos != null && recorridos >= 0 && <p className="-mt-2 font-semibold">{km(recorridos)} recorridos</p>}
+            <Campo etiqueta="Peajes ($, opcional)" htmlFor={`peajes-${pedidoId}`}>
+              <Entrada id={`peajes-${pedidoId}`} inputMode="decimal" value={peajes} onChange={(e) => setPeajes(e.target.value.replace(/[^\d.]/g, ""))} placeholder="0" />
+            </Campo>
+            <CampoFoto etiqueta="Foto del remito (opcional)" valor={foto} onCambio={setFoto} />
+            <Campo etiqueta="Observaciones (opcional)" htmlFor={`obs-${pedidoId}`}>
+              <AreaTexto id={`obs-${pedidoId}`} rows={2} value={obs} onChange={(e) => setObs(e.target.value)} maxLength={500} />
+            </Campo>
+            <MensajeError>{error}</MensajeError>
+            <Boton ancho tamano="grande" disabled={!kmLlegada} cargando={enviando} onClick={llegar} icono={<Flag />}>Terminar viaje</Boton>
+          </div>
+        )}
+      </div>
+    </Hoja>
   );
 }
 
@@ -255,7 +265,7 @@ export function BotonEtapa({ etapa, pedidoId, numero, vehiculo, kmActual, kmSali
   const base = { pedidoId, numero, onGuardadoLocal };
   switch (etapa) {
     case "PROGRAMADO":
-      return <BotonIniciar {...base} vehiculo={vehiculo} kmActual={kmActual} irAlViaje={irAlViaje} bloqueado={bloqueado} paraCuando={paraCuando} />;
+      return <BotonIniciar {...base} vehiculo={vehiculo} kmActual={kmActual} bloqueado={bloqueado} paraCuando={paraCuando} />;
     case "HACIA_RETIRO":
     case "EN_RETIRO":
     case "HACIA_DESTINO":

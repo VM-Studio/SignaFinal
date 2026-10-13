@@ -84,7 +84,8 @@ describe.skipIf(!hayBase)("motor por paradas (con base)", () => {
     const v = await db.viaje.findUniqueOrThrow({ where: { id: f!.viajeId } });
     expect(v.etapa).toBe("EN_DESTINO");
     expect((v.motor as { pendiente?: { adelantadaDe?: string } }).pendiente?.adelantadaDe).toBe("Obra Prueba A");
-    expect(avisos.map((a) => a.nombre)).toEqual(["viaje.enDestino"]);
+    // Al que pidió en B, su llegada; al chofer, la push con [Sí, llegué] [Todavía no].
+    expect(avisos.map((a) => a.nombre)).toEqual(["viaje.enDestino", "chofer.llegadaDetectada"]);
   });
 
   it("'No, todavía no' vuelve al orden de antes", async () => {

@@ -1368,3 +1368,25 @@ model PedidoFavorito {
 
   @@index([usuarioId, tipo, activo])
 }
+
+enum TipoTokenAccion {
+  LLEGADA
+  SALIDA
+}
+
+/// Token corto de un solo uso para responder desde la notificación ("Sí, llegué" / "Sigo acá") sin abrir
+/// la app: va en la push, vale 30 minutos y está atado al viaje, a la parada y al chofer. Se guarda el hash.
+model TokenAccion {
+  id        String          @id @default(cuid())
+  hash      String          @unique
+  usuarioId String
+  pedidoId  String
+  viajeId   String
+  paradaId  String
+  tipo      TipoTokenAccion
+  expiraEn  DateTime
+  usadoEn   DateTime?
+  creadoEn  DateTime        @default(now())
+
+  @@index([viajeId])
+}

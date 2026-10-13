@@ -62,7 +62,7 @@ const OBRA: Entrada = {
 };
 
 const CHOFER: Entrada = {
-  rutas: ["/inicio", "/hoy", "/solicitudes", "/solicitudes/[id]", "/viaje/[id]", "/combustible", "/avisos", "/cuenta"],
+  rutas: ["/inicio", "/hoy", "/solicitudes", "/solicitudes/[id]", "/viaje/[id]", "/viaje/[id]/conducir", "/combustible", "/avisos", "/cuenta"],
   acciones: [
     "pedidos.ver", "pedidos.tomar", "viajes.verPropios", "viajes.ejecutar", "combustible.cargar", "combustible.ver",
     "incidentes.registrar", "alertas.ver", "avisos.ver",

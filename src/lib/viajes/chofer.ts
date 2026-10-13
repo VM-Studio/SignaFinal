@@ -197,6 +197,10 @@ export async function pantallaViaje(pedidoId: string) {
   const pendiente = estadoMotor(v).pendiente;
   const pend = pendiente && new Date(pendiente.hasta) > new Date() ? v.paradas.find((x) => x.id === pendiente.clave && x.estado === "LLEGO") : null;
   const confirmar = pend ? { lugar: pend.nombre, adelantadaDe: pendiente?.adelantadaDe ?? null } : null;
+  // Salida que marcó el GPS: por 30 minutos puede decir "Sigo acá".
+  const sp = estadoMotor(v).salidaPendiente;
+  const salida = sp && new Date(sp.hasta) > new Date() ? v.paradas.find((x) => x.id === sp.clave && x.estado === "COMPLETADA") : null;
+  const sigoAca = salida && !v.paradas.some((x) => x.orden > salida.orden && (x.estado === "LLEGO" || x.estado === "COMPLETADA")) ? { lugar: salida.nombre } : null;
   const senal = v.estado === "EN_CURSO" ? await senalDe(v.vehiculoId, null) : null;
 
   // Botón manual: siempre de la parada actual, con la palabra del lugar ("Llegué al proveedor").
@@ -251,7 +255,9 @@ export async function pantallaViaje(pedidoId: string) {
     tramo: ruta && desde && hasta ? { desde, hasta, distanciaM: ruta.distanciaM, geometria: ruta.geometria, estimada: ruta.fuente === "estimada" } : null,
     // Hora de llegada solo con tránsito real (Google).
     eta: actual ? (actual.tipo === "RETIRO" ? v.etaRetiro : v.etaDestino) : null,
-    maps, confirmar, senal, manual, sinGps,
+    maps, confirmar, sigoAca, senal, manual, sinGps,
+    // "Abrir en Google Maps": la parada que sigue y las siguientes como intermedias (navegar.ts).
+    navegacion: proximas.map((x) => ({ lat: x.latitud, lng: x.longitud })),
     otroEnCurso: enCursoOtro > 0,
     puedeAgregar: v.estado === "PROGRAMADO" || (v.estado === "EN_CURSO" && !empezo),
     puedeReordenar: v.estado !== "FINALIZADO" && faltan.filter((x) => x.estado !== "LLEGO").length > 1,

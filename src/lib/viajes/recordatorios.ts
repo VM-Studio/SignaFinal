@@ -70,7 +70,7 @@ export async function enviarRecordatorios(o: { ahora?: Date; soloUsuarioId?: str
       const vs = tomados.map((x) => aRecordado(x.p));
       const texto = tipo === "VIAJE_MANANA" ? TEXTO_RECORDATORIO.manana(vs) : TEXTO_RECORDATORIO.hoy(vs);
       const dia = diaISO(tomados[0].p.paraCuando);
-      await notificarEvento(EVENTO.recordatorioChofer({ choferId, ...texto, entidad: `recordatorio:${tipo}:${choferId}:${dia}`, enlace: tipo === "VIAJE_MANANA" ? "/hoy?vista=proximos" : "/hoy", pedidoIds: tomados.map((x) => x.p.id) }));
+      await notificarEvento(EVENTO.recordatorioChofer({ choferId, ...texto, entidad: `recordatorio:${tipo}:${choferId}:${dia}`, enlace: tipo === "VIAJE_MANANA" ? "/hoy?vista=proximos" : tomados.length === 1 ? `/viaje/${tomados[0].p.id}` : "/hoy", pedidoIds: tomados.map((x) => x.p.id) }));
       enviados++;
     }
   }

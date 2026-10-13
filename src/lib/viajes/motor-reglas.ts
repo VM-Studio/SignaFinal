@@ -28,6 +28,10 @@ export type EstadoMotor = {
   sinSenalAvisado?: string;
   /** Última vez que se recalculó la hora con tránsito (tramos.ts). */
   etaEn?: string;
+  /** Salida que detectó el GPS y el chofer todavía puede negar ("Sigo acá") hasta "hasta". */
+  salidaPendiente?: { clave: string; hasta: string };
+  /** Dijo "Sigo acá": no se vuelve a marcar la salida de esa parada hasta "hasta". */
+  sigoAca?: { clave: string; hasta: string };
 };
 
 export type ParadaMotor = {
@@ -64,6 +68,7 @@ export function decidir(estado: EstadoMotor, l: Lectura, c: Contexto): Decision 
   // Ya está en la parada: sale cuando se aleja. La última no se cierra sola (falta "Viaje terminado").
   if (actual.estado === "LLEGO") {
     if (!resto.length) return { estado: nuevo };
+    if (estado.sigoAca?.clave === actual.clave && new Date(estado.sigoAca.hasta) > c.ahora) return { estado: nuevo };
     const d = distancia(l, actual.punto);
     if (d > P.radioSalidaM) return { estado: limpiar(nuevo), transicion: { tipo: "salida", clave: actual.clave, fecha: l.fecha, distanciaM: Math.round(d), velocidadKmh: l.velocidadKmh, adelantada: false } };
     return { estado: nuevo };

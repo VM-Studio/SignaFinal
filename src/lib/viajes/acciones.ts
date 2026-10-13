@@ -23,7 +23,7 @@ import { guardarArchivo } from "@/lib/archivos";
 import { km as fmtKm } from "@/lib/formato";
 import { alLlegarElViaje } from "@/lib/herramientas/servicio";
 import { alCambiarElViaje } from "@/lib/materiales/circuito";
-import { arrancarParadas, llegarAParada, metrosEntre, pendientes, puntoDeParada, responderLlegada as responderLlegadaMotor, salirDeParada } from "./motor";
+import { arrancarParadas, llegarAParada, metrosEntre, pendientes, puntoDeParada, responderLlegada as responderLlegadaMotor, responderSalida as responderSalidaMotor, salirDeParada } from "./motor";
 
 /** Refresca pantallas y reevalúa las alertas del módulo (resuelve solas las que ya no aplican). */
 const refrescar = () => {
@@ -145,8 +145,11 @@ export async function iniciarViaje(entrada: DatosInicio): Promise<Resultado<{ ve
 
 // ═══════════════════════════ Botones manuales (parada actual) ═══════════════════════════
 
+/** Desde dónde lo hizo el chofer (queda en la auditoría). La notificación tiene su propia ruta, con token. */
+const canal = z.enum(["MANUAL", "DESLIZADOR"]).default("MANUAL");
+
 const esquemaTramo = z.object({
-  clientId: z.string().uuid(), pedidoId: z.string().min(1), paradaId: z.string().optional(), ocurridoEn: z.coerce.date().optional(),
+  clientId: z.string().uuid(), pedidoId: z.string().min(1), paradaId: z.string().optional(), ocurridoEn: z.coerce.date().optional(), canal,
   foto: z.preprocess(vacio, z.string().optional()), // remito de la parada (data URL), opcional
   ...posicion,
 });
@@ -171,7 +174,7 @@ async function llegueAParada(entrada: DatosTramo): Promise<Resultado<{ etapa: st
     const yo = await exigirPermiso("viajes.ejecutar");
     const d = esquemaTramo.parse(entrada);
     const { v, actual } = await paradaDelBoton(d.pedidoId, d.paradaId, yo.id);
-    if (actual && actual.estado !== "LLEGO") await llegarAParada(v.id, actual.id, momento(d.ocurridoEn, v.inicioEn), { porGps: false, usuarioId: yo.id });
+    if (actual && actual.estado !== "LLEGO") await llegarAParada(v.id, actual.id, momento(d.ocurridoEn, v.inicioEn), { porGps: false, usuarioId: yo.id, canal: d.canal });
     refrescar();
     return { etapa: await etapaActual(v.id) };
   });
@@ -191,9 +194,9 @@ export async function salgoHaciaDestino(entrada: DatosTramo): Promise<Resultado<
     const { v, actual } = await paradaDelBoton(d.pedidoId, d.paradaId, yo.id);
     if (actual) {
       const fecha = momento(d.ocurridoEn, actual.llegadaEn ?? v.inicioEn);
-      if (actual.estado !== "LLEGO") await llegarAParada(v.id, actual.id, fecha, { porGps: false, usuarioId: yo.id });
+      if (actual.estado !== "LLEGO") await llegarAParada(v.id, actual.id, fecha, { porGps: false, usuarioId: yo.id, canal: d.canal });
       const remitoUrl = d.foto ? await guardarArchivo(db, d.foto, yo.id, `remito-${actual.nombre}`) : null;
-      await salirDeParada(v.id, actual.id, fecha, { porGps: false, usuarioId: yo.id }, { remitoUrl });
+      await salirDeParada(v.id, actual.id, fecha, { porGps: false, usuarioId: yo.id, canal: d.canal }, { remitoUrl });
     }
     refrescar();
     return { etapa: await etapaActual(v.id) };
@@ -201,12 +204,24 @@ export async function salgoHaciaDestino(entrada: DatosTramo): Promise<Resultado<
 }
 
 /** "Sí, estoy acá" / "No, todavía no" (o "¿seguimos así?") ante una llegada que detectó el GPS. */
-export async function responderLlegada(pedidoId: string, si: boolean): Promise<Resultado> {
+export async function responderLlegada(pedidoId: string, si: boolean, desde: "MANUAL" | "DESLIZADOR" = "MANUAL"): Promise<Resultado> {
   return ejecutar(async () => {
     const yo = await exigirPermiso("viajes.ejecutar");
     const v = await db.viaje.findFirst({ where: { pedidos: { some: { id: pedidoId } } }, select: { id: true, choferId: true } });
     if (!v || v.choferId !== yo.id) throw new ErrorNegocio("Este viaje no es tuyo.");
-    await responderLlegadaMotor(v.id, si, yo.id, yo.nombre);
+    await responderLlegadaMotor(v.id, si, yo.id, yo.nombre, canal.parse(desde));
+    refrescar();
+    return null;
+  });
+}
+
+/** "Sí, salí" / "Sigo acá" ante una salida que detectó el GPS (en la pantalla; desde la push va por /api/viajes/[id]/accion). */
+export async function responderSalida(pedidoId: string, si: boolean, desde: "MANUAL" | "DESLIZADOR" = "MANUAL"): Promise<Resultado> {
+  return ejecutar(async () => {
+    const yo = await exigirPermiso("viajes.ejecutar");
+    const v = await db.viaje.findFirst({ where: { pedidos: { some: { id: pedidoId } } }, select: { id: true, choferId: true } });
+    if (!v || v.choferId !== yo.id) throw new ErrorNegocio("Este viaje no es tuyo.");
+    if (!(await responderSalidaMotor(v.id, si, yo.id, yo.nombre, canal.parse(desde)))) throw new ErrorNegocio("Ya no se puede: el viaje siguió.");
     refrescar();
     return null;
   });
@@ -266,6 +281,7 @@ const esquemaFin = z.object({
   observaciones: z.preprocess(vacio, z.string().trim().max(500).optional()),
   foto: z.preprocess(vacio, z.string().optional()), // data URL del remito
   ocurridoEn: z.coerce.date().optional(),
+  canal,
 });
 export type DatosFin = z.input<typeof esquemaFin>;
 
@@ -360,8 +376,8 @@ export async function finalizarViaje(entrada: DatosFin): Promise<Resultado<Resul
       }
       const reparto = viaje.viajePedidos.length > 1 ? ` · costo repartido: ${viaje.viajePedidos.map((vp) => `${vp.pedido.obra.nombre} $${partes.get(vp.pedidoViajeId)!.costo.toLocaleString("es-AR")}`).join(", ")}` : "";
       await auditar(tx, {
-        usuarioId: yo.id, accion: "viaje.finalizar", entidadId: d.pedidoId,
-        resumen: `${yo.nombre} terminó el viaje de ${await describirPedido(tx, d.pedidoId)}: ${recorridos} km${reparto}`,
+        usuarioId: yo.id, accion: `viaje.finalizar.${d.canal.toLowerCase()}`, entidadId: d.pedidoId,
+        resumen: `${yo.nombre} terminó${d.canal === "DESLIZADOR" ? " con el deslizador" : ""} el viaje de ${await describirPedido(tx, d.pedidoId)}: ${recorridos} km${reparto}`,
         antes: { estado: "EN_VIAJE" }, despues: { estado: "ENTREGADO", kmLlegada: d.kmLlegada, km: recorridos, peajes: d.peajes, costo: costo.toString(), obra: viaje.pedido.obra.nombre },
       });
 

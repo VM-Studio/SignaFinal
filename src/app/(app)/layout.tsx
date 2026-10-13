@@ -8,6 +8,7 @@ import { obrasDelUsuario } from "@/lib/alcance";
 import { contarAvisos } from "@/lib/avisos/consultas";
 import { tengoViajeEnCurso, ultimaSolicitud } from "@/lib/viajes/chofer";
 import { SeguimientoChofer } from "@/components/viajes/seguimiento-chofer";
+import { VolverAConducir } from "@/components/viajes/volver-a-conducir";
 import { BarraInferior, BarraLateral, HeaderEscritorio, HeaderMovil } from "@/components/layout/navegacion";
 import { ProveedorAvisos } from "@/components/ui/avisos";
 import { IndicadorConexion } from "@/components/layout/conexion";
@@ -55,6 +56,7 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
       <BarraInferior items={barraInferior(u.rol)} mas={menuMas(u.rol)} conSalir={chofer} nuevas={chofer ? { href: "/solicitudes", ultima: ultima?.toISOString() ?? null } : undefined} />
       {/* Mientras el chofer está en viaje, el teléfono manda su posición aunque navegue. */}
       {chofer && <SeguimientoChofer activo={enViaje} />}
+      {chofer && enViaje && <VolverAConducir />}
       <SincronizarPush />
       </AvisosEnVivo>
       </TiempoReal>

@@ -286,6 +286,23 @@ Reglas (reemplazan lo que diga otra cosa más arriba):
   desarrollo, sin token, se guardan en la base). Se sirven solo con sesión y permiso en
   /api/adjuntos/[id]. Tipos: pdf, xls, xlsx, doc, docx, csv, jpg, png, heic; hasta 20 MB.
 
+## Modo conducción y notificaciones con botones
+
+- /viaje/[id]/conducir (components/viajes/modo-conduccion.tsx): pantalla completa oscura, mapa arriba (60 %)
+  y la tarjeta de la parada actual con UN **deslizador** (components/viajes/deslizador.tsx: cuenta desde el
+  90 % del recorrido; un toque no hace nada). Se entra solo al tocar "Iniciar viaje". Wake Lock mientras
+  está abierta; al volver de Google Maps trae el estado del servidor (y si el iPhone reabrió la app en el
+  inicio, VolverAConducir vuelve acá). Nunca un botón común para llegar / salir / terminar en esta pantalla.
+- Push al chofer cuando el GPS detecta una llegada ([Sí, llegué] [Todavía no]) o una salida ([Sí, salí]
+  [Sigo acá]), y en los recordatorios ([Abrir viaje]). Las respuestas se resuelven en el service worker con
+  POST /api/viajes/[id]/accion y un token de un solo uso (TokenAccion: hash, 30 min, atado a viaje, parada y
+  chofer), sin abrir la app. iPhone no muestra botones: el toque abre el modo conducción en verde.
+- Una sola ruta para todo: deslizador, botón, notificación y GPS terminan en las mismas funciones del motor
+  (llegarAParada, salirDeParada, responderLlegada, responderSalida, finalizarViaje), con la auditoría
+  "viaje.<acción>.<origen>" (gps, manual, deslizador, notificacion), los mismos avisos y los mismos eventos
+  de tiempo real. "Abrir en Google Maps": comgooglemaps:// en iPhone (web de respaldo), intent en Android
+  (src/lib/viajes/navegar.ts).
+
 ## Repetir pedido e historial
 
 - /pedir, /pedir-materiales y /compras/nuevo tienen el panel "Pedidos anteriores" (columna derecha de

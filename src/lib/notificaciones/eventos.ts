@@ -172,11 +172,32 @@ export const EVENTO = {
     para: [usuario(v.solicitanteId, push)],
   }),
 
+  // ─── Al chofer, lo que detectó el GPS: push con botones para responder sin abrir la app ───
+  // (datos.push: acciones de la notificación y el token de un solo uso que arma enviarPush).
+
+  llegadaDetectada: (p: { choferId: string; pedidoId: string; viajeId: string; paradaId: string; lugar: string; antesDe: string | null }): Evento => ({
+    nombre: "chofer.llegadaDetectada", tipo: "GENERAL",
+    titulo: `Llegaste a ${p.lugar}`,
+    cuerpo: p.antesDe ? `Llegaste a ${p.lugar} antes que a ${p.antesDe}. ¿Seguimos así?` : `El GPS te ubicó en ${p.lugar}. ¿Ya llegaste?`,
+    enlace: `/viaje/${p.pedidoId}/conducir`, entidad: `viaje:${p.viajeId}:parada:${p.paradaId}:llegada`,
+    datos: { pedidoId: p.pedidoId, push: { acciones: [{ action: "si_llegue", title: "Sí, llegué" }, { action: "todavia_no", title: "Todavía no" }], token: { pedidoId: p.pedidoId, viajeId: p.viajeId, paradaId: p.paradaId, tipo: "LLEGADA" } } },
+    para: [usuario(p.choferId, push)],
+  }),
+
+  salidaDetectada: (p: { choferId: string; pedidoId: string; viajeId: string; paradaId: string; lugar: string; tipo: string }): Evento => ({
+    nombre: "chofer.salidaDetectada", tipo: "GENERAL",
+    titulo: `Saliste de ${p.lugar}`,
+    cuerpo: `El GPS marcó que saliste de ${p.lugar}${p.tipo === "RETIRO" ? " con la carga" : ""}. Si seguís ahí, tocá "Sigo acá".`,
+    enlace: `/viaje/${p.pedidoId}/conducir`, entidad: `viaje:${p.viajeId}:parada:${p.paradaId}:salida`,
+    datos: { pedidoId: p.pedidoId, push: { acciones: [{ action: "si_sali", title: "Sí, salí" }, { action: "sigo_aca", title: "Sigo acá" }], token: { pedidoId: p.pedidoId, viajeId: p.viajeId, paradaId: p.paradaId, tipo: "SALIDA" } } },
+    para: [usuario(p.choferId, push)],
+  }),
+
   // ─── Recordatorios (src/lib/viajes/recordatorios.ts): solo CHOFER; Dirección, un resumen en bandeja ───
 
   recordatorioChofer: (p: { choferId: string; titulo: string; cuerpo: string; entidad: string; enlace: string; pedidoIds: string[] }): Evento => ({
     nombre: "chofer.recordatorio", tipo: "RECORDATORIO", titulo: p.titulo, cuerpo: p.cuerpo,
-    enlace: p.enlace, entidad: p.entidad, datos: { recordatorio: true, pedidoIds: p.pedidoIds }, para: [usuario(p.choferId, push)],
+    enlace: p.enlace, entidad: p.entidad, datos: { recordatorio: true, pedidoIds: p.pedidoIds, push: { acciones: [{ action: "abrir", title: "Abrir viaje" }] } }, para: [usuario(p.choferId, push)],
   }),
 
   resumenDireccion: (p: { titulo: string; cuerpo: string; dia: string }): Evento => ({

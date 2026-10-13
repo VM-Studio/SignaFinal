@@ -4,8 +4,8 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Camera, CheckCircle2, Flag, Map as MapIcon, Navigation, PackageCheck, Satellite, Smartphone, Truck, WifiOff } from "lucide-react";
-import { BotonLink, claseBoton, Boton } from "@/components/ui/boton";
+import { ArrowLeft, Camera, CheckCircle2, Flag, Gauge, Map as MapIcon, Navigation, PackageCheck, Satellite, Smartphone, Truck, WifiOff } from "lucide-react";
+import { BotonLink, Boton } from "@/components/ui/boton";
 import { Hoja } from "@/components/ui/hoja";
 import { MensajeError } from "@/components/ui/campos";
 import { FechaGrande, TarjetaChofer } from "./tarjeta-chofer";
@@ -20,6 +20,7 @@ import { PendienteEnvio } from "./pendiente-envio";
 import { useAlCambiar } from "@/components/layout/avisos-en-vivo";
 import { BotonSoltar } from "@/components/pedidos/acciones-detalle";
 import { salgoHaciaDestino } from "@/lib/viajes/acciones";
+import { abrirEnGoogleMaps } from "@/lib/viajes/navegar";
 import { enviarOGuardar } from "@/lib/offline/cola";
 import { posicionActual } from "./seguimiento-chofer";
 
@@ -94,11 +95,12 @@ export function PantallaViaje({ d }: { d: Datos }) {
         </p>
       )}
       {!enCurso && d.salidaEstimada && <p className="mt-3 text-sm text-suave">km actual {km(d.kmActual)} · {d.vehiculo}</p>}
-      {enCurso && !llego && d.maps && (
-        <a href={d.maps} target="_blank" rel="noopener" className={claseBoton("secundario", "normal", false, "mt-3 w-full lg:w-auto")}>
-          <Navigation /> Abrir en Google Maps{d.paradas.filter((p) => p.estado !== "COMPLETADA" && p.estado !== "LLEGO").length > 1 ? " (con las paradas)" : ""}
-        </a>
+      {enCurso && !llego && d.navegacion.length > 0 && (
+        <Boton variante="secundario" icono={<Navigation />} onClick={() => abrirEnGoogleMaps(d.navegacion)} className="mt-3 w-full lg:w-auto">
+          Abrir en Google Maps{d.navegacion.length > 1 ? " (con las paradas)" : ""}
+        </Boton>
       )}
+      {enCurso && <BotonLink href={`/viaje/${d.pedidoId}/conducir`} variante="secundario" icono={<Gauge />} className="mt-2 w-full lg:w-auto">Modo conducción</BotonLink>}
     </section>
   );
 

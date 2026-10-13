@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash, randomBytes } from "node:crypto";
 import { emitirCambio } from "@/lib/tiempo-real";
 import { after } from "next/server";
 import webpush from "web-push";
@@ -71,7 +72,8 @@ export const servicioPush = (endpoint: string) => (/apple\.com/.test(endpoint) ?
  * prueba), en paralelo y con 5 s de límite cada una. Cada intento queda en EnvioPush. 404/410: la
  * suscripción murió y se desactiva sola. Nunca lanza.
  */
-export async function pushA(usuarioId: string | null, contenido: { titulo: string; cuerpo: string; enlace: string | null; tag: string }, tipo = "GENERAL") {
+export type AccionPush = { action: string; title: string };
+export async function pushA(usuarioId: string | null, contenido: { titulo: string; cuerpo: string; enlace: string | null; tag: string; acciones?: AccionPush[]; accion?: { pedidoId: string; token: string } }, tipo = "GENERAL") {
   if (!vapid()) return { enviadas: 0, telefonos: 0, sinClaves: true, resultados: [] as ResultadoPush[] };
   const subs = await db.suscripcionPush.findMany({ where: { activa: true, ...(usuarioId ? { usuarioId } : {}) } });
   // "url" para el service worker; "enlace" por compatibilidad con la versión anterior.
@@ -117,7 +119,7 @@ async function enviarPush(notificacionId: string) {
   // Tag = la clave del aviso: el mismo evento repetido reemplaza al anterior en vez de apilarse.
   const clave = entidad ? `${n.tipo}:${entidad}` : n.id;
   if (!avisosATodos()) {
-    const { enviadas } = await pushA(n.usuarioId, { titulo: n.titulo, cuerpo: n.cuerpo, enlace: n.enlace, tag: clave }, n.tipo);
+    const { enviadas } = await pushA(n.usuarioId, { titulo: n.titulo, cuerpo: n.cuerpo, enlace: n.enlace, tag: clave, ...(await conAcciones(n.usuarioId, n.datos)) }, n.tipo);
     if (enviadas) await db.notificacion.update({ where: { id: n.id }, data: { enviadaPushEn: new Date() } });
     return;
   }
@@ -137,6 +139,21 @@ async function enviarPush(notificacionId: string) {
   const { enviadas } = await pushA(null, { titulo: `Para ${quienes} · ${n.titulo}`, cuerpo: n.cuerpo, enlace: n.enlace, tag: clave }, n.tipo);
   if (enviadas) await db.notificacion.update({ where: { id: n.id }, data: { enviadaPushEn: new Date() } });
 }
+
+/**
+ * Botones de la notificación (Android y escritorio; iPhone no los muestra y el toque abre la app). Para
+ * responder sin abrir la app va un token de un solo uso (30 minutos, atado al viaje, la parada y el
+ * chofer): se guarda solo su hash (TokenAccion) y lo canjea /api/viajes/[id]/accion.
+ */
+async function conAcciones(usuarioId: string, datos: unknown): Promise<{ acciones?: AccionPush[]; accion?: { pedidoId: string; token: string } }> {
+  const p = (datos as { push?: { acciones?: AccionPush[]; token?: { pedidoId: string; viajeId: string; paradaId: string; tipo: "LLEGADA" | "SALIDA" } } } | null)?.push;
+  if (!p?.acciones?.length) return {};
+  if (!p.token) return { acciones: p.acciones };
+  const token = randomBytes(24).toString("base64url");
+  await db.tokenAccion.create({ data: { hash: hashToken(token), usuarioId, ...p.token, expiraEn: new Date(Date.now() + 30 * 60_000) } });
+  return { acciones: p.acciones, accion: { pedidoId: p.token.pedidoId, token } };
+}
+export const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");
 
 /** Lo que tarde la push no demora ni rompe la acción: va después de responder. */
 function despues(fn: () => Promise<void>) {
