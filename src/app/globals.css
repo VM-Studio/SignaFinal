@@ -194,4 +194,41 @@ html.splash-visto #splash {
 html,
 body {
   overscroll-behavior-y: contain;
+  overscroll-behavior-x: none;
+  width: 100%;
+  touch-action: pan-y pinch-zoom;
+}
+/* Nada se "suelta" de costado. En html se propaga a la ventana; en body "clip" hace lo mismo sin
+   convertirlo en contenedor con scroll propio (eso rompería sticky y window.scrollY). */
+html {
+  overflow-x: hidden;
+}
+body {
+  overflow-x: clip;
+}
+/* Celular: nada más ancho que la pantalla. Textos largos (direcciones, mails, OC) cortan donde
+   haga falta; imágenes y videos nunca pasan su contenedor; main nunca fuerza el ancho de la grilla. */
+main {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+img,
+video,
+canvas,
+svg:not(.leaflet-zoom-animated) {
+  max-width: 100%;
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+select,
+textarea {
+  max-width: 100%;
+  min-width: 0;
+}
+/* Áreas seguras también a los costados (iPhone acostado). */
+.px-segura {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+main table {
+  overflow-wrap: normal;
 }

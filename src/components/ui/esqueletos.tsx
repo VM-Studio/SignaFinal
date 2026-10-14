@@ -23,7 +23,7 @@ export function EsqueletoTarjetas({ cantidad = 2 }: { cantidad?: number }) {
 /** Pantalla con mapa arriba (viaje, seguimiento, mapa). */
 export function EsqueletoMapa({ alto = "h-[240px]" }: { alto?: string }) {
   return (
-    <div className="flex flex-col gap-3 lg:grid lg:h-[calc(100dvh-96px)] lg:grid-cols-[400px_1fr]" aria-busy="true" aria-label="Cargando">
+    <div className="flex flex-col gap-3 lg:grid lg:h-[calc(100dvh-96px)] lg:grid-cols-[400px_minmax(0,1fr)]" aria-busy="true" aria-label="Cargando">
       <div className="flex flex-col gap-3 lg:order-1">
         <Esqueleto className="h-32" />
         <Esqueleto className="h-16" />
@@ -36,7 +36,7 @@ export function EsqueletoMapa({ alto = "h-[240px]" }: { alto?: string }) {
 /** Detalle de un pedido. */
 export function EsqueletoDetalle() {
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_360px]" aria-busy="true" aria-label="Cargando">
+    <div className="grid gap-6 @2xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" aria-busy="true" aria-label="Cargando">
       <div className="flex flex-col gap-3">
         <Esqueleto className="h-5 w-40" />
         <Esqueleto className="h-7 w-2/3" />

@@ -15,7 +15,7 @@ export default async function PaginaCombustible() {
   const [form, cargas] = await Promise.all([puedeCargar ? datosCarga() : null, misCargas()]);
 
   return (
-    <div className="grid gap-x-8 gap-y-2 lg:grid-cols-[420px_1fr]">
+    <div className="grid gap-x-8 gap-y-2 lg:grid-cols-[420px_minmax(0,1fr)]">
       {form && (
         <section>
           <Titulo>Cargar combustible</Titulo>

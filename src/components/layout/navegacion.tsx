@@ -156,7 +156,7 @@ export function HeaderMovil({ perfil, secciones }: { perfil: Perfil; secciones: 
   const [abierta, setAbierta] = useState(false);
   const titulo = pathname === "/inicio" ? "" : tituloDeRuta(pathname, secciones);
   return (
-    <header className="pt-segura sticky top-0 z-30 bg-negro text-white lg:hidden">
+    <header className="pt-segura px-segura sticky top-0 z-30 bg-negro text-white lg:hidden">
       <div className="flex h-[52px] items-center gap-2 pr-1 pl-4">
         <Link href="/inicio" aria-label="Inicio" className="flex h-11 shrink-0 items-center">
           <Image src="/signalogo.png" alt="SIGNA" width={72} height={27} priority className="h-auto w-[72px]" />
@@ -190,7 +190,7 @@ export function BarraInferior({ items, mas: grupos, conSalir = false, nuevas }: 
 
   return (
     <>
-      <nav className="pb-segura fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-negro text-white lg:hidden" aria-label="Principal">
+      <nav className="pb-segura px-segura fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-negro text-white lg:hidden" aria-label="Principal">
         <ul className="grid" style={{ gridTemplateColumns: `repeat(${columnas}, minmax(0, 1fr))` }}>
           {items.map((s) => {
             const Icono = ICONOS[s.icono];

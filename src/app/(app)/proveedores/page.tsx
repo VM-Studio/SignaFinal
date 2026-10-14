@@ -59,7 +59,7 @@ export default async function PaginaProveedores({ searchParams }: { searchParams
               </li>
             ))}
           </ul>
-          <div className="hidden overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel lg:block">
+          <div className="hidden overflow-x-auto rounded-[var(--radius-caja)] border border-linea bg-papel lg:block">
             <table className="tabla">
               <thead><tr><th>Proveedor</th><th>CUIT</th><th className="num">Sucursales</th><th>Dónde</th><th>Teléfono</th><th>Última compra</th></tr></thead>
               <tbody>

@@ -66,7 +66,7 @@ export function Sobrantes({ lista, editar }: { lista: Sobrante[]; editar: boolea
         })}
       </div>
       {/* Escritorio: tabla */}
-      <div className="hidden overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel lg:block">
+      <div className="hidden overflow-x-auto rounded-[var(--radius-caja)] border border-linea bg-papel lg:block">
         <table className="tabla">
           <thead>
             <tr><th>Material</th><th>Tipo</th><th>Sobró de</th><th>Desde</th><th className="num">Cantidad</th>{editar && <th />}</tr>

@@ -14,7 +14,8 @@ export const metadata: Metadata = { title: "Mi cuenta" };
 export default async function PaginaCuenta() {
   const u = await exigirSesion();
   return (
-    <div className="max-w-xl">
+    <div className="grid min-w-0 gap-x-6 lg:grid-cols-12">
+      <div className="min-w-0 lg:col-span-8">
       <Titulo>Mi cuenta</Titulo>
       <Tarjeta className="p-5">
         <p className="text-xl font-semibold">{u.nombre}</p>
@@ -35,14 +36,17 @@ export default async function PaginaCuenta() {
           </ul>
         </Tarjeta>
       )}
+      </div>
+      <div className="min-w-0 lg:col-span-4 lg:pt-12">
       {modoDemo() && (u.rol === "DIRECCION" || u.rol === "ADMINISTRACION") && (
         <div className="mt-6">
           <ReiniciarDemo />
         </div>
       )}
-      <FormularioSalir className="mt-6">
+      <FormularioSalir className="mt-6 lg:mt-0">
         <Boton variante="peligro" ancho icono={<LogOut />}>Cerrar sesión</Boton>
       </FormularioSalir>
+      </div>
     </div>
   );
 }

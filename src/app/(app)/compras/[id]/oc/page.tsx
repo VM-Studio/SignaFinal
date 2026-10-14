@@ -53,19 +53,18 @@ export default async function PaginaOC({ params }: { params: Promise<{ id: strin
   );
 
   return (
-    <div className="lg:-my-6 lg:-ml-6 lg:grid lg:grid-cols-[minmax(320px,36%)_minmax(0,1fr)]">
-      <aside className="lg:sticky lg:top-12 lg:h-[calc(100dvh-48px)] lg:overflow-y-auto lg:border-r lg:border-linea lg:bg-papel lg:p-6">
+    // Escritorio: el formulario en 2/3 a la izquierda y el pedido (para copiar datos) en el 1/3 derecho.
+    <div className="lg:-my-6 lg:-mr-6 lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(340px,1fr)]">
+      <div className="min-w-0 lg:py-6 lg:pr-6">
         <Link href={`/compras/${id}`} className="mb-3 inline-flex min-h-9 items-center gap-1 text-sm font-medium text-suave hover:text-tinta"><ArrowLeft className="size-4" /> Volver al pedido</Link>
         <details className="mb-4 rounded-[var(--radius-caja)] border border-linea bg-papel p-3 lg:hidden">
           <summary className="cursor-pointer text-sm font-medium">Ver el pedido (para copiar datos)</summary>
           <div className="mt-3">{pedido}</div>
         </details>
-        <div className="hidden lg:block">{pedido}</div>
-      </aside>
-      <div className="min-w-0 lg:py-6 lg:pl-6">
         <h1 className="mb-4 text-xl font-semibold lg:sr-only">Orden de compra</h1>
         <FormularioOC d={d} />
       </div>
+      <aside className="hidden min-w-0 lg:sticky lg:top-12 lg:block lg:h-[calc(100dvh-48px)] lg:overflow-y-auto lg:border-l lg:border-linea lg:bg-papel lg:p-6">{pedido}</aside>
     </div>
   );
 }

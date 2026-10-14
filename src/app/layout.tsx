@@ -32,6 +32,11 @@ export const viewport: Viewport = {
   colorScheme: "light",
   width: "device-width",
   initialScale: 1,
+  // No se puede achicar por debajo del ancho de la pantalla, pero sí agrandar para leer o tocar un campo
+  // (maximum-scale=1 sería inaccesible).
+  minimumScale: 1,
+  maximumScale: 5,
+  userScalable: true,
   viewportFit: "cover",
 };
 

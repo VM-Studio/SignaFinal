@@ -158,7 +158,7 @@ export function MapaEnVivo({ inicial, elegidoInicial, compacto = false }: { inic
   // Escritorio: columna de 400px con la lista o el vehículo elegido, y el mapa a la derecha a todo el alto.
   if (escritorio) {
     return (
-      <div className="-m-6 grid h-[calc(100dvh-48px)] grid-cols-[400px_1fr]">
+      <div className="-m-6 grid h-[calc(100dvh-48px)] grid-cols-[400px_minmax(0,1fr)]">
         <aside className="flex min-h-0 flex-col border-r border-linea bg-papel">
           {!v && <p className="shrink-0 border-b border-linea px-4 py-3 text-[12px] text-suave">{resumen}</p>}
           <div className="flex-1 overflow-y-auto">{panel}</div>

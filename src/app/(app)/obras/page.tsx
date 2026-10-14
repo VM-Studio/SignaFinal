@@ -40,7 +40,7 @@ export default async function PaginaObras() {
             ))}
           </ul>
           {/* Escritorio: tabla */}
-          <div className="hidden overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel lg:block">
+          <div className="hidden overflow-x-auto rounded-[var(--radius-caja)] border border-linea bg-papel lg:block">
             <table className="tabla">
               <thead>
                 <tr><th>Obra</th><th>Localidad</th><th>Dirección</th><th>Estado</th><th className="num">Pedidos activos</th><th className="num">Herramientas</th></tr>

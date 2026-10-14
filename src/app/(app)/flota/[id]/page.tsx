@@ -81,7 +81,7 @@ export default async function FichaVehiculo({ params, searchParams }: { params: 
       </div>
 
       {mes && (
-        <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
+        <div className="mb-4 grid grid-cols-2 gap-2 @md:grid-cols-4 @md:gap-3">
           <Cifra etiqueta="Costo del mes" valor={plata(mes.costoReal)} detalle="Combustible + mantenimiento + incidentes" />
           <Cifra etiqueta="Costo real por km" valor={mes.costoPorKm != null ? plata(mes.costoPorKm) : "—"} detalle={`Tarifa cargada: ${plata(v.costoKm)}/km`} />
           <Cifra etiqueta="Km del mes" valor={km(mes.km)} detalle={`${mes.viajes} viajes`} />
@@ -115,7 +115,7 @@ function Datos({ v, editar }: { v: Ficha; editar: boolean }) {
     ["Rastreo Cusat", v.idCusat ?? "Sin GPS"],
   ];
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+    <div className="grid gap-4 @2xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
       <Tarjeta className="p-4">
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           {filas.map(([k, val]) => (

@@ -21,7 +21,7 @@ export default async function PaginaHistorial({ searchParams }: { searchParams: 
         <VolverAlMapa />
         <Titulo detalle="Recorrido real de Cusat: paradas, km del día y los viajes del sistema. Se puede reproducir.">Historial</Titulo>
       </div>
-      <form className="grid grid-cols-[1fr_auto] gap-2" action="/mapa/historial">
+      <form className="grid grid-cols-[minmax(0,1fr)_auto] gap-2" action="/mapa/historial">
         <div className="col-span-2">
           <Selector name="vehiculo" defaultValue={sp.vehiculo ?? ""} aria-label="Vehículo">
             <option value="">Elegí el vehículo</option>

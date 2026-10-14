@@ -154,7 +154,7 @@ function FormHabilitar({ id, proveedores, oc, descripcion, destino, ocAprobada, 
           </ul>
         </fieldset>
       )}
-      <div className="grid grid-cols-[1fr_7rem] gap-3">
+      <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
         <Campo etiqueta="¿Qué se retira?" htmlFor="que"><Entrada id="que" value={que} onChange={(e) => setQue(e.target.value)} maxLength={300} /></Campo>
         <Campo etiqueta="Nro OC" htmlFor="oc-h"><Entrada id="oc-h" value={ordenCompra} onChange={(e) => setOrdenCompra(e.target.value)} maxLength={40} /></Campo>
       </div>

@@ -80,10 +80,56 @@ export async function DetalleMaterial({ id, vista }: { id: string; vista: "compr
   const pasoActual = ordenEstado(p.estado);
   const observacionesSolicitante = p.observaciones?.trim() || null;
 
+  // Escritorio: a la derecha (4 de 12), junto a las acciones. Celular: al final.
+  const lateral = (
+    <>
+        {p.adjuntos.length > 0 && (
+          <section className="mb-3">
+            <p className="etiqueta mb-2">Archivos adjuntos ({p.adjuntos.length})</p>
+            <ListaAdjuntos adjuntos={p.adjuntos} />
+          </section>
+        )}
+        <Subtitulo>Línea de tiempo</Subtitulo>
+        <ol className="relative ml-1.5 border-l border-linea pl-5">
+          {PASOS_MATERIAL.map((paso, i) => {
+            const hecho = p.estado !== "CANCELADO" && i <= pasoActual;
+            const cambio = [...p.cambios].reverse().find((c) => c.a === paso.estado);
+            return (
+              <li key={paso.estado} className="relative pb-4 last:pb-0">
+                <span aria-hidden className={`absolute top-1.5 -left-[25px] size-2 rounded-full ${hecho ? "bg-tinta" : "border border-linea-fuerte bg-papel"}`} />
+                <p className={`text-sm ${hecho ? "font-medium" : "text-suave"}`}>{paso.titulo}</p>
+                {hecho && cambio && <p className="text-[12px] text-suave">{[cuando(cambio.fecha), cambio.usuario?.nombre, cambio.nota].filter(Boolean).join(" · ")}</p>}
+              </li>
+            );
+          })}
+          {p.estado === "CANCELADO" && (
+            <li className="relative">
+              <span aria-hidden className="absolute top-1.5 -left-[25px] size-2 rounded-full bg-critico" />
+              <p className="text-sm font-medium text-critico">Cancelado{p.motivoCancelacion ? `: ${p.motivoCancelacion}` : ""}</p>
+              {p.cambios.at(-1) && <p className="text-sm text-suave">{cuando(p.cambios.at(-1)!.fecha)} · {p.cambios.at(-1)!.usuario?.nombre}</p>}
+            </li>
+          )}
+        </ol>
+        {/* Los rechazos y "aprobado en papel" quedan en el historial completo. */}
+        {gestiona && p.cambios.some((c) => c.nota?.startsWith("Rechazado")) && (
+          <>
+            <Subtitulo>Historial</Subtitulo>
+            <ul className="divide-y divide-linea rounded-[var(--radius-caja)] border border-linea bg-papel">
+              {p.cambios.map((c) => (
+                <li key={c.id} className="px-4 py-2 text-sm">
+                  <span className="font-medium">{ESTADO_MATERIAL[c.a].titulo}</span> · {cuando(c.fecha)}{c.usuario ? ` · ${c.usuario.nombre}` : ""}{c.nota ? ` · ${c.nota}` : ""}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+    </>
+  );
+
   return (
-    <div className="grid gap-x-6 gap-y-4 lg:grid-cols-[1fr_320px]">
-      <header className="min-w-0 lg:col-start-1">
-        <Link href={volver.href} className="mb-2 hidden min-h-8 items-center gap-1 text-sm font-medium text-suave hover:text-tinta lg:inline-flex"><ArrowLeft className="size-4" /> {volver.titulo}</Link>
+    <div className="grid gap-x-6 gap-y-4 @2xl:grid-cols-12">
+      <header className="min-w-0 @2xl:col-span-8 @2xl:col-start-1">
+        <Link href={volver.href} className="mb-2 hidden min-h-8 items-center gap-1 text-sm font-medium text-suave hover:text-tinta @2xl:inline-flex"><ArrowLeft className="size-4" /> {volver.titulo}</Link>
         <p className="etiqueta">Pedido de material {p.numero} · Obra {p.obra.nombre}{p.obraSede ? ` · ${p.obraSede.nombre}` : ""}</p>
         <h1 className="mt-1 text-xl leading-7 font-semibold whitespace-pre-line lg:text-[22px]">{p.descripcion}</h1>
         <div className="mt-2 flex flex-wrap gap-1.5">
@@ -98,13 +144,14 @@ export async function DetalleMaterial({ id, vista }: { id: string; vista: "compr
         {p.estado === "CANCELADO" && p.motivoCancelacion && <p className="mt-3 font-medium text-suave">Cancelado: {p.motivoCancelacion}</p>}
       </header>
 
-      {acciones.length > 0 && (
-        <aside className="flex flex-col gap-2 lg:sticky lg:top-[72px] lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start lg:rounded-[var(--radius-caja)] lg:border lg:border-linea lg:bg-papel lg:p-4">
-          {acciones}
-        </aside>
-      )}
+      {/* Información principal en 8 columnas; acciones, adjuntos y línea de tiempo en 4 (container queries:
+          igual de bien a página completa que en el panel de 480 px de la lista). */}
+      <aside className="flex min-w-0 flex-col gap-3 @2xl:col-span-4 @2xl:col-start-9 @2xl:row-span-2 @2xl:row-start-1 @2xl:self-start">
+        {acciones.length > 0 && <div className="flex flex-col gap-2 @2xl:rounded-[var(--radius-caja)] @2xl:border @2xl:border-linea @2xl:bg-papel @2xl:p-4">{acciones}</div>}
+        <div className="hidden flex-col @2xl:flex">{lateral}</div>
+      </aside>
 
-      <div className="min-w-0 lg:col-start-1">
+      <div className="min-w-0 @2xl:col-span-8 @2xl:col-start-1">
         {/* Lo primero que lee Compras: lo que escribió el que pidió. */}
         {observacionesSolicitante && (
           <section className="mb-3 rounded-[var(--radius-caja)] border border-tinta/15 bg-hover p-4">
@@ -121,14 +168,8 @@ export async function DetalleMaterial({ id, vista }: { id: string; vista: "compr
             <div className="mt-3 flex flex-col gap-3">{ocs.filter((o) => o.id !== (ocVigente ?? ocAprobada)?.id && o.numero).map((o) => <BloqueOC key={o.id} oc={o} completo />)}</div>
           </details>
         )}
-        {p.adjuntos.length > 0 && (
-          <section className="mb-3">
-            <p className="etiqueta mb-2">Archivos adjuntos ({p.adjuntos.length})</p>
-            <ListaAdjuntos adjuntos={p.adjuntos} />
-          </section>
-        )}
         {p.renglones.length > 0 && (
-          <section className="mb-3 overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
+          <section className="mb-3 overflow-x-auto rounded-[var(--radius-caja)] border border-linea bg-papel">
             <table className="tabla">
               <thead><tr><th>Material</th><th className="num">Cantidad</th><th>Unidad</th></tr></thead>
               <tbody>
@@ -203,40 +244,7 @@ export async function DetalleMaterial({ id, vista }: { id: string; vista: "compr
           </div>
         ))}
 
-        <Subtitulo>Línea de tiempo</Subtitulo>
-        <ol className="relative ml-1.5 border-l border-linea pl-5">
-          {PASOS_MATERIAL.map((paso, i) => {
-            const hecho = p.estado !== "CANCELADO" && i <= pasoActual;
-            const cambio = [...p.cambios].reverse().find((c) => c.a === paso.estado);
-            return (
-              <li key={paso.estado} className="relative pb-4 last:pb-0">
-                <span aria-hidden className={`absolute top-1.5 -left-[25px] size-2 rounded-full ${hecho ? "bg-tinta" : "border border-linea-fuerte bg-papel"}`} />
-                <p className={`text-sm ${hecho ? "font-medium" : "text-suave"}`}>{paso.titulo}</p>
-                {hecho && cambio && <p className="text-[12px] text-suave">{[cuando(cambio.fecha), cambio.usuario?.nombre, cambio.nota].filter(Boolean).join(" · ")}</p>}
-              </li>
-            );
-          })}
-          {p.estado === "CANCELADO" && (
-            <li className="relative">
-              <span aria-hidden className="absolute top-1.5 -left-[25px] size-2 rounded-full bg-critico" />
-              <p className="text-sm font-medium text-critico">Cancelado{p.motivoCancelacion ? `: ${p.motivoCancelacion}` : ""}</p>
-              {p.cambios.at(-1) && <p className="text-sm text-suave">{cuando(p.cambios.at(-1)!.fecha)} · {p.cambios.at(-1)!.usuario?.nombre}</p>}
-            </li>
-          )}
-        </ol>
-        {/* Los rechazos y "aprobado en papel" quedan en el historial completo. */}
-        {gestiona && p.cambios.some((c) => c.nota?.startsWith("Rechazado")) && (
-          <>
-            <Subtitulo>Historial</Subtitulo>
-            <ul className="divide-y divide-linea rounded-[var(--radius-caja)] border border-linea bg-papel">
-              {p.cambios.map((c) => (
-                <li key={c.id} className="px-4 py-2 text-sm">
-                  <span className="font-medium">{ESTADO_MATERIAL[c.a].titulo}</span> · {cuando(c.fecha)}{c.usuario ? ` · ${c.usuario.nombre}` : ""}{c.nota ? ` · ${c.nota}` : ""}
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
+        <div className="@2xl:hidden">{lateral}</div>
       </div>
     </div>
   );

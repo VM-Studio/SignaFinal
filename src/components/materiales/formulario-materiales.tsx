@@ -145,7 +145,7 @@ export function FormularioMateriales({ obras: iniciales, obraInicial, compras = 
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-1 text-[12px] font-medium text-suave">Materiales (escribilos o adjuntá la lista: con uno alcanza)</legend>
           {renglones.map((r, i) => (
-            <div key={i} className="grid grid-cols-[1fr_auto] gap-2 sm:grid-cols-[1fr_5.5rem_6.5rem_auto]">
+            <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[minmax(0,1fr)_5.5rem_6.5rem_auto]">
               <Entrada aria-label={`Material ${i + 1}`} value={r.descripcion} maxLength={200} autoFocus={i > 0} onChange={(e) => cambiar(i, { descripcion: e.target.value })} placeholder={i === 0 ? "Ej.: cemento portland" : "Otro material"} className="sm:col-span-1" />
               {renglones.length > 1 ? (
                 <button type="button" aria-label={`Sacar material ${i + 1}`} onClick={() => setRenglones((x) => x.filter((_, j) => j !== i))} className="grid size-11 place-items-center rounded-md border border-linea text-suave hover:text-tinta sm:order-last lg:size-9">

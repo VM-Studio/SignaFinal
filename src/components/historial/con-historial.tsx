@@ -14,14 +14,14 @@ import { PanelHistorial } from "./panel";
 type Historial = { items: ItemHistorial[]; favoritos: Favorito[] };
 
 /**
- * Formulario + "Pedidos anteriores". Escritorio: el panel en una columna derecha de 360 px. Celular: un
+ * Formulario + "Pedidos anteriores". Escritorio: formulario en 2/3 y el panel en el 1/3 derecho (360 px como mínimo). Celular: un
  * botón "Repetir un pedido anterior" arriba del formulario abre el panel como hoja inferior. Repetir
  * vuelve a montar el formulario con todo precargado (menos la fecha).
  */
 function Marco({ panel, children, hayHistorial }: { panel: (cerrar: () => void) => ReactNode; children: ReactNode; hayHistorial: boolean }) {
   const [abierta, setAbierta] = useState(false);
   return (
-    <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(360px,1fr)]">
       <div className="min-w-0">
         {hayHistorial && (
           <div className="mb-4 lg:hidden">

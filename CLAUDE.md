@@ -197,9 +197,18 @@ sale de un solo lugar: src/app/globals.css (tokens) y src/components/ui (compone
 - Íconos lucide: 16px escritorio, 20px celular, trazo 1,75.
 - Escritorio (1024px+): barra lateral negra de 232px (logo a 120px, ítems de 32px a 13px, activo con
   blanco al 10%); header blanco de 48px con el título de la página (22px, 600), acciones de 36px,
-  campana y avatar; contenido con padding 24 y sin max-width. Lista + detalle: lista de 380px a la
-  izquierda y detalle a la derecha. Mapa: columna de 400px con la información y el mapa a la
-  derecha ocupando todo el alto.
+  campana y avatar; contenido con padding 24 y sin max-width (ni mx-auto): todo usa el ancho completo,
+  también a 1920. Lista + detalle (ListaDetalle): la lista ocupa todo el ancho y al elegir una fila el
+  detalle se abre en un panel de 480px a la derecha (la lista se achica). Detalles: grilla de 12, 8 + 4
+  (contenido / línea de tiempo, adjuntos y acciones). Formularios: 2/3 + 1/3 de contexto (DosTercios,
+  ConHistorial). Inicios: grilla de 12 (el del dueño: mapa 8, cifras 4). Mapa: columna de 400px con la
+  información y el mapa a la derecha ocupando todo el alto.
+- Container queries: `main` y el panel de 480 son `@container`; los detalles y ColumnaMapa se arman con
+  `@2xl:` (no `lg:`), así se ven en una columna dentro del panel y en 8 + 4 a página completa.
+- Celular sin scroll horizontal nunca (html overflow-x hidden, body clip). Pistas de grilla con
+  minmax(0,1fr), flex con min-w-0, tablas dentro de overflow-x-auto, hojas max-w 100vw, áreas seguras con
+  env(). scripts/auditar-responsive.ts recorre todas las rutas de todos los roles (360/390/430 y
+  1440/1920) y tiene que dar cero desbordes y ninguna pantalla de escritorio por debajo del 90 %.
 - Celular: header negro de 52px (logo chico, título, campana); barra inferior de 56px (íconos de
   22px, etiqueta de 11px); contenido con padding 16; listas como filas de 56-64px con borde inferior,
   sin tarjeta por fila. Tarjeta solo para la acción principal del inicio y el viaje en curso.
@@ -305,7 +314,7 @@ Reglas (reemplazan lo que diga otra cosa más arriba):
 
 ## Repetir pedido e historial
 
-- /pedir, /pedir-materiales y /compras/nuevo tienen el panel "Pedidos anteriores" (columna derecha de
+- /pedir, /pedir-materiales y /compras/nuevo tienen el panel "Pedidos anteriores" (1/3 derecho, mínimo
   360 px en escritorio, hoja inferior en el celular): los últimos 20 (propios primero; Compras, de todas
   las obras), buscador (material, obra, OC), Repetir y Ver, y arriba los **favoritos** (PedidoFavorito,
   con nombre editable; quitar la estrella lo desactiva). src/lib/historial/.

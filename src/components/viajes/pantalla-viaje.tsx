@@ -183,7 +183,7 @@ export function PantallaViaje({ d }: { d: Datos }) {
 
   // Escritorio: columna de 400px con la información y el mapa a la derecha, a todo el alto.
   return (
-    <div className="lg:-m-6 lg:grid lg:h-[calc(100dvh-48px)] lg:grid-cols-[400px_1fr]">
+    <div className="lg:-m-6 lg:grid lg:h-[calc(100dvh-48px)] lg:grid-cols-[400px_minmax(0,1fr)]">
       <div className="lg:overflow-y-auto lg:border-r lg:border-linea lg:bg-papel lg:p-6">{columna}</div>
       {escritorio && (
         <div className="relative isolate hidden lg:block">

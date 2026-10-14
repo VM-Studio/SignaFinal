@@ -43,7 +43,7 @@ export function ColaMateriales({ filas, base = "/compras", compacta = false }: {
           </li>
         ))}
       </ul>
-      <div className={`hidden overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel ${compacta ? "" : "lg:block"}`}>
+      <div className={`hidden overflow-x-auto rounded-[var(--radius-caja)] border border-linea bg-papel ${compacta ? "" : "lg:block"}`}>
         <table className="tabla">
           <thead>
             <tr>

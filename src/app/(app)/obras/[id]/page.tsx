@@ -85,7 +85,7 @@ export default async function PaginaObra({ params, searchParams }: { params: Pro
 
       {tab === "datos" && (
         <div className="flex flex-col gap-4">
-          <div className="grid gap-3 rounded-[var(--radius-caja)] border border-linea bg-papel p-4 lg:grid-cols-[1fr_320px]">
+          <div className="grid gap-3 rounded-[var(--radius-caja)] border border-linea bg-papel p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
             <div>
               <p className="etiqueta">Dirección</p>
               <p className="mt-1 font-medium">{o.direccion}, {o.localidad}</p>

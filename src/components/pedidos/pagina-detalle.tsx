@@ -87,7 +87,7 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
 
   const cabecera = (
     <header className="min-w-0">
-      <Link href={volver.href} className="mb-2 hidden min-h-8 items-center gap-1 text-sm font-medium text-suave hover:text-tinta lg:inline-flex">
+      <Link href={volver.href} className="mb-2 hidden min-h-8 items-center gap-1 text-sm font-medium text-suave hover:text-tinta @2xl:inline-flex">
         <ArrowLeft className="size-4" /> {volver.titulo}
       </Link>
       <p className="flex items-center gap-1.5 etiqueta [&_svg]:size-3.5">
@@ -174,19 +174,9 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
     );
   }
 
-  return (
-    <div className="grid gap-x-6 gap-y-4 lg:grid-cols-[1fr_320px]">
-      <div className="lg:col-start-1">{cabecera}</div>
-
-      {hayAcciones && (
-        <aside className="flex flex-col gap-2 lg:sticky lg:top-[72px] lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start lg:rounded-[var(--radius-caja)] lg:border lg:border-linea lg:bg-papel lg:p-4">
-          {acciones}
-        </aside>
-      )}
-
-      <div id="detalle" className="flex min-w-0 scroll-mt-20 flex-col gap-3 lg:col-start-1">
-        {queSePidio}
-
+  // Escritorio: la línea de tiempo a la derecha (4 de 12), bajo las acciones. Celular: al final.
+  const lateral = (
+    <>
         <Subtitulo>Línea de tiempo</Subtitulo>
         <ol className="relative ml-1.5 border-l border-linea pl-5">
           {momentos.map((m) => (
@@ -204,6 +194,23 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
             </li>
           )}
         </ol>
+    </>
+  );
+
+  return (
+    <div className="grid gap-x-6 gap-y-4 @2xl:grid-cols-12">
+      <div className="min-w-0 @2xl:col-span-8 @2xl:col-start-1">{cabecera}</div>
+
+      {/* Información principal en 8 columnas; acciones y línea de tiempo en 4 (container queries). */}
+      <aside className="flex min-w-0 flex-col gap-3 @2xl:col-span-4 @2xl:col-start-9 @2xl:row-span-2 @2xl:row-start-1 @2xl:self-start">
+        {hayAcciones && <div className="flex flex-col gap-2 @2xl:rounded-[var(--radius-caja)] @2xl:border @2xl:border-linea @2xl:bg-papel @2xl:p-4">{acciones}</div>}
+        <div className="hidden flex-col @2xl:flex">{lateral}</div>
+      </aside>
+
+      <div id="detalle" className="flex min-w-0 scroll-mt-20 flex-col gap-3 @2xl:col-span-8 @2xl:col-start-1">
+        {queSePidio}
+
+        <div className="flex flex-col gap-3 @2xl:hidden">{lateral}</div>
       </div>
     </div>
   );

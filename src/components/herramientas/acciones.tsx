@@ -170,7 +170,7 @@ function Devolver({ d, cerrar }: { d: DatosAcciones; cerrar: () => void }) {
   return (
     <div className="flex flex-col gap-4">
       {cantidad && (
-        <div className="grid grid-cols-[1fr_7rem] gap-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
           <Campo etiqueta="¿De qué obra vuelve?" htmlFor="dev-desde">
             <Selector id="dev-desde" value={desde} onChange={(e) => setDesde(e.target.value)}>
               <option value="">Elegí la obra</option>

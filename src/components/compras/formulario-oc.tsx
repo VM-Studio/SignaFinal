@@ -198,7 +198,7 @@ export function FormularioOC({ d }: { d: FormularioOCDatos }) {
           <p className="mb-2 text-[12px] font-medium text-suave">Método de pago (obligatorio)</p>
           <Opciones nombre="Método de pago" columnas={3} valor={metodo} onElegir={(v) => setMetodo(v as MetodoPago)} opciones={(Object.keys(METODO_PAGO) as MetodoPago[]).map((m) => ({ valor: m, titulo: METODO_PAGO[m] }))} />
         </div>
-        <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
+        <div className="grid gap-3 sm:grid-cols-[10rem_minmax(0,1fr)]">
           <div>
             <p className="mb-2 text-[12px] font-medium text-suave">Moneda</p>
             <Opciones nombre="Moneda" columnas={2} valor={moneda} onElegir={(v) => setMoneda(v as "ARS" | "USD")} opciones={[{ valor: "ARS", titulo: "ARS" }, { valor: "USD", titulo: "USD" }]} />

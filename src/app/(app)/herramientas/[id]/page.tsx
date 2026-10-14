@@ -45,8 +45,8 @@ export default async function FichaHerramienta({ params, searchParams }: { param
       activo={h.id}
       items={lista.map((x) => ({ id: x.id, href: `/herramientas/${x.id}`, titulo: x.nombre, detalle: `${x.codigo} · ${x.donde}`, derecha: x.vencida ? <Insignia tono="critico">Vencida</Insignia> : undefined }))}
     >
-    <div className="grid gap-x-6 gap-y-4 xl:grid-cols-[1fr_320px]">
-      <header className="min-w-0 xl:col-start-1">
+    <div className="grid gap-x-6 gap-y-4 @2xl:grid-cols-12">
+      <header className="min-w-0 @2xl:col-span-8 @2xl:col-start-1">
         <Link href="/herramientas" className="mb-2 hidden min-h-8 items-center gap-1 text-sm font-medium text-suave hover:text-tinta lg:inline-flex"><ArrowLeft className="size-4" /> {u.rol === "RESPONSABLE_OBRA" || u.rol === "CAPATAZ" ? "Herramientas" : "Depósito"}</Link>
         <div className="flex gap-4">
           {h.fotoUrl && (
@@ -65,7 +65,7 @@ export default async function FichaHerramienta({ params, searchParams }: { param
         </div>
       </header>
 
-      <aside className="flex flex-col gap-3 xl:sticky xl:top-[72px] xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:self-start">
+      <aside className="flex flex-col gap-3 @2xl:sticky @2xl:top-0 @2xl:col-span-4 @2xl:col-start-9 @2xl:row-span-2 @2xl:row-start-1 @2xl:self-start">
         <AccionesHerramienta
           accionInicial={a && (ACCIONES as string[]).includes(a) ? (a as Accion) : null}
           d={{
@@ -80,7 +80,7 @@ export default async function FichaHerramienta({ params, searchParams }: { param
         />
       </aside>
 
-      <div className="min-w-0 xl:col-start-1">
+      <div className="min-w-0 @2xl:col-span-8 @2xl:col-start-1">
         <Tarjeta className="p-4">
           <p className="etiqueta">Dónde está</p>
           {cantidad ? (

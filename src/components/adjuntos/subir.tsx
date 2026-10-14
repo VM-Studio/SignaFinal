@@ -119,7 +119,7 @@ export function SubirAdjuntos({ entidadTipo, interno = false, etiqueta = "Adjunt
 
   return (
     <div className="flex flex-col gap-2">
-      <div className={`grid gap-2 ${compacto ? "grid-cols-[1fr_auto]" : "grid-cols-1 sm:grid-cols-[1fr_auto]"}`}>
+      <div className={`grid gap-2 ${compacto ? "grid-cols-[minmax(0,1fr)_auto]" : "grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto]"}`}>
         <button type="button" onClick={() => elegir.current?.click()} className={`flex items-center justify-center gap-2 rounded-md border border-dashed border-linea-fuerte bg-papel px-4 text-[15px] font-medium hover:bg-hover lg:text-[13px] ${compacto ? "min-h-12 lg:min-h-9" : "min-h-14 lg:min-h-12"}`}>
           <Paperclip className="size-5 lg:size-4" /> {etiqueta}
         </button>

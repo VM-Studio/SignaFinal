@@ -165,12 +165,19 @@ function InicioDireccion() {
       <Suspense fallback={null}>
         <AprobacionesPendientes />
       </Suspense>
-      <Suspense fallback={<Esqueleto className="h-[340px]" />}>
-        <MapaDireccion />
-      </Suspense>
-      <Suspense fallback={<div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">{[0, 1, 2, 3].map((i) => <Esqueleto key={i} className="h-24" />)}</div>}>
-        <CifrasDireccion />
-      </Suspense>
+      {/* Escritorio: grilla de 12, el mapa en 8 y las cifras en 4. */}
+      <div className="grid gap-3 lg:grid-cols-12 lg:gap-6">
+        <div className="min-w-0 lg:col-span-8">
+          <Suspense fallback={<Esqueleto className="h-[340px]" />}>
+            <MapaDireccion />
+          </Suspense>
+        </div>
+        <div className="min-w-0 lg:col-span-4">
+          <Suspense fallback={<div className="grid grid-cols-2 gap-2 lg:gap-3">{[0, 1, 2, 3].map((i) => <Esqueleto key={i} className="h-24" />)}</div>}>
+            <CifrasDireccion />
+          </Suspense>
+        </div>
+      </div>
     </div>
   );
 }
@@ -195,7 +202,7 @@ async function MapaDireccion() {
 async function CifrasDireccion() {
   const [r, acciones] = await Promise.all([resumenDireccion(), accionesDeHoy()]);
   return (
-    <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
+    <div className="grid grid-cols-2 gap-2 lg:gap-3">
       <Link href="/solicitudes"><Cifra etiqueta="Solicitudes pendientes" valor={r.pendientes} tono={r.pendientes > 3 ? "aviso" : undefined} /></Link>
       <Link href="/viajes"><Cifra etiqueta="Viajes en curso" valor={r.enViaje} /></Link>
       <Link href="/alertas"><Cifra etiqueta="Alertas críticas" valor={r.criticas} tono={r.criticas ? "critico" : "ok"} /></Link>

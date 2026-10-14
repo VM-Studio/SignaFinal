@@ -90,7 +90,7 @@ export default async function PaginaProveedor({ params }: { params: Promise<{ id
         <>
           <Subtitulo>Órdenes de compra</Subtitulo>
           {!ordenes.length ? <Tarjeta className="p-4 text-sm text-suave">Todavía no hay órdenes de compra a este proveedor.</Tarjeta> : (
-            <div className="overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
+            <div className="overflow-x-auto rounded-[var(--radius-caja)] border border-linea bg-papel">
               <table className="tabla">
                 <thead><tr><th>Número</th><th>Obra</th><th className="hidden sm:table-cell">Sucursal</th><th>Fecha</th><th>Estado</th><th className="num">Total</th></tr></thead>
                 <tbody>

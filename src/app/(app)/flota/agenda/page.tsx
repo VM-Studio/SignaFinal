@@ -50,7 +50,7 @@ export default async function PaginaAgenda({ searchParams }: { searchParams: Pro
       {/* Escritorio: filas por vehículo, bloques por hora */}
       <div className="hidden overflow-x-auto rounded-[var(--radius-caja)] border border-linea bg-papel lg:block">
         <div className="min-w-[960px]">
-          <div className="grid grid-cols-[200px_1fr] border-b border-linea">
+          <div className="grid grid-cols-[200px_minmax(0,1fr)] border-b border-linea">
             <div />
             <div className="relative h-9">
               {HORAS.map((h, i) => (
@@ -59,7 +59,7 @@ export default async function PaginaAgenda({ searchParams }: { searchParams: Pro
             </div>
           </div>
           {filas.map((v) => (
-            <div key={v.id} className="grid grid-cols-[200px_1fr] border-b border-linea last:border-0">
+            <div key={v.id} className="grid grid-cols-[200px_minmax(0,1fr)] border-b border-linea last:border-0">
               <div className="flex flex-col justify-center gap-1 border-r border-linea px-4 py-3">
                 <Link href={`/flota/${v.id}`} className="font-semibold hover:underline">{v.nombre}</Link>
                 <Insignia tono={ESTADO_VEHICULO[v.estado].tono} className="w-fit">{ESTADO_VEHICULO[v.estado].texto}</Insignia>

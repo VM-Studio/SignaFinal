@@ -132,7 +132,7 @@ export function SeguimientoViaje({ pedidoId, inicial, demo = false, cabecera, re
   return (
     <div className="flex flex-col gap-4">
       {cabecera}
-      <div className="grid gap-4 lg:grid-cols-[400px_1fr] lg:items-start">
+      <div className="grid gap-4 @2xl:grid-cols-[400px_minmax(0,1fr)] @2xl:items-start">
         {info}
         {detalle}
       </div>

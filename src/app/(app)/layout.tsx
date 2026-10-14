@@ -16,6 +16,7 @@ import { AvisosEnVivo } from "@/components/layout/avisos-en-vivo";
 import { TiempoReal } from "@/components/layout/tiempo-real";
 import { RefrescoPorRuta, TirarParaActualizar } from "@/components/layout/actualizar";
 import { SincronizarPush } from "@/components/layout/sincronizar-push";
+import { AjusteTeclado } from "@/components/layout/ajuste-teclado";
 
 export default async function LayoutApp({ children }: { children: React.ReactNode }) {
   const u = await exigirSesion();
@@ -51,13 +52,14 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
         <div className="sticky top-[calc(52px+env(safe-area-inset-top))] z-20 lg:top-12">
           <IndicadorConexion />
         </div>
-        <main className="w-full min-w-0 flex-1 px-4 pt-4 pb-[calc(56px+24px+env(safe-area-inset-bottom))] lg:p-6">{children}</main>
+        <main className="@container w-full min-w-0 flex-1 pt-4 pr-[max(16px,env(safe-area-inset-right))] pl-[max(16px,env(safe-area-inset-left))] pb-[calc(56px+24px+env(safe-area-inset-bottom))] lg:p-6">{children}</main>
       </div>
       <BarraInferior items={barraInferior(u.rol)} mas={menuMas(u.rol)} conSalir={chofer} nuevas={chofer ? { href: "/solicitudes", ultima: ultima?.toISOString() ?? null } : undefined} />
       {/* Mientras el chofer está en viaje, el teléfono manda su posición aunque navegue. */}
       {chofer && <SeguimientoChofer activo={enViaje} />}
       {chofer && enViaje && <VolverAConducir />}
       <SincronizarPush />
+      <AjusteTeclado />
       </AvisosEnVivo>
       </TiempoReal>
     </ProveedorAvisos>
