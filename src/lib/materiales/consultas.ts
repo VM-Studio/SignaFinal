@@ -255,7 +255,8 @@ export async function misMateriales(limite: number) {
     orderBy: [{ actualizadoEn: "desc" }],
     take: limite + 1,
   });
-  const todas = filas.slice(0, limite).map(aFila);
+  // La obra no ve importes de órdenes de compra (ni en los datos).
+  const todas = filas.slice(0, limite).map((x) => ({ ...aFila(x), monto: null }));
   const peso = (f: FilaMaterial) => (f.listoId ? 0 : f.estado === "ENTREGADO" || f.estado === "CANCELADO" ? 2 : 1);
   return { filas: todas.sort((a, b) => peso(a) - peso(b)), hayMas: filas.length > limite };
 }
@@ -362,7 +363,7 @@ export async function esperandoACompras(limite = 5) {
     where: conAlcance(u, { solicitanteId: u.id, estado: { in: ["SOLICITADO", "EN_COMPRA", "ESPERANDO_APROBACION", "APROBADO"] } }),
     include: filaInclude, orderBy: { paraCuando: "asc" }, take: limite,
   });
-  return filas.map(aFila);
+  return filas.map((x) => ({ ...aFila(x), monto: null }));
 }
 
 /** Inicio de obra: cuántos materiales listos para retirar hay en mis obras. */

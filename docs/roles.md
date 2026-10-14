@@ -6,7 +6,7 @@ controla en el servidor: no alcanza con esconder un botón.
 
 La regla de fondo: **cada dato vive en un solo sistema**. Stock de materiales, cajas y contabilidad
 están en Lebane; Signa organiza los viajes, la flota, las herramientas y el circuito de los pedidos de
-material, **con la orden de compra armada acá** (número OC-AAAA-NNNN, PDF y aprobación del dueño).
+material, **con la orden de compra armada acá** (OC-NNNN y PE-NNNN, con la plantilla de Compras, PDF y aprobación del dueño; ver docs/compras.md).
 Obras y proveedores se cargan en Signa mientras no haya API de Lebane (docs/pendientes.md).
 
 ---
@@ -15,10 +15,13 @@ Obras y proveedores se cargan en Signa mientras no haya API de Lebane (docs/pend
 
 **Ve todo.** Todas las pantallas de todos los roles, todas las alertas y todo lo que hace cada uno.
 
-- **Inicio**: el mapa en vivo con todos los vehículos y cuatro números: solicitudes pendientes,
-  viajes en curso, alertas críticas y acciones de hoy.
-- **Barra**: Mapa · Solicitudes · Viajes · Más. En **Más**, agrupado: Pedidos y viajes, Flota,
-  Depósito, Mapa, Alertas, Actividad, Costos, Obras.
+- **Inicio**: arriba "N órdenes esperan tu aprobación" con **Aprobar**; debajo los **viajes de hoy**, las
+  alertas críticas y cuatro números; el mapa como tarjeta chica con **Ver mapa**.
+- **Barra**: Aprobaciones · Pedidos · Avisos · Más (con contador en Aprobaciones y Avisos). **Pedidos**
+  es la vista global de pedidos de materiales, con los mismos filtros que Compras. En **Más**, en tarjetas y
+  agrupado: Viajes (Mapa, Viajes en curso, Solicitudes…), Compras (Órdenes/tablero), Flota, Depósito,
+  Seguimiento (Actividad, Alertas), Obras y proveedores, Configuración (Rastreo, Razones sociales,
+  Numeración de OC y PE, Ubicaciones, Usuarios).
 - **Solicitudes**: todas las pendientes. Puede **asignar** una a un chofer (elige chofer, vehículo
   y hora), como si la hubiera aceptado él.
 - **Viajes**: todos los viajes de todos los choferes, en curso y terminados.
@@ -52,10 +55,11 @@ Obras y proveedores se cargan en Signa mientras no haya API de Lebane (docs/pend
 
 Trabaja **solo con sus obras** (las que tiene asignadas en la tabla de responsables).
 
-- **Inicio**: botón grande **"Pedir un viaje"**, sus pedidos de hoy con estado en palabras
-  ("Aceptado por Claudio · sale 8:30", "En viaje · llega 10:40 aprox") y los viajes que van hoy
-  a sus obras.
-- **Barra**: Obras · Pedir · Viajes · Herramientas (sin "Más").
+- **Inicio**: botón grande **"Pedir"** (materiales o viaje); debajo **Listo para retirar** (lo que habilitó
+  Compras, con **Pedir el viaje**), **En camino hoy** y **Esperando a Compras**.
+- **Barra**: Pedir · Mis pedidos · Viajes · Más (Mis pedidos con el número de materiales listos para
+  retirar). En **Más**: Herramientas, Obras, Pedir materiales, Mis avisos, Inicio, Mi cuenta.
+- **No ve** el tablero de Compras ni importes de órdenes de compra (ni el PDF de la OC).
 - **Obras**: sus obras con pedidos activos y herramientas; en cada una, pedidos, herramientas
   (quién la tiene y desde cuándo) y datos (dirección con "Abrir en Maps", responsables).
 - **Pedir**: arriba, dos botones: **Pedir un viaje** y **Pedir materiales a Compras**.
@@ -113,7 +117,9 @@ La versión más simple: botones grandes y una cosa por pantalla.
 
 - **Inicio**: su viaje en curso con el botón de lo que sigue o, si no tiene, **"Solicitudes
   pendientes: 4"**, y los viajes aceptados de hoy.
-- **Barra**: Hoy · Solicitudes · Combustible · Más (Mi cuenta, Mis avisos, Cerrar sesión).
+- **Barra**: Hoy · Solicitudes · Avisos · Más (Solicitudes con el número de pendientes). En **Más**:
+  Combustible, Inicio, Mi cuenta y Cerrar sesión. Si un viaje lo coordinó Compras, la tarjeta dice
+  "Pidió Daniela · coordinó …".
 - **La fecha, primero y grande**, en toda tarjeta: "HOY · 8:30" (negro), "MAÑANA · por la tarde"
   (ámbar), "LUNES 13/10 · 8:30" (gris), "ATRASADO · ayer 8:30" (rojo). Es la fecha del pedido, nunca
   la de aceptación.
@@ -162,7 +168,9 @@ materiales y cantidades), depósito, flota, costos, obras, mapa general, ni aler
 
 - **Inicio**: acción principal **"Depósito"**, las herramientas que hay que preparar hoy (traslados ya
   aceptados) y las devoluciones vencidas.
-- **Barra**: Depósito · Sobrantes · Entregas · Más (Inicio, Alta masiva).
+- **Barra**: Buscar · Herramientas · Entregas · Más. **Buscar** abre el depósito con el buscador listo
+  (no hay escaneo ni etiquetas QR: se busca por nombre o código). En **Más**: Sobrantes, Alta masiva,
+  Mis avisos, Inicio, Mi cuenta.
 - **Depósito**: la maquinaria y las herramientas, con el filtro *Maquinaria* / *Herramientas*, buscador y
   ubicación. Desde cada ficha entrega, recibe, transfiere y manda a reparar; mantenimiento de maquinaria.
 - **Sobrantes**: los materiales de construcción que sobraron de las obras (construcción, eléctrico,
@@ -178,9 +186,12 @@ alertas de vehículos o choferes, ni la actividad de los demás.
 
 ## Compras (la persona de compras)
 
-- **Inicio**: botón grande **"Pedidos nuevos: 3"**, cuántos hay en compra, esperando al dueño,
-  aprobados y sin retirar hace más de 3 días, y la lista de los demorados.
-- **Barra**: Pedidos · Habilitados · Proveedores · Más (Inicio, Mis avisos, Mi cuenta).
+- **Inicio**: **Pedidos nuevos** (N, con botón), **Esperando aprobación** (N), **Listos sin retirar hace
+  más de 3 días** (N), la cotización del dólar y los demorados.
+- **Barra**: Pedidos · Órdenes · Viajes · Más (Pedidos con el número de nuevos sin tomar). **Órdenes**
+  abre el Tablero (pestañas Tablero · Órdenes · Importar); **Viajes**: Coordinar viaje · Solicitudes.
+  En **Más**: Habilitados, Proveedores, Importar Excel, Pedir materiales, Numeración y solicitantes,
+  Mis avisos, Inicio, Mi cuenta. Guía completa: **docs/compras.md**.
 - **Pedidos** (la cola): Nuevos / En compra / Esperando aprobación / Aprobados / Listos. Urgentes
   primero, después por para cuándo; en rojo lo demorado (más de 2 días hábiles sin comprar, más de
   un día esperando al dueño). Filtro por obra. **Nuevo pedido** para lo que le piden por teléfono.
@@ -188,17 +199,16 @@ alertas de vehículos o choferes, ni la actividad de los demás.
   descargan); **notas internas de Compras** y adjuntos propios (presupuestos) que el que pidió no ve.
   UN botón con lo que sigue: **Tomar** → **Armar orden de compra** → (esperando al dueño) →
   **Habilitar para retirar** → listo. Cancelar con motivo.
-- **Orden de compra** (`/compras/{pedido}/oc`): el formulario de la plantilla con los datos ya copiados
-  del pedido; **Importar desde la planilla adjunta** (xlsx o csv) para no transcribir; proveedor con
-  buscador y **sucursal** (o **Nuevo proveedor** / **Agregar sucursal** sin salir); renglones con precio,
-  IVA, método de pago (acopio, cuenta corriente, transferencia, efectivo o eCheq), condiciones
-  y observaciones; **Vista previa del PDF**. **Enviar a aprobación** le asigna el número (OC-2026-0001,
-  correlativo, nunca se repite) y le avisa al dueño. Si la rechazan: **Corregir y reenviar** (número
-  nuevo; la vieja queda como historial). **Anular** con motivo.
+- **Orden de compra / pedido especial**: la plantilla de su planilla (Empresa, Fecha del pedido, Fecha de
+  caducidad, Solicitado por, Obra, Detalle del Pedido con **Pasar a renglones**, Proveedor Sugerido y
+  Final, Presupuesto N°, Importe o "A confirmar", Forma y Condición de Pago, 1.1 Observaciones,
+  Facturación y Orden de Pago). **Guardar** (borrador en Órdenes), **Vista previa PDF**, **Enviar a
+  aprobación** (número OC-NNNN o PE-NNNN, cada uno con su numeración). Se arma desde un pedido o directo
+  desde Órdenes. Editar una autorizada con un cambio de fondo vuelve a aprobación como v2.
 - **Habilitar para retirar**: si hay OC aprobada, viene precargado (proveedor, sucursal, OC y renglones
   para tildar lo que se retira ahora; retiros parciales).
-- **Órdenes de compra**: todas, con buscador (número, proveedor, obra), filtros por estado y fechas,
-  PDF y **CSV** (lo que va a recibir Lebane).
+- **Tablero**: su tablero de control con sus columnas, filtros, vistas guardadas, Próximos pasos y
+  Comentarios editables en la tabla, **Exportar a Excel** e **Importar** su planilla vieja.
 - **Habilitados**: lo que habilitó y qué pasó después (sin retiro pedido, retiro pedido, en camino,
   entregado); en rojo lo que lleva 3 días o más sin que la obra pida el viaje.
 - **Proveedores**: buscador, ficha con CUIT, teléfono, mail y sus **sucursales** (dirección en el mapa,
@@ -208,15 +218,19 @@ alertas de vehículos o choferes, ni la actividad de los demás.
 adjuntos trae), el dueño aprobó o rechazó la OC, faltó material en un retiro ("Retiraron 30 de 40
 bolsas"), el material se entregó o volvió a quedar sin retirar. **Alertas**: pedidos demorados, material sin retirar.
 
-**No ve**: solicitudes de viaje, flota, costos, mapa, depósito ni la actividad de los demás (solo
-el seguimiento de los viajes que retiran sus materiales).
+**Viajes**: coordina viajes para la gente de obra (salen a su nombre, "coordinó" Compras) y ve todas las
+solicitudes con filtros, agrupadas por lugar de retiro; edita o cancela las pendientes. No acepta ni
+inicia viajes.
+
+**No ve**: flota, costos, mapa, depósito ni la actividad de los demás.
 
 ---
 
 ## Administración (oficina)
 
 - **Inicio**: vencimientos de documentación de los próximos 30 días y el costo del mes por obra.
-- **Barra**: Flota · Costos · Alertas · Más (Inicio, Agenda, Mantenimiento, Obras, Usuarios, Ubicaciones).
+- **Barra**: Flota · Costos · Alertas · Más. En **Más**: Obras, Proveedores, Razones sociales, Agenda,
+  Mantenimiento, Tablero de Compras (solo mirar), Ubicaciones, Usuarios, Mis avisos, Inicio, Mi cuenta.
 - Documentación de vehículos, mantenimiento, incidentes, costos por obra y por vehículo con
   exportación para Lebane. Un viaje con varias obras **reparte su costo** por tramo entre ellas.
 - **Usuarios**: alta de personas, rol, teléfono, licencia de los choferes y obras de cada
@@ -226,4 +240,5 @@ el seguimiento de los viajes que retiran sus materiales).
 **Alertas**: documentos por vencer o vencidos, licencias, service próximo, consumo de combustible
 anómalo, vehículos en movimiento fuera de horario o parados en viaje.
 
-**No ve**: solicitudes ni pedidos, el mapa en vivo, depósito ni la actividad de los demás.
+**No ve**: solicitudes ni pedidos de viaje, el mapa en vivo, depósito ni la actividad de los demás. El
+tablero de Compras lo ve pero no lo edita.

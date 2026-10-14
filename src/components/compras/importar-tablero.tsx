@@ -182,7 +182,7 @@ export function ImportarTablero() {
                   <td className="text-right whitespace-nowrap tabular-nums">{r.importe != null || r.importeAConfirmar ? importeTexto(r.importe, "ARS", r.importeAConfirmar) : "—"}</td>
                   <td className="max-w-64"><span className="line-clamp-2 whitespace-pre-line">{r.materiales ?? "—"}</span></td>
                   <td className="whitespace-nowrap">
-                    <Selector aria-label="Estado" value={corr[r.n]?.estado ?? r.estado ?? ""} onChange={(e) => corregir(r.n, { estado: e.target.value as EstadoTablero | "" })} className="!min-h-8">
+                    <Selector aria-label="Estado" value={corr[r.n]?.estado ?? r.estado ?? ""} onChange={(e) => corregir(r.n, { estado: e.target.value as EstadoTablero | "" })} className="!min-h-8 min-w-48">
                       <option value="">Sin estado</option>
                       {ESTADOS_TABLERO.map((s) => <option key={s} value={s}>{ESTADO_TABLERO[s].titulo}</option>)}
                     </Selector>

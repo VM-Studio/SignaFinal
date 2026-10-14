@@ -260,7 +260,8 @@ RETIRO_PEDIDO → EN_CAMINO → ENTREGADO, o CANCELADO.
 
 ## Compras según Alejandra
 
-Compras (Alejandra) trabajaba con una planilla (docs/plantilla-oc/ORDENES_DE_COMPRA_PEDIDOS_ESPECIALES.xlsx):
+Compras (Alejandra) trabajaba con una planilla (docs/plantilla-oc/ORDENES_DE_COMPRA_PEDIDOS_ESPECIALES.xlsx,
+solo local: tiene datos reales de la empresa y el repo es PÚBLICO, así que está en .gitignore; nunca se sube):
 hojas "OC NUEVA" y "PEDIDOS ESPECIALES" (bloques de orden uno debajo del otro), "TABLERO DE CONTROL
 ORDENES DE C" (la lista de control), "SolicitadoPor", "NOTOCAR" (obras y CUITs) y "OP". El sistema
 usa SU vocabulario y SUS campos; esta sección manda sobre lo que diga otra cosa de las OC más arriba.
@@ -293,6 +294,9 @@ usa SU vocabulario y SUS campos; esta sección manda sobre lo que diga otra cosa
 - El sistema arranca VACÍO: ninguna OC de ejemplo en producción. El historial se importa después
   desde el Excel del tablero con las mismas columnas (/compras/importar). Las importadas quedan con
   fuente IMPORTADA_EXCEL, sin pedido de material ni PDF, y nunca entran en /aprobaciones.
+- Guía para Alejandra con capturas: docs/compras.md. Capturas y recorridos: scripts/recorrido-compras.ts,
+  scripts/recorrido-coordinar.ts, scripts/capturas-compras.ts, scripts/capturas-roles.ts. Rendimiento del
+  tablero con 2.000 órdenes: scripts/rendimiento-tablero.ts (solo en desarrollo; menos de 1 s).
 
 ## Filtros, vistas guardadas y "Coordinar viaje"
 

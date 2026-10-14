@@ -328,7 +328,7 @@ export function FormularioOC({ d }: { d: FormularioOCDatos }) {
         </Fila>
         <Fila etiqueta="Forma de Pago"><Opciones nombre="Forma de pago" columnas={2} valor={forma} onElegir={(v) => setForma(v as FormaPago)} opciones={opcionesForma} /></Fila>
         <Fila etiqueta="Condición de Pago">
-          <Opciones nombre="Condición de pago" columnas={3} valor={condicion} onElegir={(v) => setCondicion(v as CondicionPago)} opciones={opcionesCondicion} />
+          <Opciones nombre="Condición de pago" columnas={2} valor={condicion} onElegir={(v) => setCondicion(v as CondicionPago)} opciones={opcionesCondicion} />
           {condicion && <Entrada aria-label="Detalle de la condición" className="mt-2" value={condicionTexto} onChange={(e) => setCondicionTexto(e.target.value)} maxLength={200} placeholder={condicion === "OTRA" ? "¿Cuál? (obligatorio)" : "Detalle (opcional): 50 % anticipo, saldo contra entrega"} />}
         </Fila>
         <Fila etiqueta="Fecha de entrega programada" htmlFor="oc-entrega"><Fecha id="oc-entrega" value={entrega} onChange={(e) => setEntrega(e.target.value)} /></Fila>
@@ -370,7 +370,7 @@ export function FormularioOC({ d }: { d: FormularioOCDatos }) {
         <Fila etiqueta="Importe" htmlFor="oc-facimp"><Entrada id="oc-facimp" inputMode="decimal" className="w-48 text-right" value={facImporte} onChange={(e) => setFacImporte(e.target.value.replace(/[^\d.,]/g, ""))} /></Fila>
         <Fila etiqueta="Fecha" htmlFor="oc-facfec"><Fecha id="oc-facfec" value={facFecha} onChange={(e) => setFacFecha(e.target.value)} /></Fila>
         <Fila etiqueta="Forma de Pago"><Opciones nombre="Forma de pago de la factura" columnas={2} valor={facForma || undefined} onElegir={(v) => setFacForma(v as FormaPago)} opciones={opcionesForma} /></Fila>
-        <Fila etiqueta="Condición de Pago"><Opciones nombre="Condición de pago de la factura" columnas={3} valor={facCondicion || undefined} onElegir={(v) => setFacCondicion(v as CondicionPago)} opciones={opcionesCondicion} /></Fila>
+        <Fila etiqueta="Condición de Pago"><Opciones nombre="Condición de pago de la factura" columnas={2} valor={facCondicion || undefined} onElegir={(v) => setFacCondicion(v as CondicionPago)} opciones={opcionesCondicion} /></Fila>
         <Fila etiqueta="Factura (archivo)">
           {facAdjunto && d.adjuntosOC.some((a) => a.id === facAdjunto) ? <ListaAdjuntos adjuntos={d.adjuntosOC.filter((a) => a.id === facAdjunto)} /> : null}
           <SubirAdjuntos entidadTipo="ORDEN_COMPRA" compacto etiqueta="Adjuntar la factura" onCambio={(ids, s) => { setFacAdjunto(ids[0] ?? o?.facturaAdjuntoId ?? null); setAdjFactura(ids); setSubiendo(s); }} />

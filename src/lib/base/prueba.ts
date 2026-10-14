@@ -106,8 +106,6 @@ export async function cargarDatosPrueba(db: PrismaClient) {
     const subtotal = renglones.reduce((s, r) => s + r.cantidad * r.precio, 0);
     const iva = Math.round(subtotal * 0.21);
     const n = await db.$transaction((tx) => siguienteNumero(tx, "OC"));
-    const pdfOc = pdfSimple([`ORDEN DE COMPRA ${n.numero}`, ...renglones.map((r) => `${r.cantidad} ${r.unidad} ${r.descripcion}`), `Total $ ${(subtotal + iva).toLocaleString("es-AR")}`, estado === "APROBADA" ? "APROBADA" : "Esperando aprobacion"]);
-    const a = await db.archivo.create({ data: { tipo: "application/pdf", nombre: `${n.numero}.pdf`, datos: new Uint8Array(pdfOc), tamano: pdfOc.length, subidoPorId: compras.id } });
     return db.ordenCompra.create({
       data: {
         numero: n.numero, numeroTexto: String(n.secuencia), anio: anioArgentina(), secuencia: n.secuencia, pedidoMaterialId: pm.id, obraId: pm.obraId, solicitanteId: pm.solicitanteId, proveedorId: suc.proveedorId, sucursalId: suc.id,
@@ -118,7 +116,8 @@ export async function cargarDatosPrueba(db: PrismaClient) {
         estadoTablero: estado === "APROBADA" ? "ENCARGADO" : "PEDIR_AUTORIZACION", estadoTableroAuto: estado === "APROBADA" ? "ENCARGADO" : "PEDIR_AUTORIZACION",
         proximosPasos: estado === "APROBADA" ? "Claudio retira el jueves a primera hora." : null,
         subtotal: D(subtotal), ivaPorcentaje: D(21), iva: D(iva), total: D(subtotal + iva), estado, creadaPorId: compras.id, enviadaEn: new Date(),
-        ...(estado === "APROBADA" ? { aprobadaPorId: direccion.id, aprobadaEn: new Date(), pdfAprobadaUrl: `db:${a.id}` } : {}), pdfUrl: `db:${a.id}`,
+        // Sin PDF guardado: /api/oc/[id]/pdf lo genera con la plantilla desde estos datos.
+        ...(estado === "APROBADA" ? { aprobadaPorId: direccion.id, aprobadaEn: new Date() } : {}),
         renglones: { create: renglones.map((r, i) => ({ orden: i + 1, descripcion: r.descripcion, cantidad: D(r.cantidad), unidad: r.unidad, precioUnitario: D(r.precio), subtotal: D(r.cantidad * r.precio) })) },
       },
     });

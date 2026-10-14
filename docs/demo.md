@@ -11,11 +11,28 @@ La app arranca **vacía**: no hay datos de demostración. Lo único fijo (los **
   docs/cambios-2026-10-10.md).
 - **Los seis vehículos reales** (Mercedes 710, Kia, Zanella, Oroch, Kangoo, Kangoo LL). Cusat los enlaza
   solo por patente en el primer minuto y desde ahí el mapa muestra dónde está cada uno.
+- **Compras**: las cuatro razones sociales de la planilla de Compras (Signa Desarrollos, Darwin 1299,
+  Álvarez Thomas, Remedios de Escalada 2329), los "Solicitado por" sin usuario (Romina, Hernán) y la
+  numeración de OC y PE en cero (el dueño fija el próximo número en *Más → Numeración y solicitantes*).
 - **El inventario de herramientas** (planilla "Inventario SIGNA", hoja Herramientas): 117 herramientas,
   1.108 unidades, **todas en el depósito**.
 
 Todo lo demás se carga desde la app. Para volver a este punto: *Mi cuenta* → **Dejar solo los datos
 base** (con `MODO_DEMO=true`; borra todo lo cargado y no se puede deshacer).
+
+## Dónde está cada cosa (barra de cada rol)
+
+| Rol | Barra (celular) | En "Más" |
+|---|---|---|
+| Dirección | Aprobaciones · Pedidos · Avisos · Más | Mapa, Viajes en curso, Solicitudes, Flota, Costos, Actividad, Herramientas, Rastreo, Obras, Proveedores, Configuración |
+| Compras | Pedidos · Órdenes · Viajes · Más | Habilitados, Proveedores, Importar Excel, Numeración y solicitantes, Avisos |
+| Responsable / Capataz | Pedir · Mis pedidos · Viajes · Más | Herramientas, Obras, Pedir materiales, Avisos |
+| Chofer | Hoy · Solicitudes · Avisos · Más | Combustible |
+| Depósito | Buscar · Herramientas · Entregas · Más | Sobrantes, Alta masiva, Avisos |
+| Administración | Flota · Costos · Alertas · Más | Obras, Proveedores, Razones sociales, Agenda, Mantenimiento, Tablero de Compras, Usuarios |
+
+En escritorio, la barra lateral tiene los mismos tres arriba y el resto en "Más" (plegado). Mi cuenta y
+Cerrar sesión, en el avatar y al pie de "Más".
 
 ## Orden para empezar a probar
 
@@ -45,15 +62,19 @@ datos reales cargados:
    Excel** (o una foto) en lugar de escribir renglón por renglón, escribe observaciones ("el cemento que
    sea Loma Negra") y pide.
 2. **Compras** ve el pedido con el clip y la nota, abre el adjunto en la app, **Tomar** → **Armar orden
-   de compra**: **Importar desde planilla-darwin.xlsx** (los renglones aparecen solos), precios,
-   proveedor **Corralón San Martín** y su **sucursal**, método de pago, **Vista previa del PDF** →
-   **Enviar a aprobación**: recibe el número **OC-2026-000N**.
-3. **El dueño** recibe el push y en *Aprobaciones* ve la OC **con todos los datos escritos** (renglones,
-   precios, IVA, total, método de pago, lo que pidió la obra) y el PDF → **Aprobar**. (Para probar el
+   de compra**: la plantilla de Compras (Detalle del Pedido → **Pasar a renglones**, o **Importar de la
+   planilla**), Proveedor Final **Corralón San Martín** y su **sucursal**, Importe, Forma y Condición de
+   Pago, **Vista previa PDF** → **Enviar a aprobación**: recibe el número **OC-000N**. La ve en
+   *Órdenes → Tablero* como **Pedir autorización** y anota los **Próximos pasos** en la misma tabla.
+3. **El dueño** recibe el push (y el número en *Aprobaciones*) y ve la OC **con todos los datos escritos**
+   (detalle, proveedor, importe, forma y condición de pago, lo que pidió la obra) y el PDF → **Aprobar**.
+   En el tablero de Compras pasa a **Autorizada**. (Para probar el
    rechazo: **Rechazar** con motivo → Compras **Corregir y reenviar** → número nuevo.)
 4. **Compras** → **Habilitar para retirar**: viene todo precargado de la OC; tilda lo que se retira.
    **Daniela** ve en su pedido la OC aprobada con su PDF.
 5. **Daniela** (o César, Lolo) → *Pedir* → **Retiro en proveedor** → marca lo listo → pide el viaje.
+   (O **Compras** → *Viajes* → **Coordinar viaje**: para Daniela, obra Darwin → el pedido sale a nombre de
+   Daniela y Claudio ve "Pidió Daniela · coordinó …".)
 6. **Claudio** → *Solicitudes* → **Aceptar** el cemento para Darwin: **Aprovechá el viaje** le ofrece el
    hierro para Chubut en el mismo corralón y la hormigonera de Humboldt a 1,2 km. Prueba: con Pinares
    (4.000 kg) y el Kia (3.000) no deja confirmar. Combina los tres con el Mercedes: un viaje de 4 paradas
@@ -65,7 +86,10 @@ datos reales cargados:
 8. **Fechas**: el viaje aceptado para pasado mañana aparece en *Hoy → Próximos* con la fecha grande y el
    botón **Iniciar** deshabilitado; **Pedir que lo adelanten** → el dueño lo **Reprograma** para hoy →
    Claudio recibe el aviso y los recordatorios.
-9. **Depósito**: buscar una herramienta (filtro Maquinaria / Herramientas) y entregarla a una obra. En
+9. **Compras** → *Órdenes* → **Nuevo PE**: el pedido especial sale con su numeración aparte (PE-0001).
+   *Exportar a Excel* baja el tablero con las mismas columnas de su planilla. *Importar* carga su planilla
+   vieja con vista previa fila por fila.
+10. **Depósito**: buscar una herramienta (filtro Maquinaria / Herramientas) y entregarla a una obra. En
    *Sobrantes*, cargar lo que sobró de una obra.
 
 Cada paso le llega a quien corresponde al instante (campana y celular). Lo que pasó queda en

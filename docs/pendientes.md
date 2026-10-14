@@ -42,6 +42,22 @@ Cada pieza externa tiene un único punto de entrada en el código, así que cone
 - **Radios de llegada**: 150 m al retiro, la geocerca de cada obra (200 m por defecto). Ajustables
   en `src/lib/viajes/parametros.ts` y en cada obra.
 
+### Con Alejandra (Compras)
+
+- **Números iniciales**: el próximo número de OC y de PE. En su planilla la última OC era la 417 y el
+  último PE el 151; si se importa su tablero, la numeración sigue sola después del mayor importado. Si no,
+  el dueño los fija en *Más → Numeración y solicitantes* (solo hacia arriba).
+- **Razones sociales completas**: hoy figuran como en su planilla (SIGNA DESARROLLOS S.A, DARWIN 1299 S.A,
+  ALVAREZ THOMAS, REMEDIOS DE ESCALADA 2329) con sus CUIT. Confirmar el nombre legal completo de las dos
+  últimas y con cuál compra cada obra (*Configuración → Razones sociales*).
+- **Solicitantes sin usuario**: Romina y Hernán están cargados. En su tablero aparecen también Alejandra,
+  Martín, Daniel Puig y Benjamín: confirmar si son personas distintas (al importar se agregan solos) y si
+  "Victoria" es Vicky (el importador lo empareja así).
+- **Obras de la planilla que no están en el sistema**: Merit, Congreso, Ascensión, Plaza I y II, Lincoln,
+  Nordelta Glorietas, Centro de Capacitación Chivilcoy, MDA, entre otras. Al importar quedan como texto;
+  si siguen activas, cargarlas como obras (o elegirlas en la vista previa).
+- **Colores del tablero**: su planilla no distingue los estados por color; se usó la escala del sistema.
+
 ## 2. Cusat: API oficial
 
 - **Hoy**: el adaptador (`src/lib/cusat/cusatView.ts`) reproduce las llamadas internas de la web de

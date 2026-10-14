@@ -29,12 +29,14 @@ const RUTAS: Record<string, string[]> = {
     "/compras/ordenes", "/compras/nuevo", "/habilitados", "/flota", "/flota/{vehiculo}", "/flota/agenda", "/flota/mantenimiento", "/costos", "/actividad", "/actividad/{usuario}",
     "/alertas", "/usuarios", "/obras", "/obras/{obra}", "/proveedores", "/proveedores/{proveedor}", "/configuracion/rastreo", "/configuracion/ubicaciones", "/avisos", "/cuenta",
     "/herramientas", "/herramientas/{herramienta}", "/herramientas/importar", "/sobrantes", "/entregas", "/combustible", "/pedir", "/pedir/retiro", "/pedir-materiales", "/mis-pedidos",
+    "/compras/tablero", "/compras/ordenes/nueva", "/configuracion/razones-sociales", "/configuracion/compras",
   ],
   daniela: ["/inicio", "/obras", "/obras/{obra}", "/pedir", "/pedir/retiro", "/pedir-materiales", "/mis-pedidos", "/mis-pedidos?tab=materiales", "/mis-pedidos/{mipedido}", "/mis-pedidos/material/{mimaterial}", "/viajes-en-curso", "/herramientas", "/herramientas/{herramienta}", "/avisos", "/cuenta"],
   claudio: ["/inicio", "/hoy", "/hoy?vista=proximos", "/hoy?vista=todos", "/solicitudes", "/solicitudes/{solicitud}", "/viaje/{viaje}", "/combustible", "/avisos", "/cuenta"],
-  compras: ["/inicio", "/compras", "/compras/{material}", "/compras/ordenes", "/compras/nuevo", "/habilitados", "/proveedores", "/proveedores/{proveedor}", "/pedir-materiales", "/avisos", "/cuenta"],
+  compras: ["/inicio", "/compras", "/compras/{material}", "/compras/ordenes", "/compras/nuevo", "/habilitados", "/proveedores", "/proveedores/{proveedor}", "/pedir-materiales", "/avisos", "/cuenta",
+    "/compras/tablero", "/compras/ordenes/nueva", "/compras/ordenes/nueva?tipo=PE", "/compras/importar", "/compras/viajes", "/compras/viajes/solicitudes", "/configuracion/compras"],
   deposito: ["/inicio", "/herramientas", "/herramientas/{herramienta}", "/herramientas/importar", "/sobrantes", "/entregas", "/avisos", "/cuenta"],
-  administracion: ["/inicio", "/flota", "/flota/{vehiculo}", "/flota/agenda", "/flota/mantenimiento", "/costos", "/alertas", "/obras", "/usuarios", "/configuracion/ubicaciones", "/avisos", "/cuenta"],
+  administracion: ["/inicio", "/flota", "/flota/{vehiculo}", "/flota/agenda", "/flota/mantenimiento", "/costos", "/alertas", "/obras", "/usuarios", "/configuracion/ubicaciones", "/avisos", "/cuenta", "/compras/tablero", "/configuracion/razones-sociales"],
 };
 
 /** De dónde sacar un id real: la lista y el prefijo del enlace al detalle. */
