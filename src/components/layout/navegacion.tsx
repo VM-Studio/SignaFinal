@@ -128,7 +128,7 @@ export function BarraLateral({ principales, mas }: { principales: Seccion[]; mas
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[232px] flex-col bg-negro text-white lg:flex">
       <Link href="/inicio" className="flex h-16 shrink-0 items-center px-5" aria-label="Inicio">
-        <Image src="/signalogo.png" alt="SIGNA · Cultura en desarrollos" width={120} height={45} priority className="h-auto w-[120px]" />
+        <Image src="/marca/signa.png" alt="SIGNA · Cultura en desarrollos" width={1042} height={278} priority unoptimized className="h-auto w-[120px]" />
       </Link>
       <nav className="flex-1 overflow-y-auto px-3 pt-2 pb-4" aria-label="Principal">
         <ul className="flex flex-col gap-px">
@@ -200,7 +200,7 @@ export function HeaderMovil({ perfil, secciones }: { perfil: Perfil; secciones: 
     <header className="pt-segura px-segura sticky top-0 z-30 bg-negro text-white lg:hidden">
       <div className="flex h-[52px] items-center gap-2 pr-1 pl-4">
         <Link href="/inicio" aria-label="Inicio" className="flex h-11 shrink-0 items-center">
-          <Image src="/signalogo.png" alt="SIGNA" width={72} height={27} priority className="h-auto w-[72px]" />
+          <Image src="/marca/signa.png" alt="SIGNA" width={1042} height={278} priority unoptimized className="h-auto w-[76px]" />
         </Link>
         {titulo && (
           <>

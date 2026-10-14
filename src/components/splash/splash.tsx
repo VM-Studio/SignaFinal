@@ -2,10 +2,6 @@ import Image from "next/image";
 import { SplashControl } from "./splash-control";
 import { CLAVE_INGRESO, CLAVE_SPLASH, SPLASH_MS } from "./claves";
 
-// Recorte del logo dentro de public/loading.png (1672 × 941): x 423–1284, y 332–561.
-const IMG = { ancho: 1672, alto: 941 };
-const LOGO = { x: 423, y: 332, ancho: 861, alto: 229 };
-
 /**
  * Pantalla de carga: negra, logo grande al centro, barra del ancho del logo y el porcentaje.
  * Se ve al abrir el sistema (una vez por sesión) y cada vez que alguien ingresa.
@@ -16,22 +12,9 @@ export function Splash() {
   return (
     <div id="splash" role="status" aria-label="Cargando SIGNA" className="fixed inset-0 z-[100] flex items-center justify-center bg-negro px-6">
       <div className="flex w-[min(62vw,250px)] flex-col items-center">
-        <div className="relative w-full overflow-hidden" style={{ aspectRatio: `${LOGO.ancho} / ${LOGO.alto}` }}>
-          <Image
-            src="/loading.png"
-            alt="SIGNA"
-            width={IMG.ancho}
-            height={IMG.alto}
-            priority
-            sizes="(min-width: 400px) 490px, 122vw"
-            className="absolute max-w-none"
-            style={{
-              width: `${(IMG.ancho / LOGO.ancho) * 100}%`,
-              left: `${(-LOGO.x / LOGO.ancho) * 100}%`,
-              top: `${(-LOGO.y / LOGO.alto) * 100}%`,
-            }}
-          />
-        </div>
+        {/* Logo limpio (public/marca/signa.png, transparente): archivo estático chico, sin pasar por el optimizador
+            de imágenes, así aparece en el primer pintado aunque el servidor recién arranque. */}
+        <Image src="/marca/signa.png" alt="SIGNA" width={1042} height={278} priority unoptimized draggable={false} className="h-auto w-full select-none" />
         <div className="mt-7 h-[2px] w-full overflow-hidden bg-white/15">
           <div id="splash-barra" className="h-full w-full origin-left bg-white" style={{ transform: "scaleX(0)" }} />
         </div>

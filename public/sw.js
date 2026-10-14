@@ -2,12 +2,12 @@
  * Estáticos: primero caché. Pantallas: primero red; sin señal, la última versión guardada.
  * Nada de /api ni Server Actions se guarda en caché.
  */
-const VERSION = "signa-v10";
+const VERSION = "signa-v11";
 const ESTATICOS = `${VERSION}-estaticos`;
 const PANTALLAS = `${VERSION}-pantallas`;
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(ESTATICOS).then((c) => c.addAll(["/offline", "/signalogo.png", "/icons/icon-192.png", "/icons/icon-512.png"])).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(ESTATICOS).then((c) => c.addAll(["/offline", "/signalogo.png", "/marca/signa.png", "/marca/signa-completo.png", "/icons/icon-192.png", "/icons/icon-512.png"])).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (e) => {
