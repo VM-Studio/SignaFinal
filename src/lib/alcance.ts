@@ -29,7 +29,7 @@ export async function idsObrasDelUsuario(s: UsuarioSesion, incluirInactivas = fa
 }
 
 /** ¿La obra es del usuario? (para RESPONSABLE_OBRA: está asignado; el resto, siempre). */
-export async function esObraDelUsuario(s: UsuarioSesion, obraId: string) {
+export async function esObraDelUsuario(s: Pick<UsuarioSesion, "id" | "rol">, obraId: string) {
   if (s.rol !== "RESPONSABLE_OBRA") return true;
   return (await db.responsableObra.count({ where: { obraId, usuarioId: s.id, activo: true } })) > 0;
 }
@@ -52,7 +52,8 @@ const ACEPTADOS = ["TOMADO", "EN_VIAJE", "ENTREGADO"] as const;
  *   aceptados (TOMADO, EN_VIAJE, ENTREGADO). Nunca el PENDIENTE de otro.
  * - CHOFER: todos los PENDIENTE, más los suyos en cualquier estado.
  * - DEPOSITO: los traslados de maquinaria y herramientas.
- * - DIRECCION / ADMINISTRACION: todo.
+ * - DIRECCION / ADMINISTRACION / COMPRAS: todo (Compras coordina viajes para la obra: ve todas las
+ *   solicitudes, pero no acepta ni inicia viajes).
  */
 export function pedidosVisibles(s: Pick<UsuarioSesion, "id" | "rol">): Prisma.PedidoViajeWhereInput {
   switch (s.rol) {
@@ -65,10 +66,8 @@ export function pedidosVisibles(s: Pick<UsuarioSesion, "id" | "rol">): Prisma.Pe
       return { tipo: { in: ["TRASLADO_MAQUINARIA", "TRASLADO_HERRAMIENTAS"] } };
     case "DIRECCION":
     case "ADMINISTRACION":
-      return {};
     case "COMPRAS":
-      // Compras sigue sus retiros de material (si ya se retiraron); no ve el resto de los viajes.
-      return { esRetiroMaterial: true };
+      return {};
   }
 }
 

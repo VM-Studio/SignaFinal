@@ -24,7 +24,11 @@ const clave = (l?: Lugar) => (l ? `${l.tipo}:${l.id}` : "");
 const deClave = (k: string): Lugar | undefined => (k ? { tipo: k.split(":")[0] as OrigenTipo, id: k.split(":")[1] } : undefined);
 
 /** "Paso 1 ¿Qué hay que hacer? → Paso 2 Detalles → Paso 3 ¿Para cuándo?" */
-export function FormularioPedido({ datos, obraInicial, precarga = null }: { datos: DatosFormulario; obraInicial?: string; precarga?: PrecargaViaje | null }) {
+export function FormularioPedido({ datos, obraInicial, precarga = null, coordinar }: {
+  datos: DatosFormulario; obraInicial?: string; precarga?: PrecargaViaje | null;
+  /** Compras coordina el viaje para alguien de obra: el pedido sale a su nombre; el retiro va por onRetiro. */
+  coordinar?: { paraUsuarioId: string; para: string; onRetiro: () => void; volver: string };
+}) {
   const router = useRouter();
   const aviso = useAviso();
   // Al repetir: la obra del pedido anterior si sigue siendo suya; si no, la elige de nuevo.
@@ -78,7 +82,7 @@ export function FormularioPedido({ datos, obraInicial, precarga = null }: { dato
 
   function elegirTipo(t: TipoPedido) {
     // El retiro en proveedor se pide desde lo que habilitó Compras.
-    if (t === "RETIRO_PROVEEDOR") return router.push(`/pedir/retiro${obraId ? `?obra=${obraId}` : ""}`);
+    if (t === "RETIRO_PROVEEDOR") return coordinar ? coordinar.onRetiro() : router.push(`/pedir/retiro${obraId ? `?obra=${obraId}` : ""}`);
     setTipo(t);
     setError(undefined);
     setDesde(undefined);
@@ -140,7 +144,7 @@ export function FormularioPedido({ datos, obraInicial, precarga = null }: { dato
     setEnviando(true);
     setError(undefined);
     // Un clientId por intento: si no hay señal se guarda en el teléfono y el servidor no duplica al reenviar.
-    const entrada = { ...d, forzar, clientId: crypto.randomUUID(), ocurridoEn: new Date().toISOString() };
+    const entrada = { ...d, forzar, clientId: crypto.randomUUID(), ocurridoEn: new Date().toISOString(), paraUsuarioId: coordinar?.paraUsuarioId };
     const obra = datos.obras.find((o) => o.id === entrada.obraId)?.nombre ?? "";
     const envio = await enviarOGuardar({ id: entrada.clientId, tipo: "pedido.crear", descripcion: `Pedido para Obra ${obra}: ${entrada.descripcion}`, datos: entrada }, () => crearPedido(entrada));
     setEnviando(false);
@@ -151,14 +155,14 @@ export function FormularioPedido({ datos, obraInicial, precarga = null }: { dato
     const { id, choferes } = envio.datos;
     setDuplicado(null);
     aviso({
-      mensaje: `Pedido enviado. Lo ${choferes.length === 1 ? "va a ver" : "van a ver"} ${choferes.length ? unirNombres(choferes) : "los choferes"}. Te avisamos cuando lo acepten.`,
+      mensaje: `${coordinar ? `Pedido para ${coordinar.para} enviado` : "Pedido enviado"}. Lo ${choferes.length === 1 ? "va a ver" : "van a ver"} ${choferes.length ? unirNombres(choferes) : "los choferes"}. ${coordinar ? "Les avisamos a los dos" : "Te avisamos"} cuando lo acepten.`,
       deshacer: async () => {
         const x = await deshacerPedido(id);
         if (!x.ok) aviso({ mensaje: x.error, tono: "error" });
         router.refresh();
       },
     });
-    router.push(`/mis-pedidos/${id}`);
+    router.push(coordinar ? coordinar.volver : `/mis-pedidos/${id}`);
   }
 
   // Con una sola obra no se pregunta: va preseleccionada.

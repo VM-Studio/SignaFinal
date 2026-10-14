@@ -24,8 +24,8 @@ async function leer(r: Response) {
 describe.skipIf(!hayBase)("tiempo real (con base)", () => {
   beforeAll(async () => {
     const t = Date.now();
-    a = (await db.usuario.create({ data: { nombre: "TR A", email: `tr-a-${t}@signa.test`, passwordHash: "-", rol: "ADMINISTRACION" } })).id;
-    b = (await db.usuario.create({ data: { nombre: "TR B", email: `tr-b-${t}@signa.test`, passwordHash: "-", rol: "ADMINISTRACION" } })).id;
+    a = (await db.usuario.create({ data: { nombre: "TR A", email: `tr-a-${t}@signa.test`, passwordHash: "-", rol: "RESPONSABLE_OBRA" } })).id;
+    b = (await db.usuario.create({ data: { nombre: "TR B", email: `tr-b-${t}@signa.test`, passwordHash: "-", rol: "RESPONSABLE_OBRA" } })).id;
   });
   afterAll(async () => {
     await db.eventoCambio.deleteMany({ where: { usuarioId: { in: [a, b] } } });

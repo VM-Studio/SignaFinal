@@ -278,6 +278,24 @@ usa SU vocabulario y SUS campos; esta sección manda sobre lo que diga otra cosa
   desde el Excel del tablero con las mismas columnas (/compras/importar). Las importadas quedan con
   fuente IMPORTADA_EXCEL, sin pedido de material ni PDF, y nunca entran en /aprobaciones.
 
+## Filtros, vistas guardadas y "Coordinar viaje"
+
+- UNA barra de filtros para todo (src/components/ui/barra-filtros.tsx, BarraFiltros): chips combinables,
+  buscador, orden y vistas guardadas por usuario (VistaGuardada: usuarioId, pantalla, nombre,
+  parametros). Todo vive en la URL (se arma en el servidor). En celular los chips colapsan en "Filtros (N)"
+  y una hoja inferior. La usan el tablero, la cola de Compras, Solicitudes y Órdenes.
+- Cola de pedidos de material (/compras, también la vista global del dueño): pestañas por paso + Obra,
+  Arquitecto/a, Prioridad, Estado (manda sobre la pestaña), Con adjuntos y buscador; orden por fecha de
+  caducidad (paraCuando). Caducidad hoy o vencida en rojo, mañana en ámbar. Panel "Por quién pidió".
+- COMPRAS coordina viajes (/compras/viajes): "Para quién" (obra y responsable) y el formulario de pedir
+  viaje; el pedido sale a nombre de esa persona con PedidoViaje.coordinadoPorId = Compras. Los avisos
+  del viaje les llegan a los dos (eventos.ts, pide()); el chofer ve "Pidió Daniela · coordinó …". Compras
+  ve TODAS las solicitudes (pedidosVisibles) pero no acepta ni inicia viajes (permiso pedidos.coordinar).
+- Solicitudes con filtros (src/lib/pedidos/solicitudes.ts, VistaSolicitudes): Compras en
+  /compras/viajes/solicitudes y Dirección en /solicitudes. Obra · Lugar de retiro (agrupado: "Corralón San
+  Martín · 3 retiros") · Pidió (con su historia, paginado) · Prioridad · Estado · Chofer; Editar (fecha,
+  prioridad, qué) y Cancelar las pendientes, con aviso al que pidió y a los choferes.
+
 ## Órdenes de compra, proveedores y viajes con paradas
 
 Reglas (reemplazan lo que diga otra cosa más arriba):

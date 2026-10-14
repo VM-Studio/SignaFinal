@@ -17,8 +17,10 @@ import { diaISO, peso, sumarDias } from "@/lib/formato";
  * Pedir el viaje de retiro: 1 obra · 2 qué retirar (lo que habilitó Compras, se marcan varios) · 3 para cuándo.
  * Un viaje por proveedor.
  */
-export function RetiroMateriales({ obras, listos, obraInicial, materialInicial }: {
+export function RetiroMateriales({ obras, listos, obraInicial, materialInicial, coordinar }: {
   obras: { id: string; nombre: string }[]; listos: Record<string, ListoParaRetirar[]>; obraInicial?: string; materialInicial?: string;
+  /** Compras coordina el retiro para alguien de obra. */
+  coordinar?: { paraUsuarioId: string; para: string; volver: string };
 }) {
   const router = useRouter();
   const aviso = useAviso();
@@ -44,7 +46,7 @@ export function RetiroMateriales({ obras, listos, obraInicial, materialInicial }
   async function enviar() {
     setEnviando(true);
     setError(undefined);
-    const r = await pedirRetiro({ obraId, materiales: marcados, prioridad, franja, hora: franja === "HORA_EXACTA" ? hora : undefined, dia: dia === "hoy" ? hoy : dia === "manana" ? sumarDias(hoy, 1) : fecha });
+    const r = await pedirRetiro({ paraUsuarioId: coordinar?.paraUsuarioId, obraId, materiales: marcados, prioridad, franja, hora: franja === "HORA_EXACTA" ? hora : undefined, dia: dia === "hoy" ? hoy : dia === "manana" ? sumarDias(hoy, 1) : fecha });
     setEnviando(false);
     if (!r.ok) return setError(r.error);
     const { pedidos } = r.datos;
@@ -56,7 +58,7 @@ export function RetiroMateriales({ obras, listos, obraInicial, materialInicial }
         router.refresh();
       },
     });
-    router.push(pedidos.length === 1 ? `/mis-pedidos/${pedidos[0].id}` : "/mis-pedidos");
+    router.push(coordinar ? coordinar.volver : pedidos.length === 1 ? `/mis-pedidos/${pedidos[0].id}` : "/mis-pedidos");
   }
 
   return (

@@ -97,6 +97,56 @@ export async function colaCompras(pestana: PestanaCompras, obraId: string | unde
   return { filas: await conAdjuntos(filas.slice(0, limite).map(aFila), true), hayMas: filas.length > limite, cuantos, obras };
 }
 
+export type FiltrosCola = { obra: string[]; sol: string[]; prioridad: ("URGENTE" | "NORMAL")[]; estado: EstadoMaterial[]; adjuntos: boolean; q?: string; orden: string };
+const ESTADOS_MATERIAL: EstadoMaterial[] = ["SOLICITADO", "EN_COMPRA", "ESPERANDO_APROBACION", "APROBADO", "LISTO_PARA_RETIRAR", "RETIRO_PEDIDO", "EN_CAMINO", "ENTREGADO", "CANCELADO"];
+export function leerFiltrosCola(sp: Record<string, string | string[] | undefined>): FiltrosCola {
+  const l = (k: string) => (typeof sp[k] === "string" && sp[k] ? (sp[k] as string).split(",").filter(Boolean).slice(0, 50) : []);
+  return {
+    obra: l("obra"), sol: l("sol"),
+    prioridad: l("prioridad").filter((x): x is "URGENTE" | "NORMAL" => x === "URGENTE" || x === "NORMAL"),
+    estado: l("estado").filter((x): x is EstadoMaterial => (ESTADOS_MATERIAL as string[]).includes(x)),
+    adjuntos: sp.adjuntos === "1", q: typeof sp.q === "string" ? sp.q.trim().slice(0, 100) || undefined : undefined,
+    orden: typeof sp.orden === "string" ? sp.orden : "caducidad",
+  };
+}
+
+/**
+ * Cola de Compras con la barra de filtros: obra, arquitecto/solicitante, prioridad, estado (si se
+ * elige, manda sobre la pestaña), con adjuntos y buscador. Orden: caducidad más cercana primero (o
+ * más lejana). Devuelve también cuántos tiene cada solicitante (el panel que filtra al tocar).
+ */
+export async function colaComprasFiltrada(pestana: PestanaCompras, f: FiltrosCola, limite: number) {
+  const u = await exigirPermiso("materiales.gestionar");
+  const conAdj = f.adjuntos ? (await db.adjunto.groupBy({ by: ["entidadId"], where: { entidadTipo: "PEDIDO_MATERIAL" } })).map((x) => x.entidadId).filter((x): x is string => !!x) : null;
+  const filtros = (sinSol = false, sinEstado = false): Prisma.PedidoMaterialWhereInput => ({
+    AND: [
+      f.obra.length ? { obraId: { in: f.obra } } : {},
+      f.sol.length && !sinSol ? { solicitanteId: { in: f.sol } } : {},
+      f.prioridad.length ? { prioridad: { in: f.prioridad } } : {},
+      sinEstado ? {} : { estado: { in: f.estado.length ? f.estado : [...PESTANAS_COMPRAS[pestana].estados] } },
+      conAdj ? { id: { in: conAdj } } : {},
+      f.q ? { OR: [{ descripcion: { contains: f.q, mode: "insensitive" } }, { observaciones: { contains: f.q, mode: "insensitive" } }, { ordenCompraNumero: { contains: f.q, mode: "insensitive" } }, { obra: { nombre: { contains: f.q, mode: "insensitive" } } }] } : {},
+    ],
+  });
+  const orderBy: Prisma.PedidoMaterialOrderByWithRelationInput[] = f.orden === "caducidad-lejana" ? [{ paraCuando: "desc" }, { prioridad: "desc" }] : f.orden === "nuevos" ? [{ creadoEn: "desc" }] : [{ paraCuando: "asc" }, { prioridad: "desc" }, { creadoEn: "asc" }];
+  const [filas, conteos, porSolicitante, obras, usuarios] = await Promise.all([
+    db.pedidoMaterial.findMany({ where: conAlcance(u, filtros()), include: filaInclude, orderBy, take: limite + 1 }),
+    db.pedidoMaterial.groupBy({ by: ["estado"], where: conAlcance(u, filtros(false, true)), _count: true }),
+    db.pedidoMaterial.groupBy({ by: ["solicitanteId"], where: conAlcance(u, filtros(true)), _count: true }),
+    db.obra.findMany({ where: { pedidosMaterial: { some: {} } }, select: { id: true, nombre: true }, orderBy: { nombre: "asc" } }),
+    db.usuario.findMany({ where: { materialesPedidos: { some: {} } }, select: { id: true, nombre: true }, orderBy: { nombre: "asc" } }),
+  ]);
+  const n = new Map(conteos.map((c) => [c.estado, c._count]));
+  const cuantos = Object.fromEntries((Object.keys(PESTANAS_COMPRAS) as PestanaCompras[]).map((k) => [k, PESTANAS_COMPRAS[k].estados.reduce((s, e) => s + (n.get(e) ?? 0), 0)])) as Record<PestanaCompras, number>;
+  return {
+    filas: await conAdjuntos(filas.slice(0, limite).map(aFila), true), hayMas: filas.length > limite, cuantos,
+    porEstado: ESTADOS_MATERIAL.map((e) => ({ valor: e, cantidad: n.get(e) ?? 0 })),
+    obras: obras.map((o) => ({ valor: o.id, etiqueta: `Obra ${o.nombre}` })),
+    solicitantes: usuarios.map((x) => ({ valor: x.id, etiqueta: x.nombre })),
+    porSolicitante: porSolicitante.map((x) => ({ id: x.solicitanteId, nombre: usuarios.find((y) => y.id === x.solicitanteId)?.nombre ?? "—", cantidad: x._count })).sort((a, b) => b.cantidad - a.cantidad),
+  };
+}
+
 /** Inicio de Compras: cuántos hay en cada paso y los que están demorados. */
 export async function resumenCompras() {
   const u = await exigirPermiso("materiales.gestionar");
@@ -249,7 +299,8 @@ export async function datosNuevoPedidoCompras() {
 
 /** Lo listo para retirar de una obra (pedir el viaje de retiro). */
 export async function listosParaRetirar(obraId: string) {
-  const u = await exigirPermiso("pedidos.crear");
+  const u = await exigirSesion();
+  if (!puede(u.rol, "pedidos.crear") && !puede(u.rol, "pedidos.coordinar")) throw new Error("Sin permiso");
   const filas = await db.materialListo.findMany({
     where: { obraId, estado: "LISTO", modoEntrega: "RETIRA_CHOFER", pedidoMaterial: materialesVisibles(u) },
     orderBy: { habilitadoEn: "asc" },
@@ -268,6 +319,29 @@ export async function datosRetiro() {
   const obras = (await obrasDelUsuario(u)).map((o) => ({ id: o.id, nombre: o.nombre }));
   const listos = await Promise.all(obras.map(async (o) => [o.id, await listosParaRetirar(o.id)] as const));
   return { obras, listos: Object.fromEntries(listos) as Record<string, ListoParaRetirar[]> };
+}
+
+/**
+ * Compras → Viajes → Coordinar: todas las obras activas con su gente (responsables y capataz) y lo
+ * habilitado para retirar en cada una (lo mismo que ve la arquitecta en Pedir → Retiro).
+ */
+export async function datosCoordinar() {
+  await exigirPermiso("pedidos.coordinar");
+  const [obras, capataces] = await Promise.all([
+    db.obra.findMany({
+      where: { estado: "ACTIVA" }, orderBy: { nombre: "asc" },
+      select: { id: true, nombre: true, responsables: { where: { activo: true }, orderBy: [{ principal: "desc" }, { creadoEn: "asc" }], select: { usuario: { select: { id: true, nombre: true, activo: true } } } } },
+    }),
+    db.usuario.findMany({ where: { rol: "CAPATAZ", activo: true }, select: { id: true, nombre: true } }),
+  ]);
+  const listos = await Promise.all(obras.map(async (o) => [o.id, await listosParaRetirar(o.id)] as const));
+  return {
+    obras: obras.map((o) => ({
+      id: o.id, nombre: o.nombre,
+      personas: [...o.responsables.filter((r) => r.usuario.activo).map((r) => ({ id: r.usuario.id, nombre: r.usuario.nombre })), ...capataces.map((c) => ({ id: c.id, nombre: `${c.nombre} (capataz)` }))],
+    })),
+    listos: Object.fromEntries(listos) as Record<string, ListoParaRetirar[]>,
+  };
 }
 
 /** Inicio de obra: cuántos materiales listos para retirar hay en mis obras. */

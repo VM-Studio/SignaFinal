@@ -47,6 +47,7 @@ const seleccion = {
   origenNombre: true, origenDireccion: true, destinoNombre: true, destinoDireccion: true, esRetiroMaterial: true, ordenCompraLebane: true,
   materialesListos: { where: { estado: { not: "CANCELADO" } }, select: { descripcion: true, horarioRetiro: true, contactoRetiro: true, ordenCompraNumero: true } },
   solicitante: { select: { nombre: true } },
+  coordinadoPor: { select: { nombre: true } },
   viaje: {
     select: {
       id: true, pedidoId: true, etapa: true, estado: true, salidaEstimada: true, kmSalida: true, kmLlegada: true, llegadaReal: true, distanciaTotalM: true,
@@ -68,7 +69,7 @@ function tarjeta(p: Prisma.PedidoViajeGetPayload<{ select: typeof seleccion }>):
     fecha: p.paraCuando, franja: p.franja, iniciado: !!v && v.etapa !== "PROGRAMADO", salidaEstimada: v?.salidaEstimada ?? null,
     retirar: { nombre: p.origenNombre, direccion: p.origenDireccion },
     entregar: { nombre: p.destinoNombre, direccion: p.destinoDireccion },
-    que: ml.length ? ml.map((m) => m.descripcion).join(" + ") : p.descripcion, pidio: p.solicitante.nombre, pesoKg: p.pesoKg, necesitaCamion: p.necesitaCamion, urgente: p.prioridad === "URGENTE",
+    que: ml.length ? ml.map((m) => m.descripcion).join(" + ") : p.descripcion, pidio: p.coordinadoPor ? `${p.solicitante.nombre} · coordinó ${p.coordinadoPor.nombre}` : p.solicitante.nombre, pesoKg: p.pesoKg, necesitaCamion: p.necesitaCamion, urgente: p.prioridad === "URGENTE",
     vehiculo: v?.vehiculo.nombre ?? null, etapa: v?.etapa ?? null,
     km: v?.kmLlegada != null && v.kmSalida != null ? v.kmLlegada - v.kmSalida : null,
     kmActual: v?.vehiculo.kmActual ?? 0,
@@ -176,7 +177,7 @@ export async function pantallaViaje(pedidoId: string) {
         include: {
           vehiculo: { select: { nombre: true, patente: true, kmActual: true, baseId: true, ultimaLat: true, ultimaLng: true, ultimaFechaGps: true } },
           paradas: { orderBy: { orden: "asc" }, include: { items: { orderBy: [{ obraNombre: "asc" }, { id: "asc" }] } } },
-          viajePedidos: { orderBy: { orden: "asc" }, select: { paradaRetiroId: true, paradaEntregaId: true, pedido: { select: { id: true, numero: true, descripcion: true, pesoKg: true, paraCuando: true, franja: true, esRetiroMaterial: true, ordenCompraLebane: true, obra: { select: { nombre: true } }, solicitante: { select: { nombre: true } }, materialesListos: { where: { estado: { not: "CANCELADO" } }, select: { descripcion: true, horarioRetiro: true, contactoRetiro: true, ordenCompraNumero: true } } } } } },
+          viajePedidos: { orderBy: { orden: "asc" }, select: { paradaRetiroId: true, paradaEntregaId: true, pedido: { select: { id: true, numero: true, descripcion: true, pesoKg: true, paraCuando: true, franja: true, esRetiroMaterial: true, ordenCompraLebane: true, obra: { select: { nombre: true } }, solicitante: { select: { nombre: true } }, coordinadoPor: { select: { nombre: true } }, materialesListos: { where: { estado: { not: "CANCELADO" } }, select: { descripcion: true, horarioRetiro: true, contactoRetiro: true, ordenCompraNumero: true } } } } } },
         },
       },
     },
@@ -222,7 +223,7 @@ export async function pantallaViaje(pedidoId: string) {
     const q = x.pedido;
     const ml = q.esRetiroMaterial ? q.materialesListos : [];
     return {
-      id: q.id, numero: q.numero, que: ml.length ? ml.map((m) => m.descripcion).join(" + ") : q.descripcion, pidio: q.solicitante.nombre, obra: q.obra.nombre, pesoKg: q.pesoKg,
+      id: q.id, numero: q.numero, que: ml.length ? ml.map((m) => m.descripcion).join(" + ") : q.descripcion, pidio: q.coordinadoPor ? `${q.solicitante.nombre} · coordinó ${q.coordinadoPor.nombre}` : q.solicitante.nombre, obra: q.obra.nombre, pesoKg: q.pesoKg,
       paradaRetiroId: x.paradaRetiroId, paradaEntregaId: x.paradaEntregaId,
       retiro: q.esRetiroMaterial ? { horario: juntar(ml.map((m) => m.horarioRetiro)), contacto: juntar(ml.map((m) => m.contactoRetiro)), oc: juntar(ml.map((m) => m.ordenCompraNumero)) ?? q.ordenCompraLebane } : null,
     };

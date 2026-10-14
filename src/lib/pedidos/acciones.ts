@@ -56,6 +56,8 @@ const esquemaPedido = z
     clientId: z.preprocess((v) => (v === "" || v === null ? undefined : v), z.string().uuid().optional()), // pedido hecho sin señal
     // Pedido hecho sin señal: la hora real en que lo pidió.
     ocurridoEn: z.coerce.date().optional(),
+    // Compras coordina el viaje para alguien de obra: el pedido queda a nombre de esa persona.
+    paraUsuarioId: z.preprocess(vacio, z.string().optional()),
   })
   .superRefine((d, ctx) => {
     // Regla (CLAUDE.md, "Materiales y Compras"): el retiro en proveedor solo se pide desde lo que habilitó Compras.
@@ -75,8 +77,12 @@ export type RespuestaPedido =
 
 export async function crearPedido(entrada: DatosPedido): Promise<Resultado<RespuestaPedido>> {
   return ejecutar(async () => {
-    const yo = await exigirPermiso("pedidos.crear");
     const d = esquemaPedido.parse(entrada);
+    const yo = await exigirPermiso(d.paraUsuarioId ? "pedidos.coordinar" : "pedidos.crear");
+    // Coordinado por Compras: el solicitante es la persona de obra (responsable de esa obra o capataz).
+    const para = d.paraUsuarioId ? await db.usuario.findUnique({ where: { id: d.paraUsuarioId }, select: { id: true, nombre: true, rol: true, activo: true } }) : null;
+    if (d.paraUsuarioId && (!para?.activo || !["RESPONSABLE_OBRA", "CAPATAZ", "DIRECCION"].includes(para.rol))) throw new ErrorNegocio("Elegí para quién es el viaje (un responsable de la obra).");
+    const solicitante = para ?? yo;
 
     // Idempotente: si el teléfono reenvía el pedido que guardó sin señal, no se duplica.
     if (d.clientId) {
@@ -86,7 +92,7 @@ export async function crearPedido(entrada: DatosPedido): Promise<Resultado<Respu
 
     const obra = await db.obra.findUnique({ where: { id: d.obraId }, select: { id: true, nombre: true, estado: true } });
     if (!obra || obra.estado !== "ACTIVA") throw new ErrorNegocio("Esa obra no está activa.");
-    if (!(await esObraDelUsuario(yo, obra.id))) throw new ErrorNegocio(`No sos responsable de Obra ${obra.nombre}.`);
+    if (!(await esObraDelUsuario(solicitante, obra.id))) throw new ErrorNegocio(para ? `${para.nombre} no es responsable de Obra ${obra.nombre}.` : `No sos responsable de Obra ${obra.nombre}.`);
 
     // De dónde sale y a dónde va, resuelto una sola vez (el origen tiene que existir y ser del tipo que dice).
     const puntos = await resolverPuntos(db, { origenTipo: d.origenTipo, origenId: d.origenId, obraId: obra.id, destinoSedeId: d.destinoSedeId ?? null });
@@ -118,7 +124,8 @@ export async function crearPedido(entrada: DatosPedido): Promise<Resultado<Respu
         data: {
           clientId: d.clientId ?? null,
           ...(d.ocurridoEn && d.ocurridoEn < new Date() ? { creadoEn: d.ocurridoEn } : {}),
-          solicitanteId: yo.id,
+          solicitanteId: solicitante.id,
+          coordinadoPorId: para ? yo.id : null,
           obraId: d.obraId,
           tipo: d.tipo,
           origenTipo: d.origenTipo,
@@ -141,7 +148,7 @@ export async function crearPedido(entrada: DatosPedido): Promise<Resultado<Respu
       });
       await auditar(tx, {
         usuarioId: yo.id, accion: d.forzar ? "pedido.crear.noEraDuplicado" : "pedido.crear", entidadId: p.id,
-        resumen: `${yo.nombre} pidió ${d.descripcion} para Obra ${obra.nombre}${d.prioridad === "URGENTE" ? " (urgente)" : ""}${d.forzar ? ", aunque se parecía a otro pedido" : ""}`,
+        resumen: `${para ? `${yo.nombre} coordinó para ${para.nombre}` : `${yo.nombre} pidió`} ${d.descripcion} para Obra ${obra.nombre}${d.prioridad === "URGENTE" ? " (urgente)" : ""}${d.forzar ? ", aunque se parecía a otro pedido" : ""}`,
         despues: { estado: "PENDIENTE", tipo: d.tipo, obra: obra.nombre },
       });
       return p;
@@ -332,7 +339,8 @@ export async function cancelarPedido(pedidoId: string, motivo: string): Promise<
     if (!pedido) throw new ErrorNegocio("No existe ese pedido.");
 
     const cualquiera = puede(yo.rol, "pedidos.cancelarCualquiera");
-    const propio = pedido.solicitanteId === yo.id && puede(yo.rol, "pedidos.cancelarPropios");
+    // Compras (coordina) cancela solicitudes pendientes de cualquiera, con motivo.
+    const propio = (pedido.solicitanteId === yo.id && puede(yo.rol, "pedidos.cancelarPropios")) || puede(yo.rol, "pedidos.coordinar");
     if (!cualquiera && !propio) throw new ErrorNegocio("Solo quien lo pidió puede cancelarlo.");
     const estados = cualquiera ? (["PENDIENTE", "TOMADO"] as const) : (["PENDIENTE"] as const);
     if (!(estados as readonly string[]).includes(pedido.estado)) {
@@ -510,6 +518,54 @@ export async function reprogramarPedido(entrada: DatosReprogramar): Promise<Resu
     });
     refrescar();
     return { para: ahora };
+  });
+}
+
+const esquemaEditar = z
+  .object({
+    pedidoId: z.string().min(1),
+    dia: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Elegí el día."),
+    franja: z.enum(["MANANA", "TARDE", "HORA_EXACTA"]),
+    hora: z.preprocess(vacio, z.string().regex(HHMM, "Revisá la hora.").optional()),
+    prioridad: z.enum(["NORMAL", "URGENTE"]),
+    descripcion: z.string().trim().min(3, "Contá qué hay que llevar.").max(240),
+  })
+  .superRefine((d, ctx) => {
+    if (d.franja === "HORA_EXACTA" && !d.hora) ctx.addIssue({ code: "custom", message: "Poné la hora.", path: ["hora"] });
+  });
+export type DatosEditarPedido = z.input<typeof esquemaEditar>;
+
+/**
+ * Editar una solicitud PENDIENTE (Compras, que coordina, y Dirección): fecha, prioridad y qué llevar.
+ * Le avisa al que pidió (y a quien coordinó) y a los choferes.
+ */
+export async function editarPedidoPendiente(entrada: DatosEditarPedido): Promise<Resultado> {
+  return ejecutar(async () => {
+    const yo = await exigirSesion();
+    if (!puede(yo.rol, "pedidos.coordinar") && !puede(yo.rol, "pedidos.reprogramar")) throw new ErrorNegocio("No podés editar pedidos de otros.");
+    const d = esquemaEditar.parse(entrada);
+    const p = await db.pedidoViaje.findUnique({ where: { id: d.pedidoId }, select: { estado: true, paraCuando: true, franja: true, prioridad: true, descripcion: true } });
+    if (!p) throw new ErrorNegocio("No existe ese pedido.");
+    if (p.estado !== "PENDIENTE") throw new ErrorNegocio("Ya lo aceptó un chofer: para cambiar la fecha usá Reprogramar en el pedido.");
+    if (d.dia < diaISO()) throw new ErrorNegocio("El día ya pasó. Elegí hoy o una fecha futura.");
+    const paraCuando = aFecha(d.dia, d.franja === "HORA_EXACTA" ? d.hora! : FRANJA[d.franja].hora);
+    const cambios = [
+      paraCuando.getTime() !== p.paraCuando.getTime() ? `ahora es para ${elDia(paraCuando)}` : null,
+      d.prioridad !== p.prioridad ? (d.prioridad === "URGENTE" ? "ahora es urgente" : "ya no es urgente") : null,
+      d.descripcion !== p.descripcion ? `ahora dice “${d.descripcion}”` : null,
+    ].filter(Boolean).join(", ");
+    if (!cambios) return null;
+    await db.$transaction(async (tx) => {
+      const r = await tx.pedidoViaje.updateMany({ where: { id: d.pedidoId, estado: "PENDIENTE" }, data: { paraCuando, franja: d.franja, fechaNecesaria: aFecha(d.dia, "12:00"), prioridad: d.prioridad, descripcion: d.descripcion } });
+      if (!r.count) throw new ErrorNegocio("Lo aceptó un chofer mientras lo editabas.");
+      await notificarEvento(EVENTO.pedidoEditado({ ...(await baseViaje(tx, d.pedidoId)), quien: yo.nombre, cambios }), { tx, actor: yo.id });
+      await auditar(tx, {
+        usuarioId: yo.id, accion: "pedido.editar", entidadId: d.pedidoId, resumen: `${yo.nombre} editó ${await describirPedido(tx, d.pedidoId)}: ${cambios}`,
+        antes: { paraCuando: p.paraCuando.toISOString(), prioridad: p.prioridad, descripcion: p.descripcion }, despues: { paraCuando: paraCuando.toISOString(), prioridad: d.prioridad, descripcion: d.descripcion },
+      });
+    });
+    refrescar();
+    return null;
   });
 }
 

@@ -31,6 +31,8 @@ import type { Rol } from "@prisma/client";
 export const ACCIONES = [
   // Pedidos y viajes
   "pedidos.ver", "pedidos.crear", "pedidos.cancelarPropios", "pedidos.cancelarCualquiera", "pedidos.tomar", "pedidos.reasignar", "pedidos.reprogramar",
+  // Compras pide viajes "para" alguien de obra (y edita o cancela solicitudes pendientes)
+  "pedidos.coordinar",
   "viajes.verPropios", "viajes.verTodos", "viajes.ejecutar",
   // Flota
   "flota.ver", "flota.editar", "flota.documentacion", "flota.agenda", "combustible.cargar", "combustible.ver",
@@ -92,8 +94,8 @@ const ADMINISTRACION: Entrada = {
 
 // Compras: la cola de pedidos de material, lo habilitado para retirar y los proveedores.
 const COMPRAS: Entrada = {
-  rutas: ["/inicio", "/compras", "/compras/**", "/habilitados", "/proveedores", "/proveedores/[id]", "/pedir-materiales", "/configuracion/compras", "/avisos", "/cuenta"],
-  acciones: ["materiales.gestionar", "materiales.pedir", "proveedores.ver", "proveedores.cargar", "obras.ver", "obras.cargar", "alertas.ver", "avisos.ver", "dolar.ver"],
+  rutas: ["/inicio", "/compras", "/compras/**", "/habilitados", "/proveedores", "/proveedores/[id]", "/pedir-materiales", "/configuracion/compras", "/solicitudes/[id]", "/avisos", "/cuenta"],
+  acciones: ["materiales.gestionar", "materiales.pedir", "proveedores.ver", "proveedores.cargar", "obras.ver", "obras.cargar", "alertas.ver", "avisos.ver", "dolar.ver", "pedidos.ver", "pedidos.coordinar", "viajes.verTodos"],
 };
 
 // Dirección ve TODO: todas las rutas de los demás roles más las propias.
@@ -105,7 +107,7 @@ const DIRECCION: Entrada = {
     ]),
   ],
   acciones: [
-    "pedidos.ver", "pedidos.crear", "pedidos.cancelarPropios", "pedidos.cancelarCualquiera", "pedidos.reasignar", "pedidos.reprogramar", "viajes.verTodos",
+    "pedidos.ver", "pedidos.crear", "pedidos.cancelarPropios", "pedidos.cancelarCualquiera", "pedidos.reasignar", "pedidos.reprogramar", "pedidos.coordinar", "viajes.verTodos",
     "flota.ver", "flota.editar", "flota.documentacion", "flota.agenda", "combustible.cargar", "combustible.ver", "mantenimiento.ver",
     "mantenimiento.registrar", "incidentes.registrar", "herramientas.ver", "herramientas.solicitar", "herramientas.mover", "herramientas.editar",
     "herramientas.mantenimiento", "sobrantes.ver", "sobrantes.editar", "mapa.ver", "alertas.ver", "avisos.ver", "costos.ver",

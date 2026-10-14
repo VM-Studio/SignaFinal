@@ -121,6 +121,7 @@ export function tituloDeRuta(pathname: string, propias: Seccion[] = []): string 
   if (exacta) return exacta.titulo;
   if (/^\/compras\/[^/]+\/oc$/.test(pathname)) return "Orden de compra";
   if (pathname === "/compras/tablero") return "Tablero";
+  if (pathname.startsWith("/compras/viajes")) return "Viajes";
   if (pathname === "/compras/ordenes/nueva") return "Nueva orden";
   if (pathname.startsWith("/compras/ordenes/")) return "Orden";
   if (pathname === "/compras/importar") return "Importar desde Excel";

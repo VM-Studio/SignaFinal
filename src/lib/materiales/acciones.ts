@@ -411,6 +411,8 @@ const esquemaRetiro = z.object({
   franja: z.enum(["MANANA", "TARDE", "HORA_EXACTA"]),
   hora: z.preprocess(vacio, z.string().regex(HHMM, "Revisá la hora.").optional()),
   prioridad: z.enum(["NORMAL", "URGENTE"]),
+  // Compras coordina el retiro para alguien de obra: el pedido de viaje queda a su nombre.
+  paraUsuarioId: z.preprocess(vacio, z.string().optional()),
 });
 export type DatosRetiro = z.input<typeof esquemaRetiro>;
 
@@ -429,13 +431,16 @@ function descripcionRetiro(ml: { descripcion: string; horarioRetiro: string | nu
  */
 export async function pedirRetiro(entrada: DatosRetiro): Promise<Resultado<{ pedidos: { id: string; numero: number; proveedor: string }[] }>> {
   return ejecutar(async () => {
-    const yo = await exigirPermiso("pedidos.crear");
     const d = esquemaRetiro.parse(entrada);
+    const yo = await exigirPermiso(d.paraUsuarioId ? "pedidos.coordinar" : "pedidos.crear");
+    const para = d.paraUsuarioId ? await db.usuario.findUnique({ where: { id: d.paraUsuarioId }, select: { id: true, nombre: true, rol: true, activo: true } }) : null;
+    if (d.paraUsuarioId && (!para?.activo || !["RESPONSABLE_OBRA", "CAPATAZ", "DIRECCION"].includes(para.rol))) throw new ErrorNegocio("Elegí para quién es el viaje (un responsable de la obra).");
+    const solicitante = para ?? yo;
     if (d.franja === "HORA_EXACTA" && !d.hora) throw new ErrorNegocio("Poné la hora.");
     if (d.dia < diaISO()) throw new ErrorNegocio("El día ya pasó. Elegí hoy o una fecha futura.");
     const obra = await db.obra.findUnique({ where: { id: d.obraId }, select: { id: true, nombre: true, estado: true } });
     if (!obra || obra.estado !== "ACTIVA") throw new ErrorNegocio("Esa obra no está activa.");
-    if (!(await esObraDelUsuario(yo, obra.id))) throw new ErrorNegocio(`No sos responsable de Obra ${obra.nombre}.`);
+    if (!(await esObraDelUsuario(solicitante, obra.id))) throw new ErrorNegocio(para ? `${para.nombre} no es responsable de Obra ${obra.nombre}.` : `No sos responsable de Obra ${obra.nombre}.`);
     const paraCuando = aFecha(d.dia, d.franja === "HORA_EXACTA" ? d.hora! : FRANJA[d.franja].hora);
     const max = (await db.vehiculo.aggregate({ where: { activo: true }, _max: { capacidadCargaKg: true } }))._max.capacidadCargaKg ?? 0;
 
@@ -463,7 +468,7 @@ export async function pedirRetiro(entrada: DatosRetiro): Promise<Resultado<{ ped
         const proveedorId = primero.proveedorId;
         const p = await tx.pedidoViaje.create({
           data: {
-            solicitanteId: yo.id, obraId: obra.id, tipo: "RETIRO_PROVEEDOR", origenTipo: "PROVEEDOR", esRetiroMaterial: true,
+            solicitanteId: solicitante.id, coordinadoPorId: para ? yo.id : null, obraId: obra.id, tipo: "RETIRO_PROVEEDOR", origenTipo: "PROVEEDOR", esRetiroMaterial: true,
             ...puntos,
             origenId: sucursalId, sucursalId, proveedorId, destinoSedeId: sede,
             // Copiados de la habilitación (lo que Compras acordó con el proveedor).
@@ -488,7 +493,7 @@ export async function pedirRetiro(entrada: DatosRetiro): Promise<Resultado<{ ped
         }
         await auditarBase(tx, {
           usuarioId: yo.id, accion: "pedido.crear", entidad: "PedidoViaje", entidadId: p.id,
-          resumen: `${yo.nombre} pidió el retiro en ${primero.proveedor.nombre} de ${grupo.map((m) => queLleva(m.descripcion)).join(" + ")} para Obra ${obra.nombre}${d.prioridad === "URGENTE" ? " (urgente)" : ""}`,
+          resumen: `${yo.nombre} ${para ? `coordinó para ${para.nombre}` : "pidió"} el retiro en ${primero.proveedor.nombre} de ${grupo.map((m) => queLleva(m.descripcion)).join(" + ")} para Obra ${obra.nombre}${d.prioridad === "URGENTE" ? " (urgente)" : ""}`,
           despues: { estado: "PENDIENTE", tipo: "RETIRO_PROVEEDOR", materiales: grupo.map((m) => m.id) },
         });
         out.push({ id: p.id, numero: p.numero, proveedor: primero.proveedor.nombre });

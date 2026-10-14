@@ -22,7 +22,7 @@ export default async function PaginaSolicitud(props: { params: Promise<{ id: str
   return (
     <ListaDetalle
       titulo={filtro === "en-curso" ? "En curso" : "Pendientes"}
-      verTodo={filtro === "en-curso" ? "/solicitudes?filtro=en-curso" : "/solicitudes"}
+      verTodo={u.rol === "COMPRAS" ? "/compras/viajes/solicitudes" : filtro === "en-curso" ? "/solicitudes?estado=TOMADO,EN_VIAJE" : "/solicitudes?estado=PENDIENTE"}
       activo={id}
       items={pedidos.map((p) => ({
         id: p.id,

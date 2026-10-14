@@ -57,12 +57,15 @@ const usuario = (id: string | null | undefined, p: boolean, enlace?: string): De
 // ═══════════════════════════════ Pedidos de viaje ═══════════════════════════════
 
 /** Lo común de un pedido de viaje. Si retira material de Compras, pedidoMaterialId para el enlace de Compras. */
-export type V = { pedidoId: string; numero?: number; solicitanteId: string; obraId: string; descripcion: string; destino: string; chofer: string; pedidoMaterialId?: string | null };
+export type V = { pedidoId: string; numero?: number; solicitanteId: string; obraId: string; descripcion: string; destino: string; chofer: string; pedidoMaterialId?: string | null; coordinadoPorId?: string | null };
+
+/** El que pidió y, si Compras coordinó el viaje por él, también quien lo coordinó (los dos reciben lo mismo). */
+const pide = (v: V, p: boolean, enlace?: string): Destinatario[] => [usuario(v.solicitanteId, p, enlace), ...(v.coordinadoPorId ? [usuario(v.coordinadoPorId, p, enlace)] : [])];
 
 const enlacePedido = (id: string) => `/pedidos/${id}`;
 /** Etapas del viaje: solicitante (push), Dirección (bandeja) y, si es material, Compras (bandeja). */
 const etapaDelViaje = (v: V): Destinatario[] => [
-  usuario(v.solicitanteId, push),
+  ...pide(v, push),
   rol("DIRECCION", bandeja),
   ...(v.pedidoMaterialId ? [rol("COMPRAS", bandeja, `/materiales/${v.pedidoMaterialId}`)] : []),
 ];
@@ -83,20 +86,20 @@ export const EVENTO = {
     ...TEXTO.aceptado(v.chofer, { descripcion: v.descripcion, destino: v.destino, salida: v.salida, vehiculo: v.vehiculo, combinado: v.combinado }),
     enlace: enlacePedido(v.pedidoId), entidad: `pedido:${v.pedidoId}`, obraId: v.obraId, datos: { pedidoId: v.pedidoId, salida: v.salida.toISOString() },
     // El chofer recibe push cuando no lo aceptó él (lo asignó Dirección).
-    para: [usuario(v.solicitanteId, push), usuario(v.choferId, push, `/viaje/${v.pedidoId}`), rol("DIRECCION", bandeja)],
+    para: [...pide(v, push), usuario(v.choferId, push, `/viaje/${v.pedidoId}`), rol("DIRECCION", bandeja)],
   }),
 
   pedidoSoltado: (v: V): Evento => ({
     nombre: "pedido.soltado", tipo: "PEDIDO_SOLTADO", ...TEXTO.soltado(v.chofer),
     enlace: enlacePedido(v.pedidoId), entidad: `pedido:${v.pedidoId}`, obraId: v.obraId, datos: { pedidoId: v.pedidoId },
-    para: [usuario(v.solicitanteId, push), rol("DIRECCION", bandeja)],
+    para: [...pide(v, push), rol("DIRECCION", bandeja)],
   }),
 
   pedidoCancelado: (v: V & { quien: string; motivo: string; choferId: string | null }): Evento => ({
     nombre: "pedido.cancelado", tipo: "PEDIDO_CANCELADO",
     ...TEXTO.cancelado(v.quien, { descripcion: v.descripcion, destino: v.destino, motivo: v.motivo }),
     enlace: enlacePedido(v.pedidoId), entidad: `pedido:${v.pedidoId}`, obraId: v.obraId, datos: { pedidoId: v.pedidoId },
-    para: [usuario(v.solicitanteId, push), usuario(v.choferId, push, "/hoy"), rol("DIRECCION", bandeja)],
+    para: [...pide(v, push), usuario(v.choferId, push, "/hoy"), rol("DIRECCION", bandeja)],
   }),
 
   /** atrasado: "ayer" / "el lunes 13/10" si sale después del día previsto ("Claudio salió (estaba previsto para ayer)"). */
@@ -147,7 +150,7 @@ export const EVENTO = {
       titulo: `Faltó material: ${queLleva(v.item)}`,
       cuerpo: `${cuanto} de ${queLleva(v.item)} en ${v.lugar}.${v.nota ? ` ${v.chofer}: "${v.nota}".` : ""}`,
       enlace: enlacePedido(v.pedidoId), entidad: `viaje:${v.pedidoId}:faltante:${v.item}`, obraId: v.obraId, datos: { pedidoId: v.pedidoId },
-      para: [usuario(v.solicitanteId, push), rol("DIRECCION", bandeja), ...(v.pedidoMaterialId ? [rol("COMPRAS", push, `/materiales/${v.pedidoMaterialId}`)] : [])],
+      para: [...pide(v, push), rol("DIRECCION", bandeja), ...(v.pedidoMaterialId ? [rol("COMPRAS", push, `/materiales/${v.pedidoMaterialId}`)] : [])],
     };
   },
 
@@ -162,14 +165,14 @@ export const EVENTO = {
   viajeSinSenal: (v: V & { vehiculo: string; desde: Date }): Evento => ({
     nombre: "viaje.sinSenal", tipo: "SIN_SENAL", ...TEXTO.sinSenal(v.vehiculo, v.desde),
     enlace: enlacePedido(v.pedidoId), entidad: `viaje:${v.pedidoId}:sinSenal`, obraId: v.obraId, datos: { pedidoId: v.pedidoId },
-    para: [usuario(v.solicitanteId, bandeja), rol("DIRECCION", bandeja)],
+    para: [...pide(v, bandeja), rol("DIRECCION", bandeja)],
   }),
 
   viajeDemora: (v: V & { eta: Date }): Evento => ({
     nombre: "viaje.demora", tipo: "GENERAL", ...TEXTO.demora(v.chofer, v.eta),
     enlace: enlacePedido(v.pedidoId), entidad: `viaje:${v.pedidoId}:demora`, obraId: v.obraId,
     datos: { pedidoId: v.pedidoId, eta: v.eta.toISOString(), demora: true },
-    para: [usuario(v.solicitanteId, push)],
+    para: [...pide(v, push)],
   }),
 
   // ─── Al chofer, lo que detectó el GPS: push con botones para responder sin abrir la app ───
@@ -211,7 +214,7 @@ export const EVENTO = {
     titulo: `${v.chofer} pide adelantar un viaje`,
     cuerpo: `${v.chofer} puede llevar ${queLleva(v.descripcion)} a ${v.destino} antes (estaba para ${v.para}). Si te sirve, tocá Reprogramar y elegí el día.`,
     enlace: enlacePedido(v.pedidoId), entidad: `pedido:${v.pedidoId}:adelantar`, obraId: v.obraId, datos: { pedidoId: v.pedidoId },
-    para: [usuario(v.solicitanteId, push), rol("DIRECCION", push)],
+    para: [...pide(v, push), rol("DIRECCION", push)],
   }),
 
   /** Cambió la fecha de un pedido aceptado: el chofer (push) y, si no fue él, el que pidió. */
@@ -220,7 +223,16 @@ export const EVENTO = {
     titulo: `Viaje reprogramado para ${v.ahora}`,
     cuerpo: `${v.quien} cambió la fecha del pedido de ${queLleva(v.descripcion)} a ${v.destino}: era para ${v.antes}, ahora es para ${v.ahora}.`,
     enlace: enlacePedido(v.pedidoId), entidad: `pedido:${v.pedidoId}:reprogramado`, obraId: v.obraId, datos: { pedidoId: v.pedidoId },
-    para: [usuario(v.choferId, push, `/viaje/${v.pedidoId}`), usuario(v.solicitanteId, push), rol("DIRECCION", bandeja)],
+    para: [usuario(v.choferId, push, `/viaje/${v.pedidoId}`), ...pide(v, push), rol("DIRECCION", bandeja)],
+  }),
+
+  /** Compras (o Dirección) editó una solicitud pendiente: fecha, prioridad o qué llevar. */
+  pedidoEditado: (v: V & { quien: string; cambios: string }): Evento => ({
+    nombre: "pedido.editado", tipo: "GENERAL",
+    titulo: "Cambió un pedido de viaje",
+    cuerpo: `${v.quien} cambió el pedido de ${queLleva(v.descripcion)} a ${v.destino}: ${v.cambios}.`,
+    enlace: enlacePedido(v.pedidoId), entidad: `pedido:${v.pedidoId}:editado`, obraId: v.obraId, datos: { pedidoId: v.pedidoId },
+    para: [...pide(v, push), rol("CHOFER", bandeja, `/solicitudes/${v.pedidoId}`), rol("DIRECCION", bandeja)],
   }),
 
   // ═══════════════════════════════ Materiales y Compras ═══════════════════════════════

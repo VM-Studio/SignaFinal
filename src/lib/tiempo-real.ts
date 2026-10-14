@@ -35,19 +35,20 @@ const responsables = (cliente: Cliente, obraIds: string[]) =>
   cliente.responsableObra.findMany({ where: { obraId: { in: obraIds }, activo: true }, select: { usuarioId: true } }).then((r) => r.map((x) => x.usuarioId));
 
 /**
- * Pedido de viaje: el que pidió, el chofer, los responsables de la obra, TODOS los choferes (la cola de
- * solicitudes: aparece o desaparece), Dirección y, si retira material, Compras. Si va en un viaje con
+ * Pedido de viaje: el que pidió (y quien lo coordinó), el chofer, los responsables de la obra, TODOS los
+ * choferes (la cola de solicitudes: aparece o desaparece), Dirección y Compras. Si va en un viaje con
  * otros pedidos, también los que pidieron esos (cambia su seguimiento).
  */
 async function destinosPedidoViaje(cliente: Cliente, pedidoId: string) {
-  const p = await cliente.pedidoViaje.findUnique({ where: { id: pedidoId }, select: { solicitanteId: true, tomadoPorId: true, obraId: true, esRetiroMaterial: true, viajeId: true } });
+  const p = await cliente.pedidoViaje.findUnique({ where: { id: pedidoId }, select: { solicitanteId: true, coordinadoPorId: true, tomadoPorId: true, obraId: true, esRetiroMaterial: true, viajeId: true } });
   if (!p) return [];
   const delViaje = p.viajeId ? await cliente.pedidoViaje.findMany({ where: { viajeId: p.viajeId }, select: { solicitanteId: true, obraId: true } }) : [];
   const obras = [p.obraId, ...delViaje.map((x) => x.obraId)];
   return [
-    p.solicitanteId, p.tomadoPorId, ...delViaje.map((x) => x.solicitanteId),
+    p.solicitanteId, p.coordinadoPorId, p.tomadoPorId, ...delViaje.map((x) => x.solicitanteId),
     ...(await responsables(cliente, obras)),
-    ...(await conRol(cliente, ["CHOFER", "DIRECCION", "CAPATAZ", ...(p.esRetiroMaterial ? (["COMPRAS"] as Rol[]) : [])])),
+    // Compras ve todas las solicitudes (coordina viajes para la obra).
+    ...(await conRol(cliente, ["CHOFER", "DIRECCION", "CAPATAZ", "COMPRAS"])),
   ];
 }
 

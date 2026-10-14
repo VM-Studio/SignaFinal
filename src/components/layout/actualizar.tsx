@@ -38,7 +38,7 @@ export function BotonActualizar({ className, iconos, oscuro = false }: { classNa
 const POR_RUTA: [RegExp, EntidadCambio[]][] = [
   // Formularios (la plantilla y la importación): no se refrescan solos.
   [/^\/compras\/[^/]+\/oc/, []],
-  [/^\/compras\/(ordenes\/(nueva|[^/]+)|importar)$/, []],
+  [/^\/compras\/(ordenes\/(nueva|[^/]+)|importar|viajes)$/, []],
   [/^\/(pedir|pedir-materiales)(\/|$)/, []],
   [/^\/inicio/, ["PEDIDO_VIAJE", "VIAJE", "PEDIDO_MATERIAL", "ORDEN_COMPRA", "MATERIAL_LISTO", "HERRAMIENTA", "ALERTA"]],
   [/^\/(solicitudes|hoy|viaje|viajes|viajes-en-curso)(\/|$)/, ["PEDIDO_VIAJE", "VIAJE"]],

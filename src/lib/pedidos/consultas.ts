@@ -2,7 +2,8 @@ import { nombreSucursal } from "@/lib/pedidos/puntos";
 import "server-only";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { exigirPermiso } from "@/lib/auth/sesion";
+import { exigirPermiso, exigirSesion } from "@/lib/auth/sesion";
+import { puede } from "@/lib/permisos";
 import type { UsuarioSesion } from "@/lib/auth/sesion";
 import { inicioDelDia } from "@/lib/formato";
 import { vehiculosPara } from "./reglas";
@@ -179,7 +180,8 @@ export async function tengoViajeEnCurso() {
 // ─────────────────────────── Formulario ───────────────────────────
 
 export async function datosFormulario() {
-  const u = await exigirPermiso("pedidos.crear");
+  const u = await exigirSesion();
+  if (!puede(u.rol, "pedidos.crear") && !puede(u.rol, "pedidos.coordinar")) throw new Error("Sin permiso");
   const [obras, todasLasObras, proveedores, ubicaciones, herramientas] = await Promise.all([
     db.obra.findMany({
       where: { estado: "ACTIVA", ...filtroObras(u) },

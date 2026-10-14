@@ -38,7 +38,7 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
   const esChofer = puede(u.rol, "pedidos.tomar");
   const esMio = p.tomadoPorId === u.id;
   const puedeCancelar =
-    (p.estado === "PENDIENTE" && p.solicitanteId === u.id && puede(u.rol, "pedidos.cancelarPropios")) ||
+    (p.estado === "PENDIENTE" && ((p.solicitanteId === u.id && puede(u.rol, "pedidos.cancelarPropios")) || puede(u.rol, "pedidos.coordinar"))) ||
     (["PENDIENTE", "TOMADO"].includes(p.estado) && puede(u.rol, "pedidos.cancelarCualquiera"));
   const puedeReasignar = ["PENDIENTE", "TOMADO"].includes(p.estado) && puede(u.rol, "pedidos.reasignar");
   // Cambiar la fecha: Dirección y quien lo pidió, mientras no salió.

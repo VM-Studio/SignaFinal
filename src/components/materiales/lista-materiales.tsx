@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronRight, MessageSquareText, Paperclip, Truck } from "lucide-react";
 import type { FilaMaterial } from "@/lib/materiales/consultas";
 import { ESTADO_MATERIAL, fraseMaterial, haceDias, nroOC } from "@/lib/materiales/presentacion";
-import { aFecha, paraElDia } from "@/lib/formato";
+import { aFecha, diaISO, paraElDia, sumarDias } from "@/lib/formato";
 import { Insignia } from "@/components/ui/basicos";
 import { BotonLink } from "@/components/ui/boton";
 
@@ -12,6 +12,17 @@ const primerRenglon = (d: string) => {
   const r = d.split("\n");
   return r.length > 1 ? `${r[0]} y ${r.length - 1} más` : r[0];
 };
+
+const TERMINADOS = ["ENTREGADO", "CANCELADO"];
+/** Fecha de caducidad: hoy o vencida en rojo, mañana en ámbar (lo que todavía no se entregó). */
+function claseCaducidad(f: FilaMaterial) {
+  if (TERMINADOS.includes(f.estado)) return "";
+  const d = f.paraCuando.slice(0, 10);
+  const hoy = diaISO();
+  if (d <= hoy) return "font-medium text-critico";
+  if (d === sumarDias(hoy, 1)) return "font-medium text-aviso-texto";
+  return "";
+}
 
 /** Clip con la cantidad de archivos y nota si trae observaciones. */
 function Marcas({ f }: { f: FilaMaterial }) {
@@ -34,7 +45,7 @@ export function ColaMateriales({ filas, base = "/compras", compacta = false }: {
             <Link href={`${base}/${f.id}`} className={`flex min-h-14 items-center gap-3 px-4 py-2 lg:min-h-11 hover:bg-hover ${f.demorado ? "" : ""}`}>
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-2"><span className="truncate font-medium">{primerRenglon(f.descripcion)}</span><Marcas f={f} /></p>
-                <p className="truncate text-sm text-suave">#{f.numero} · Obra {f.obra} · {f.solicitante} · {para(f.paraCuando)}</p>
+                <p className="truncate text-sm text-suave">#{f.numero} · Obra {f.obra} · {f.solicitante} · <span className={claseCaducidad(f)}>{para(f.paraCuando)}</span></p>
                 <p className={`text-sm ${f.demorado ? "font-medium text-critico" : "text-suave"}`}>{f.demorado ? "Demorado · " : ""}En este paso {haceDias(new Date(f.enEstadoDesde))}</p>
               </div>
               {f.prioridad === "URGENTE" && <Insignia tono="critico">Urgente</Insignia>}
@@ -48,7 +59,7 @@ export function ColaMateriales({ filas, base = "/compras", compacta = false }: {
           <thead>
             <tr>
               <th>N°</th><th>Qué</th><th>Obra</th><th>Pidió</th>
-              <th>Para cuándo</th><th>En este paso</th><th>OC</th>
+              <th>Caducidad</th><th>Estado</th><th>En este paso</th><th>OC</th>
             </tr>
           </thead>
           <tbody>
@@ -60,7 +71,8 @@ export function ColaMateriales({ filas, base = "/compras", compacta = false }: {
                 </td>
                 <td>Obra {f.obra}</td>
                 <td>{f.solicitante}</td>
-                <td>{para(f.paraCuando).replace(/^para /, "")}</td>
+                <td className={claseCaducidad(f)}>{para(f.paraCuando).replace(/^para /, "")}</td>
+                <td><Insignia tono={ESTADO_MATERIAL[f.estado].tono}>{ESTADO_MATERIAL[f.estado].titulo}</Insignia></td>
                 <td className={f.demorado ? "font-medium text-critico" : ""}>{f.demorado ? "Demorado · " : ""}{haceDias(new Date(f.enEstadoDesde))}</td>
                 <td className="text-suave">{nroOC(f.ordenCompra) ?? "—"}</td>
               </tr>

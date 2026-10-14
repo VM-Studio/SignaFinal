@@ -12,7 +12,7 @@ import { cancelarPedido, deshacerCancelacion, soltarPedido, tomarPedido } from "
 import { MOTIVOS_CANCELACION } from "@/lib/pedidos/presentacion";
 
 /** Cancelar con motivo (elegido de una lista; "Otro" se escribe). Deshacer 10 s. */
-export function BotonCancelar({ pedidoId }: { pedidoId: string }) {
+export function BotonCancelar({ pedidoId, chico = false }: { pedidoId: string; chico?: boolean }) {
   const [abierta, setAbierta] = useState(false);
   const [motivo, setMotivo] = useState("");
   const [otro, setOtro] = useState("");
@@ -40,7 +40,7 @@ export function BotonCancelar({ pedidoId }: { pedidoId: string }) {
 
   return (
     <>
-      <Boton variante="peligro" ancho icono={<XCircle />} onClick={() => setAbierta(true)}>Cancelar pedido</Boton>
+      <Boton variante="peligro" ancho={!chico} tamano={chico ? "chico" : undefined} icono={<XCircle />} onClick={() => setAbierta(true)}>{chico ? "Cancelar" : "Cancelar pedido"}</Boton>
       <Hoja abierta={abierta} onCerrar={() => setAbierta(false)} titulo="¿Por qué se cancela?">
         <div className="flex flex-col gap-3">
           <Opciones
