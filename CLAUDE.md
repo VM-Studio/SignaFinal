@@ -76,16 +76,32 @@ Reglas de visibilidad (se verifican en el servidor, en cada query y cada action)
 - Cada usuario ve solo sus avisos y alertas (matriz en src/lib/alertas/destinatarios.ts).
 - Si un rol entra a una ruta que no le corresponde, va a /inicio. Sin pantalla de error.
 
-## Navegación (barra inferior en celular, máximo 4 ítems, distinta por rol)
+## Navegación (lo más usado adelante, distinta por rol)
 
-- RESPONSABLE_OBRA / CAPATAZ: Obras · Pedir · Viajes · Herramientas
-- CHOFER: Hoy · Solicitudes · Combustible · Más
-- DEPOSITO: Depósito · Sobrantes · Entregas · Más
-- ADMINISTRACION: Flota · Costos · Alertas · Más
-- COMPRAS: Pedidos · Habilitados · Proveedores · Más
-- DIRECCION: Mapa · Solicitudes · Viajes · Más (y en Más: todo lo demás, con Aprobaciones)
-Cuenta y cerrar sesión viven en el avatar del header, no en la barra.
-Escritorio (1024px+): barra lateral negra de 232px con las mismas entradas del rol.
+| Rol | Barra inferior (4 ítems) | En "Más" |
+|---|---|---|
+| DIRECCION | Aprobaciones · Pedidos · Avisos · Más | Mapa, Viajes en curso, Solicitudes, Flota, Costos, Actividad, Herramientas, Rastreo, Obras, Proveedores, Configuración |
+| COMPRAS | Pedidos · Órdenes · Viajes · Más | Tablero (si no está en Órdenes), Habilitados, Proveedores, Importar, Avisos, Cuenta |
+| RESPONSABLE_OBRA / CAPATAZ | Pedir · Mis pedidos · Viajes · Más | Herramientas, Obras, Avisos, Cuenta |
+| CHOFER | Hoy · Solicitudes · Avisos · Más | Combustible, Cuenta |
+| DEPOSITO | Escanear · Herramientas · Entregas · Más | Avisos, Cuenta |
+| ADMINISTRACION | Flota · Costos · Alertas · Más | Obras, Proveedores, Razones sociales, Avisos, Cuenta |
+
+- Todo en src/lib/navegacion.ts (NAV). Para COMPRAS, "Órdenes" abre el Tablero (pestañas Tablero · Órdenes ·
+  Importar), "Pedidos" es la cola de pedidos de materiales y "Viajes" son Coordinar viaje · Solicitudes.
+  "Pedidos" del dueño es la vista global de pedidos de materiales (/compras).
+- DEPOSITO: "Escanear" se muestra como **Buscar** (abre el depósito con el buscador enfocado): no hay escaneo
+  ni etiquetas QR, las herramientas se buscan por nombre.
+- Contadores (punto rojo con número; src/lib/contadores.ts, en vivo con el tiempo real): Aprobaciones
+  (órdenes esperando al dueño), Pedidos (nuevos sin tomar, Compras), Solicitudes (pendientes, choferes),
+  Avisos (sin leer) y Mis pedidos (materiales listos para retirar, obra).
+- "Más" es una grilla de tarjetas (dos columnas en celular) con ícono, nombre y contador; Mi cuenta y
+  Cerrar sesión al pie. Cuenta y cerrar sesión también en el avatar del header.
+- Escritorio (1024px+): barra lateral negra de 232px con los mismos tres arriba y el resto en "Más", plegado.
+- Ninguna ruta de la matriz queda sin enlace: scripts/verificar-navegacion.ts (y su test).
+- Inicios: DIRECCION, órdenes que esperan aprobación, viajes de hoy, alertas críticas y el mapa como
+  tarjeta chica. COMPRAS, pedidos nuevos, esperando aprobación, listos sin retirar +3 días y el dólar.
+  Obra, "Pedir", listo para retirar (con Pedir el viaje), en camino hoy y esperando a Compras.
 
 ## Ciclo de un viaje (la lógica más importante de la app)
 

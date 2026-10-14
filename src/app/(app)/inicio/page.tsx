@@ -7,7 +7,8 @@ import { exigirSesion } from "@/lib/auth/sesion";
 import { puede } from "@/lib/permisos";
 import { CotizacionDolar } from "@/components/compras/cotizacion-dolar";
 import { devolucionesVencidas, pedidosPendientes, resumenDireccion, vencimientosProximos } from "@/lib/datos/inicio";
-import { misPedidosDeHoy, viajesAMisObrasHoy } from "@/lib/pedidos/listas";
+import { viajesAMisObrasHoy, viajesDeHoy } from "@/lib/pedidos/listas";
+import { alertasAbiertas } from "@/lib/alertas/consultas";
 import { viajesDelChofer } from "@/lib/viajes/chofer";
 import { ETAPAS_EN_CURSO } from "@/lib/viajes/etapas";
 import { paraEntregar } from "@/lib/herramientas/consultas";
@@ -16,15 +17,14 @@ import { costosPorObra, costosPorVehiculo, periodo } from "@/lib/costos/consulta
 import { datosMapa } from "@/lib/mapa/consultas";
 import { TarjetaChofer } from "@/components/viajes/tarjeta-chofer";
 import { BotonEtapa } from "@/components/viajes/acciones-viaje";
-import { MapaEnVivo } from "@/components/mapa/mapa-en-vivo";
-import { ListaPedidos, ListaViajes } from "@/components/pedidos/lista-pedidos";
+import { ListaViajes } from "@/components/pedidos/lista-pedidos";
 import { BotonLink } from "@/components/ui/boton";
 import { AccionPrincipal, Cifra, Esqueleto, FilaLista, Insignia, Lista, Llamado, Subtitulo, Titulo, Vacio } from "@/components/ui/basicos";
 import { DOCUMENTO } from "@/lib/etiquetas";
 import { cuando, fecha, finDelDia, plata, vencimiento } from "@/lib/formato";
-import { cuantasParaAprobar, listosEnMisObras, resumenCompras } from "@/lib/materiales/consultas";
-import { ColaMateriales } from "@/components/materiales/lista-materiales";
-import { PackageOpen, ShoppingCart, Stamp } from "lucide-react";
+import { cuantasParaAprobar, esperandoACompras, listosEnMisObrasDetalle, resumenCompras } from "@/lib/materiales/consultas";
+import { ColaMateriales, MisMateriales } from "@/components/materiales/lista-materiales";
+import { Map as MapIcon, ShoppingCart, Stamp } from "lucide-react";
 
 export const metadata: Metadata = { title: "Inicio" };
 
@@ -52,30 +52,29 @@ export default async function Inicio() {
 // ───────────────────── Responsable de obra / Capataz ─────────────────────
 
 async function InicioObra() {
-  const [mios, enMisObras, listos] = await Promise.all([misPedidosDeHoy(), viajesAMisObrasHoy(), listosEnMisObras()]);
+  const [enMisObras, listos, esperando] = await Promise.all([viajesAMisObrasHoy(), listosEnMisObrasDetalle(), esperandoACompras()]);
   return (
     <div className="grid gap-x-6 lg:grid-cols-2 [&>section]:min-w-0">
       <section>
-        <AccionPrincipal href="/pedir" icono={<PlusCircle />} titulo="Pedir un viaje" detalle="Retiro en un proveedor, herramientas o personas a tu obra." boton="Pedir un viaje" />
-        {/* Lo que Compras dejó listo es lo único que le pide una acción. */}
-        {listos > 0 && (
-          <div className="mt-2">
-            <Llamado href="/pedir/retiro" icono={<PackageOpen />} tono="ok" enlace="Pedir el viaje">
-              {listos === 1 ? "1 material listo para retirar" : `${listos} materiales listos para retirar`}
-            </Llamado>
-          </div>
-        )}
+        {/* Una acción principal: Pedir (materiales o viaje). */}
+        <AccionPrincipal href="/pedir" icono={<PlusCircle />} titulo="Pedir" detalle="Materiales a Compras o un viaje a tu obra." boton="Pedir" />
         <BotonLink href="/pedir-materiales" variante="secundario" ancho icono={<ShoppingCart />} className="mt-2">Pedir materiales a Compras</BotonLink>
-        <Subtitulo accion={<Link href="/mis-pedidos" className="text-sm font-medium underline">Ver todos</Link>}>Mis pedidos de hoy</Subtitulo>
-        {mios.length === 0 ? <Vacio titulo="No pediste nada para hoy">Lo que pidas aparece acá con su estado.</Vacio> : <ListaPedidos filas={mios} base="/mis-pedidos" />}
+        <Subtitulo accion={listos.length ? <Link href="/pedir/retiro" className="text-sm font-medium underline">Pedir el viaje</Link> : undefined}>Listo para retirar</Subtitulo>
+        {listos.length === 0 ? (
+          <Vacio titulo="Nada listo para retirar">Cuando Compras habilite un material, aparece acá para pedir el viaje.</Vacio>
+        ) : (
+          <Lista>
+            {listos.map((m) => (
+              <FilaLista key={m.id} href={`/pedir/retiro?obra=${m.obraId}&material=${m.id}`} titulo={m.descripcion} detalle={`Obra ${m.obra} · en ${m.proveedor}${m.horario ? ` · ${m.horario}` : ""}`} derecha={<span className="text-sm font-medium text-ok">Pedir el viaje</span>} />
+            ))}
+          </Lista>
+        )}
       </section>
       <section>
-        <Subtitulo accion={<Link href="/viajes-en-curso" className="text-sm font-medium underline">Ver viajes</Link>}>En mis obras hoy</Subtitulo>
-        {enMisObras.length === 0 ? (
-          <Vacio titulo="Ningún viaje aceptado hacia tus obras hoy" />
-        ) : (
-          <ListaViajes filas={enMisObras} base="/viajes-en-curso" />
-        )}
+        <Subtitulo accion={<Link href="/viajes-en-curso" className="text-sm font-medium underline">Ver viajes</Link>}>En camino hoy</Subtitulo>
+        {enMisObras.length === 0 ? <Vacio titulo="Ningún viaje hacia tus obras hoy" /> : <ListaViajes filas={enMisObras} base="/viajes-en-curso" />}
+        <Subtitulo accion={<Link href="/mis-pedidos?tab=materiales" className="text-sm font-medium underline">Ver todos</Link>}>Esperando a Compras</Subtitulo>
+        {esperando.length === 0 ? <Vacio titulo="Nada esperando a Compras" /> : <MisMateriales filas={esperando} />}
       </section>
     </div>
   );
@@ -169,20 +168,65 @@ function InicioDireccion() {
       <Suspense fallback={null}>
         <AprobacionesPendientes />
       </Suspense>
-      {/* Escritorio: grilla de 12, el mapa en 8 y las cifras en 4. */}
-      <div className="grid gap-3 lg:grid-cols-12 lg:gap-6">
+      {/* Escritorio: grilla de 12; los viajes de hoy y las alertas en 8, las cifras y el mapa chico en 4. */}
+      <div className="grid gap-x-6 gap-y-2 lg:grid-cols-12">
         <div className="min-w-0 lg:col-span-8">
-          <Suspense fallback={<Esqueleto className="h-[340px]" />}>
-            <MapaDireccion />
+          <Suspense fallback={<EsqueletoLista filas={4} />}>
+            <ViajesDeHoy />
+          </Suspense>
+          <Suspense fallback={null}>
+            <AlertasCriticas />
           </Suspense>
         </div>
-        <div className="min-w-0 lg:col-span-4">
+        <div className="min-w-0 lg:col-span-4 lg:pt-12">
           <Suspense fallback={<div className="grid grid-cols-2 gap-2 lg:gap-3">{[0, 1, 2, 3].map((i) => <Esqueleto key={i} className="h-24" />)}</div>}>
             <CifrasDireccion />
+          </Suspense>
+          <Suspense fallback={<Esqueleto className="mt-3 h-40" />}>
+            <MapaChico />
           </Suspense>
         </div>
       </div>
     </div>
+  );
+}
+
+async function ViajesDeHoy() {
+  const { filas, total } = await viajesDeHoy(6);
+  return (
+    <section>
+      <Subtitulo accion={<Link href="/solicitudes" className="text-sm font-medium underline">{total > filas.length ? `Ver los ${total}` : "Ver solicitudes"}</Link>}>Viajes de hoy</Subtitulo>
+      {filas.length === 0 ? <Vacio titulo="No hay viajes para hoy" /> : <ListaViajes filas={filas} base="/solicitudes" />}
+    </section>
+  );
+}
+
+async function AlertasCriticas() {
+  const alertas = (await alertasAbiertas(20)).filter((a) => a.severidad === "CRITICA").slice(0, 5);
+  if (!alertas.length) return null;
+  return (
+    <section>
+      <Subtitulo accion={<Link href="/alertas" className="text-sm font-medium underline">Ver alertas</Link>}>Alertas críticas</Subtitulo>
+      <Lista>
+        {alertas.map((a) => <FilaLista key={a.id} href={a.enlace ?? "/alertas"} titulo={a.titulo} detalle={a.detalle} derecha={<Insignia tono="critico">Crítica</Insignia>} />)}
+      </Lista>
+    </section>
+  );
+}
+
+/** El mapa como tarjeta chica (sin cargar Leaflet en el inicio): cuántos en viaje y "Ver mapa". */
+async function MapaChico() {
+  const d = await datosMapa();
+  const enViaje = d.vehiculos.filter((v) => v.estado === "EN_VIAJE").length;
+  return (
+    <Link href="/mapa" className="mt-3 flex items-center gap-3 rounded-[var(--radius-caja)] border border-linea bg-papel p-4 hover:bg-hover">
+      <span className="grid size-10 shrink-0 place-items-center rounded-md bg-fondo"><MapIcon className="size-5 text-suave" strokeWidth={1.75} /></span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium">Mapa</span>
+        <span className="block text-sm text-suave">{enViaje === 1 ? "1 vehículo en viaje" : `${enViaje} vehículos en viaje`} · {d.vehiculos.length} con GPS</span>
+      </span>
+      <span className="text-sm font-medium underline">Ver mapa</span>
+    </Link>
   );
 }
 
@@ -197,10 +241,6 @@ async function AprobacionesPendientes() {
       </Llamado>
     </div>
   );
-}
-
-async function MapaDireccion() {
-  return <MapaEnVivo inicial={await datosMapa()} compacto />;
 }
 
 async function CifrasDireccion() {
@@ -222,13 +262,12 @@ async function InicioCompras() {
   return (
     <div className="grid gap-x-6 lg:grid-cols-2 [&>section]:min-w-0">
       <section>
-        <AccionPrincipal href="/compras" icono={<ShoppingCart />} titulo={r.nuevos.length ? `${r.nuevos.length} ${r.nuevos.length === 1 ? "pedido nuevo" : "pedidos nuevos"}` : "Pedidos de material"} detalle="Tomalos, cargá la OC y habilitá el retiro." boton="Abrir la cola" />
+        <AccionPrincipal href="/compras" icono={<ShoppingCart />} titulo={r.nuevos.length ? `${r.nuevos.length} ${r.nuevos.length === 1 ? "pedido nuevo" : "pedidos nuevos"}` : "Pedidos nuevos"} detalle={r.nuevos.length ? "Tomalos, armá la OC y mandala a aprobación." : "No hay pedidos nuevos sin tomar."} boton="Ver pedidos nuevos" />
         <div className="mt-3 grid grid-cols-2 gap-2">
-          <Link href="/compras?p=en-compra"><Cifra etiqueta="En compra" valor={r.enCompra} /></Link>
-          <Link href="/compras?p=esperando"><Cifra etiqueta="Esperan al dueño" valor={r.esperando} tono={r.esperando ? "aviso" : undefined} /></Link>
-          <Link href="/compras?p=aprobados"><Cifra etiqueta="Aprobados" valor={r.aprobados} detalle="falta el proveedor" /></Link>
-          <Link href="/habilitados"><Cifra etiqueta="Sin retirar +3 días" valor={r.sinRetirar} tono={r.sinRetirar ? "critico" : "ok"} /></Link>
+          <Link href="/compras/tablero?estado=PEDIR_AUTORIZACION"><Cifra etiqueta="Esperando aprobación" valor={r.esperando} tono={r.esperando ? "aviso" : undefined} /></Link>
+          <Link href="/habilitados"><Cifra etiqueta="Listos sin retirar hace más de 3 días" valor={r.sinRetirar} tono={r.sinRetirar ? "critico" : "ok"} /></Link>
         </div>
+        <div className="mt-3 hidden lg:block"><CotizacionDolar variante="tarjeta" /></div>
       </section>
       <section>
         <Subtitulo accion={<Link href="/compras" className="text-sm font-medium underline">Ver la cola</Link>}>Demorados</Subtitulo>

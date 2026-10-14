@@ -19,7 +19,7 @@ import { CargarMas } from "@/components/ui/cargar-mas";
 
 export const metadata: Metadata = { title: "Depósito" };
 
-type P = { tab?: string; q?: string; donde?: string; vista?: string; n?: string };
+type P = { tab?: string; q?: string; donde?: string; vista?: string; n?: string; buscar?: string };
 
 export default async function PaginaHerramientas({ searchParams }: { searchParams: Promise<P> }) {
   const u = await exigirPermiso("herramientas.ver");
@@ -64,19 +64,19 @@ export default async function PaginaHerramientas({ searchParams }: { searchParam
 
       <Pestanas items={(Object.keys(PESTANAS) as Pestana[]).map((k) => ({ href: qs({ tab: k }), etiqueta: PESTANAS[k], activa: k === tab }))} />
 
-      <Lista tab={tab} q={sp.q} donde={sp.donde} n={sp.n} obras={ops.obras} depositos={ops.depositos} qs={qs} />
+      <Lista tab={tab} q={sp.q} donde={sp.donde} n={sp.n} obras={ops.obras} depositos={ops.depositos} qs={qs} enfocar={sp.buscar === "1"} />
     </div>
   );
 }
 
-async function Lista({ tab, q, donde, n, obras, depositos, qs }: { tab: Pestana; q?: string; donde?: string; n?: string; obras: { id: string; nombre: string }[]; depositos: { id: string; nombre: string }[]; qs: (e: Partial<P>) => string }) {
+async function Lista({ tab, q, donde, n, obras, depositos, qs, enfocar = false }: { enfocar?: boolean; tab: Pestana; q?: string; donde?: string; n?: string; obras: { id: string; nombre: string }[]; depositos: { id: string; nombre: string }[]; qs: (e: Partial<P>) => string }) {
   const { limite, siguiente } = await limiteDe(n);
   const todas = await listar({ tab, q, ubicacion: donde, limite });
   const filas = todas.slice(0, limite);
   return (
     <>
       <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_16rem] lg:grid-cols-[minmax(0,420px)_16rem]">
-        <Buscador accion="/herramientas" valor={q} placeholder="Buscar por nombre o código (SIG-0001)" ocultos={{ tab, donde }} />
+        <Buscador accion="/herramientas" valor={q} placeholder="Buscar por nombre o código (SIG-0001)" ocultos={{ tab, donde }} enfocar={enfocar} />
         <FiltroUbicacion valor={donde ?? ""} obras={obras} depositos={depositos} base={qs({ donde: undefined })} />
       </div>
       {filas.length === 0 ? (

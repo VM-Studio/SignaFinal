@@ -107,3 +107,15 @@ export async function pedidosDeObra(obraId: string) {
     take: 30,
   });
 }
+
+/** Inicio del dueño: los viajes de hoy (en viaje, aceptados y pendientes para hoy o antes, y lo entregado hoy). */
+export async function viajesDeHoy(limite = 6) {
+  const u = await exigirPermiso("viajes.verTodos");
+  const filas = await db.pedidoViaje.findMany({
+    where: conAlcance(u, { OR: [{ estado: { in: [...ACTIVOS] }, paraCuando: { lte: finDelDia() } }, { estado: "ENTREGADO", viaje: { llegadaReal: hoy() } }] }),
+    select: fila,
+    take: 40,
+  });
+  const ordenados = filas.sort(porEstado);
+  return { filas: ordenados.slice(0, limite), total: ordenados.length };
+}

@@ -344,6 +344,27 @@ export async function datosCoordinar() {
   };
 }
 
+/** Inicio de obra: los materiales habilitados en mis obras, con "Pedir el viaje". */
+export async function listosEnMisObrasDetalle(limite = 6) {
+  const u = await exigirPermiso("materiales.pedir");
+  const filas = await db.materialListo.findMany({
+    where: { estado: "LISTO", modoEntrega: "RETIRA_CHOFER", pedidoMaterial: materialesVisibles(u) },
+    orderBy: { habilitadoEn: "asc" }, take: limite,
+    include: { proveedor: { select: { nombre: true } }, obra: { select: { nombre: true } } },
+  });
+  return filas.map((m) => ({ id: m.id, obraId: m.obraId, obra: m.obra.nombre, proveedor: m.proveedor.nombre, descripcion: m.descripcion, horario: m.horarioRetiro }));
+}
+
+/** Inicio de obra: lo que pedí y todavía está en manos de Compras (sin habilitar). */
+export async function esperandoACompras(limite = 5) {
+  const u = await exigirPermiso("materiales.pedir");
+  const filas = await db.pedidoMaterial.findMany({
+    where: conAlcance(u, { solicitanteId: u.id, estado: { in: ["SOLICITADO", "EN_COMPRA", "ESPERANDO_APROBACION", "APROBADO"] } }),
+    include: filaInclude, orderBy: { paraCuando: "asc" }, take: limite,
+  });
+  return filas.map(aFila);
+}
+
 /** Inicio de obra: cuántos materiales listos para retirar hay en mis obras. */
 export async function listosEnMisObras() {
   const u = await exigirPermiso("materiales.pedir");

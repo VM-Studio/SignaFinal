@@ -44,7 +44,7 @@ export function ListaViajes({ filas, base }: { filas: FilaPedidoLista[]; base: s
             titulo={
               <span className="flex items-center gap-2">
                 <Truck aria-hidden className="size-5 shrink-0" />
-                <span className="truncate">{v ? `${v.chofer.nombre} · ${v.vehiculo.nombre}` : p.tomadoPor?.nombre}</span>
+                <span className="truncate">{v ? `${v.chofer.nombre} · ${v.vehiculo.nombre}` : p.tomadoPor?.nombre ?? "Sin chofer todavía"}</span>
               </span>
             }
             detalle={

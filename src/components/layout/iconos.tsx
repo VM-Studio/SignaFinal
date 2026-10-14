@@ -1,6 +1,6 @@
 import {
   AlertTriangle, Building2, Fuel, HardHat, Home, ListOrdered, Map, Menu, PackageCheck, PlusCircle, Route,
-  Store, Truck, UserCircle2, Users, Wrench, Warehouse, Boxes, CalendarClock, CircleDollarSign, Sun, Bell, Activity, FileUp, ShoppingCart, PackageOpen, Stamp, SatelliteDish, type LucideIcon,
+  Store, Truck, UserCircle2, Users, Wrench, Warehouse, Boxes, CalendarClock, CircleDollarSign, Sun, Bell, Activity, FileUp, ShoppingCart, PackageOpen, Stamp, SatelliteDish, Search, ClipboardList, Settings2, type LucideIcon,
 } from "lucide-react";
 import type { Icono } from "@/lib/navegacion";
 
@@ -11,4 +11,5 @@ export const ICONOS: Record<Icono, LucideIcon> = {
   agenda: CalendarClock, costos: CircleDollarSign,
   hoy: Sun, avisos: Bell, actividad: Activity, importar: FileUp,
   compras: ShoppingCart, habilitados: PackageOpen, aprobaciones: Stamp, rastreo: SatelliteDish,
+  buscar: Search, tablero: ClipboardList, configuracion: Settings2,
 };
