@@ -78,8 +78,11 @@ export async function cambioDeAuditoria(cliente: Cliente, d: { entidad: string; 
     } else if (d.entidad === "PedidoMaterial") {
       const destinos = await destinosMaterial(cliente, d.entidadId);
       await emitirCambio(destinos, "PEDIDO_MATERIAL", d.entidadId, d.accion, cliente);
-      if (/^oc\.|aprob|rechaz/i.test(d.accion)) await emitirCambio(destinos, "ORDEN_COMPRA", d.entidadId, d.accion, cliente);
+      if (/^oc\.|aprob|rechaz/i.test(d.accion)) await emitirCambio([...destinos, ...(await conRol(cliente, ["ADMINISTRACION"]))], "ORDEN_COMPRA", d.entidadId, d.accion, cliente);
       if (/habilit|retiro|listo/i.test(d.accion)) await emitirCambio(destinos, "MATERIAL_LISTO", d.entidadId, d.accion, cliente);
+    } else if (d.entidad === "OrdenCompra") {
+      // Tablero de Compras (órdenes sin pedido: creadas o importadas; celdas editadas en línea).
+      await emitirCambio(await conRol(cliente, ["COMPRAS", "DIRECCION", "ADMINISTRACION"]), "ORDEN_COMPRA", d.entidadId, d.accion, cliente);
     } else if (d.entidad === "Herramienta" && d.entidadId !== "csv") {
       await emitirCambio(await destinosHerramienta(cliente, d.entidadId), "HERRAMIENTA", d.entidadId, d.accion, cliente);
     } else if (d.entidad === "Herramienta" || d.entidad === "MaterialSobrante") {

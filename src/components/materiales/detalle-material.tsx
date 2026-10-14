@@ -4,7 +4,7 @@ import { ArrowLeft, Clock, FileText, MessageSquareText, Phone, Truck } from "luc
 import { ListaAdjuntos } from "@/components/adjuntos/lista";
 import { ocsDePedido } from "@/lib/compras/consultas";
 import { BloqueOC } from "@/components/compras/bloque-oc";
-import { BotonAnularOC, BotonCorregirOC } from "@/components/compras/botones-oc";
+import { BotonAnularOC, BotonCorregirOC, BotonPresupuesto } from "@/components/compras/botones-oc";
 import { AdjuntarCompras, NotasCompras } from "./extras-compras";
 import { exigirSesion } from "@/lib/auth/sesion";
 import { detalleMaterial, proveedoresParaHabilitar } from "@/lib/materiales/consultas";
@@ -58,6 +58,7 @@ export async function DetalleMaterial({ id, vista }: { id: string; vista: "compr
           {!borrador && rechazada ? <BotonCorregirOC ocId={rechazada.id} /> : <BotonLink href={`/compras/${p.id}/oc`} ancho icono={<FileText />}>{borrador ? "Seguir con el borrador de la OC" : "Armar orden de compra"}</BotonLink>}
           {!borrador && rechazada && <BotonLink href={`/compras/${p.id}/oc`} ancho variante="secundario">Armar una orden nueva</BotonLink>}
           {borrador && <BotonAnularOC ocId={borrador.id} numero={null} />}
+          <BotonPresupuesto id={p.id} solicitado={p.presupuestoSolicitado} />
         </>
       );
     }

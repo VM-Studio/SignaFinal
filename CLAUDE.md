@@ -242,6 +242,42 @@ RETIRO_PEDIDO → EN_CAMINO → ENTREGADO, o CANCELADO.
 - Rol nuevo COMPRAS. El dueño aprueba en /aprobaciones.
 - A futuro, los pedidos pueden venir de Lebane (fuente LEBANE, ordenCompraLebaneId).
 
+## Compras según Alejandra
+
+Compras (Alejandra) trabajaba con una planilla (docs/plantilla-oc/ORDENES_DE_COMPRA_PEDIDOS_ESPECIALES.xlsx):
+hojas "OC NUEVA" y "PEDIDOS ESPECIALES" (bloques de orden uno debajo del otro), "TABLERO DE CONTROL
+ORDENES DE C" (la lista de control), "SolicitadoPor", "NOTOCAR" (obras y CUITs) y "OP". El sistema
+usa SU vocabulario y SUS campos; esta sección manda sobre lo que diga otra cosa de las OC más arriba.
+
+- Vocabulario oficial (etiquetas de la plantilla, tal cual): Fecha del pedido · Fecha de caducidad ·
+  N° de Orden · Solicitado por · Obra · Detalle del Pedido · Proveedor Sugerido · Proveedor Final ·
+  Presupuesto N° · Importe · Forma de Pago · Condición de Pago · Empresa para facturar · Observaciones
+  de la Orden de Pedido (1.1) · Autorización (2) · Facturación (3) · Orden de Pago (4).
+- Dos tipos de orden, cada uno con su numeración y sin año: **OC** (orden de compra, OC-NNNN) y **PE**
+  (pedido especial, PE-NNNN). Formato en src/lib/compras/numerar.ts (FORMATO_NUMERO). NumeradorOC es
+  (tipo, ultimo); el próximo número se fija en /configuracion/compras, solo DIRECCION y solo hacia
+  arriba. Las OC-AAAA-NNNN de antes conservan su número.
+- Estados del tablero (columna ESTADO, EstadoTablero): Pedir autorización · Autorizada · Solicitud de
+  presupuesto · Encargado · Entregado · Anulada. Se derivan del estado real (función única
+  src/lib/compras/estadoTablero.ts, con tests: enviada → Pedir autorización; aprobada → Autorizada;
+  encargada al proveedor o con algo habilitado → Encargado; todo entregado → Entregado; rechazada o
+  anulada → Anulada; borrador con presupuesto pedido → Solicitud de presupuesto). Compras puede
+  ajustarlo a mano (auditado); el ajuste vale hasta el próximo cambio real. Los PE tienen además su
+  semáforo (No se hizo nada todavía · En proceso · Lista · Anulada).
+- Razones sociales (RazonSocial: nombre, CUIT único) en /configuracion/razones-sociales (DIRECCION y
+  ADMINISTRACION), con la que compra por defecto cada obra (Obra.razonSocialId; si no, Signa Desarrollos).
+- "Solicitado por": usuarios activos o SolicitanteExterno (nombres sin usuario, como Romina o Hernán),
+  con alta rápida "+ otro nombre". Nunca se crean usuarios por esto.
+- Los renglones son opcionales: Alejandra escribe el Detalle del Pedido como lista; "Pasar a renglones"
+  (src/lib/compras/renglones.ts) convierte cada línea "40 - bolsas de cemento" en un renglón.
+- Importe en Decimal, con "A confirmar" (los "????" de su planilla). Las OC en USD guardan la cotización
+  del día (cotizacionUsd). Dólar blue y oficial de dolarapi.com en src/lib/dolar.ts (caché 15 min en
+  EstadoSistema, refresco en el job de cada minuto, último valor conocido si no responde), visible para
+  COMPRAS, DIRECCION y ADMINISTRACION en el header de escritorio y en el inicio del celular.
+- El sistema arranca VACÍO: ninguna OC de ejemplo en producción. El historial se importa después
+  desde el Excel del tablero con las mismas columnas (/compras/importar). Las importadas quedan con
+  fuente IMPORTADA_EXCEL, sin pedido de material ni PDF, y nunca entran en /aprobaciones.
+
 ## Órdenes de compra, proveedores y viajes con paradas
 
 Reglas (reemplazan lo que diga otra cosa más arriba):
@@ -249,11 +285,10 @@ Reglas (reemplazan lo que diga otra cosa más arriba):
 - **Pedido de material**: admite adjuntos (PDF, Excel, Word, CSV, fotos) y observaciones. Con un
   adjunto alcanza: los renglones son opcionales. Compras puede sumar sus adjuntos (presupuestos) y
   notas internas que el solicitante no ve.
-- **Orden de compra**: Compras la arma en el sistema con un formulario (proveedor y sucursal,
-  renglones, método de pago, condiciones, totales). El sistema genera el PDF con la plantilla de
-  Signa y le asigna el número único **OC-AAAA-NNNN** al enviarla a aprobación (src/lib/compras/
-  numerar.ts: fila del año bloqueada, nunca se repite ni se reutiliza, arranca de nuevo cada año;
-  los borradores no gastan número). El dueño aprueba viendo los datos escritos y el PDF. **Nunca se
+- **Orden de compra**: Compras la arma en el sistema con la plantilla de Alejandra (ver "Compras según
+  Alejandra"). El sistema genera el PDF calcado de su bloque y le asigna el número único **OC-NNNN** o
+  **PE-NNNN** al enviarla a aprobación (src/lib/compras/numerar.ts: fila del tipo bloqueada, nunca se
+  repite ni se reutiliza; los borradores no gastan número). El dueño aprueba viendo los datos escritos y el PDF. **Nunca se
   parsea un archivo para leer los datos de una OC: los datos son la fuente, el PDF sale de ellos.**
   Una OC vigente por pedido; puede haber otras si una se rechazó o se anuló.
 - **Métodos de pago**: ACOPIO, CUENTA_CORRIENTE, TRANSFERENCIA, EFECTIVO, ECHEQ.

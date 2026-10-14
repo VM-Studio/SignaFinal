@@ -20,6 +20,7 @@ import { nombreSucursal, resolverPuntos, sucursalDe } from "@/lib/pedidos/puntos
 import { describirPedido, necesitaCamion } from "@/lib/pedidos/reglas";
 import { avisarSolicitudNueva } from "@/lib/pedidos/avisos";
 import { FRANJA } from "@/lib/pedidos/presentacion";
+import { sincronizarTableroDePedido } from "@/lib/compras/estadoTablero";
 import { cambiarEstado, recalcular } from "./circuito";
 import { auditar, deMaterial, describir, exigirEstado, pedidoOError } from "./comun";
 
@@ -252,6 +253,7 @@ export async function aprobarMaterial(id: string, enPapel = false): Promise<Resu
       // La orden de compra del sistema queda aprobada con quién y cuándo (el PDF con el sello, después).
       if (p.ordenCompraId) await tx.ordenCompra.updateMany({ where: { id: p.ordenCompraId, estado: "ESPERANDO_APROBACION" }, data: { estado: "APROBADA", aprobadaPorId: yo.id, aprobadaEn: new Date() } });
       ocAprobada = p.ordenCompraId;
+      await sincronizarTableroDePedido(tx, p.id);
       await notificarEvento(EVENTO.materialAprobado({ ...deMaterial(p), oc: p.ordenCompraNumero, enPapel, compradorId: p.tomadoPorId }), { tx, actor: yo.id });
       await auditar(tx, {
         usuarioId: yo.id, accion: enPapel ? "material.aprobadoEnPapel" : "material.aprobar", entidadId: id,
@@ -280,6 +282,7 @@ export async function deshacerAprobacion(id: string): Promise<Resultado> {
         await tx.ordenCompra.updateMany({ where: { id: p.ordenCompraId, estado: "APROBADA" }, data: { estado: "ESPERANDO_APROBACION", aprobadaPorId: null, aprobadaEn: null, pdfAprobadaUrl: null } });
         pdfViejo = oc?.pdfAprobadaUrl ?? null;
       }
+      await sincronizarTableroDePedido(tx, p.id);
       await auditar(tx, { usuarioId: yo.id, accion: "material.deshacerAprobacion", entidadId: id, resumen: `${yo.nombre} deshizo la aprobación de ${describir(p)}`, antes: { estado: "APROBADO" }, despues: { estado: "ESPERANDO_APROBACION" } });
     });
     if (pdfViejo) await eliminar(pdfViejo);
@@ -301,6 +304,7 @@ export async function rechazarMaterial(id: string, motivo: string): Promise<Resu
       const ok = await cambiarEstado(tx, p, "EN_COMPRA", yo.id, `Rechazado: ${m}`, p.ordenCompraId ? { ordenCompraId: null, ordenCompraNumero: null, montoAprobado: null } : {});
       if (!ok) throw new ErrorNegocio("El pedido cambió. Actualizá la pantalla.");
       if (p.ordenCompraId) await tx.ordenCompra.updateMany({ where: { id: p.ordenCompraId, estado: "ESPERANDO_APROBACION" }, data: { estado: "RECHAZADA", motivoRechazo: m } });
+      await sincronizarTableroDePedido(tx, p.id);
       await notificarEvento(EVENTO.materialRechazado({ ...deMaterial(p), oc: p.ordenCompraNumero, motivo: m, compradorId: p.tomadoPorId }), { tx, actor: yo.id });
       await auditar(tx, { usuarioId: yo.id, accion: "material.rechazar", entidadId: id, resumen: `${yo.nombre} rechazó la OC de ${describir(p)}: ${m}`, antes: { estado: "ESPERANDO_APROBACION" }, despues: { estado: "EN_COMPRA", motivo: m } });
     });

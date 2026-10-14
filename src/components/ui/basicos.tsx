@@ -35,9 +35,9 @@ export function Tarjeta({ children, className = "" }: { children: ReactNode; cla
 export function Titulo({ children, detalle, accion, siempre = false }: { children: ReactNode; detalle?: ReactNode; accion?: ReactNode; siempre?: boolean }) {
   return (
     <div className={siempre ? "mb-4 lg:mb-6" : detalle ? "hidden lg:mb-6 lg:block" : ""}>
-      <div className={`${siempre ? "flex" : "hidden"} flex-wrap items-center justify-between gap-3 lg:fixed lg:top-0 lg:right-[104px] lg:left-[232px] lg:z-[25] lg:flex lg:h-[47px] lg:flex-nowrap lg:bg-papel lg:pl-6`}>
+      <div className={`${siempre ? "flex" : "hidden"} flex-wrap items-center justify-between gap-3 lg:fixed lg:top-0 lg:right-[var(--derecha-titulo,104px)] lg:left-[232px] lg:z-[25] lg:flex lg:h-[47px] lg:flex-nowrap lg:bg-papel lg:pl-6`}>
         <h1 className="min-w-0 truncate text-xl font-semibold lg:text-[22px] lg:leading-7">{children}</h1>
-        {accion && <div className="flex shrink-0 items-center gap-2">{accion}</div>}
+        {accion && <div className="flex max-w-full min-w-0 flex-wrap items-center gap-2 lg:shrink-0 lg:flex-nowrap">{accion}</div>}
       </div>
       {detalle && <p className="mt-1 text-sm text-suave lg:mt-0">{detalle}</p>}
     </div>

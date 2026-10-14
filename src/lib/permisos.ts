@@ -44,6 +44,8 @@ export const ACCIONES = [
   "mapa.ver", "rastreo.configurar", "alertas.ver", "avisos.ver", "costos.ver", "costos.exportar", "actividad.ver",
   // Configuración
   "obras.ver", "obras.cargar", "proveedores.ver", "proveedores.cargar", "usuarios.gestionar", "ubicaciones.cargar",
+  // Compras según Alejandra: razones sociales, numeradores de OC/PE (solo el dueño) y la cotización del dólar
+  "razonesSociales.editar", "compras.numeradores", "dolar.ver",
 ] as const;
 
 export type Permiso = (typeof ACCIONES)[number];
@@ -78,19 +80,20 @@ const DEPOSITO: Entrada = {
 };
 
 const ADMINISTRACION: Entrada = {
-  rutas: ["/inicio", "/flota/**", "/costos", "/alertas", "/obras/**", "/proveedores", "/proveedores/[id]", "/usuarios", "/configuracion/ubicaciones", "/avisos", "/cuenta"],
+  rutas: ["/inicio", "/flota/**", "/costos", "/alertas", "/obras/**", "/proveedores", "/proveedores/[id]", "/usuarios", "/configuracion/ubicaciones", "/configuracion/razones-sociales", "/compras/tablero", "/avisos", "/cuenta"],
   acciones: [
     "pedidos.ver", "viajes.verTodos", "flota.ver", "flota.editar", "flota.documentacion", "flota.agenda", "combustible.cargar",
     "combustible.ver", "mantenimiento.ver", "mantenimiento.registrar", "incidentes.registrar", "herramientas.ver", "herramientas.editar",
     "herramientas.mantenimiento", "sobrantes.ver", "sobrantes.editar", "alertas.ver", "avisos.ver", "costos.ver", "costos.exportar",
     "obras.ver", "obras.cargar", "proveedores.ver", "proveedores.cargar", "usuarios.gestionar", "ubicaciones.cargar",
+    "razonesSociales.editar", "dolar.ver",
   ],
 };
 
 // Compras: la cola de pedidos de material, lo habilitado para retirar y los proveedores.
 const COMPRAS: Entrada = {
-  rutas: ["/inicio", "/compras", "/compras/**", "/habilitados", "/proveedores", "/proveedores/[id]", "/pedir-materiales", "/avisos", "/cuenta"],
-  acciones: ["materiales.gestionar", "materiales.pedir", "proveedores.ver", "proveedores.cargar", "obras.ver", "obras.cargar", "alertas.ver", "avisos.ver"],
+  rutas: ["/inicio", "/compras", "/compras/**", "/habilitados", "/proveedores", "/proveedores/[id]", "/pedir-materiales", "/configuracion/compras", "/avisos", "/cuenta"],
+  acciones: ["materiales.gestionar", "materiales.pedir", "proveedores.ver", "proveedores.cargar", "obras.ver", "obras.cargar", "alertas.ver", "avisos.ver", "dolar.ver"],
 };
 
 // Dirección ve TODO: todas las rutas de los demás roles más las propias.
@@ -98,7 +101,7 @@ const DIRECCION: Entrada = {
   rutas: [
     ...new Set([
       ...OBRA.rutas, ...CHOFER.rutas, ...DEPOSITO.rutas, ...ADMINISTRACION.rutas, ...COMPRAS.rutas,
-      "/aprobaciones", "/configuracion/rastreo", "/configuracion/ubicaciones", "/mapa/**", "/actividad", "/actividad/[id]", "/solicitudes/**", "/viajes", "/proveedores", "/usuarios", "/sobrantes",
+      "/aprobaciones", "/configuracion/rastreo", "/configuracion/ubicaciones", "/configuracion/razones-sociales", "/configuracion/compras", "/mapa/**", "/actividad", "/actividad/[id]", "/solicitudes/**", "/viajes", "/proveedores", "/usuarios", "/sobrantes",
     ]),
   ],
   acciones: [
@@ -108,6 +111,7 @@ const DIRECCION: Entrada = {
     "herramientas.mantenimiento", "sobrantes.ver", "sobrantes.editar", "mapa.ver", "alertas.ver", "avisos.ver", "costos.ver",
     "costos.exportar", "actividad.ver", "obras.ver", "proveedores.ver", "usuarios.gestionar",
     "materiales.pedir", "materiales.gestionar", "materiales.aprobar", "rastreo.configurar", "obras.cargar", "proveedores.cargar", "ubicaciones.cargar",
+    "razonesSociales.editar", "compras.numeradores", "dolar.ver",
   ],
 };
 

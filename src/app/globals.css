@@ -152,6 +152,9 @@
   }
   /* Etiqueta de 11px en mayúsculas (lo único en mayúsculas). */
   .etiqueta {
+    /* Etiquetas largas en cajas angostas ("PEDIR AUTORIZACIÓN"): cortan con guion, no a mitad de palabra. */
+    hyphens: auto;
+    overflow-wrap: normal;
     font-size: 11px;
     line-height: 16px;
     font-weight: 500;
@@ -231,4 +234,14 @@ textarea {
 }
 main table {
   overflow-wrap: normal;
+}
+
+/* Header de escritorio con la cotización del dólar: el título fijo de la página le deja su lugar. */
+.con-dolar {
+  --derecha-titulo: 300px;
+}
+@media (min-width: 1280px) {
+  .con-dolar {
+    --derecha-titulo: 470px;
+  }
 }

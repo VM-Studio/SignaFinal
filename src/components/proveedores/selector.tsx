@@ -21,8 +21,8 @@ const km = (m: number) => `${(m / 1000).toLocaleString("es-AR", { maximumFractio
  *    distancia a la obra, si se conoce);
  *  · siempre, "Agregar sucursal" para ese proveedor (queda seleccionada).
  */
-export function SelectorProveedorSucursal({ proveedores: iniciales, valor, onCambio, destino, puedeCargar = true }: {
-  proveedores: ProveedorConSucursales[]; valor: ValorProveedor; onCambio: (v: ValorProveedor, p?: ProveedorConSucursales) => void; destino?: { lat: number; lng: number } | null; puedeCargar?: boolean;
+export function SelectorProveedorSucursal({ proveedores: iniciales, valor, onCambio, destino, puedeCargar = true, etiquetaOculta = false }: {
+  etiquetaOculta?: boolean; proveedores: ProveedorConSucursales[]; valor: ValorProveedor; onCambio: (v: ValorProveedor, p?: ProveedorConSucursales) => void; destino?: { lat: number; lng: number } | null; puedeCargar?: boolean;
 }) {
   const [proveedores, setProveedores] = useState(iniciales);
   const [alta, setAlta] = useState<"proveedor" | "sucursal" | null>(null);
@@ -44,6 +44,7 @@ export function SelectorProveedorSucursal({ proveedores: iniciales, valor, onCam
     <div className="flex flex-col gap-2">
       <Combobox
         etiqueta="Proveedor"
+        etiquetaOculta={etiquetaOculta}
         placeholder="Buscar por nombre o CUIT"
         items={proveedores.map((p) => ({ id: p.id, titulo: p.nombre, detalle: `${p.sucursales.length} ${p.sucursales.length === 1 ? "sucursal" : "sucursales"}${p.cuit ? ` · CUIT ${p.cuit}` : ""}`, buscar: `${p.cuit ?? ""} ${p.cuit?.replace(/-/g, "") ?? ""} ${p.sucursales.map((s) => `${s.nombre} ${s.localidad}`).join(" ")}` }))}
         valor={valor.proveedorId}

@@ -37,11 +37,9 @@ export async function puedeVer(u: UsuarioSesion, a: { entidadTipo: EntidadAdjunt
       const p = await db.pedidoMaterial.findUnique({ where: { id: a.entidadId }, select: { obraId: true } });
       return !!p && puede(u.rol, "materiales.pedir") && (await esObraDelUsuario(u, p.obraId));
     }
-    case "ORDEN_COMPRA": {
-      if (puede(u.rol, "materiales.gestionar")) return true;
-      const oc = await db.ordenCompra.findUnique({ where: { id: a.entidadId }, select: { obraId: true } });
-      return !!oc && puede(u.rol, "materiales.pedir") && (await esObraDelUsuario(u, oc.obraId));
-    }
+    case "ORDEN_COMPRA":
+      // Presupuestos, facturas y listas de la orden: llevan importes. Solo Compras, el dueño y Administración.
+      return puede(u.rol, "materiales.gestionar") || puede(u.rol, "materiales.aprobar") || u.rol === "ADMINISTRACION";
     case "VIAJE":
       return (await db.viaje.count({ where: { id: a.entidadId, ...viajesVisibles(u) } })) > 0;
     case "HERRAMIENTA":

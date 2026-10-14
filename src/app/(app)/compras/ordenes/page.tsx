@@ -1,75 +1,69 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Download, FileText } from "lucide-react";
-import { ordenesCompra, type FiltroOC } from "@/lib/compras/consultas";
-import { ESTADO_OC, METODO_PAGO } from "@/lib/compras/estados";
+import { FileText, PlusCircle } from "lucide-react";
+import { ordenesCompra, type OCPlana } from "@/lib/compras/consultas";
+import { ESTADO_OC, importeTexto } from "@/lib/compras/estados";
+import { ESTADO_TABLERO } from "@/lib/compras/estadoTablero";
+import { vistasDe } from "@/lib/vistas/consultas";
 import { limiteDe } from "@/lib/pagina";
-import { aFecha, fecha, plata } from "@/lib/formato";
-import { Insignia, Titulo, Vacio } from "@/components/ui/basicos";
-import { claseCampo } from "@/components/ui/campos";
-import { claseBoton } from "@/components/ui/boton";
+import { BotonLink } from "@/components/ui/boton";
+import { Insignia, Subtitulo, Titulo, Vacio } from "@/components/ui/basicos";
 import { CargarMas } from "@/components/ui/cargar-mas";
+import { BarraFiltros } from "@/components/ui/barra-filtros";
+import { PestanasOrdenes } from "@/components/compras/pestanas-compras";
 
-export const metadata: Metadata = { title: "Órdenes de compra" };
+export const metadata: Metadata = { title: "Órdenes" };
 
-/** Todas las órdenes de compra (Compras y Dirección): buscador por número, proveedor u obra; estado y fechas; CSV. */
-export default async function PaginaOrdenes({ searchParams }: { searchParams: Promise<FiltroOC & { n?: string }> }) {
-  const { n, ...f } = await searchParams;
+const fecha = (s: string) => s.split("-").reverse().join("/");
+
+function Fila({ o }: { o: OCPlana }) {
+  const estado = o.estadoTablero ? ESTADO_TABLERO[o.estadoTablero] : ESTADO_OC[o.estado];
+  return (
+    <li data-vivo-id={o.id}>
+      <Link href={`/compras/ordenes/${o.id}`} className="flex min-h-14 items-center gap-3 px-4 py-2 hover:bg-hover lg:min-h-11">
+        <span className="w-24 shrink-0 font-semibold tabular-nums">{o.numero ? `${o.tipo} ${o.numeroCorto}` : o.tipo}{o.versionAprobacion > 1 ? ` v${o.versionAprobacion}` : ""}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium">{o.detallePedido?.split("\n")[0] || o.renglones[0]?.descripcion || "Sin detalle todavía"}</span>
+          <span className="block truncate text-[13px] text-suave">{[o.obra, o.solicitadoPor, o.proveedor ?? o.proveedorSugerido, fecha(o.fecha)].filter((x) => x && x !== "—").join(" · ")}</span>
+        </span>
+        <span className="hidden text-right tabular-nums sm:block">{o.importe != null || o.importeAConfirmar ? importeTexto(o.importe, o.moneda, o.importeAConfirmar) : ""}</span>
+        <Insignia tono={estado.tono}>{estado.titulo}</Insignia>
+      </Link>
+    </li>
+  );
+}
+
+/**
+ * ÓRDENES (el módulo donde quedan guardadas las OC y PE): los borradores arriba para retomarlos, y
+ * después todas, con buscador por número, proveedor u obra. Cada una se abre en la plantilla.
+ */
+export default async function PaginaOrdenes({ searchParams }: { searchParams: Promise<{ q?: string; tipo?: string; n?: string }> }) {
+  const { q, tipo, n } = await searchParams;
   const { limite, siguiente } = await limiteDe(n);
-  const { filas, hayMas } = await ordenesCompra(f, limite); // verifica materiales.gestionar
-  const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v) as [string, string][]).toString();
+  const [{ borradores, filas, hayMas }, vistas] = await Promise.all([ordenesCompra({ q, tipo }, limite), vistasDe("ordenes")]);
+  const qs = new URLSearchParams({ ...(q ? { q } : {}), ...(tipo ? { tipo } : {}) }).toString();
   return (
     <div>
-      <Titulo siempre detalle="Lo que va a recibir Lebane cuando exista la conexión." accion={<a href={`/api/compras/ordenes/exportar${qs ? `?${qs}` : ""}`} className={claseBoton("secundario")}><Download /> Exportar CSV</a>}>Órdenes de compra</Titulo>
-      <form action="/compras/ordenes" className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-[minmax(0,1fr)_14rem_10rem_10rem_auto]">
-        <input name="q" defaultValue={f.q} placeholder="Número, proveedor u obra" aria-label="Buscar" className={`${claseCampo} col-span-2 lg:col-span-1`} />
-        <select name="estado" defaultValue={f.estado ?? ""} aria-label="Estado" className={claseCampo}>
-          <option value="">Enviadas (todas)</option>
-          {(["ESPERANDO_APROBACION", "APROBADA", "RECHAZADA", "ANULADA", "BORRADOR"] as const).map((e) => <option key={e} value={e}>{ESTADO_OC[e].titulo}</option>)}
-        </select>
-        <input type="date" name="desde" defaultValue={f.desde} aria-label="Desde" className={claseCampo} />
-        <input type="date" name="hasta" defaultValue={f.hasta} aria-label="Hasta" className={claseCampo} />
-        <button className={claseBoton("secundario")}>Filtrar</button>
-      </form>
-      {filas.length === 0 ? <Vacio icono={<FileText />} titulo="No hay órdenes de compra con esos filtros" /> : (
-        <>
-          <ul className="-mx-4 divide-y divide-linea border-y border-linea bg-papel lg:hidden">
-            {filas.map((o) => (
-              <li key={o.id}>
-                <Link href={`/compras/${o.pedidoMaterialId}`} className="flex items-start justify-between gap-3 px-4 py-2.5">
-                  <div className="min-w-0">
-                    <p className="font-medium tabular-nums">{o.numero ?? "Borrador"}</p>
-                    <p className="truncate text-sm text-suave">{o.proveedor ?? "—"} · Obra {o.obra}</p>
-                    <p className="text-sm text-suave">{fecha(aFecha(o.fecha, "12:00"))}{o.total != null ? ` · ${plata(o.total)}` : ""}</p>
-                  </div>
-                  <Insignia tono={ESTADO_OC[o.estado].tono}>{ESTADO_OC[o.estado].titulo}</Insignia>
-                </Link>
-              </li>
-            ))}
-          </ul>
-          <div className="hidden overflow-x-auto rounded-[var(--radius-caja)] border border-linea bg-papel lg:block">
-            <table className="tabla">
-              <thead><tr><th>Número</th><th>Fecha</th><th>Proveedor</th><th>Obra</th><th>Pidió</th><th>Pago</th><th>Estado</th><th className="num">Total</th><th /></tr></thead>
-              <tbody>
-                {filas.map((o) => (
-                  <tr key={o.id}>
-                    <td className="font-medium tabular-nums"><Link href={`/compras/${o.pedidoMaterialId}`} className="hover:underline">{o.numero ?? "Borrador"}</Link></td>
-                    <td className="text-suave">{fecha(aFecha(o.fecha, "12:00"))}</td>
-                    <td>{o.proveedor ?? "—"}{o.sucursal && o.sucursal.nombre !== "Casa central" ? <span className="text-suave"> · {o.sucursal.nombre}</span> : null}</td>
-                    <td>Obra {o.obra}</td>
-                    <td className="text-suave">{o.solicitante}</td>
-                    <td className="text-suave">{o.metodoPago ? METODO_PAGO[o.metodoPago] : "—"}</td>
-                    <td><Insignia tono={ESTADO_OC[o.estado].tono}>{ESTADO_OC[o.estado].titulo}</Insignia></td>
-                    <td className="num">{o.total != null ? plata(o.total) : "—"}</td>
-                    <td className="w-px">{o.numero && <a href={`/api/oc/${o.id}/pdf${o.estado === "APROBADA" ? "?aprobada=1" : ""}`} target="_blank" rel="noopener" className={claseBoton("fantasma", "chico")} aria-label={`PDF de ${o.numero}`}><FileText /></a>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
+      <Titulo siempre detalle="Todas las órdenes de compra y pedidos especiales, con sus versiones. Lo que va a recibir Lebane cuando exista la conexión."
+        accion={<div className="flex flex-wrap gap-2"><BotonLink href="/compras/ordenes/nueva" icono={<PlusCircle />}>Nueva OC</BotonLink><BotonLink href="/compras/ordenes/nueva?tipo=PE" variante="secundario" icono={<PlusCircle />}>Nuevo PE</BotonLink></div>}>
+        Órdenes
+      </Titulo>
+      <PestanasOrdenes activa="ordenes" />
+      <BarraFiltros pantalla="ordenes" vistas={vistas} buscador={{ placeholder: "Número, proveedor, obra o material" }}
+        filtros={[{ tipo: "opciones", clave: "tipo", etiqueta: "Tipo", multiple: false, opciones: [{ valor: "OC", etiqueta: "OC · orden de compra" }, { valor: "PE", etiqueta: "PE · pedido especial" }] }]} />
+      {borradores.length > 0 && (
+        <section className="mb-6">
+          <Subtitulo>Borradores ({borradores.length})</Subtitulo>
+          <ul className="divide-y divide-linea rounded-[var(--radius-caja)] border border-linea bg-papel">{borradores.map((o) => <Fila key={o.id} o={o} />)}</ul>
+        </section>
       )}
-      {hayMas && <CargarMas href={`/compras/ordenes?${qs ? `${qs}&` : ""}n=${siguiente}`} />}
+      <Subtitulo>Enviadas, autorizadas e importadas</Subtitulo>
+      {filas.length === 0 ? (
+        <Vacio icono={<FileText className="size-10" />} titulo={q || tipo ? "No hay órdenes con esa búsqueda" : "Todavía no hay órdenes"}>{q || tipo ? "Probá con otra." : "Creá la primera con “Nueva OC”."}</Vacio>
+      ) : (
+        <ul className="divide-y divide-linea rounded-[var(--radius-caja)] border border-linea bg-papel">{filas.map((o) => <Fila key={o.id} o={o} />)}</ul>
+      )}
+      {hayMas && <CargarMas href={`/compras/ordenes?${qs}${qs ? "&" : ""}n=${siguiente}`} />}
     </div>
   );
 }

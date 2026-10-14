@@ -1,5 +1,6 @@
 "use client";
 
+import { CotizacionDolar } from "@/components/compras/cotizacion-dolar";
 import { useCantidadAvisos } from "./avisos-en-vivo";
 import Link from "next/link";
 import Image from "next/image";
@@ -133,12 +134,13 @@ export function BarraLateral({ grupos }: { grupos: Grupo[] }) {
  * Header blanco de 48px del escritorio. A la izquierda, el nombre de la sección (si la página
  * tiene <Titulo>, lo tapa con su título y sus acciones); a la derecha, la campana y el avatar.
  */
-export function HeaderEscritorio({ perfil, secciones }: { perfil: Perfil; secciones: Seccion[] }) {
+export function HeaderEscritorio({ perfil, secciones, dolar = false }: { perfil: Perfil; secciones: Seccion[]; dolar?: boolean }) {
   const pathname = usePathname();
   const [abierta, setAbierta] = useState(false);
   return (
     <header className="fixed top-0 right-0 left-[232px] z-20 hidden h-12 items-center gap-1 border-b border-linea bg-papel pr-4 pl-6 lg:flex">
       <p className="min-w-0 flex-1 truncate text-[22px] leading-7 font-semibold">{tituloDeRuta(pathname, secciones)}</p>
+      {dolar && <CotizacionDolar />}
       <BotonActualizar className="size-8 text-suave hover:bg-black/[0.04] hover:text-tinta disabled:opacity-100" iconos="size-4" />
       <Campana className="size-8 text-suave hover:bg-black/[0.04] hover:text-tinta" iconos="size-4" />
       <button onClick={() => setAbierta(true)} aria-label={`Mi cuenta: ${perfil.nombre}`} title={`${perfil.nombre} · ${perfil.rol}`} className="grid size-8 place-items-center rounded-md hover:bg-black/[0.04]">

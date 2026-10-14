@@ -2,6 +2,7 @@ import "server-only";
 import type { EstadoMaterial, EstadoMaterialListo, Prisma } from "@prisma/client";
 import { notificarEvento } from "@/lib/notificaciones/enviar";
 import { EVENTO } from "@/lib/notificaciones/eventos";
+import { sincronizarTableroDePedido } from "@/lib/compras/estadoTablero";
 
 type Tx = Prisma.TransactionClient;
 
@@ -14,6 +15,8 @@ export async function cambiarEstado(tx: Tx, pm: { id: string; estado: EstadoMate
   const r = await tx.pedidoMaterial.updateMany({ where: { id: pm.id, estado: pm.estado }, data: { ...datos, estado: a } });
   if (!r.count) return false;
   if (pm.estado !== a) await tx.cambioEstadoMaterial.create({ data: { pedidoMaterialId: pm.id, de: pm.estado, a, usuarioId, nota: nota?.slice(0, 300) } });
+  // El tablero de Compras sigue al estado real (habilitaciones, viajes, entregas).
+  await sincronizarTableroDePedido(tx, pm.id);
   return true;
 }
 

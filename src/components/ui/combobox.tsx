@@ -12,8 +12,8 @@ const sinAcentos = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toL
  * Elegir de una lista con buscador: se escribe y se filtra por título, detalle y lo que traiga "buscar"
  * (localidad, CUIT). Teclado: flechas y Enter. "accion" va al lado (ej. "Nueva obra").
  */
-export function Combobox({ etiqueta, items, valor, onElegir, placeholder = "Buscar…", vacio = "No hay resultados", accion, ayuda }: {
-  etiqueta: string; items: ItemCombo[]; valor: string | null; onElegir: (id: string | null) => void; placeholder?: string; vacio?: ReactNode; accion?: ReactNode; ayuda?: ReactNode;
+export function Combobox({ etiqueta, items, valor, onElegir, placeholder = "Buscar…", vacio = "No hay resultados", accion, ayuda, etiquetaOculta = false }: {
+  etiquetaOculta?: boolean; etiqueta: string; items: ItemCombo[]; valor: string | null; onElegir: (id: string | null) => void; placeholder?: string; vacio?: ReactNode; accion?: ReactNode; ayuda?: ReactNode;
 }) {
   const id = useId();
   const [texto, setTexto] = useState("");
@@ -40,7 +40,7 @@ export function Combobox({ etiqueta, items, valor, onElegir, placeholder = "Busc
 
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-[12px] leading-4 font-medium text-suave">{etiqueta}</label>
+      <label htmlFor={id} className={etiquetaOculta ? "sr-only" : "text-[12px] leading-4 font-medium text-suave"}>{etiqueta}</label>
       <div className="flex gap-2">
         <div className="relative min-w-0 flex-1">
           {elegido && !abierto ? (

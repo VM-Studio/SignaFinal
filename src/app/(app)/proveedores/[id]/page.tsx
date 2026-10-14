@@ -92,16 +92,16 @@ export default async function PaginaProveedor({ params }: { params: Promise<{ id
           {!ordenes.length ? <Tarjeta className="p-4 text-sm text-suave">Todavía no hay órdenes de compra a este proveedor.</Tarjeta> : (
             <div className="overflow-x-auto rounded-[var(--radius-caja)] border border-linea bg-papel">
               <table className="tabla">
-                <thead><tr><th>Número</th><th>Obra</th><th className="hidden sm:table-cell">Sucursal</th><th>Fecha</th><th>Estado</th><th className="num">Total</th></tr></thead>
+                <thead><tr><th>Número</th><th>Obra</th><th className="hidden sm:table-cell">Sucursal</th><th>Fecha</th><th>Estado</th><th className="num">Importe</th></tr></thead>
                 <tbody>
                   {ordenes.map((o) => (
                     <tr key={o.id}>
-                      <td className="font-medium tabular-nums"><Link href={`/compras/${o.pedidoMaterialId}`} className="hover:underline">{o.numero}</Link></td>
-                      <td>Obra {o.obra.nombre}</td>
+                      <td className="font-medium tabular-nums"><Link href={`/compras/tablero?ver=${o.id}`} className="hover:underline">{o.numero}</Link></td>
+                      <td>{o.obra ? `Obra ${o.obra.nombre}` : o.obraTexto ?? "—"}</td>
                       <td className="hidden text-suave sm:table-cell">{o.sucursal?.nombre ?? "—"}</td>
                       <td className="text-suave">{fecha(o.fecha)}</td>
                       <td><Insignia tono={ESTADO_OC[o.estado].tono}>{ESTADO_OC[o.estado].t}</Insignia></td>
-                      <td className="num">{o.total != null ? plata(o.total.toNumber()) : "—"}</td>
+                      <td className="num">{o.importe != null ? plata(o.importe.toNumber()) : o.importeAConfirmar ? "A confirmar" : "—"}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -11,7 +11,7 @@
  */
 import { Prisma, type PrismaClient, type TipoPedido, type OrigenTipo } from "@prisma/client";
 import { aFecha, diaISO } from "@/lib/formato";
-import { anioArgentina, siguienteNumeroOC } from "@/lib/compras/numerar";
+import { anioArgentina, siguienteNumero } from "@/lib/compras/numerar";
 import { crearViaje } from "@/lib/viajes/paradas";
 
 const D = (n: number) => new Prisma.Decimal(n);
@@ -105,13 +105,18 @@ export async function cargarDatosPrueba(db: PrismaClient) {
   const oc = async (pm: { id: string; obraId: string; solicitanteId: string }, estado: "APROBADA" | "ESPERANDO_APROBACION", suc: { id: string; proveedorId: string }, renglones: { descripcion: string; cantidad: number; unidad: string; precio: number }[]) => {
     const subtotal = renglones.reduce((s, r) => s + r.cantidad * r.precio, 0);
     const iva = Math.round(subtotal * 0.21);
-    const n = await db.$transaction((tx) => siguienteNumeroOC(tx, anioArgentina()));
+    const n = await db.$transaction((tx) => siguienteNumero(tx, "OC"));
     const pdfOc = pdfSimple([`ORDEN DE COMPRA ${n.numero}`, ...renglones.map((r) => `${r.cantidad} ${r.unidad} ${r.descripcion}`), `Total $ ${(subtotal + iva).toLocaleString("es-AR")}`, estado === "APROBADA" ? "APROBADA" : "Esperando aprobacion"]);
     const a = await db.archivo.create({ data: { tipo: "application/pdf", nombre: `${n.numero}.pdf`, datos: new Uint8Array(pdfOc), tamano: pdfOc.length, subidoPorId: compras.id } });
     return db.ordenCompra.create({
       data: {
-        numero: n.numero, anio: n.anio, secuencia: n.secuencia, pedidoMaterialId: pm.id, obraId: pm.obraId, solicitanteId: pm.solicitanteId, proveedorId: suc.proveedorId, sucursalId: suc.id,
-        fechaNecesaria: aFecha(hoy, "12:00"), metodoPago: estado === "APROBADA" ? "ACOPIO" : "CUENTA_CORRIENTE", condiciones: estado === "APROBADA" ? "Acopio en el corralón, se retira en partes" : "30 días fecha factura",
+        numero: n.numero, numeroTexto: String(n.secuencia), anio: anioArgentina(), secuencia: n.secuencia, pedidoMaterialId: pm.id, obraId: pm.obraId, solicitanteId: pm.solicitanteId, proveedorId: suc.proveedorId, sucursalId: suc.id,
+        empresaCompraId: (await db.razonSocial.findFirst({ orderBy: { orden: "asc" } }))?.id ?? null,
+        detallePedido: renglones.map((r) => `${r.cantidad} - ${r.unidad} de ${r.descripcion}`).join("\n"), proveedorSugerido: null, presupuestoNumero: estado === "APROBADA" ? "P-2231" : null,
+        fechaNecesaria: aFecha(hoy, "12:00"), formaPago: estado === "APROBADA" ? "TRANSFERENCIA" : "CUENTA_CORRIENTE", condicionPago: estado === "APROBADA" ? "ACOPIO" : "SALDO_30_DIAS",
+        condicionPagoTexto: estado === "APROBADA" ? "Acopio en el corralón, se retira en partes" : null, importe: D(subtotal + iva),
+        estadoTablero: estado === "APROBADA" ? "ENCARGADO" : "PEDIR_AUTORIZACION", estadoTableroAuto: estado === "APROBADA" ? "ENCARGADO" : "PEDIR_AUTORIZACION",
+        proximosPasos: estado === "APROBADA" ? "Claudio retira el jueves a primera hora." : null,
         subtotal: D(subtotal), ivaPorcentaje: D(21), iva: D(iva), total: D(subtotal + iva), estado, creadaPorId: compras.id, enviadaEn: new Date(),
         ...(estado === "APROBADA" ? { aprobadaPorId: direccion.id, aprobadaEn: new Date(), pdfAprobadaUrl: `db:${a.id}` } : {}), pdfUrl: `db:${a.id}`,
         renglones: { create: renglones.map((r, i) => ({ orden: i + 1, descripcion: r.descripcion, cantidad: D(r.cantidad), unidad: r.unidad, precioUnitario: D(r.precio), subtotal: D(r.cantidad * r.precio) })) },

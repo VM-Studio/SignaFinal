@@ -4,6 +4,8 @@ import { Suspense } from "react";
 import { EsqueletoLista } from "@/components/ui/esqueletos";
 import { Download, ListOrdered, PlusCircle, Warehouse } from "lucide-react";
 import { exigirSesion } from "@/lib/auth/sesion";
+import { puede } from "@/lib/permisos";
+import { CotizacionDolar } from "@/components/compras/cotizacion-dolar";
 import { devolucionesVencidas, pedidosPendientes, resumenDireccion, vencimientosProximos } from "@/lib/datos/inicio";
 import { misPedidosDeHoy, viajesAMisObrasHoy } from "@/lib/pedidos/listas";
 import { viajesDelChofer } from "@/lib/viajes/chofer";
@@ -32,6 +34,8 @@ export default async function Inicio() {
   return (
     <div>
       <Titulo siempre>Hola, {u.nombre}</Titulo>
+      {/* Celular: la cotización del dólar arriba (en escritorio está en el header). */}
+      {puede(u.rol, "dolar.ver") && <div className="mb-3 lg:hidden"><CotizacionDolar variante="tarjeta" /></div>}
       {/* El saludo sale al instante; cada bloque llega cuando está listo. */}
       <Suspense fallback={<EsqueletoLista filas={4} />}>
         {u.rol === "CHOFER" && <InicioChofer />}

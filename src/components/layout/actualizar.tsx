@@ -36,7 +36,9 @@ export function BotonActualizar({ className, iconos, oscuro = false }: { classNa
 
 /** Qué entidades le importan a cada pantalla (por ruta). Los formularios no se refrescan solos. */
 const POR_RUTA: [RegExp, EntidadCambio[]][] = [
+  // Formularios (la plantilla y la importación): no se refrescan solos.
   [/^\/compras\/[^/]+\/oc/, []],
+  [/^\/compras\/(ordenes\/(nueva|[^/]+)|importar)$/, []],
   [/^\/(pedir|pedir-materiales)(\/|$)/, []],
   [/^\/inicio/, ["PEDIDO_VIAJE", "VIAJE", "PEDIDO_MATERIAL", "ORDEN_COMPRA", "MATERIAL_LISTO", "HERRAMIENTA", "ALERTA"]],
   [/^\/(solicitudes|hoy|viaje|viajes|viajes-en-curso)(\/|$)/, ["PEDIDO_VIAJE", "VIAJE"]],

@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Ban, RotateCcw } from "lucide-react";
+import { Ban, FileQuestion, RotateCcw } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
 import { Hoja } from "@/components/ui/hoja";
 import { AreaTexto, Campo, MensajeError } from "@/components/ui/campos";
 import { useAviso } from "@/components/ui/avisos";
-import { anularOC, corregirOC } from "@/lib/compras/acciones";
+import { anularOC, corregirOC, marcarPresupuestoSolicitado } from "@/lib/compras/acciones";
 
-/** "Corregir y reenviar": OC nueva precargada con la rechazada (sale con número nuevo). */
+/** "Corregir y reenviar": orden nueva precargada con la rechazada (sale con número nuevo). */
 export function BotonCorregirOC({ ocId }: { ocId: string }) {
   const router = useRouter();
   const aviso = useAviso();
@@ -20,7 +20,7 @@ export function BotonCorregirOC({ ocId }: { ocId: string }) {
       const r = await corregirOC(ocId);
       setEnviando(false);
       if (!r.ok) return aviso({ mensaje: r.error, tono: "error" });
-      router.push(`/compras/${r.datos.pedidoMaterialId}/oc`);
+      router.push(`/compras/ordenes/${r.datos.id}`);
     }}>Corregir y reenviar</Boton>
   );
 }
@@ -52,5 +52,22 @@ export function BotonAnularOC({ ocId, numero }: { ocId: string; numero: string |
         </div>
       </Hoja>
     </>
+  );
+}
+
+/** "Pedí presupuesto": el pedido figura como "Solicitud de presupuesto" en el tablero hasta armar la OC. */
+export function BotonPresupuesto({ id, solicitado }: { id: string; solicitado: boolean }) {
+  const router = useRouter();
+  const aviso = useAviso();
+  const [enviando, setEnviando] = useState(false);
+  return (
+    <Boton variante="fantasma" ancho icono={<FileQuestion />} cargando={enviando} onClick={async () => {
+      setEnviando(true);
+      const r = await marcarPresupuestoSolicitado(id, !solicitado);
+      setEnviando(false);
+      if (!r.ok) return aviso({ mensaje: r.error, tono: "error" });
+      aviso({ mensaje: solicitado ? "Ya no figura como solicitud de presupuesto." : "Figura en el tablero como “Solicitud de presupuesto”." });
+      router.refresh();
+    }}>{solicitado ? "Ya llegó el presupuesto (quitar la marca)" : "Pedí presupuesto"}</Boton>
   );
 }

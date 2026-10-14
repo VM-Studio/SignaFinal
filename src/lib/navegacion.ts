@@ -45,6 +45,8 @@ export const SECCIONES = {
   historial: { href: "/mapa/historial", titulo: "Recorridos del día", icono: "mapa" },
   rastreo: { href: "/configuracion/rastreo", titulo: "Rastreo (Cusat)", icono: "rastreo" },
   ubicaciones: { href: "/configuracion/ubicaciones", titulo: "Depósitos y base", icono: "deposito" },
+  razonesSociales: { href: "/configuracion/razones-sociales", titulo: "Razones sociales", icono: "obras" },
+  configCompras: { href: "/configuracion/compras", titulo: "Numeración y solicitantes", icono: "compras" },
   actividad: { href: "/actividad", titulo: "Actividad", icono: "actividad" },
   proveedores: { href: "/proveedores", titulo: "Proveedores", icono: "proveedores" },
   usuarios: { href: "/usuarios", titulo: "Usuarios", icono: "usuarios" },
@@ -64,25 +66,25 @@ type GrupoClaves = { titulo: string | null; claves: Clave[] };
  * Dirección ve todo: su "Más" va agrupado por tema.
  */
 const NAV: Record<Rol, { barra: Clave[]; mas: GrupoClaves[] }> = {
-  COMPRAS: { barra: ["compras", "habilitados", "proveedores"], mas: [{ titulo: null, claves: ["inicio", "ordenes", "pedirMateriales", "misAvisos", "cuenta"] }] },
+  COMPRAS: { barra: ["compras", "habilitados", "proveedores"], mas: [{ titulo: null, claves: ["inicio", "ordenes", "pedirMateriales", "configCompras", "misAvisos", "cuenta"] }] },
   RESPONSABLE_OBRA: { barra: ["obras", "pedir", "viajesObra", "herramientas"], mas: [] },
   CAPATAZ: { barra: ["obras", "pedir", "viajesObra", "herramientas"], mas: [] },
   CHOFER: { barra: ["hoy", "solicitudes", "combustible"], mas: [{ titulo: null, claves: ["cuenta", "misAvisos"] }] },
   DEPOSITO: { barra: ["deposito", "sobrantes", "entregas"], mas: [{ titulo: null, claves: ["inicio", "importar"] }] },
-  ADMINISTRACION: { barra: ["flota", "costos", "alertas"], mas: [{ titulo: null, claves: ["inicio", "agenda", "mantenimiento", "obras", "proveedores", "ubicaciones", "usuarios"] }] },
+  ADMINISTRACION: { barra: ["flota", "costos", "alertas"], mas: [{ titulo: null, claves: ["inicio", "agenda", "mantenimiento", "obras", "proveedores", "razonesSociales", "ubicaciones", "usuarios"] }] },
   DIRECCION: {
     barra: ["mapa", "solicitudes", "viajes"],
     mas: [
       { titulo: null, claves: ["inicio"] },
       { titulo: "Pedidos y viajes", claves: ["pedir", "misPedidos", "viajesAObras"] },
-      { titulo: "Compras", claves: ["aprobaciones", "compras", "ordenes", "habilitados"] },
+      { titulo: "Compras", claves: ["aprobaciones", "compras", "ordenes", "habilitados", "configCompras"] },
       { titulo: "Flota", claves: ["flota", "agenda", "mantenimiento", "combustible"] },
       { titulo: "Depósito", claves: ["deposito", "sobrantes", "entregas", "importar"] },
       { titulo: "Mapa", claves: ["historial", "rastreo"] },
       { titulo: "Alertas", claves: ["alertas", "avisos"] },
       { titulo: "Actividad", claves: ["actividad"] },
       { titulo: "Costos", claves: ["costos"] },
-      { titulo: "Obras", claves: ["obras", "proveedores", "ubicaciones", "usuarios"] },
+      { titulo: "Obras", claves: ["obras", "proveedores", "razonesSociales", "ubicaciones", "usuarios"] },
     ],
   },
 };
@@ -118,6 +120,10 @@ export function tituloDeRuta(pathname: string, propias: Seccion[] = []): string 
   const exacta = todas.find((s) => s.href === pathname);
   if (exacta) return exacta.titulo;
   if (/^\/compras\/[^/]+\/oc$/.test(pathname)) return "Orden de compra";
+  if (pathname === "/compras/tablero") return "Tablero";
+  if (pathname === "/compras/ordenes/nueva") return "Nueva orden";
+  if (pathname.startsWith("/compras/ordenes/")) return "Orden";
+  if (pathname === "/compras/importar") return "Importar desde Excel";
   if (pathname.startsWith("/compras/") || pathname.startsWith("/mis-pedidos/material/")) return "Pedido de material";
   if (pathname.startsWith("/viaje/")) return "Viaje";
   if (pathname.startsWith("/proveedores/")) return "Proveedor";

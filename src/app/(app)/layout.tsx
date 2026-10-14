@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { exigirSesion } from "@/lib/auth/sesion";
-import { rutaPermitida } from "@/lib/permisos";
+import { puede, rutaPermitida } from "@/lib/permisos";
 import { barraInferior, gruposEscritorio, menuMas } from "@/lib/navegacion";
 import { ROL } from "@/lib/etiquetas";
 import { obrasDelUsuario } from "@/lib/alcance";
@@ -46,9 +46,9 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
       <RefrescoPorRuta />
       <TirarParaActualizar />
       <BarraLateral grupos={gruposEscritorio(u.rol)} />
-      <div className="flex min-h-dvh flex-col bg-fondo lg:pt-12 lg:pl-[232px]">
+      <div className={`flex min-h-dvh flex-col bg-fondo lg:pt-12 lg:pl-[232px] ${puede(u.rol, "dolar.ver") ? "con-dolar" : ""}`}>
         <HeaderMovil perfil={perfil} secciones={secciones} />
-        <HeaderEscritorio perfil={perfil} secciones={secciones} />
+        <HeaderEscritorio perfil={perfil} secciones={secciones} dolar={puede(u.rol, "dolar.ver")} />
         <div className="sticky top-[calc(52px+env(safe-area-inset-top))] z-20 lg:top-12">
           <IndicadorConexion />
         </div>

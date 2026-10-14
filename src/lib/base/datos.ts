@@ -36,6 +36,16 @@ const USUARIOS: { nombre: string; email: string; rol: Rol; telefono?: string; li
   { nombre: "Compras", email: "compras", rol: "COMPRAS" },
 ];
 
+/** Hoja NOTOCAR de la planilla de Compras (nombres tal como figuran; // confirmar razón social completa). */
+export const RAZONES_SOCIALES = [
+  { nombre: "SIGNA DESARROLLOS S.A", cuit: "30-71704281-2" },
+  { nombre: "DARWIN 1299 S.A", cuit: "30-71672062-0" },
+  { nombre: "ALVAREZ THOMAS", cuit: "30-71730635-6" },
+  { nombre: "REMEDIOS DE ESCALADA 2329", cuit: "30-71706913-3" },
+];
+/** Hoja SolicitadoPor: los que piden y no son usuarios. */
+export const SOLICITANTES_EXTERNOS = ["Romina", "Hernán"];
+
 async function limpiar(db: PrismaClient) {
   // Orden inverso a las dependencias. Usuarios y sus suscripciones push NO se tocan.
   await db.$executeRawUnsafe(`ALTER TABLE "Auditoria" DISABLE TRIGGER USER`).catch(() => {});
@@ -119,6 +129,14 @@ export async function cargarDatosBase(db: PrismaClient) {
     const x = ya ?? (await db.usuario.create({ data: { nombre: u.nombre, email, rol: u.rol, telefono: u.telefono ?? null, ...licencia, passwordHash }, select: { id: true } }));
     usuarios.set(u.email, x.id);
   }
+
+  // ───────────── Compras: razones sociales, "Solicitado por" sin usuario, numeradores ─────────────
+  // Lo estructural de la planilla de Alejandra (también lo crea la migración oc_plantilla_alejandra).
+  for (const [i, r] of RAZONES_SOCIALES.entries()) {
+    await db.razonSocial.upsert({ where: { cuit: r.cuit }, create: { nombre: r.nombre, cuit: r.cuit, orden: i + 1 }, update: {} });
+  }
+  for (const nombre of SOLICITANTES_EXTERNOS) await db.solicitanteExterno.upsert({ where: { nombre }, create: { nombre }, update: {} });
+  for (const tipo of ["OC", "PE"] as const) await db.numeradorOC.upsert({ where: { tipo }, create: { tipo, ultimo: 0 }, update: {} });
 
   // ────────────────────── Base y depósitos ──────────────────────
   // Base: donde Cusat muestra los camiones parados. Depósito Florida: la dirección del inventario.

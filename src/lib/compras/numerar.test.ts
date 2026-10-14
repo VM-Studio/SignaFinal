@@ -1,23 +1,25 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { anioArgentina, asignarNumeroOC, formatoOC } from "./numerar";
+import { asignarNumeroOC, formatoOC, numeroCorto, siguienteNumero, subirNumerador } from "./numerar";
 
 /**
- * Prueba contra la base (DATABASE_URL): 50 órdenes de compra enviadas a aprobación AL MISMO TIEMPO
- * no repiten ningún número. Usa un año de prueba (2099) y borra lo que crea.
+ * Prueba contra la base (DATABASE_URL): 50 órdenes enviadas a aprobación AL MISMO TIEMPO no repiten
+ * ningún número, y OC y PE llevan numeraciones separadas. Guarda y repone los numeradores reales.
  */
 const db = new PrismaClient();
-const ANIO = 2099;
 const hayBase = !!process.env.DATABASE_URL;
-let fixture: { obraId: string; usuarioId: string; pedidoId: string } | null = null;
+let fixture: { obraId: string; usuarioId: string; pedidoId: string; numeradores: { tipo: "OC" | "PE"; ultimo: number }[] } | null = null;
 
-describe.skipIf(!hayBase)("numeración de OC (con base)", () => {
+describe.skipIf(!hayBase).sequential("numeración por tipo (con base)", () => {
   beforeAll(async () => {
     const usuario = await db.usuario.findFirstOrThrow({ select: { id: true } });
     const obra = await db.obra.create({ data: { nombre: "Prueba numeración", codigo: `TEST-OC-${Date.now()}`, direccion: "-", localidad: "-", latitud: 0, longitud: 0, estado: "FINALIZADA" } });
     const pedido = await db.pedidoMaterial.create({ data: { obraId: obra.id, solicitanteId: usuario.id, descripcion: "prueba", paraCuando: new Date() } });
-    fixture = { obraId: obra.id, usuarioId: usuario.id, pedidoId: pedido.id };
-    await db.numeradorOC.deleteMany({ where: { anio: ANIO } });
+    const numeradores = await db.numeradorOC.findMany();
+    fixture = { obraId: obra.id, usuarioId: usuario.id, pedidoId: pedido.id, numeradores };
+    // Números de prueba altos: no chocan con los reales.
+    await db.numeradorOC.upsert({ where: { tipo: "OC" }, create: { tipo: "OC", ultimo: 900000 }, update: { ultimo: 900000 } });
+    await db.numeradorOC.upsert({ where: { tipo: "PE" }, create: { tipo: "PE", ultimo: 800000 }, update: { ultimo: 800000 } });
   });
 
   afterAll(async () => {
@@ -25,48 +27,58 @@ describe.skipIf(!hayBase)("numeración de OC (con base)", () => {
       await db.ordenCompra.deleteMany({ where: { pedidoMaterialId: fixture.pedidoId } });
       await db.pedidoMaterial.delete({ where: { id: fixture.pedidoId } });
       await db.obra.delete({ where: { id: fixture.obraId } });
+      await db.numeradorOC.deleteMany();
+      if (fixture.numeradores.length) await db.numeradorOC.createMany({ data: fixture.numeradores });
     }
-    await db.numeradorOC.deleteMany({ where: { anio: ANIO } });
     await db.$disconnect();
   });
 
-  it("50 OC enviadas en paralelo: 50 números distintos y seguidos", async () => {
+  const nueva = (tipo: "OC" | "PE" = "OC") => {
     const f = fixture!;
-    const ocs = await Promise.all(
-      Array.from({ length: 50 }, () => db.ordenCompra.create({ data: { pedidoMaterialId: f.pedidoId, obraId: f.obraId, solicitanteId: f.usuarioId, creadaPorId: f.usuarioId }, select: { id: true } })),
-    );
+    return db.ordenCompra.create({ data: { tipo, pedidoMaterialId: f.pedidoId, obraId: f.obraId, solicitanteId: f.usuarioId, creadaPorId: f.usuarioId }, select: { id: true } });
+  };
+
+  it("50 OC enviadas en paralelo: 50 números distintos y seguidos", async () => {
+    const ocs = await Promise.all(Array.from({ length: 50 }, () => nueva()));
     const numeros = await Promise.all(
-      ocs.map((oc) =>
-        db.$transaction(async (tx) => {
-          const n = await asignarNumeroOC(tx, oc.id, ANIO);
-          await tx.ordenCompra.update({ where: { id: oc.id }, data: { estado: "ESPERANDO_APROBACION", enviadaEn: new Date() } });
-          return n.numero;
-        }, { timeout: 60_000, maxWait: 60_000 }),
-      ),
+      ocs.map((oc) => db.$transaction((tx) => asignarNumeroOC(tx, oc.id).then((n) => n.numero), { timeout: 60_000, maxWait: 60_000 })),
     );
     expect(new Set(numeros).size).toBe(50);
-    expect([...numeros].sort()).toEqual(Array.from({ length: 50 }, (_, i) => formatoOC(ANIO, i + 1)));
-    expect((await db.numeradorOC.findUniqueOrThrow({ where: { anio: ANIO } })).ultimo).toBe(50);
+    expect([...numeros].sort()).toEqual(Array.from({ length: 50 }, (_, i) => formatoOC("OC", 900001 + i)));
+    expect((await db.numeradorOC.findUniqueOrThrow({ where: { tipo: "OC" } })).ultimo).toBe(900050);
   }, 120_000);
 
-  it("una OC que ya tiene número lo conserva al reenviarse (no gasta otro)", async () => {
-    const f = fixture!;
-    const oc = await db.ordenCompra.create({ data: { pedidoMaterialId: f.pedidoId, obraId: f.obraId, solicitanteId: f.usuarioId, creadaPorId: f.usuarioId }, select: { id: true } });
-    const a = await db.$transaction((tx) => asignarNumeroOC(tx, oc.id, ANIO));
-    const b = await db.$transaction((tx) => asignarNumeroOC(tx, oc.id, ANIO));
+  it("los PE tienen su propia numeración (no tocan la de OC)", async () => {
+    const pe = await nueva("PE");
+    const n = await db.$transaction((tx) => asignarNumeroOC(tx, pe.id));
+    expect(n.numero).toBe("PE-800001");
+    expect((await db.numeradorOC.findUniqueOrThrow({ where: { tipo: "OC" } })).ultimo).toBe(900050);
+  });
+
+  it("una orden que ya tiene número lo conserva al reenviarse (no gasta otro)", async () => {
+    const oc = await nueva();
+    const a = await db.$transaction((tx) => asignarNumeroOC(tx, oc.id));
+    const b = await db.$transaction((tx) => asignarNumeroOC(tx, oc.id));
     expect(b.numero).toBe(a.numero);
-    expect((await db.numeradorOC.findUniqueOrThrow({ where: { anio: ANIO } })).ultimo).toBe(51);
+    expect((await db.numeradorOC.findUniqueOrThrow({ where: { tipo: "OC" } })).ultimo).toBe(900051);
+  });
+
+  it("el numerador solo sube: bajarlo no hace nada", async () => {
+    expect(await db.$transaction((tx) => subirNumerador(tx, "OC", 10))).toBe(900051);
+    expect(await db.$transaction((tx) => subirNumerador(tx, "OC", 900100))).toBe(900100);
+    expect((await db.$transaction((tx) => siguienteNumero(tx, "OC"))).secuencia).toBe(900101);
   });
 });
 
 describe("formato del número", () => {
-  it("OC-AAAA-NNNN con cuatro dígitos (y más si hace falta)", () => {
-    expect(formatoOC(2026, 1)).toBe("OC-2026-0001");
-    expect(formatoOC(2026, 12)).toBe("OC-2026-0012");
-    expect(formatoOC(2026, 12345)).toBe("OC-2026-12345");
+  it("OC-NNNN y PE-NNNN, cuatro dígitos (y más si hace falta), sin año", () => {
+    expect(formatoOC("OC", 1)).toBe("OC-0001");
+    expect(formatoOC("PE", 151)).toBe("PE-0151");
+    expect(formatoOC("OC", 12345)).toBe("OC-12345");
+    expect(formatoOC("OC", "41 B")).toBe("OC-41 B");
   });
-  it("el año es el de Buenos Aires (el 31/12 a las 22 h de Argentina sigue siendo ese año)", () => {
-    expect(anioArgentina(new Date("2027-01-01T01:00:00Z"))).toBe(2026);
-    expect(anioArgentina(new Date("2027-01-01T03:30:00Z"))).toBe(2027);
+  it("en el tablero, el número como lo escribe Compras", () => {
+    expect(numeroCorto({ numeroTexto: "20 A", secuencia: null, numero: "OC-20 A" })).toBe("20 A");
+    expect(numeroCorto({ numeroTexto: null, secuencia: 417, numero: "OC-0417" })).toBe("417");
   });
 });
