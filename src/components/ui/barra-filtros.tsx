@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowUpDown, Bookmark, BookmarkPlus, Check, ChevronDown, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { Hoja } from "@/components/ui/hoja";
@@ -13,8 +13,9 @@ import type { Vista } from "@/lib/vistas/consultas";
 /**
  * BARRA DE FILTROS ÚNICA (tablero, cola de Compras, solicitudes, órdenes, pedidos): chips combinables,
  * buscador libre, orden y vistas guardadas por usuario. Todo vive en la URL (se comparte, se vuelve
- * atrás y la página se arma en el servidor con esos filtros). En escritorio, los chips en una fila; en
- * el celular colapsan en un botón "Filtros" con el contador y una hoja inferior.
+ * atrás y la página se arma en el servidor con esos filtros). En escritorio, todo en UNA fila (buscador de
+ * 320 px, chips, orden, Limpiar y Vistas al final): los chips que no entran pasan a un botón "Filtros (N)".
+ * En el celular colapsan en un botón "Filtros" con el contador y una hoja inferior.
  *
  * Valores múltiples: "a,b,c" en la misma clave. Rango de fechas: dos claves (desde / hasta).
  */
@@ -25,19 +26,21 @@ export type Filtro =
   | { tipo: "si"; clave: string; etiqueta: string };
 
 export type PropsBarra = {
-  pantalla: "tablero" | "compras" | "solicitudes" | "ordenes" | "pedidos" | "coordinar";
+  pantalla: "tablero" | "compras" | "solicitudes" | "ordenes" | "pedidos" | "coordinar" | "habilitados" | "proveedores";
   filtros: Filtro[];
   buscador?: { placeholder: string };
   orden?: { opciones: Opcion[]; porDefecto: string };
   vistas?: Vista[];
   /** Parámetros que no son filtros y se conservan (pestaña, etc.). */
   conservar?: string[];
+  /** Parámetros que filtran sin chip propio (las tarjetas del tablero): cuentan, se limpian y se guardan en las vistas. */
+  otrasClaves?: string[];
 };
 
 const separar = (v: string | null) => (v ? v.split(",").filter(Boolean) : []);
 const fechaCorta = (s: string) => s.split("-").reverse().slice(0, 2).join("/");
 
-export function BarraFiltros({ pantalla, filtros, buscador, orden, vistas = [], conservar = [] }: PropsBarra) {
+export function BarraFiltros({ pantalla, filtros, buscador, orden, vistas = [], conservar = [], otrasClaves = [] }: PropsBarra) {
   const router = useRouter();
   const ruta = usePathname();
   const sp = useSearchParams();
@@ -47,8 +50,43 @@ export function BarraFiltros({ pantalla, filtros, buscador, orden, vistas = [], 
   const [q, setQ] = useState(sp.get("q") ?? "");
   useEffect(() => setQ(sp.get("q") ?? ""), [sp]);
 
-  const claves = useMemo(() => new Set(filtros.flatMap((f) => (f.tipo === "rango" ? [f.claveDesde, f.claveHasta] : [f.clave])).concat(["q", "orden"])), [filtros]);
-  const activos = filtros.filter((f) => (f.tipo === "rango" ? sp.get(f.claveDesde) || sp.get(f.claveHasta) : sp.get(f.clave))).length + (sp.get("q") ? 1 : 0);
+  const claves = useMemo(() => new Set(filtros.flatMap((f) => (f.tipo === "rango" ? [f.claveDesde, f.claveHasta] : [f.clave])).concat(["q", "orden"], otrasClaves)), [filtros, otrasClaves]);
+  const tieneValor = (f: Filtro) => !!(f.tipo === "rango" ? sp.get(f.claveDesde) || sp.get(f.claveHasta) : sp.get(f.clave));
+  const activos = filtros.filter(tieneValor).length + (sp.get("q") ? 1 : 0) + otrasClaves.filter((k) => sp.get(k)).length;
+
+  // Escritorio: cuántos chips entran en la fila (se miden en una copia invisible); el resto va a "Filtros (N)".
+  const areaRef = useRef<HTMLDivElement>(null);
+  const medidaRef = useRef<HTMLDivElement>(null);
+  const [entran, setEntran] = useState(filtros.length);
+  useLayoutEffect(() => {
+    const area = areaRef.current;
+    const medida = medidaRef.current;
+    if (!area || !medida) return;
+    const calcular = () => {
+      const disponible = area.clientWidth;
+      const anchos = Array.from(medida.children, (c) => (c as HTMLElement).offsetWidth);
+      const GAP = 8;
+      const BOTON = 112; // "Filtros (N)"
+      let usado = 0;
+      let n = 0;
+      for (const w of anchos) {
+        if (usado + (n ? GAP : 0) + w > disponible) break;
+        usado += (n ? GAP : 0) + w;
+        n++;
+      }
+      if (n < anchos.length) {
+        while (n > 0 && usado + GAP + BOTON > disponible) {
+          usado -= anchos[n - 1] + (n > 1 ? GAP : 0);
+          n--;
+        }
+      }
+      setEntran(n);
+    };
+    calcular();
+    const ro = new ResizeObserver(calcular);
+    ro.observe(area);
+    return () => ro.disconnect();
+  }, [filtros, sp]);
 
   /** Cambia parámetros y vuelve a la primera página (sin cerrar el panel abierto). */
   function ir(cambios: Record<string, string | null>, reemplazar = false) {
@@ -121,21 +159,27 @@ export function BarraFiltros({ pantalla, filtros, buscador, orden, vistas = [], 
   const nombreFiltro = (f: Filtro) => (f.tipo === "rango" ? f.claveDesde : f.clave);
 
   return (
-    <div className={`mb-3 flex flex-col gap-2 ${pendiente ? "opacity-70" : ""}`} aria-busy={pendiente}>
-      <div className="flex flex-wrap items-center gap-2">
+    <div className={`mb-4 flex flex-col gap-2 ${pendiente ? "opacity-70" : ""}`} aria-busy={pendiente}>
+      <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap">
         {buscador && (
-          <form className="relative min-w-0 flex-1 basis-56 lg:max-w-sm" onSubmit={(e) => { e.preventDefault(); ir({ q: q.trim() || null }); }}>
+          <form className="relative min-w-0 flex-1 basis-40 lg:w-80 lg:flex-none lg:basis-auto" onSubmit={(e) => { e.preventDefault(); ir({ q: q.trim() || null }); }}>
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-suave" />
             <Entrada type="search" aria-label="Buscar" value={q} onChange={(e) => setQ(e.target.value)} onBlur={() => (q.trim() || null) !== sp.get("q") && ir({ q: q.trim() || null })} placeholder={buscador.placeholder} className="pl-9" />
           </form>
         )}
         {/* Celular: un botón con el contador. */}
-        <button type="button" onClick={() => setHoja(true)} className="inline-flex h-11 items-center gap-2 rounded-md border border-linea bg-papel px-3 text-sm font-medium lg:hidden">
+        {(filtros.length > 0 || orden) && <button type="button" onClick={() => setHoja(true)} className="inline-flex h-11 items-center gap-2 rounded-md border border-linea bg-papel px-3 text-sm font-medium lg:hidden">
           <SlidersHorizontal className="size-4" /> Filtros{activos ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-tinta px-1 text-[11px] text-white">{activos}</span> : null}
-        </button>
-        {/* Escritorio: los chips. */}
-        <div className="hidden flex-wrap items-center gap-2 lg:flex">
-          {filtros.map((f) => {
+        </button>}
+        {/* Escritorio: los chips que entran en la fila; los demás, en "Filtros (N)". */}
+        <div ref={areaRef} className="relative hidden min-w-0 flex-1 items-center gap-2 lg:flex">
+          <div ref={medidaRef} aria-hidden className="pointer-events-none invisible absolute top-0 left-0 flex gap-2 whitespace-nowrap">
+            {filtros.map((f) => {
+              const v = valorChip(f);
+              return <span key={nombreFiltro(f)} className="inline-flex h-8 items-center gap-1 rounded-full border pr-2 pl-3 text-[13px]">{f.etiqueta}{v && <span className="max-w-40 truncate font-medium">: {v}</span>}<span className="size-3.5" />{v && <span className="size-3.5" />}</span>;
+            })}
+          </div>
+          {filtros.slice(0, entran).map((f) => {
             const v = valorChip(f);
             const k = nombreFiltro(f);
             return (
@@ -145,8 +189,26 @@ export function BarraFiltros({ pantalla, filtros, buscador, orden, vistas = [], 
               </Chip>
             );
           })}
+          {entran < filtros.length && (() => {
+            const resto = filtros.slice(entran);
+            const n = resto.filter(tieneValor).length;
+            return (
+              <Chip etiqueta={`Filtros${n ? ` (${n})` : ""}`} icono={<SlidersHorizontal className="size-3.5" />} valor={null} resaltado={n > 0} abierto={abierto === "mas"} onAbrir={() => setAbierto(abierto === "mas" ? null : "mas")} onCerrar={() => setAbierto(null)} ancho="w-80">
+                <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto p-1">
+                  {resto.map((f) => (
+                    <section key={nombreFiltro(f)}>
+                      <p className="etiqueta px-2 pb-1">{f.etiqueta}</p>
+                      {panel(f)}
+                    </section>
+                  ))}
+                </div>
+              </Chip>
+            );
+          })()}
+        </div>
+        <div className="hidden shrink-0 items-center gap-2 lg:flex">
           {orden && (
-            <Chip etiqueta="Orden" icono={<ArrowUpDown className="size-3.5" />} valor={orden.opciones.find((o) => o.valor === (sp.get("orden") ?? orden.porDefecto))?.etiqueta ?? null} abierto={abierto === "orden"} onAbrir={() => setAbierto(abierto === "orden" ? null : "orden")} onCerrar={() => setAbierto(null)} siempre>
+            <Chip etiqueta="" icono={<ArrowUpDown className="size-3.5" />} valor={orden.opciones.find((o) => o.valor === (sp.get("orden") ?? orden.porDefecto))?.etiqueta ?? null} abierto={abierto === "orden"} onAbrir={() => setAbierto(abierto === "orden" ? null : "orden")} onCerrar={() => setAbierto(null)} siempre alinear="derecha">
               <ul>
                 {orden.opciones.map((o) => (
                   <li key={o.valor}>
@@ -158,7 +220,7 @@ export function BarraFiltros({ pantalla, filtros, buscador, orden, vistas = [], 
               </ul>
             </Chip>
           )}
-          {activos > 0 && <button type="button" onClick={limpiar} className="h-8 rounded-md px-2 text-[13px] font-medium text-suave hover:text-tinta">Limpiar</button>}
+          <button type="button" onClick={limpiar} disabled={!activos} className="h-8 rounded-md px-2 text-[13px] font-medium text-suave hover:text-tinta disabled:cursor-default disabled:opacity-40 disabled:hover:text-suave">Limpiar</button>
         </div>
         <Vistas pantalla={pantalla} vistas={vistas} activos={activos} claves={claves} onAplicar={(p) => ir(p, true)} />
       </div>
@@ -204,8 +266,9 @@ export function BarraFiltros({ pantalla, filtros, buscador, orden, vistas = [], 
   );
 }
 
-function Chip({ etiqueta, valor, abierto, onAbrir, onCerrar, onQuitar, children, icono, siempre = false }: {
+function Chip({ etiqueta, valor, abierto, onAbrir, onCerrar, onQuitar, children, icono, siempre = false, resaltado = false, ancho = "w-64", alinear = "izquierda" }: {
   etiqueta: string; valor: string | null; abierto: boolean; onAbrir: () => void; onCerrar: () => void; onQuitar?: () => void; children: React.ReactNode; icono?: React.ReactNode; siempre?: boolean;
+  resaltado?: boolean; ancho?: string; alinear?: "izquierda" | "derecha";
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -216,14 +279,14 @@ function Chip({ etiqueta, valor, abierto, onAbrir, onCerrar, onQuitar, children,
     document.addEventListener("keydown", esc);
     return () => { document.removeEventListener("mousedown", fuera); document.removeEventListener("keydown", esc); };
   }, [abierto, onCerrar]);
-  const activo = !!valor && !siempre;
+  const activo = (!!valor && !siempre) || resaltado;
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative shrink-0">
       <div className={`inline-flex h-8 items-center rounded-full border text-[13px] ${activo ? "border-tinta bg-tinta/[0.04]" : "border-linea bg-papel"}`}>
-        <button type="button" onClick={onAbrir} aria-expanded={abierto} className="inline-flex h-full items-center gap-1 pr-2 pl-3">
+        <button type="button" onClick={onAbrir} aria-expanded={abierto} aria-label={etiqueta ? undefined : `Orden: ${valor ?? ""}`} className="inline-flex h-full items-center gap-1 pr-2 pl-3">
           {icono}
-          <span className={activo ? "text-suave" : ""}>{etiqueta}</span>
-          {valor && <span className="max-w-40 truncate font-medium">{activo ? `: ${valor}` : valor}</span>}
+          {etiqueta && <span className={activo ? "text-suave" : ""}>{etiqueta}</span>}
+          {valor && <span className={`truncate font-medium ${siempre ? "" : "max-w-40"}`}>{activo ? `: ${valor}` : valor}</span>}
           {!onQuitar && <ChevronDown className="size-3.5 text-suave" />}
         </button>
         {onQuitar && (
@@ -231,7 +294,7 @@ function Chip({ etiqueta, valor, abierto, onAbrir, onCerrar, onQuitar, children,
         )}
       </div>
       {abierto && (
-        <div className="absolute top-9 left-0 z-30 w-64 rounded-[var(--radius-caja)] border border-linea bg-papel p-1 shadow-[var(--shadow-flotante)]">{children}</div>
+        <div className={`absolute top-9 z-30 ${ancho} ${alinear === "derecha" ? "right-0" : "left-0"} rounded-[var(--radius-caja)] border border-linea bg-papel p-1 shadow-[var(--shadow-flotante)]`}>{children}</div>
       )}
     </div>
   );
@@ -250,8 +313,8 @@ function Vistas({ pantalla, vistas, activos, claves, onAplicar }: { pantalla: Pr
   const activa = vistas.find(coincide);
   return (
     <>
-      <button type="button" onClick={() => setAbierta(true)} className="inline-flex h-11 items-center gap-1.5 rounded-md border border-linea bg-papel px-3 text-sm font-medium lg:h-8 lg:rounded-full lg:text-[13px]">
-        <Bookmark className="size-4 lg:size-3.5" /> {activa ? activa.nombre : "Vistas"}
+      <button type="button" onClick={() => setAbierta(true)} className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-md border border-linea bg-papel px-3 text-sm font-medium lg:h-8 lg:rounded-full lg:text-[13px]">
+        <Bookmark className="size-4 lg:size-3.5" /> <span className={activa ? "max-w-28 truncate" : "sr-only lg:not-sr-only"}>{activa ? activa.nombre : "Vistas"}</span>
       </button>
       <Hoja abierta={abierta} onCerrar={() => { setAbierta(false); setGuardar(false); }} titulo="Vistas guardadas">
         <div className="flex flex-col gap-4">

@@ -340,10 +340,14 @@ export async function ajustarEstadoTablero(ocId: string, estado: EstadoTablero |
   return ejecutar(async () => {
     const yo = await exigirPermiso("materiales.gestionar");
     await db.$transaction(async (tx) => {
-      const oc = await tx.ordenCompra.findUnique({ where: { id: ocId }, select: { id: true, tipo: true, numero: true, pedidoMaterialId: true, estadoTablero: true, fuente: true } });
+      const oc = await tx.ordenCompra.findUnique({ where: { id: ocId }, select: { id: true, tipo: true, numero: true, pedidoMaterialId: true, estadoTablero: true, estadoTableroAuto: true, fuente: true, comentarios: true } });
       if (!oc) throw new ErrorNegocio("No existe esa orden.");
       if (oc.estadoTablero === estado) return;
-      await tx.ordenCompra.update({ where: { id: ocId }, data: { estadoTablero: estado, ...(oc.fuente === "IMPORTADA_EXCEL" ? { estadoTableroAuto: estado } : {}) } });
+      // Un estado que no es el que sale del circuito se acepta igual, como ajuste a mano, y queda anotado en Comentarios.
+      const aMano = oc.fuente !== "IMPORTADA_EXCEL" && estado !== oc.estadoTableroAuto;
+      const nota = `(ajustado a mano por ${yo.nombre.split(" ")[0]} el ${new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit" }).format(new Date())})`;
+      const comentarios = aMano ? [oc.comentarios?.trim(), nota].filter(Boolean).join("\n").slice(0, 2000) : undefined;
+      await tx.ordenCompra.update({ where: { id: ocId }, data: { estadoTablero: estado, ...(comentarios ? { comentarios } : {}), ...(oc.fuente === "IMPORTADA_EXCEL" ? { estadoTableroAuto: estado } : {}) } });
       const t = (e: EstadoTablero | null) => (e ? ESTADO_TABLERO[e].titulo : "sin estado");
       await auditarOC(tx, oc, { usuarioId: yo.id, accion: "oc.tablero.estado", resumen: `${yo.nombre} cambió a mano el estado de la ${nombreOC(oc)} en el tablero: ${t(oc.estadoTablero)} → ${t(estado)}`, antes: { estadoTablero: oc.estadoTablero }, despues: { estadoTablero: estado } });
     });

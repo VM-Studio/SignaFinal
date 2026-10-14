@@ -6,7 +6,7 @@ import { exigirSesion } from "@/lib/auth/sesion";
 import { rutaPermitida } from "@/lib/permisos";
 import { limiteDe } from "@/lib/pagina";
 import { CargarMas } from "@/components/ui/cargar-mas";
-import { Insignia, Subtitulo, Titulo, Vacio } from "@/components/ui/basicos";
+import { Insignia, PaginaCompleta, Subtitulo, Titulo, Vacio } from "@/components/ui/basicos";
 import { BotonMarcarTodas, ItemAviso } from "@/components/avisos/item-aviso";
 import { cuando, dia, hace } from "@/lib/formato";
 import { ICONO_AVISO } from "@/components/avisos/iconos";
@@ -35,10 +35,10 @@ export default async function PaginaAvisos({ searchParams }: { searchParams: Pro
   }
   const item = "block rounded-[var(--radius-caja)] border border-linea bg-papel p-4";
   return (
-    <div>
+    <PaginaCompleta>
       <Titulo siempre accion={<BotonMarcarTodas hay={sinLeer} />}>Avisos</Titulo>
       {notificaciones.length + alertas.length === 0 ? (
-        <Vacio icono={<Bell className="size-10" />} titulo="No tenés avisos">Cuando pase algo con tus pedidos o tus cosas, te avisamos acá.</Vacio>
+        <Vacio llenar icono={<Bell className="size-10" />} titulo="No tenés avisos">Cuando pase algo con tus pedidos o tus cosas, te avisamos acá.</Vacio>
       ) : (
         <>
           {alertas.length > 0 && (
@@ -90,6 +90,6 @@ export default async function PaginaAvisos({ searchParams }: { searchParams: Pro
         </>
       )}
       {hayMas && <CargarMas href={`/avisos?n=${siguiente}`} />}
-    </div>
+    </PaginaCompleta>
   );
 }

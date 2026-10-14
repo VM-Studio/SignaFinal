@@ -9,7 +9,7 @@ export function DosTercios({ children, contexto, soloEscritorio = false }: { chi
     <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
       <div className="min-w-0">{children}</div>
       <aside className={`min-w-0 ${soloEscritorio ? "hidden lg:block" : ""}`}>
-        <div className="flex flex-col gap-3 rounded-[var(--radius-caja)] border border-linea bg-papel p-4 text-[13px] lg:sticky lg:top-[72px]">{contexto}</div>
+        <div className="flex flex-col gap-3 rounded-[var(--radius-caja)] border border-linea bg-papel p-4 text-[13px] lg:sticky lg:top-[calc(var(--alto-header)+24px)]">{contexto}</div>
       </aside>
     </div>
   );

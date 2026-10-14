@@ -36,13 +36,13 @@ function Marcas({ f }: { f: FilaMaterial }) {
 }
 
 /** Cola de Compras: filas en el celular, tabla en escritorio. En rojo lo demorado. */
-export function ColaMateriales({ filas, base = "/compras", compacta = false }: { filas: FilaMaterial[]; base?: string; compacta?: boolean }) {
+export function ColaMateriales({ filas, base = "/compras", compacta = false, sinMarco = false }: { filas: FilaMaterial[]; base?: string; compacta?: boolean; sinMarco?: boolean }) {
   return (
     <>
-      <ul className={`divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel ${compacta ? "" : "lg:hidden"}`}>
+      <ul className={`divide-y divide-linea overflow-hidden border-linea bg-papel ${sinMarco ? "" : compacta ? "rounded-[var(--radius-caja)] border" : "-mx-4 border-y lg:hidden"}`}>
         {filas.map((f) => (
           <li key={f.id} data-vivo-id={f.id}>
-            <Link href={`${base}/${f.id}`} className={`flex min-h-14 items-center gap-3 px-4 py-2 lg:min-h-11 hover:bg-hover ${f.demorado ? "" : ""}`}>
+            <Link href={`${base}/${f.id}`} className="flex min-h-14 items-center gap-3 px-4 py-2 hover:bg-hover">
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-2"><span className="truncate font-medium">{primerRenglon(f.descripcion)}</span><Marcas f={f} /></p>
                 <p className="truncate text-sm text-suave">#{f.numero} · Obra {f.obra} · {f.solicitante} · <span className={claseCaducidad(f)}>{para(f.paraCuando)}</span></p>
@@ -55,7 +55,7 @@ export function ColaMateriales({ filas, base = "/compras", compacta = false }: {
         ))}
       </ul>
       <div className={`hidden overflow-x-auto rounded-[var(--radius-caja)] border border-linea bg-papel ${compacta ? "" : "lg:block"}`}>
-        <table className="tabla">
+        <table className="tabla tabla-56">
           <thead>
             <tr>
               <th>N°</th><th>Qué</th><th>Obra</th><th>Pidió</th>

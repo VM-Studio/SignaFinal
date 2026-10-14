@@ -63,7 +63,7 @@ export function PaginaPlantilla({ d, volver }: { d: FormularioOCDatos; volver: {
         <FormularioOC d={d} />
       </div>
       <aside className="hidden min-w-0 lg:block">
-        <div className="sticky top-[72px] max-h-[calc(100dvh-96px)] overflow-y-auto rounded-[var(--radius-caja)] border border-linea bg-papel p-4">{contexto}</div>
+        <div className="sticky top-[calc(var(--alto-header)+24px)] max-h-[calc(100dvh-var(--alto-header)-48px)] overflow-y-auto rounded-[var(--radius-caja)] border border-linea bg-papel p-4">{contexto}</div>
       </aside>
     </div>
   );

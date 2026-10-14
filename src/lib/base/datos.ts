@@ -33,7 +33,7 @@ const USUARIOS: { nombre: string; email: string; rol: Rol; telefono?: string; li
   { nombre: "David", email: "david", rol: "CHOFER", licenciaCategoria: "B1" },
   { nombre: "Encargado de depósito", email: "deposito", rol: "DEPOSITO" },
   { nombre: "Administración", email: "administracion", rol: "ADMINISTRACION" },
-  { nombre: "Compras", email: "compras", rol: "COMPRAS" },
+  { nombre: "Alejandra", email: "compras", rol: "COMPRAS" },
 ];
 
 /** Hoja NOTOCAR de la planilla de Compras (nombres tal como figuran; // confirmar razón social completa). */

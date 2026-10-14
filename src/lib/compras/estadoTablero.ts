@@ -80,6 +80,28 @@ export const ESTADO_TABLERO: Record<EstadoTablero, { titulo: string; tono: Tono;
   ANULADA: { titulo: "Anulada", tono: "critico", excel: "ANULADA" },
 };
 
+/**
+ * Cómo se ve cada estado en la planilla de Alejandra (columna ESTADO y la de su número, la "Nº"): fondo,
+ * texto, la palabra en mayúsculas y el código de su leyenda (0 pedir autorización / autorizada, 1 solicitud
+ * de presupuesto, 2 encargado, 3 entregado). Lo usan el tablero y la exportación a Excel.
+ */
+export const PLANILLA_TABLERO: Record<EstadoTablero, { fondo: string; texto: string; palabra: string; codigo: number }> = {
+  PEDIR_AUTORIZACION: { fondo: "#FFF2CC", texto: "#7A5A00", palabra: "PEDIR AUTORIZACIÓN", codigo: 0 },
+  AUTORIZADA: { fondo: "#FFF2CC", texto: "#7A5A00", palabra: "AUTORIZADA", codigo: 0 },
+  SOLICITUD_PRESUPUESTO: { fondo: "#DDEBF7", texto: "#1F4E79", palabra: "SOLICITUD PRESUPUESTO", codigo: 1 },
+  ENCARGADO: { fondo: "#FCE4D6", texto: "#843C0C", palabra: "ENCARGADO", codigo: 2 },
+  ENTREGADO: { fondo: "#E2EFDA", texto: "#375623", palabra: "ENTREGADO", codigo: 3 },
+  ANULADA: { fondo: "#EDEDED", texto: "#595959", palabra: "ANULADA", codigo: 0 },
+};
+
+/** La leyenda de arriba a la derecha de su planilla (un cuadradito por código). */
+export const LEYENDA_TABLERO: { codigo: number; palabra: string; estado: EstadoTablero }[] = [
+  { codigo: 0, palabra: "Pedir autorización / Autorizada", estado: "PEDIR_AUTORIZACION" },
+  { codigo: 1, palabra: "Solicitud presupuesto", estado: "SOLICITUD_PRESUPUESTO" },
+  { codigo: 2, palabra: "Encargado", estado: "ENCARGADO" },
+  { codigo: 3, palabra: "Entregado", estado: "ENTREGADO" },
+];
+
 /** Orden de los estados en filtros y contadores. */
 export const ESTADOS_TABLERO: EstadoTablero[] = ["PEDIR_AUTORIZACION", "AUTORIZADA", "SOLICITUD_PRESUPUESTO", "ENCARGADO", "ENTREGADO", "ANULADA"];
 

@@ -11,6 +11,6 @@ export default async function PaginaOrden({ params }: { params: Promise<{ id: st
   const d = await formularioOC({ ocId: id }); // verifica materiales.gestionar
   if (!d?.orden) notFound();
   // Importadas, anuladas y rechazadas no se editan en la plantilla: se ven en el tablero.
-  if (d.orden.fuente === "IMPORTADA_EXCEL" || d.orden.estado === "ANULADA" || d.orden.estado === "RECHAZADA") redirect(`/compras/tablero?ver=${id}`);
-  return <PaginaPlantilla d={d} volver={{ href: "/compras/tablero", texto: "Tablero" }} />;
+  if (d.orden.fuente === "IMPORTADA_EXCEL" || d.orden.estado === "ANULADA" || d.orden.estado === "RECHAZADA") redirect(`/compras/ordenes?ver=${id}`);
+  return <PaginaPlantilla d={d} volver={{ href: "/compras/ordenes", texto: "Órdenes" }} />;
 }

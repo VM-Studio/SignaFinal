@@ -34,9 +34,9 @@ const ir = async (p: Page, ruta: string) => { await p.goto(`${BASE}${ruta}`); aw
     const p = await entrar(nav, "compras", ancho);
     const foto = (n: string, completa = false) => p.screenshot({ path: `${DIR}/${ancho}-${n}.png`, fullPage: completa });
 
-    await ir(p, "/compras/tablero");
+    await ir(p, "/compras/ordenes");
     await foto("01-tablero");
-    const primera = ancho < 1024 ? p.locator("ul li a[href*='ver=']").first() : p.locator("table.tabla-tablero tbody tr").first();
+    const primera = ancho < 1024 ? p.locator("ul li a[href*='ver=']").first() : p.locator(".planilla tbody tr td:nth-child(6)").first();
     await primera.click();
     await p.waitForURL(/ver=/);
     await p.waitForTimeout(1200);
@@ -53,6 +53,7 @@ const ir = async (p: Page, ruta: string) => { await p.goto(`${BASE}${ruta}`); aw
       writeFileSync(`${DIR}/05-pdf.pdf`, await r.body());
     }
 
+    // Importar: por ahora la usa el dueño (Más → Compras → Importar Excel); Compras sigue teniendo la ruta.
     await ir(p, "/compras/importar");
     await p.setInputFiles('input[type="file"][accept=".xlsx"]', "tmp/tablero-ejemplo.xlsx");
     await p.getByText("Filas detectadas").waitFor({ timeout: 60_000 });
@@ -80,8 +81,6 @@ const ir = async (p: Page, ruta: string) => { await p.goto(`${BASE}${ruta}`); aw
     if (await lugar.count()) { await lugar.click(); await p.waitForTimeout(1500); }
     await foto("09-solicitudes-por-lugar", ancho < 1024);
 
-    await ir(p, "/configuracion/compras");
-    await foto("10-numeracion");
     await p.context().close();
   }
   // El dueño: aprobaciones y razones sociales.

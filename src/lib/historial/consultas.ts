@@ -119,16 +119,18 @@ export async function historialViajes(o: { q?: string } = {}): Promise<ItemHisto
   const u = await exigirSesion();
   const q = o.q?.trim();
   const obras = u.rol === "RESPONSABLE_OBRA" ? await idsObrasDelUsuario(u) : null;
-  const base: Prisma.PedidoViajeWhereInput = obras ? { OR: [{ solicitanteId: u.id }, { obraId: { in: obras } }] } : u.rol === "CAPATAZ" || u.rol === "DIRECCION" ? {} : { solicitanteId: u.id };
+  // Compras: los que pidió y los que coordinó para alguien de obra (salen a nombre de esa persona).
+  const base: Prisma.PedidoViajeWhereInput = obras ? { OR: [{ solicitanteId: u.id }, { obraId: { in: obras } }] } : u.rol === "CAPATAZ" || u.rol === "DIRECCION" ? {} : u.rol === "COMPRAS" ? { OR: [{ solicitanteId: u.id }, { coordinadoPorId: u.id }] } : { solicitanteId: u.id };
   const busqueda: Prisma.PedidoViajeWhereInput = q ? { OR: [{ descripcion: { contains: q, mode: "insensitive" } }, { obra: { nombre: { contains: q, mode: "insensitive" } } }, { origenNombre: { contains: q, mode: "insensitive" } }] } : {};
   const filas = await db.pedidoViaje.findMany({
     where: conAlcance(u, { AND: [base, busqueda] }), orderBy: { creadoEn: "desc" }, take: 60,
-    select: { id: true, numero: true, creadoEn: true, descripcion: true, estado: true, solicitanteId: true, tipo: true, origenNombre: true, obra: { select: { nombre: true } }, materialesListos: { take: 1, select: { pedidoMaterialId: true, ordenCompraNumero: true } } },
+    select: { id: true, numero: true, creadoEn: true, descripcion: true, estado: true, solicitanteId: true, coordinadoPorId: true, tipo: true, origenNombre: true, obra: { select: { nombre: true } }, materialesListos: { take: 1, select: { pedidoMaterialId: true, ordenCompraNumero: true } } },
   });
-  const ordenados = [...filas.filter((f) => f.solicitanteId === u.id), ...filas.filter((f) => f.solicitanteId !== u.id)].slice(0, LIMITE);
+  const mio = (f: (typeof filas)[number]) => f.solicitanteId === u.id || f.coordinadoPorId === u.id;
+  const ordenados = [...filas.filter(mio), ...filas.filter((f) => !mio(f))].slice(0, LIMITE);
   return ordenados.map((f) => ({
     id: f.id, numero: f.numero, fecha: f.creadoEn.toISOString(), obra: f.obra.nombre, resumen: `${f.descripcion} · desde ${f.origenNombre.split(" · ")[0]}`,
-    estado: ESTADO_VIAJE[f.estado].t, tono: ESTADO_VIAJE[f.estado].tono, oc: f.materialesListos[0]?.ordenCompraNumero ?? null, propio: f.solicitanteId === u.id,
+    estado: ESTADO_VIAJE[f.estado].t, tono: ESTADO_VIAJE[f.estado].tono, oc: f.materialesListos[0]?.ordenCompraNumero ?? null, propio: mio(f),
     materialId: f.tipo === "RETIRO_PROVEEDOR" ? f.materialesListos[0]?.pedidoMaterialId ?? null : undefined,
   }));
 }

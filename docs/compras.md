@@ -6,16 +6,23 @@ usuario de Compras y abajo (o a la izquierda en la computadora) tenés **Pedidos
 
 ## 1. El tablero (tu planilla de control)
 
-**Órdenes → Tablero.** Es tu "TABLERO DE CONTROL ORDENES DE C": una fila por orden, con tus columnas en
-tu orden: OC/PE · N° OC/PE · Fecha · Solicitado por · Obra · Proveedor · Importe · Descripción/Materiales
-· Estado · Fecha de entrega · Observaciones en OC / Próximos pasos · Comentarios.
+**Órdenes.** Es tu "TABLERO DE CONTROL ORDENES DE C", con su franja rosa "Planilla de control COMPRAS": una
+fila por orden, con tus columnas en tu orden: Nº · OC/PE · N° OC/PE · Fecha · Solicitado por · Obra · Proveedor
+· Importe · Descripción/Materiales · Estado · Fecha de entrega · Observaciones en OC / Próximos pasos ·
+Comentarios. El encabezado es gris y queda fijo al bajar; la Nº tiene el número de tu leyenda (0 pedir
+autorización / autorizada, 1 solicitud de presupuesto, 2 encargado, 3 entregado) con su color, y los "A
+confirmar" están en amarillo como tus "????".
 
 ![Tablero](compras/tablero.png)
 
-- Arriba, tres números: **Pedir autorización**, **Encargado** y **Entregado este mes**. Tocás uno y el
-  tablero muestra solo esas.
-- **Próximos pasos** y **Comentarios** se escriben en la misma tabla: tocás la celda, escribís y Enter
-  (Shift+Enter para otra línea). Queda guardado con tu nombre y la hora.
+- Arriba, cuatro tarjetas: **Todas**, **Pedir autorización**, **Encargado** y **Entregado este mes**. Tocás
+  una y el tablero muestra solo esas; **Todas** vuelve a mostrar todo. Al lado, la leyenda de colores.
+- **Estado**: tocás la celda y elegís de la lista; queda pintada del color del estado y aparece un tilde
+  chico cuando se guardó. Si ponés uno que no corresponde con lo que pasó (por ejemplo Entregado sin que
+  haya llegado), se acepta igual y queda anotado en Comentarios "(ajustado a mano por Alejandra el 14/10)".
+- **Próximos pasos** y **Comentarios** se escriben en la misma celda, como en Excel: tocás, escribís (Enter
+  es otra línea) y se guarda al salir de la celda o con Ctrl+Enter; Esc cancela. Queda guardado con tu
+  nombre y la hora.
 - Tocás una fila y se abre la orden completa a la derecha (en el celular, abajo), con las secciones 1 a 4,
   sin cambiar de pantalla.
 - Por defecto arriba van las que vencen antes (Fecha de caducidad más cercana) y al final las
@@ -42,7 +49,7 @@ nada todavía · En proceso (falta entregar o pagar) · Lista (paga y entregada)
 
 ## 2. Crear una OC o un PE (la plantilla)
 
-**Órdenes → Nueva OC** (o **Nuevo PE**). También desde un pedido de material: **Armar orden de compra**.
+**Órdenes → Nueva OC** (o **Nuevo PE**), arriba a la derecha. También desde un pedido de material: **Armar orden de compra**.
 Es tu bloque de la planilla, con las mismas etiquetas y en el mismo orden:
 
 ![Plantilla de la orden](compras/plantilla-oc.png)
@@ -64,7 +71,8 @@ Es tu bloque de la planilla, con las mismas etiquetas y en el mismo orden:
 
 Los botones de abajo:
 
-- **Guardar:** queda en **Órdenes** como borrador, sin número. La retomás cuando quieras.
+- **Guardar:** queda como borrador, sin número, en la fila **Borradores sin enviar** arriba de la planilla.
+  La retomás cuando quieras.
 - **Vista previa PDF:** el PDF con la marca BORRADOR.
 - **Enviar a aprobación:** le pone el número (OC-0417, o PE-0151: cada uno con su numeración), arma el PDF
   y le avisa al dueño con todos los datos escritos.
@@ -84,14 +92,15 @@ y Facturación y Orden de Pago solo si tienen datos.
 
 ![PDF de una orden](compras/pdf-oc.png)
 
-## 4. Órdenes (lo que antes era bajar en la hoja)
+## 4. Buscar una orden
 
-**Órdenes → Órdenes:** todas las OC y PE, con los borradores arriba y un buscador por número, proveedor,
-obra o material. Cada una se abre en la plantilla.
+En **Órdenes**, el buscador encuentra por número, proveedor, obra, material u observaciones, y los filtros
+(Tipo, Obra, Solicitado por, Proveedor, Estado, Fecha, Fecha de entrega) se combinan. Tocás una fila y la
+orden completa se abre a la derecha.
 
 ## 5. Importar tu tablero de Excel
 
-**Órdenes → Importar.** Opcional, para cargar tu historial cuando quieras:
+Por ahora lo hace el dueño (**Más → Compras → Importar Excel**). Opcional, para cargar tu historial:
 
 1. Elegís el .xlsx. El sistema busca la hoja del tablero y la fila con "N° OC / PE" y "SOLICITADO POR".
 2. Ves **todas** las filas: en rojo las que no se pueden importar (con el motivo), en amarillo las que
@@ -110,49 +119,50 @@ obra o material. Cada una se abre en la plantilla.
 
 ## 6. Exportar el tablero
 
-**Exportar a Excel** (arriba del tablero) baja un Excel con tus mismas columnas, en tu orden y con tus
-títulos, con los filtros que tengas puestos.
+**Exportar a Excel** (arriba a la derecha) baja un Excel como tu planilla: la franja de título, el
+encabezado gris, tus mismas columnas en tu orden y con tus títulos, los colores de cada estado y los "A
+CONFIRMAR" en amarillo, con los filtros que tengas puestos.
 
 ## 7. Filtros y vistas guardadas
 
-En el tablero, en Pedidos, en Órdenes y en Viajes tenés la misma barra: chips que se combinan (Obra,
-Solicitado por, Proveedor, Estado, fechas…), un buscador y el orden. En el celular están en el botón
+En Órdenes, en Pedidos, en Viajes y en Habilitados tenés la misma barra, en una sola fila: un buscador,
+chips que se combinan (Obra, Solicitado por, Proveedor, Estado, fechas…), el orden, **Limpiar** y **Vistas**.
+Si no entran todos, los que sobran quedan en el botón **Filtros (N)**. En el celular están en el botón
 **Filtros**.
 
 ![Pedidos con filtros](compras/cola-filtros.png)
 
 - **Vistas → Guardar los filtros de ahora como vista:** le ponés un nombre ("Pendientes de retiro",
   "Pinares") y la tenés a un toque siempre.
-- En **Pedidos**, la fecha de caducidad de hoy o vencida está en rojo y la de mañana en ámbar. A la derecha,
-  cuántos pidió cada uno: tocás un nombre y ves solo los suyos.
+- En **Pedidos**, la fecha de caducidad de hoy o vencida está en rojo y la de mañana en ámbar. En el filtro
+  **Arquitecto/a** ves cuántos pidió cada uno.
 
 ## 8. Coordinar un viaje para las arquitectas
 
 **Viajes → Coordinar viaje.** Primero "Para quién": la obra y el responsable. Después el formulario de
-siempre. El pedido sale a nombre de esa persona y vos quedás como quien lo coordinó: los avisos del viaje
+siempre. A la derecha, **Pedidos anteriores**: los viajes que coordinaste, para repetirlos. El pedido sale a nombre de esa persona y vos quedás como quien lo coordinó: los avisos del viaje
 les llegan a las dos y el chofer ve "Pidió Daniela · coordinó …". Para un retiro en un proveedor elegís
 "Retirar en un proveedor" y aparece lo que habilitaste para esa obra.
 
 ![Coordinar viaje](compras/coordinar-viaje.png)
 
-**Viajes → Solicitudes:** todos los viajes (pendientes, aceptados, en curso y lo entregado hoy), agrupados
-por lugar de retiro ("Corralón San Martín · 3 retiros"). Tocás un lugar y ves esos; tocás un nombre y ves
-todos los viajes que pidió esa persona, incluidos los viejos. En los pendientes podés **Editar** (fecha,
+**Viajes → Solicitudes:** todos los viajes (pendientes, aceptados, en curso y lo entregado hoy) en una tabla,
+con filtros de Obra, Lugar, Persona, Prioridad, Fecha, Estado y Chofer. Con el filtro de **Lugar**, quedan
+agrupados con una fila gris ("Corralón San Martín · 3 retiros"); tocás un lugar o un nombre de la tabla y ves
+esos (de una persona, también los viejos). En los pendientes podés **Editar** (fecha,
 prioridad, qué) o **Cancelar** con el motivo: les avisamos al que pidió y a los choferes.
 
 ![Solicitudes agrupadas por lugar](compras/solicitudes-por-lugar.png)
 
 ## 9. Numeración y "Solicitado por"
 
-**Más → Numeración y solicitantes:** ves el próximo número de OC y de PE (los cambia solo el dueño, y solo
-para arriba) y la lista de nombres que piden sin usuario (Romina, Hernán…), con alta y baja.
-
-![Numeración y solicitantes](compras/numeracion.png)
+La numeración de OC y PE la fija el dueño en su Configuración (solo para arriba). Los nombres que piden sin
+usuario (Romina, Hernán…) los agregás vos desde la misma orden: en **Solicitado por**, **+ otro nombre**.
 
 ## 10. El dólar
 
-Arriba a la derecha (en el celular, en el inicio): **Blue compra / venta · Oficial compra / venta · hora**.
-Tocalo para ver la hora de la última actualización y la fuente. Las órdenes en dólares guardan la venta
+Arriba a la derecha, en la píldora verde: **$ Blue 1.550 · Oficial 1.535** (venta). En tu inicio, la tarjeta
+**Dólar** con compra y venta del blue y del oficial y la hora. Tocalo para ver la fuente. Las órdenes en dólares guardan la venta
 del oficial del día.
 
 ## Lo que ve el dueño

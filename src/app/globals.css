@@ -140,6 +140,14 @@
     border-bottom: 1px solid var(--color-linea);
     vertical-align: middle;
   }
+  /* Tablas de las pantallas de Compras: filas de 56px; con anchos fijos, lo que no entra se corta con "…". */
+  .tabla-56 td {
+    height: 56px;
+  }
+  .tabla-56.table-fixed td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .tabla tbody tr:hover {
     background: var(--color-hover);
   }
@@ -236,6 +244,14 @@ main table {
   overflow-wrap: normal;
 }
 
+/* Alto del header de escritorio (48px; 64px en Compras). Todo lo que se pega debajo lo usa. */
+:root {
+  --alto-header: 48px;
+}
+.header-64 {
+  --alto-header: 64px;
+}
+
 /* Header de escritorio con la cotización del dólar: el título fijo de la página le deja su lugar. */
 .con-dolar {
   --derecha-titulo: 300px;
@@ -244,4 +260,30 @@ main table {
   .con-dolar {
     --derecha-titulo: 470px;
   }
+}
+
+/* Compras: navbar de 64px con la píldora del dólar de ancho fijo (el título fijo le deja exactamente ese
+   lugar: píldora + Actualizar + campana + avatar de 40px, separados 12px, y 24px al borde). */
+.header-compras {
+  --derecha-titulo: 300px;
+}
+@media (min-width: 1280px) {
+  .header-compras {
+    --derecha-titulo: 424px;
+  }
+}
+@media (min-width: 1024px) {
+  .header-compras .acciones-titulo :is(a, button) {
+    min-height: 40px;
+  }
+}
+
+/* Tablero de Compras (la planilla): sin hover de color; la fila se marca con un borde izquierdo de 2px negro. */
+.planilla .fila-planilla:hover > td:first-child,
+.planilla .fila-planilla.elegida > td:first-child {
+  box-shadow: inset 2px 0 0 var(--color-negro);
+}
+.planilla .fila-planilla:hover > td:first-child > span,
+.planilla .fila-planilla.elegida > td:first-child > span {
+  left: 2px;
 }

@@ -90,7 +90,7 @@ export function ImportarTablero() {
         {resumen.proveedoresNuevos.length > 0 && <p className="text-sm text-suave"><b className="font-medium text-tinta">Proveedores nuevos ({resumen.proveedoresNuevos.length}):</b> {resumen.proveedoresNuevos.join(", ")}. Quedaron sin sucursal: completá la dirección en Proveedores.</p>}
         {resumen.solicitantesNuevos.length > 0 && <p className="text-sm text-suave"><b className="font-medium text-tinta">Agregados a “Solicitado por” sin usuario:</b> {resumen.solicitantesNuevos.join(", ")}.</p>}
         {resumen.obrasSinEmparejar.length > 0 && <p className="text-sm text-suave"><b className="font-medium text-tinta">Obras que quedaron como texto:</b> {resumen.obrasSinEmparejar.join(", ")}.</p>}
-        <div className="flex flex-wrap gap-2"><BotonLink href="/compras/tablero">Ver el tablero</BotonLink><Boton variante="secundario" onClick={() => setResumen(null)}>Importar otro archivo</Boton></div>
+        <div className="flex flex-wrap gap-2"><BotonLink href="/compras/ordenes">Ver el tablero</BotonLink><Boton variante="secundario" onClick={() => setResumen(null)}>Importar otro archivo</Boton></div>
       </div>
     );
   }
@@ -206,7 +206,7 @@ export function ImportarTablero() {
         <p className="text-sm text-suave">{conError.length ? `${conError.length} filas con error no se importan (corregilas o excluilas).` : "Todas las filas se pueden importar."}</p>
         <Boton icono={<Upload />} cargando={importando} disabled={!validas.length || mapeo.tipo == null || mapeo.numero == null} onClick={importar} className="sm:ml-auto">Importar {validas.length} filas válidas</Boton>
       </div>
-      <p className="text-[12px] text-suave">Las órdenes importadas quedan en el tablero con fuente “importada del Excel”, sin PDF ni pedido de material. <Link href="/compras/tablero" className="underline">Volver al tablero</Link></p>
+      <p className="text-[12px] text-suave">Las órdenes importadas quedan en el tablero con fuente “importada del Excel”, sin PDF ni pedido de material. <Link href="/compras/ordenes" className="underline">Volver al tablero</Link></p>
     </div>
   );
 }

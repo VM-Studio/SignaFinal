@@ -161,10 +161,10 @@ export function FormularioOC({ d }: { d: FormularioOCDatos }) {
     setAdjFactura([]);
     if (enviar) {
       aviso({ mensaje: `${r.datos.numero} enviada a aprobación. Le llegó al dueño.` });
-      router.push(`/compras/tablero?ver=${r.datos.id}`);
+      router.push(`/compras/ordenes?ver=${r.datos.id}`);
     } else if (r.datos.reaprobacion) {
       aviso({ mensaje: "Guardada. Cambió algo de fondo: vuelve a aprobación con una versión nueva." });
-      router.push(`/compras/tablero?ver=${r.datos.id}`);
+      router.push(`/compras/ordenes?ver=${r.datos.id}`);
     } else {
       aviso({ mensaje: enviada ? "Cambios guardados." : "Guardada en Órdenes como borrador. La podés retomar cuando quieras." });
       if (!ocId) router.replace(`/compras/ordenes/${r.datos.id}`);

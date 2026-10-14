@@ -40,7 +40,7 @@ export function BloqueOC({ oc, completo }: { oc: OCPlana & { adjuntos: AdjuntoPl
         <div className="mt-3 flex flex-wrap gap-2">
           {oc.estado === "APROBADA" && <a href={`/api/oc/${oc.id}/pdf?aprobada=1`} target="_blank" rel="noopener" className={claseBoton("secundario", "chico")}><FileText /> PDF autorizado</a>}
           {oc.numero && <a href={`/api/oc/${oc.id}/pdf`} target="_blank" rel="noopener" className={claseBoton("secundario", "chico")}><FileText /> {oc.estado === "APROBADA" ? "PDF original" : "Ver PDF"}</a>}
-          <Link href={`/compras/tablero?ver=${oc.id}`} className={claseBoton("fantasma", "chico")}>Ver en el tablero</Link>
+          <Link href={`/compras/ordenes?ver=${oc.id}`} className={claseBoton("fantasma", "chico")}>Ver en el tablero</Link>
         </div>
       )}
       {completo && oc.adjuntos.length > 0 && <div className="mt-3"><ListaAdjuntos adjuntos={oc.adjuntos} /></div>}

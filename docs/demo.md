@@ -13,7 +13,8 @@ La app arranca **vacía**: no hay datos de demostración. Lo único fijo (los **
   solo por patente en el primer minuto y desde ahí el mapa muestra dónde está cada uno.
 - **Compras**: las cuatro razones sociales de la planilla de Compras (Signa Desarrollos, Darwin 1299,
   Álvarez Thomas, Remedios de Escalada 2329), los "Solicitado por" sin usuario (Romina, Hernán) y la
-  numeración de OC y PE en cero (el dueño fija el próximo número en *Más → Numeración y solicitantes*).
+  numeración de OC y PE en cero (el dueño fija el próximo número en *Más → Configuración → Numeración y
+  solicitantes*).
 - **El inventario de herramientas** (planilla "Inventario SIGNA", hoja Herramientas): 117 herramientas,
   1.108 unidades, **todas en el depósito**.
 
@@ -25,7 +26,7 @@ base** (con `MODO_DEMO=true`; borra todo lo cargado y no se puede deshacer).
 | Rol | Barra (celular) | En "Más" |
 |---|---|---|
 | Dirección | Aprobaciones · Pedidos · Avisos · Más | Mapa, Viajes en curso, Solicitudes, Flota, Costos, Actividad, Herramientas, Rastreo, Obras, Proveedores, Configuración |
-| Compras | Pedidos · Órdenes · Viajes · Más | Habilitados, Proveedores, Importar Excel, Numeración y solicitantes, Avisos |
+| Compras | Pedidos · Órdenes · Viajes · Más | Habilitados, Proveedores, Mis avisos, Cuenta (en escritorio, Inicio arriba de todo) |
 | Responsable / Capataz | Pedir · Mis pedidos · Viajes · Más | Herramientas, Obras, Pedir materiales, Avisos |
 | Chofer | Hoy · Solicitudes · Avisos · Más | Combustible |
 | Depósito | Buscar · Herramientas · Entregas · Más | Sobrantes, Alta masiva, Avisos |
@@ -65,7 +66,7 @@ datos reales cargados:
    de compra**: la plantilla de Compras (Detalle del Pedido → **Pasar a renglones**, o **Importar de la
    planilla**), Proveedor Final **Corralón San Martín** y su **sucursal**, Importe, Forma y Condición de
    Pago, **Vista previa PDF** → **Enviar a aprobación**: recibe el número **OC-000N**. La ve en
-   *Órdenes → Tablero* como **Pedir autorización** y anota los **Próximos pasos** en la misma tabla.
+   *Órdenes* (su planilla) como **PEDIR AUTORIZACIÓN** y anota los **Próximos pasos** en la misma celda.
 3. **El dueño** recibe el push (y el número en *Aprobaciones*) y ve la OC **con todos los datos escritos**
    (detalle, proveedor, importe, forma y condición de pago, lo que pidió la obra) y el PDF → **Aprobar**.
    En el tablero de Compras pasa a **Autorizada**. (Para probar el
@@ -87,8 +88,8 @@ datos reales cargados:
    botón **Iniciar** deshabilitado; **Pedir que lo adelanten** → el dueño lo **Reprograma** para hoy →
    Claudio recibe el aviso y los recordatorios.
 9. **Compras** → *Órdenes* → **Nuevo PE**: el pedido especial sale con su numeración aparte (PE-0001).
-   *Exportar a Excel* baja el tablero con las mismas columnas de su planilla. *Importar* carga su planilla
-   vieja con vista previa fila por fila.
+   *Exportar a Excel* baja el tablero con las mismas columnas y colores de su planilla. Su planilla vieja la
+   carga el dueño en *Más → Compras → Importar Excel*, con vista previa fila por fila.
 10. **Depósito**: buscar una herramienta (filtro Maquinaria / Herramientas) y entregarla a una obra. En
    *Sobrantes*, cargar lo que sobró de una obra.
 

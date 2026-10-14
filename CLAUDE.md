@@ -81,14 +81,18 @@ Reglas de visibilidad (se verifican en el servidor, en cada query y cada action)
 | Rol | Barra inferior (4 ítems) | En "Más" |
 |---|---|---|
 | DIRECCION | Aprobaciones · Pedidos · Avisos · Más | Mapa, Viajes en curso, Solicitudes, Flota, Costos, Actividad, Herramientas, Rastreo, Obras, Proveedores, Configuración |
-| COMPRAS | Pedidos · Órdenes · Viajes · Más | Tablero (si no está en Órdenes), Habilitados, Proveedores, Importar, Avisos, Cuenta |
+| COMPRAS | Pedidos · Órdenes · Viajes · Más | Habilitados, Proveedores, Mis avisos, Cuenta |
 | RESPONSABLE_OBRA / CAPATAZ | Pedir · Mis pedidos · Viajes · Más | Herramientas, Obras, Avisos, Cuenta |
 | CHOFER | Hoy · Solicitudes · Avisos · Más | Combustible, Cuenta |
 | DEPOSITO | Escanear · Herramientas · Entregas · Más | Avisos, Cuenta |
 | ADMINISTRACION | Flota · Costos · Alertas · Más | Obras, Proveedores, Razones sociales, Avisos, Cuenta |
 
-- Todo en src/lib/navegacion.ts (NAV). Para COMPRAS, "Órdenes" abre el Tablero (pestañas Tablero · Órdenes ·
-  Importar), "Pedidos" es la cola de pedidos de materiales y "Viajes" son Coordinar viaje · Solicitudes.
+- Todo en src/lib/navegacion.ts (NAV). Para COMPRAS, "Órdenes" ES el tablero (/compras/ordenes, sin pestañas;
+  /compras/tablero queda para Administración, en solo lectura, y lleva a Órdenes a los demás), "Pedidos" es la
+  cola de pedidos de materiales (pedir materiales es su botón "Nuevo pedido") y "Viajes" son Coordinar viaje ·
+  Solicitudes. En escritorio su barra lateral empieza por Inicio (NAV.lateral). Importar Excel y "Numeración y
+  solicitantes" no están en su navegación: el dueño los tiene en Más (Compras · Configuración); los "Solicitado
+  por" sin usuario se agregan con "+ otro nombre".
   "Pedidos" del dueño es la vista global de pedidos de materiales (/compras).
 - DEPOSITO: "Escanear" se muestra como **Buscar** (abre el depósito con el buscador enfocado): no hay escaneo
   ni etiquetas QR, las herramientas se buscan por nombre.
@@ -98,10 +102,17 @@ Reglas de visibilidad (se verifican en el servidor, en cada query y cada action)
 - "Más" es una grilla de tarjetas (dos columnas en celular) con ícono, nombre y contador; Mi cuenta y
   Cerrar sesión al pie. Cuenta y cerrar sesión también en el avatar del header.
 - Escritorio (1024px+): barra lateral negra de 232px con los mismos tres arriba y el resto en "Más", plegado.
+- COMPRAS (rediseño visual): navbar de 64px (--alto-header, .header-64 / .header-compras en globals.css) con
+  las acciones de la página (40px), la píldora verde del dólar ("$ Blue 1.550 · Oficial 1.535"), Actualizar,
+  campana y avatar a 12px; sin frases debajo de los títulos; pestañas como barra de segmentos con contador
+  (Segmentos); tablas a todo el ancho con filas de 56px (.tabla-56); estados vacíos a todo el alto
+  (PaginaCompleta + <Vacio llenar>). Capturas antes/después: npx tsx scripts/capturas.ts compras-<etiqueta>.
 - Ninguna ruta de la matriz queda sin enlace: scripts/verificar-navegacion.ts (y su test).
 - Inicios: DIRECCION, órdenes que esperan aprobación, viajes de hoy, alertas críticas y el mapa como
   tarjeta chica. COMPRAS, pedidos nuevos, esperando aprobación, listos sin retirar +3 días y el dólar.
   Obra, "Pedir", listo para retirar (con Pedir el viaje), en camino hoy y esperando a Compras.
+  El de COMPRAS es una grilla de 12: "Pedidos nuevos" a lo ancho; Esperando aprobación · Encargado · Listos sin
+  retirar +3 días (4 + 4 + 4); Demorados (8) y el dólar (4). Saluda con el nombre real ("Hola, Alejandra").
 
 ## Ciclo de un viaje (la lógica más importante de la app)
 
@@ -274,6 +285,15 @@ usa SU vocabulario y SUS campos; esta sección manda sobre lo que diga otra cosa
   (pedido especial, PE-NNNN). Formato en src/lib/compras/numerar.ts (FORMATO_NUMERO). NumeradorOC es
   (tipo, ultimo); el próximo número se fija en /configuracion/compras, solo DIRECCION y solo hacia
   arriba. Las OC-AAAA-NNNN de antes conservan su número.
+- EL TABLERO CALCADO DE SU PLANILLA (components/compras/tablero.tsx, pagina-tablero.tsx): franja rosa "Planilla
+  de control COMPRAS - Alejandra", tarjetas-filtro Todas · Pedir autorización · Encargado · Entregado este mes
+  (entregado=mes) con la leyenda de colores al lado, encabezado gris #D9D9D9 fijo, grilla completa, columna Nº con
+  el código de su leyenda (0 pedir autorización/autorizada, 1 solicitud presupuesto, 2 encargado, 3 entregado),
+  ESTADO como lista pintada del color del estado (PLANILLA_TABLERO en estadoTablero.ts, también en la
+  exportación), "A confirmar" y fechas raras en amarillo, fechas d/M/yyyy, texto completo con saltos de línea,
+  Próximos pasos y Comentarios editables en la celda (sale de la celda o Ctrl+Enter guarda, Esc cancela). Un
+  estado puesto a mano que no es el del circuito queda anotado en Comentarios "(ajustado a mano por Alejandra el
+  14/10)". Los borradores (sin número, fuera de la planilla) se retoman desde la fila "Borradores sin enviar".
 - Estados del tablero (columna ESTADO, EstadoTablero): Pedir autorización · Autorizada · Solicitud de
   presupuesto · Encargado · Entregado · Anulada. Se derivan del estado real (función única
   src/lib/compras/estadoTablero.ts, con tests: enviada → Pedir autorización; aprobada → Autorizada;
@@ -304,16 +324,19 @@ usa SU vocabulario y SUS campos; esta sección manda sobre lo que diga otra cosa
   buscador, orden y vistas guardadas por usuario (VistaGuardada: usuarioId, pantalla, nombre,
   parametros). Todo vive en la URL (se arma en el servidor). En celular los chips colapsan en "Filtros (N)"
   y una hoja inferior. La usan el tablero, la cola de Compras, Solicitudes y Órdenes.
-- Cola de pedidos de material (/compras, también la vista global del dueño): pestañas por paso + Obra,
-  Arquitecto/a, Prioridad, Estado (manda sobre la pestaña), Con adjuntos y buscador; orden por fecha de
-  caducidad (paraCuando). Caducidad hoy o vencida en rojo, mañana en ámbar. Panel "Por quién pidió".
+- La barra va en UNA fila en escritorio (buscador de 320px, chips, orden, Limpiar, Vistas): los chips que no
+  entran pasan a un botón "Filtros (N)".
+- Cola de pedidos de material (/compras, también la vista global del dueño): pestañas por paso (segmentos con
+  contador) + Obra, Arquitecto/a (con cuántos pidió cada uno), Prioridad, Estado (manda sobre la pestaña), Con
+  adjuntos y buscador; orden por fecha de caducidad (paraCuando). Caducidad hoy o vencida en rojo, mañana en ámbar.
 - COMPRAS coordina viajes (/compras/viajes): "Para quién" (obra y responsable) y el formulario de pedir
-  viaje; el pedido sale a nombre de esa persona con PedidoViaje.coordinadoPorId = Compras. Los avisos
+  viaje (2/3, con "Pedidos anteriores" a la derecha: los que coordinó, para repetirlos); el pedido sale a nombre de esa persona con PedidoViaje.coordinadoPorId = Compras. Los avisos
   del viaje les llegan a los dos (eventos.ts, pide()); el chofer ve "Pidió Daniela · coordinó …". Compras
   ve TODAS las solicitudes (pedidosVisibles) pero no acepta ni inicia viajes (permiso pedidos.coordinar).
 - Solicitudes con filtros (src/lib/pedidos/solicitudes.ts, VistaSolicitudes): Compras en
-  /compras/viajes/solicitudes y Dirección en /solicitudes. Obra · Lugar de retiro (agrupado: "Corralón San
-  Martín · 3 retiros") · Pidió (con su historia, paginado) · Prioridad · Estado · Chofer; Editar (fecha,
+  /compras/viajes/solicitudes (agrupada: tabla a todo el ancho, con filtro de Fecha, y con el filtro de lugar las
+  filas se agrupan con la fila gris "Corralón San Martín · 3 retiros") y Dirección en /solicitudes (con la columna
+  de lugares). Obra · Lugar de retiro · Pidió/Persona (con su historia, paginado) · Prioridad · Estado · Chofer; Editar (fecha,
   prioridad, qué) y Cancelar las pendientes, con aviso al que pidió y a los choferes.
 
 ## Órdenes de compra, proveedores y viajes con paradas

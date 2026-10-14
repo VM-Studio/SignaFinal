@@ -11,7 +11,7 @@ export type ItemLateral = { id: string; href: string; titulo: ReactNode; detalle
  */
 export function ListaDetalle({ titulo, verTodo, items, activo, children }: { titulo: string; verTodo: string; items: ItemLateral[]; activo: string; children: ReactNode }) {
   return (
-    <div className="lg:-m-6 lg:grid lg:h-[calc(100dvh-48px)] lg:grid-cols-[minmax(0,1fr)_480px]">
+    <div className="lg:-m-6 lg:grid lg:h-[calc(100dvh-var(--alto-header))] lg:grid-cols-[minmax(0,1fr)_480px]">
       <aside className="@container hidden lg:flex lg:min-h-0 lg:min-w-0 lg:flex-col lg:border-r lg:border-linea lg:bg-papel">
         <div className="flex h-11 shrink-0 items-center justify-between gap-2 border-b border-linea px-6">
           <p className="etiqueta">{titulo}</p>

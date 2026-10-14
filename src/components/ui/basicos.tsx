@@ -34,10 +34,10 @@ export function Tarjeta({ children, className = "" }: { children: ReactNode; cla
  */
 export function Titulo({ children, detalle, accion, siempre = false }: { children: ReactNode; detalle?: ReactNode; accion?: ReactNode; siempre?: boolean }) {
   return (
-    <div className={siempre ? "mb-4 lg:mb-6" : detalle ? "hidden lg:mb-6 lg:block" : ""}>
-      <div className={`${siempre ? "flex" : "hidden"} flex-wrap items-center justify-between gap-3 lg:fixed lg:top-0 lg:right-[var(--derecha-titulo,104px)] lg:left-[232px] lg:z-[25] lg:flex lg:h-[47px] lg:flex-nowrap lg:bg-papel lg:pl-6`}>
+    <div className={siempre ? "mb-4 lg:mb-6 [.header-compras_&]:lg:mb-0" : detalle ? "hidden lg:mb-6 lg:block" : ""}>
+      <div className={`${siempre ? "flex" : "hidden"} flex-wrap items-center justify-between gap-3 lg:fixed lg:top-0 lg:right-[var(--derecha-titulo,104px)] lg:left-[232px] lg:z-[25] lg:flex lg:h-[calc(var(--alto-header)-1px)] lg:flex-nowrap lg:bg-papel lg:pl-6`}>
         <h1 className="min-w-0 truncate text-xl font-semibold lg:text-[22px] lg:leading-7">{children}</h1>
-        {accion && <div className="flex max-w-full min-w-0 flex-wrap items-center gap-2 lg:shrink-0 lg:flex-nowrap">{accion}</div>}
+        {accion && <div className="acciones-titulo flex max-w-full min-w-0 flex-wrap items-center gap-2 lg:shrink-0 lg:flex-nowrap [.header-compras_&]:gap-3">{accion}</div>}
       </div>
       {detalle && <p className="mt-1 text-sm text-suave lg:mt-0">{detalle}</p>}
     </div>
@@ -75,14 +75,44 @@ export function Lista({ children }: { children: ReactNode }) {
   return <ul className="-mx-4 divide-y divide-linea border-y border-linea bg-papel lg:mx-0 lg:overflow-hidden lg:rounded-[var(--radius-caja)] lg:border">{children}</ul>;
 }
 
-export function Vacio({ icono, titulo, children, accion }: { icono?: ReactNode; titulo: string; children?: ReactNode; accion?: ReactNode }) {
+/**
+ * Estado vacío. Con `llenar` ocupa todo el alto que queda de la hoja (dentro de <PaginaCompleta>), con el
+ * contenido centrado en los dos sentidos.
+ */
+export function Vacio({ icono, titulo, children, accion, llenar = false }: { icono?: ReactNode; titulo: string; children?: ReactNode; accion?: ReactNode; llenar?: boolean }) {
   return (
-    <div className="flex flex-col items-center gap-1 rounded-[var(--radius-caja)] border border-linea bg-papel px-6 py-10 text-center [&_svg]:size-6">
+    <div className={`flex flex-col items-center gap-1 rounded-[var(--radius-caja)] border border-linea bg-papel px-6 py-10 text-center [&_svg]:size-6 ${llenar ? "min-h-64 flex-1 justify-center" : ""}`}>
       {icono && <div className="mb-2 text-apagado">{icono}</div>}
       <p className="font-medium">{titulo}</p>
       {children && <div className="max-w-sm text-sm text-suave">{children}</div>}
       {accion && <div className="mt-4">{accion}</div>}
     </div>
+  );
+}
+
+/**
+ * Página que llega hasta el final de la hoja (alto de la pantalla menos el header y los márgenes): lo que
+ * tiene `flex-1` adentro (un <Vacio llenar>) estira hasta abajo.
+ */
+export function PaginaCompleta({ children }: { children: ReactNode }) {
+  return <div className="flex min-h-[calc(100dvh-148px-env(safe-area-inset-top)-env(safe-area-inset-bottom))] min-w-0 flex-col lg:min-h-[calc(100dvh-var(--alto-header)-48px)]">{children}</div>;
+}
+
+/**
+ * Pestañas como barra de segmentos a todo el ancho (38px), cada una con su contador. El estado queda en la
+ * URL. En el celular se corren de costado si no entran.
+ */
+export function Segmentos({ items }: { items: { href: string; etiqueta: string; cantidad?: number; activa: boolean }[] }) {
+  return (
+    <nav className="-mx-4 mb-4 flex shrink-0 overflow-x-auto border-y border-linea bg-fondo lg:mx-0 lg:overflow-hidden lg:mb-6 lg:rounded-[var(--radius-caja)] lg:border">
+      {items.map((i, k) => (
+        <Link key={i.href} href={i.href} scroll={false} aria-current={i.activa ? "page" : undefined}
+          className={`flex h-[38px] min-w-fit flex-1 items-center justify-center gap-2 px-4 text-[13px] font-medium whitespace-nowrap ${k ? "border-l border-linea" : ""} ${i.activa ? "bg-papel text-tinta shadow-[inset_0_-2px_0_var(--color-negro)]" : "bg-fondo text-suave hover:bg-hover hover:text-tinta"}`}>
+          {i.etiqueta}
+          {i.cantidad != null && <span className={`min-w-5 rounded-full px-1.5 text-center text-[11px] leading-5 tabular-nums ${i.activa ? "bg-negro text-white" : "bg-black/[0.05] text-suave"}`}>{i.cantidad}</span>}
+        </Link>
+      ))}
+    </nav>
   );
 }
 

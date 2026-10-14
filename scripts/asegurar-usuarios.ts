@@ -32,7 +32,7 @@ const USUARIOS: { nombre: string; email: string; rol: Rol; telefono?: string }[]
   { nombre: "David", email: "david", rol: "CHOFER", telefono: "11 5000-1008" },
   { nombre: "Encargado de depósito", email: "deposito", rol: "DEPOSITO" },
   { nombre: "Administración", email: "administracion", rol: "ADMINISTRACION" },
-  { nombre: "Compras", email: "compras", rol: "COMPRAS", telefono: "11 5000-1010" },
+  { nombre: "Alejandra", email: "compras", rol: "COMPRAS", telefono: "11 5000-1010" },
 ];
 
 async function main() {

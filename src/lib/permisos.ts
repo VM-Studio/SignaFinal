@@ -94,7 +94,8 @@ const ADMINISTRACION: Entrada = {
 
 // Compras: la cola de pedidos de material, lo habilitado para retirar y los proveedores.
 const COMPRAS: Entrada = {
-  rutas: ["/inicio", "/compras", "/compras/**", "/habilitados", "/proveedores", "/proveedores/[id]", "/pedir-materiales", "/configuracion/compras", "/solicitudes/[id]", "/avisos", "/cuenta"],
+  // Pedir materiales es "Nuevo pedido" dentro de /compras; la numeración vive en la Configuración del dueño.
+  rutas: ["/inicio", "/compras", "/compras/**", "/habilitados", "/proveedores", "/proveedores/[id]", "/solicitudes/[id]", "/avisos", "/cuenta"],
   acciones: ["materiales.gestionar", "materiales.pedir", "proveedores.ver", "proveedores.cargar", "obras.ver", "obras.cargar", "alertas.ver", "avisos.ver", "dolar.ver", "pedidos.ver", "pedidos.coordinar", "viajes.verTodos"],
 };
 

@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { exigirSesion } from "@/lib/auth/sesion";
 import { puede } from "@/lib/permisos";
 import { conAlcance } from "@/lib/alcance";
-import { finDelDia, inicioDelDia } from "@/lib/formato";
+import { aFecha, finDelDia, inicioDelDia } from "@/lib/formato";
 
 /**
  * SOLICITUDES CON FILTROS (Compras → Viajes → Solicitudes y Dirección → Solicitudes): todas las
@@ -15,8 +15,13 @@ import { finDelDia, inicioDelDia } from "@/lib/formato";
 export const POR_PAGINA = 50;
 const ESTADOS: EstadoPedido[] = ["PENDIENTE", "TOMADO", "EN_VIAJE", "ENTREGADO", "CANCELADO"];
 
-export type FiltrosSolicitudes = { obra: string[]; lugar: string[]; pidio: string[]; prioridad: Prioridad[]; estado: EstadoPedido[]; chofer: string[]; q?: string; orden: string; pagina: number };
+export type FiltrosSolicitudes = {
+  obra: string[]; lugar: string[]; pidio: string[]; prioridad: Prioridad[]; estado: EstadoPedido[]; chofer: string[]; q?: string; orden: string; pagina: number;
+  /** Fecha necesaria (paraCuando), día argentino. */
+  desde?: string; hasta?: string;
+};
 
+const DIA = /^\d{4}-\d{2}-\d{2}$/;
 const lista = (v: unknown) => (typeof v === "string" && v ? v.split(",").filter(Boolean).slice(0, 50) : []);
 export function leerFiltrosSolicitudes(sp: Record<string, string | string[] | undefined>): FiltrosSolicitudes {
   return {
@@ -24,6 +29,8 @@ export function leerFiltrosSolicitudes(sp: Record<string, string | string[] | un
     prioridad: lista(sp.prioridad).filter((p): p is Prioridad => p === "URGENTE" || p === "NORMAL"),
     estado: lista(sp.estado).filter((e): e is EstadoPedido => (ESTADOS as string[]).includes(e)),
     q: typeof sp.q === "string" ? sp.q.trim().slice(0, 100) || undefined : undefined,
+    desde: typeof sp.desde === "string" && DIA.test(sp.desde) ? sp.desde : undefined,
+    hasta: typeof sp.hasta === "string" && DIA.test(sp.hasta) ? sp.hasta : undefined,
     orden: typeof sp.orden === "string" ? sp.orden : "fecha",
     pagina: Math.max(1, Number(sp.pagina) || 1),
   };
@@ -31,7 +38,7 @@ export function leerFiltrosSolicitudes(sp: Record<string, string | string[] | un
 
 /** Sin filtro de persona ni de estado terminado: lo vivo (pendiente, aceptado, en curso) y lo entregado hoy. */
 function alcanceTemporal(f: FiltrosSolicitudes): Prisma.PedidoViajeWhereInput {
-  const historia = f.pidio.length > 0 || f.estado.some((e) => e === "ENTREGADO" || e === "CANCELADO");
+  const historia = f.pidio.length > 0 || f.estado.some((e) => e === "ENTREGADO" || e === "CANCELADO") || !!(f.desde || f.hasta);
   if (historia) return f.estado.length ? { estado: { in: f.estado } } : {};
   const vivos: Prisma.PedidoViajeWhereInput = { OR: [{ estado: { in: ["PENDIENTE", "TOMADO", "EN_VIAJE"] } }, { estado: "ENTREGADO", actualizadoEn: { gte: inicioDelDia(), lte: finDelDia() } }] };
   return f.estado.length ? { AND: [vivos, { estado: { in: f.estado } }] } : vivos;
@@ -44,6 +51,7 @@ export function whereSolicitudes(f: FiltrosSolicitudes, sin: "lugar" | "pidio" |
   if (f.pidio.length && sin !== "pidio") y.push({ solicitanteId: { in: f.pidio } });
   if (f.prioridad.length) y.push({ prioridad: { in: f.prioridad } });
   if (f.chofer.length) y.push({ tomadoPorId: { in: f.chofer } });
+  if (f.desde || f.hasta) y.push({ paraCuando: { ...(f.desde ? { gte: aFecha(f.desde) } : {}), ...(f.hasta ? { lte: aFecha(f.hasta, "23:59") } : {}) } });
   if (f.q) y.push({ OR: [{ descripcion: { contains: f.q, mode: "insensitive" } }, { origenNombre: { contains: f.q, mode: "insensitive" } }, { destinoNombre: { contains: f.q, mode: "insensitive" } }] });
   return { AND: y };
 }
@@ -77,7 +85,7 @@ export async function solicitudesFiltradas(f: FiltrosSolicitudes) {
 /** Opciones de los chips y los grupos: "Corralón San Martín · 3 retiros", "Daniela 6". */
 export async function opcionesSolicitudes(f: FiltrosSolicitudes) {
   const u = await exigirSesion();
-  const vivos = conAlcance(u, whereSolicitudes({ ...f, obra: [], lugar: [], pidio: [], prioridad: [], chofer: [], estado: [], q: undefined }));
+  const vivos = conAlcance(u, whereSolicitudes({ ...f, obra: [], lugar: [], pidio: [], prioridad: [], chofer: [], estado: [], q: undefined, desde: undefined, hasta: undefined }));
   const [porLugar, porObra, porPersona, porChofer, porEstado, lugaresFiltrados, obras, usuarios] = await Promise.all([
     db.pedidoViaje.groupBy({ by: ["origenNombre"], where: vivos, _count: true }),
     db.pedidoViaje.groupBy({ by: ["obraId"], where: vivos, _count: true }),

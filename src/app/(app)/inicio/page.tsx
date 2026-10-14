@@ -23,6 +23,7 @@ import { AccionPrincipal, Cifra, Esqueleto, FilaLista, Insignia, Lista, Llamado,
 import { DOCUMENTO } from "@/lib/etiquetas";
 import { cuando, fecha, finDelDia, plata, vencimiento } from "@/lib/formato";
 import { cuantasParaAprobar, esperandoACompras, listosEnMisObrasDetalle, resumenCompras } from "@/lib/materiales/consultas";
+import { contadoresTablero, leerFiltros } from "@/lib/compras/tablero";
 import { ColaMateriales, MisMateriales } from "@/components/materiales/lista-materiales";
 import { Map as MapIcon, ShoppingCart, Stamp } from "lucide-react";
 
@@ -33,9 +34,9 @@ export default async function Inicio() {
   const u = await exigirSesion();
   return (
     <div>
-      <Titulo siempre>Hola, {u.nombre}</Titulo>
-      {/* Celular: la cotización del dólar arriba (en escritorio está en el header). */}
-      {puede(u.rol, "dolar.ver") && <div className="mb-3 lg:hidden"><CotizacionDolar variante="tarjeta" /></div>}
+      <Titulo siempre>Hola, {u.rol === "COMPRAS" ? u.nombre.split(" ")[0] : u.nombre}</Titulo>
+      {/* Celular: la cotización del dólar arriba (en escritorio está en el header; Compras la tiene en su grilla). */}
+      {puede(u.rol, "dolar.ver") && u.rol !== "COMPRAS" && <div className="mb-3 lg:hidden"><CotizacionDolar variante="tarjeta" /></div>}
       {/* El saludo sale al instante; cada bloque llega cuando está listo. */}
       <Suspense fallback={<EsqueletoLista filas={4} />}>
         {u.rol === "CHOFER" && <InicioChofer />}
@@ -257,22 +258,51 @@ async function CifrasDireccion() {
 
 // ───────────────────────────── Compras ─────────────────────────────
 
-async function InicioCompras() {
-  const r = await resumenCompras();
+/** Tarjeta-cifra del inicio de Compras: etiqueta de 11px arriba, número de 32px abajo (todas a la misma línea). */
+function CifraCompras({ href, etiqueta, valor, rojo = false }: { href: string; etiqueta: string; valor: number; rojo?: boolean }) {
   return (
-    <div className="grid gap-x-6 lg:grid-cols-2 [&>section]:min-w-0">
-      <section>
-        <AccionPrincipal href="/compras" icono={<ShoppingCart />} titulo={r.nuevos.length ? `${r.nuevos.length} ${r.nuevos.length === 1 ? "pedido nuevo" : "pedidos nuevos"}` : "Pedidos nuevos"} detalle={r.nuevos.length ? "Tomalos, armá la OC y mandala a aprobación." : "No hay pedidos nuevos sin tomar."} boton="Ver pedidos nuevos" />
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <Link href="/compras/tablero?estado=PEDIR_AUTORIZACION"><Cifra etiqueta="Esperando aprobación" valor={r.esperando} tono={r.esperando ? "aviso" : undefined} /></Link>
-          <Link href="/habilitados"><Cifra etiqueta="Listos sin retirar hace más de 3 días" valor={r.sinRetirar} tono={r.sinRetirar ? "critico" : "ok"} /></Link>
+    <Link href={href} className="flex h-full min-h-24 flex-col justify-between gap-4 rounded-[var(--radius-caja)] border border-linea bg-papel p-4 hover:border-linea-fuerte lg:col-span-4">
+      <span className="etiqueta">{etiqueta}</span>
+      <span className={`text-[32px] leading-9 font-semibold tabular-nums ${rojo ? "text-critico" : ""}`}>{valor}</span>
+    </Link>
+  );
+}
+
+/**
+ * Inicio de Compras: grilla de 12 con gutter de 24. Pedidos nuevos a lo ancho (la acción principal); tres
+ * cifras iguales (esperando aprobación, encargado, listos sin retirar +3 días); Demorados (8) y el dólar (4).
+ */
+async function InicioCompras() {
+  const [r, cont] = await Promise.all([resumenCompras(), contadoresTablero(leerFiltros({}))]);
+  const nuevos = r.nuevos.length;
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-6">
+      <section className="flex min-h-24 flex-col gap-4 rounded-[var(--radius-caja)] border border-linea bg-papel p-4 sm:flex-row sm:items-center lg:col-span-12 lg:h-24 lg:px-6 lg:py-0">
+        <span className="text-[32px] leading-9 font-semibold tabular-nums">{nuevos}</span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[15px] font-semibold">{nuevos === 1 ? "Pedido nuevo" : "Pedidos nuevos"}</p>
+          <p className="text-sm text-suave">{nuevos ? "Tomalos, armá la OC y mandala a aprobación." : "No hay pedidos nuevos sin tomar."}</p>
         </div>
-        <div className="mt-3 hidden lg:block"><CotizacionDolar variante="tarjeta" /></div>
+        <BotonLink href="/compras" icono={<ShoppingCart />}>Ver pedidos nuevos</BotonLink>
       </section>
-      <section>
-        <Subtitulo accion={<Link href="/compras" className="text-sm font-medium underline">Ver la cola</Link>}>Demorados</Subtitulo>
-        {r.demorados.length === 0 ? <Vacio titulo="Nada demorado">Todo está dentro de los tiempos.</Vacio> : <ColaMateriales filas={r.demorados.slice(0, 6)} compacta />}
+      <CifraCompras href="/compras/ordenes?estado=PEDIR_AUTORIZACION" etiqueta="Esperando aprobación" valor={cont.pedir} />
+      <CifraCompras href="/compras/ordenes?estado=ENCARGADO" etiqueta="Encargado" valor={cont.encargado} />
+      <CifraCompras href="/habilitados" etiqueta="Listos sin retirar hace más de 3 días" valor={r.sinRetirar} rojo={r.sinRetirar > 0} />
+      <section className="flex min-h-64 min-w-0 flex-col overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel lg:col-span-8">
+        <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-linea px-4">
+          <h2 className="etiqueta">Demorados{r.demorados.length ? ` (${r.demorados.length})` : ""}</h2>
+          <Link href="/compras" className="text-[13px] font-medium text-suave hover:text-tinta">Ver la cola</Link>
+        </div>
+        {r.demorados.length === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-1 p-6 text-center">
+            <p className="font-medium">Nada demorado</p>
+            <p className="text-sm text-suave">Todo está dentro de los tiempos.</p>
+          </div>
+        ) : (
+          <ColaMateriales filas={r.demorados.slice(0, 6)} compacta sinMarco />
+        )}
       </section>
+      <div className="min-w-0 lg:col-span-4"><CotizacionDolar variante="panel" /></div>
     </div>
   );
 }

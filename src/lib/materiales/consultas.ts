@@ -214,11 +214,19 @@ export async function proveedoresParaHabilitar() {
 }
 
 /** Habilitados por estado, con hace cuánto (Compras ve lo que quedó colgado del lado de la obra). */
-export async function habilitados(estado: EstadoMaterialListo, limite: number) {
+/** Filtros de Habilitados (barra de filtros): obra, proveedor y buscador (qué se retira, OC). */
+export type FiltrosHabilitados = { obra: string[]; prov: string[]; q?: string };
+
+export async function habilitados(estado: EstadoMaterialListo, limite: number, f: FiltrosHabilitados = { obra: [], prov: [] }) {
   await exigirPermiso("materiales.gestionar");
-  const [filas, conteos] = await Promise.all([
+  const filtro: Prisma.MaterialListoWhereInput = {
+    ...(f.obra.length ? { obraId: { in: f.obra } } : {}),
+    ...(f.prov.length ? { proveedorId: { in: f.prov } } : {}),
+    ...(f.q ? { OR: [{ descripcion: { contains: f.q, mode: "insensitive" } }, { ordenCompraNumero: { contains: f.q, mode: "insensitive" } }] } : {}),
+  };
+  const [filas, conteos, obras, provs] = await Promise.all([
     db.materialListo.findMany({
-      where: { estado },
+      where: { estado, ...filtro },
       orderBy: estado === "ENTREGADO" ? { entregadoEn: "desc" } : { habilitadoEn: "asc" },
       take: limite + 1,
       include: {
@@ -227,9 +235,21 @@ export async function habilitados(estado: EstadoMaterialListo, limite: number) {
         pedidoViaje: { select: { numero: true, tomadoPor: { select: { nombre: true } }, viaje: { select: { etaDestino: true } } } },
       },
     }),
-    db.materialListo.groupBy({ by: ["estado"], _count: true }),
+    db.materialListo.groupBy({ by: ["estado"], where: filtro, _count: true }),
+    db.materialListo.groupBy({ by: ["obraId"], where: { estado }, _count: true }),
+    db.materialListo.groupBy({ by: ["proveedorId"], where: { estado }, _count: true }),
   ]);
-  return { filas: filas.slice(0, limite), hayMas: filas.length > limite, cuantos: Object.fromEntries(conteos.map((c) => [c.estado, c._count])) as Partial<Record<EstadoMaterialListo, number>> };
+  const [nombresObra, nombresProv] = await Promise.all([
+    db.obra.findMany({ where: { id: { in: obras.map((o) => o.obraId) } }, select: { id: true, nombre: true } }),
+    db.proveedor.findMany({ where: { id: { in: provs.map((p) => p.proveedorId) } }, select: { id: true, nombre: true } }),
+  ]);
+  const opcion = (xs: { id: string; nombre: string }[], id: string, n: number) => ({ valor: id, etiqueta: xs.find((x) => x.id === id)?.nombre ?? "—", cantidad: n });
+  return {
+    filas: filas.slice(0, limite), hayMas: filas.length > limite,
+    cuantos: Object.fromEntries(conteos.map((c) => [c.estado, c._count])) as Partial<Record<EstadoMaterialListo, number>>,
+    obras: obras.map((o) => opcion(nombresObra, o.obraId, o._count)).sort((a, b) => a.etiqueta.localeCompare(b.etiqueta, "es")),
+    proveedores: provs.map((p) => opcion(nombresProv, p.proveedorId, p._count)).sort((a, b) => a.etiqueta.localeCompare(b.etiqueta, "es")),
+  };
 }
 
 /** Aprobaciones del dueño. */

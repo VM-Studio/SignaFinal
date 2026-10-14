@@ -23,12 +23,11 @@ export const SECCIONES = {
   // Compras
   compras: { href: "/compras", titulo: "Pedidos de material", corto: "Pedidos", icono: "compras", contador: "pedidosNuevos" },
   pedidosMaterial: { href: "/compras", titulo: "Pedidos de material", corto: "Pedidos", icono: "compras" },
-  tablero: { href: "/compras/tablero", titulo: "Órdenes", icono: "tablero" },
+  tablero: { href: "/compras/ordenes", titulo: "Órdenes", icono: "tablero" },
   tableroLectura: { href: "/compras/tablero", titulo: "Tablero de Compras", icono: "tablero" },
   viajesCompras: { href: "/compras/viajes", titulo: "Viajes", icono: "viajes" },
   importarExcel: { href: "/compras/importar", titulo: "Importar Excel", icono: "importar" },
   habilitados: { href: "/habilitados", titulo: "Habilitados", icono: "habilitados" },
-  ordenes: { href: "/compras/ordenes", titulo: "Órdenes de compra", icono: "aprobaciones" },
   aprobaciones: { href: "/aprobaciones", titulo: "Aprobaciones", icono: "aprobaciones", contador: "aprobaciones" },
   // Chofer
   hoy: { href: "/hoy", titulo: "Hoy", icono: "hoy" },
@@ -66,11 +65,14 @@ export const SECCIONES = {
   avisos: { href: "/avisos", titulo: "Avisos", icono: "avisos", contador: "avisos" },
   misAvisos: { href: "/avisos", titulo: "Mis avisos", icono: "avisos", contador: "avisos" },
   cuenta: { href: "/cuenta", titulo: "Mi cuenta", icono: "cuenta" },
+  cuentaCorta: { href: "/cuenta", titulo: "Cuenta", icono: "cuenta" },
 } as const satisfies Record<string, Seccion>;
 
 type Clave = keyof typeof SECCIONES;
 
 type GrupoClaves = { titulo: string | null; claves: Clave[] };
+/** `lateral`: los de arriba de la barra lateral del escritorio, si no son los mismos de la barra del celular. */
+type NavRol = { barra: Clave[]; lateral?: Clave[]; mas: GrupoClaves[] };
 
 /**
  * Navegación de cada rol (CLAUDE.md, "Navegación"): lo más usado adelante. Barra inferior del
@@ -78,12 +80,12 @@ type GrupoClaves = { titulo: string | null; claves: Clave[] };
  * lateral con los mismos 3 arriba y el resto en un grupo "Más" plegado. Cada ruta que el rol tiene en la
  * matriz de permisos tiene al menos un enlace acá (lo verifica scripts/verificar-navegacion.ts).
  */
-const NAV: Record<Rol, { barra: Clave[]; mas: GrupoClaves[] }> = {
+const NAV: Record<Rol, NavRol> = {
   DIRECCION: {
     barra: ["aprobaciones", "pedidosMaterial", "avisos"],
     mas: [
       { titulo: "Viajes", claves: ["mapa", "viajes", "solicitudesDireccion", "historial", "pedir", "misPedidos", "viajesAObras", "hoyChoferes"] },
-      { titulo: "Compras", claves: ["tablero", "ordenes", "habilitados", "pedirMateriales"] },
+      { titulo: "Compras", claves: ["tablero", "habilitados", "importarExcel", "pedirMateriales"] },
       { titulo: "Flota", claves: ["flota", "costos", "agenda", "mantenimiento", "combustible"] },
       { titulo: "Depósito", claves: ["herramientasDeposito", "sobrantes", "entregas"] },
       { titulo: "Seguimiento", claves: ["actividad", "alertas"] },
@@ -92,7 +94,8 @@ const NAV: Record<Rol, { barra: Clave[]; mas: GrupoClaves[] }> = {
       { titulo: null, claves: ["inicio"] },
     ],
   },
-  COMPRAS: { barra: ["compras", "tablero", "viajesCompras"], mas: [{ titulo: null, claves: ["habilitados", "proveedores", "importarExcel", "pedirMateriales", "configCompras", "misAvisos", "inicio"] }] },
+  // Escritorio: Inicio arriba de todo; "Pedir materiales" es "Nuevo pedido" dentro de Pedidos de material.
+  COMPRAS: { barra: ["compras", "tablero", "viajesCompras"], lateral: ["inicio", "compras", "tablero", "viajesCompras"], mas: [{ titulo: null, claves: ["habilitados", "proveedores", "misAvisos", "cuentaCorta", "inicio"] }] },
   RESPONSABLE_OBRA: { barra: ["pedir", "misPedidos", "viajesObra"], mas: [{ titulo: null, claves: ["herramientas", "obras", "pedirMateriales", "misAvisos", "inicio"] }] },
   CAPATAZ: { barra: ["pedir", "misPedidos", "viajesObra"], mas: [{ titulo: null, claves: ["herramientas", "obras", "pedirMateriales", "misAvisos", "inicio"] }] },
   CHOFER: { barra: ["hoy", "solicitudes", "avisos"], mas: [{ titulo: null, claves: ["combustible", "inicio"] }] },
@@ -117,7 +120,9 @@ export function menuMas(rol: Rol): Grupo[] {
 
 /** Escritorio: los más usados arriba (los de la barra) y el resto en "Más" (plegado, con sus grupos). */
 export function gruposEscritorio(rol: Rol): { principales: Seccion[]; mas: Grupo[] } {
-  return { principales: visibles(rol, NAV[rol].barra), mas: menuMas(rol) };
+  const arriba = NAV[rol].lateral ?? NAV[rol].barra;
+  const mas = menuMas(rol).map((g) => ({ ...g, items: g.items.filter((s) => !arriba.some((k) => SECCIONES[k].href === s.href)) })).filter((g) => g.items.length > 0);
+  return { principales: visibles(rol, arriba), mas };
 }
 
 /** Todos los enlaces de navegación del rol (barra, Más, y el header: logo → inicio, campana, avatar). */

@@ -158,9 +158,24 @@ export function BarraLateral({ principales, mas }: { principales: Seccion[]; mas
  * Header blanco de 48px del escritorio. A la izquierda, el nombre de la sección (si la página
  * tiene <Titulo>, lo tapa con su título y sus acciones); a la derecha, la campana y el avatar.
  */
-export function HeaderEscritorio({ perfil, secciones, dolar = false }: { perfil: Perfil; secciones: Seccion[]; dolar?: boolean }) {
+export function HeaderEscritorio({ perfil, secciones, dolar = false, variante }: { perfil: Perfil; secciones: Seccion[]; dolar?: boolean; variante?: "compras" }) {
   const pathname = usePathname();
   const [abierta, setAbierta] = useState(false);
+  if (variante === "compras") {
+    // Compras: 64px; a la derecha (después de las acciones de la página) el dólar, Actualizar, campana y avatar, a 12px.
+    return (
+      <header className="fixed top-0 right-0 left-[232px] z-20 hidden h-[var(--alto-header)] items-center gap-3 border-b border-linea bg-papel pr-6 pl-6 lg:flex">
+        <p className="min-w-0 flex-1 truncate text-[22px] leading-7 font-semibold">{tituloDeRuta(pathname, secciones)}</p>
+        {dolar && <CotizacionDolar variante="pildora" />}
+        <BotonActualizar className="size-10 text-suave hover:bg-black/[0.04] hover:text-tinta disabled:opacity-100" iconos="size-4" />
+        <Campana className="size-10 text-suave hover:bg-black/[0.04] hover:text-tinta" iconos="size-4" />
+        <button onClick={() => setAbierta(true)} aria-label={`Mi cuenta: ${perfil.nombre}`} title={`${perfil.nombre} · ${perfil.rol}`} className="grid size-10 place-items-center rounded-md hover:bg-black/[0.04]">
+          <span className="grid size-8 place-items-center rounded-full bg-negro text-[13px] font-semibold text-white">{perfil.nombre.slice(0, 1)}</span>
+        </button>
+        <HojaPerfil perfil={perfil} abierta={abierta} onCerrar={() => setAbierta(false)} />
+      </header>
+    );
+  }
   return (
     <header className="fixed top-0 right-0 left-[232px] z-20 hidden h-12 items-center gap-1 border-b border-linea bg-papel pr-4 pl-6 lg:flex">
       <p className="min-w-0 flex-1 truncate text-[22px] leading-7 font-semibold">{tituloDeRuta(pathname, secciones)}</p>
@@ -239,7 +254,9 @@ function TarjetaMas({ s, onIr }: { s: Seccion; onIr: (e: React.MouseEvent) => vo
  * Barra inferior del celular (56px): los 3 más usados del rol + "Más". "Más" es una grilla de tarjetas
  * (dos columnas) con ícono, nombre y contador, y al pie Mi cuenta y Cerrar sesión.
  */
-export function BarraInferior({ items, mas: grupos }: { items: Seccion[]; mas: Grupo[] }) {
+export function BarraInferior({ items, mas: todos }: { items: Seccion[]; mas: Grupo[] }) {
+  // Mi cuenta va al pie de "Más": no se repite como tarjeta.
+  const grupos = todos.map((g) => ({ ...g, items: g.items.filter((s) => s.href !== "/cuenta") })).filter((g) => g.items.length > 0);
   const mas = grupos.flatMap((g) => g.items);
   const [abierto, setAbierto] = useState(false);
   const [destino, ir] = useDestino();

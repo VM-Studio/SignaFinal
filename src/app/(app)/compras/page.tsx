@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { PlusCircle, ShoppingCart, Users } from "lucide-react";
+import { PlusCircle, ShoppingCart, X } from "lucide-react";
 import { colaComprasFiltrada, leerFiltrosCola } from "@/lib/materiales/consultas";
 import { ESTADO_MATERIAL, PESTANAS_COMPRAS, type PestanaCompras } from "@/lib/materiales/presentacion";
 import { vistasDe } from "@/lib/vistas/consultas";
 import { limiteDe } from "@/lib/pagina";
 import { BotonLink } from "@/components/ui/boton";
-import { Pestanas, Titulo, Vacio } from "@/components/ui/basicos";
+import { PaginaCompleta, Segmentos, Titulo, Vacio } from "@/components/ui/basicos";
 import { CargarMas } from "@/components/ui/cargar-mas";
 import { BarraFiltros } from "@/components/ui/barra-filtros";
 import { ColaMateriales } from "@/components/materiales/lista-materiales";
@@ -22,9 +21,10 @@ const VACIO: Record<PestanaCompras, string> = {
 };
 
 /**
- * Cola de Compras (y vista global de pedidos de materiales del dueño): pestañas por paso, más la barra
- * de filtros (obra, solicitante, prioridad, estado, con adjuntos, buscador) y el orden por caducidad.
- * Caducidad hoy o vencida en rojo, mañana en ámbar. Panel con cuántos pidió cada uno (filtra al tocar).
+ * Cola de Compras (y vista global de pedidos de materiales del dueño): pestañas por paso como barra de
+ * segmentos con su contador, la barra de filtros en una fila (obra, arquitecto/a con cuántos pidió cada
+ * uno, prioridad, estado, con adjuntos, buscador) y el orden por caducidad. La lista es una tabla a todo
+ * el ancho; caducidad hoy o vencida en rojo, mañana en ámbar.
  */
 export default async function PaginaCompras({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
@@ -45,10 +45,12 @@ export default async function PaginaCompras({ searchParams }: { searchParams: Pr
     return s ? `/compras?${s}` : "/compras";
   };
   const conEstado = f.estado.length > 0;
+  const cuantosPidio = new Map(d.porSolicitante.map((x) => [x.id, x.cantidad]));
+  const conFiltros = conEstado || otros.length > 0;
   return (
-    <div>
+    <PaginaCompleta>
       <Titulo siempre accion={<BotonLink href="/compras/nuevo" icono={<PlusCircle />}>Nuevo pedido</BotonLink>}>Pedidos de material</Titulo>
-      <Pestanas items={(Object.keys(PESTANAS_COMPRAS) as PestanaCompras[]).map((k) => ({ href: url({ p: k === "nuevos" ? null : k, estado: null }), etiqueta: `${PESTANAS_COMPRAS[k].titulo}${d.cuantos[k] ? ` (${d.cuantos[k]})` : ""}`, activa: !conEstado && k === pestana }))} />
+      <Segmentos items={(Object.keys(PESTANAS_COMPRAS) as PestanaCompras[]).map((k) => ({ href: url({ p: k === "nuevos" ? null : k, estado: null }), etiqueta: PESTANAS_COMPRAS[k].titulo, cantidad: d.cuantos[k], activa: !conEstado && k === pestana }))} />
       <BarraFiltros
         pantalla="compras"
         vistas={vistas}
@@ -57,35 +59,19 @@ export default async function PaginaCompras({ searchParams }: { searchParams: Pr
         orden={{ opciones: [{ valor: "caducidad", etiqueta: "Caducidad más cercana" }, { valor: "caducidad-lejana", etiqueta: "Caducidad más lejana" }, { valor: "nuevos", etiqueta: "Más nuevos" }], porDefecto: "caducidad" }}
         filtros={[
           { tipo: "opciones", clave: "obra", etiqueta: "Obra", opciones: d.obras },
-          { tipo: "opciones", clave: "sol", etiqueta: "Arquitecto/a", opciones: d.solicitantes },
+          { tipo: "opciones", clave: "sol", etiqueta: "Arquitecto/a", opciones: d.solicitantes.map((x) => ({ ...x, cantidad: cuantosPidio.get(x.valor) })) },
           { tipo: "opciones", clave: "prioridad", etiqueta: "Prioridad", opciones: [{ valor: "URGENTE", etiqueta: "Urgente" }, { valor: "NORMAL", etiqueta: "Normal" }] },
           { tipo: "opciones", clave: "estado", etiqueta: "Estado", opciones: d.porEstado.map((e) => ({ valor: e.valor, etiqueta: ESTADO_MATERIAL[e.valor].titulo, cantidad: e.cantidad })) },
           { tipo: "si", clave: "adjuntos", etiqueta: "Con adjuntos" },
         ]}
       />
-      <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
-        <div className="min-w-0">
-          {d.filas.length === 0 ? <Vacio icono={<ShoppingCart className="size-10" />} titulo={conEstado || otros.length ? "Ningún pedido con esos filtros" : VACIO[pestana]} /> : <ColaMateriales filas={d.filas} />}
-          {d.hayMas && <CargarMas href={`${url({})}${url({}).includes("?") ? "&" : "?"}n=${siguiente}`} />}
-        </div>
-        {d.porSolicitante.length > 0 && (
-          <aside className="order-first min-w-0 lg:order-none">
-            <p className="etiqueta mb-2 flex items-center gap-1.5"><Users className="size-3.5" /> Por quién pidió</p>
-            <ul className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible">
-              {d.porSolicitante.map((x) => {
-                const activo = f.sol.length === 1 && f.sol[0] === x.id;
-                return (
-                  <li key={x.id} className="shrink-0">
-                    <Link href={url({ sol: activo ? null : x.id })} scroll={false} className={`flex items-center justify-between gap-3 rounded-[var(--radius-caja)] border px-3 py-2 text-sm ${activo ? "border-tinta bg-black/[0.04]" : "border-linea bg-papel hover:bg-hover"}`}>
-                      <span className="truncate font-medium">{x.nombre}</span><span className="text-suave tabular-nums">{x.cantidad}</span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </aside>
-        )}
-      </div>
-    </div>
+      {d.filas.length === 0 ? (
+        <Vacio llenar icono={<ShoppingCart className="size-10" />} titulo={conFiltros ? "Ningún pedido con esos filtros" : VACIO[pestana]}
+          accion={conFiltros ? <BotonLink href={url({ ...Object.fromEntries(otros.map(([k]) => [k, null])), estado: null })} variante="secundario" icono={<X />}>Limpiar filtros</BotonLink> : undefined} />
+      ) : (
+        <ColaMateriales filas={d.filas} />
+      )}
+      {d.hayMas && <CargarMas href={`${url({})}${url({}).includes("?") ? "&" : "?"}n=${siguiente}`} />}
+    </PaginaCompleta>
   );
 }

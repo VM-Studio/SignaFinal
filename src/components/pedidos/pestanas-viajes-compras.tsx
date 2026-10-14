@@ -1,11 +1,11 @@
-import { Pestanas } from "@/components/ui/basicos";
+import { Segmentos } from "@/components/ui/basicos";
 
-/** Viajes de Compras: Coordinar viaje · Solicitudes. */
-export function PestanasViajesCompras({ activa }: { activa: "coordinar" | "solicitudes" }) {
+/** Viajes de Compras: Coordinar viaje · Solicitudes, como barra de segmentos. */
+export function PestanasViajesCompras({ activa, pendientes }: { activa: "coordinar" | "solicitudes"; pendientes?: number }) {
   return (
-    <Pestanas items={[
+    <Segmentos items={[
       { href: "/compras/viajes", etiqueta: "Coordinar viaje", activa: activa === "coordinar" },
-      { href: "/compras/viajes/solicitudes", etiqueta: "Solicitudes", activa: activa === "solicitudes" },
+      { href: "/compras/viajes/solicitudes", etiqueta: "Solicitudes", cantidad: pendientes, activa: activa === "solicitudes" },
     ]} />
   );
 }

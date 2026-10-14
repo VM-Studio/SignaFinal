@@ -9,6 +9,10 @@
  * Guarda en tmp/capturas/<etiqueta>/<rol>-<pantalla>-<ancho>.png y avisa si alguna ruta tiene
  * scroll horizontal. Necesita la app corriendo con MODO_DEMO=true (usuarios @signa.demo).
  *
+ *   npx tsx scripts/capturas.ts compras-antes [http://localhost:3100]   (rol COMPRAS a 1440 y 390: inicio, pedidos
+ *                                                                     con datos y vacío, tablero con datos, vacío y con
+ *                                                                     una orden abierta, viajes, habilitados, proveedores…)
+ *
  *   npx tsx scripts/capturas.ts nuevas                      (las pantallas nuevas del 10/10, con los datos de prueba
  *                                                            recién cargados: npx prisma db seed)
  * Recorre los flujos (adjunto, OC, PDF, aprobación, sucursales, fechas del chofer, "Aprovechá el viaje",
@@ -238,7 +242,59 @@ async function nuevas() {
   console.log(`Capturas de las pantallas nuevas en ${dir}`);
 }
 
-(etiqueta === "nuevas" ? nuevas() : main()).catch((e) => {
+// ─────────────────────────── Rol COMPRAS (antes / después) ───────────────────────────
+
+const PANTALLAS_COMPRAS: [string, string][] = [
+  ["01-inicio", "/inicio"],
+  ["02-pedidos", "/compras"],
+  ["03-pedidos-vacio", "/compras?p=en-compra"],
+  ["04-tablero", "/compras/ordenes"],
+  ["05-tablero-vacio", "/compras/ordenes?q=zzzz-nada"],
+  ["07-coordinar-viaje", "/compras/viajes"],
+  ["08-solicitudes", "/compras/viajes/solicitudes"],
+  ["09-habilitados", "/habilitados"],
+  ["10-proveedores", "/proveedores"],
+  ["11-avisos", "/avisos"],
+  ["12-cuenta", "/cuenta"],
+  ["13-nueva-oc", "/compras/ordenes/nueva"],
+  ["14-nuevo-pedido", "/compras/nuevo"],
+];
+
+async function visualCompras() {
+  const dir = `tmp/capturas/${etiqueta}`;
+  mkdirSync(dir, { recursive: true });
+  const nav = await chromium.launch({ headless: true });
+  const problemas: string[] = [];
+  for (const ancho of [1440, 390]) {
+    const ctx = await nav.newContext({ viewport: { width: ancho, height: ancho < 1024 ? 844 : 900 }, isMobile: ancho < 1024, hasTouch: ancho < 1024, serviceWorkers: "block" });
+    await ctx.addInitScript(() => sessionStorage.setItem("signa:splash-visto", "1"));
+    const p = await ctx.newPage();
+    await entrar(p, "compras");
+    // El stream de tiempo real nunca deja la red quieta: "load" y una pausa.
+    const ir = async (ruta: string) => { await p.goto(`${BASE}${ruta}`); await p.waitForLoadState("load"); await p.waitForTimeout(1500); };
+    for (const [nombre, ruta] of PANTALLAS_COMPRAS) {
+      await ir(ruta);
+      await p.screenshot({ path: `${dir}/${nombre}-${ancho}.png`, fullPage: true });
+      if (await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) problemas.push(`${ruta} a ${ancho}px: scroll horizontal`);
+      if (nombre === "04-tablero") {
+        // Una orden abierta (fuera de las celdas editables).
+        const fila = ancho < 1024 ? p.locator("ul li a[href*='ver=']").first() : p.locator(".planilla tbody tr td:nth-child(6)").first();
+        if (await fila.count()) {
+          await fila.click();
+          await p.waitForURL(/ver=/).catch(() => {});
+          await p.waitForTimeout(1500);
+          await p.screenshot({ path: `${dir}/06-tablero-orden-${ancho}.png`, fullPage: ancho < 1024 });
+        }
+      }
+    }
+    await ctx.close();
+  }
+  await nav.close();
+  console.log(`Capturas de Compras en ${dir}`);
+  console.log(problemas.length ? `Problemas:\n- ${problemas.join("\n- ")}` : "Sin scroll horizontal en ninguna.");
+}
+
+(etiqueta === "nuevas" ? nuevas() : etiqueta.startsWith("compras-") ? visualCompras() : main()).catch((e) => {
   console.error(e);
   process.exit(1);
 });

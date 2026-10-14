@@ -9,7 +9,7 @@ import { ejecutar, ErrorNegocio, type Resultado } from "@/lib/resultado";
  * VISTAS GUARDADAS de la barra de filtros: cada usuario guarda sus filtros con un nombre ("Pendientes
  * de retiro", "Pinares") por pantalla. Los parámetros son los de la URL (sin la página).
  */
-const PANTALLAS = ["tablero", "compras", "solicitudes", "ordenes", "pedidos", "coordinar"] as const;
+const PANTALLAS = ["tablero", "compras", "solicitudes", "ordenes", "pedidos", "coordinar", "habilitados", "proveedores"] as const;
 const esquema = z.object({
   pantalla: z.enum(PANTALLAS),
   nombre: z.string().trim().min(2, "Ponele un nombre a la vista.").max(40),

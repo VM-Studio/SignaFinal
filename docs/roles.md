@@ -186,15 +186,17 @@ alertas de vehículos o choferes, ni la actividad de los demás.
 
 ## Compras (la persona de compras)
 
-- **Inicio**: **Pedidos nuevos** (N, con botón), **Esperando aprobación** (N), **Listos sin retirar hace
-  más de 3 días** (N), la cotización del dólar y los demorados.
-- **Barra**: Pedidos · Órdenes · Viajes · Más (Pedidos con el número de nuevos sin tomar). **Órdenes**
-  abre el Tablero (pestañas Tablero · Órdenes · Importar); **Viajes**: Coordinar viaje · Solicitudes.
-  En **Más**: Habilitados, Proveedores, Importar Excel, Pedir materiales, Numeración y solicitantes,
-  Mis avisos, Inicio, Mi cuenta. Guía completa: **docs/compras.md**.
+- **Inicio** ("Hola, Alejandra", grilla de 12): **Pedidos nuevos** a lo ancho (N, con botón); **Esperando
+  aprobación**, **Encargado** y **Listos sin retirar hace más de 3 días** (en rojo si hay); **Demorados** y
+  el **dólar** (blue y oficial, compra y venta, hora).
+- **Barra**: Pedidos · Órdenes · Viajes · Más (Pedidos con el número de nuevos sin tomar). **Órdenes** ES su
+  planilla (el tablero, sin pestañas); **Viajes**: Coordinar viaje · Solicitudes. En **Más**: Habilitados,
+  Proveedores, Mis avisos, Cuenta. En escritorio: Inicio arriba de todo, navbar de 64 px con el dólar como
+  píldora verde. Guía completa: **docs/compras.md**.
 - **Pedidos** (la cola): Nuevos / En compra / Esperando aprobación / Aprobados / Listos. Urgentes
   primero, después por para cuándo; en rojo lo demorado (más de 2 días hábiles sin comprar, más de
-  un día esperando al dueño). Filtro por obra. **Nuevo pedido** para lo que le piden por teléfono.
+  un día esperando al dueño). Filtros en una fila (obra, arquitecto/a, prioridad, estado, con adjuntos).
+  **Nuevo pedido** para lo que le piden por teléfono (es su "pedir materiales").
 - **Detalle**: arriba las **observaciones** del que pidió y sus **adjuntos** (se ven en la app o se
   descargan); **notas internas de Compras** y adjuntos propios (presupuestos) que el que pidió no ve.
   UN botón con lo que sigue: **Tomar** → **Armar orden de compra** → (esperando al dueño) →
@@ -207,11 +209,13 @@ alertas de vehículos o choferes, ni la actividad de los demás.
   desde Órdenes. Editar una autorizada con un cambio de fondo vuelve a aprobación como v2.
 - **Habilitar para retirar**: si hay OC aprobada, viene precargado (proveedor, sucursal, OC y renglones
   para tildar lo que se retira ahora; retiros parciales).
-- **Tablero**: su tablero de control con sus columnas, filtros, vistas guardadas, Próximos pasos y
-  Comentarios editables en la tabla, **Exportar a Excel** e **Importar** su planilla vieja.
+- **Órdenes** (el tablero): calcado de su planilla (encabezado gris, grilla, Nº con el código de color, ESTADO
+  como lista pintada, "A confirmar" en amarillo), cuatro tarjetas-filtro, filtros, vistas guardadas,
+  Próximos pasos y Comentarios editables en la celda y **Exportar a Excel** con sus colores. Importar su
+  planilla vieja lo hace el dueño (Más → Compras → Importar Excel).
 - **Habilitados**: lo que habilitó y qué pasó después (sin retiro pedido, retiro pedido, en camino,
-  entregado); en rojo lo que lleva 3 días o más sin que la obra pida el viaje.
-- **Proveedores**: buscador, ficha con CUIT, teléfono, mail y sus **sucursales** (dirección en el mapa,
+  entregado), con filtros de obra y proveedor; en rojo lo que lleva 3 días o más sin que la obra pida el viaje.
+- **Proveedores**: buscador, ficha (en el panel derecho) con CUIT, teléfono, mail y sus **sucursales** (dirección en el mapa,
   horario y contacto de retiro), y las OC de ese proveedor.
 
 **Avisos**: pedido de material nuevo (con las primeras palabras de las observaciones y cuántos
