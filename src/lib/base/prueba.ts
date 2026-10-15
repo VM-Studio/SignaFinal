@@ -72,72 +72,61 @@ export async function cargarDatosPrueba(db: PrismaClient) {
     data: { codigo: `SIG-${String(ultimo + 1).padStart(4, "0")}`, nombre: "Hormigonera 350 l", categoriaId: maquinaria.id, esMaquina: true, tipoControl: "UNITARIA", estado: "DISPONIBLE", ubicacionId: humboldt.id },
   });
 
-  // ─────────────────── Pedidos de material ───────────────────
-  const historia = async (pedidoMaterialId: string, estados: [string, string | null][]) => {
+  // ─────────────────── Documentos de compra (OC/PE) ───────────────────
+  const empresa = (await db.razonSocial.findFirst({ orderBy: { orden: "asc" } }))?.id ?? null;
+  const historia = async (ordenCompraId: string, estados: [string, string | null][]) => {
     let de: string | null = null;
     for (const [a, usuarioId] of estados) {
-      await db.cambioEstadoMaterial.create({ data: { pedidoMaterialId, de: de as never, a: a as never, usuarioId } });
+      await db.cambioEstadoOC.create({ data: { ordenCompraId, de: de as never, a: a as never, usuarioId } });
       de = a;
     }
   };
+  const doc = (d: { obraId: string; solicitanteId: string; creadaPorId?: string; detalle: string; para: string; estado: "ENVIADA_A_COMPRAS" | "EN_COMPRAS" | "ESPERANDO_AUTORIZACION" | "AUTORIZADA" | "HABILITADA"; extra?: Prisma.OrdenCompraUncheckedCreateInput | object }) =>
+    db.ordenCompra.create({
+      data: {
+        tipo: "OC", estado: d.estado, fuente: "ARQUITECTA", creadaPorId: d.creadaPorId ?? d.solicitanteId, obraId: d.obraId, solicitanteId: d.solicitanteId, empresaCompraId: empresa,
+        detallePedido: d.detalle, fechaNecesaria: aFecha(d.para, "12:00"), enviadaAComprasEn: new Date(),
+        ...(d.estado === "ENVIADA_A_COMPRAS" ? {} : { tomadoPorId: compras.id, tomadoEn: new Date() }),
+        ...(d.extra ?? {}),
+      },
+    });
 
-  // 1) Daniela pide con una lista adjunta (PDF) y observaciones: lo que ve Compras arriba de todo.
-  const conLista = await db.pedidoMaterial.create({
-    data: {
-      obraId: darwin.id, solicitanteId: daniela.id, descripcion: "Ver lista adjunta (lista-materiales-darwin.pdf)", paraCuando: aFecha(diaISO(new Date(Date.now() + 3 * 86_400_000)), "12:00"),
-      observaciones: "Descargar por Darwin, el portón de Thames está cerrado. Avisar a Lolo antes de mandar. El cemento que sea Loma Negra.",
-    },
+  // 1) Daniela pide con una lista adjunta (PDF) y observaciones: llega a Compras como "Solo indicaciones".
+  const conLista = await doc({
+    obraId: darwin.id, solicitanteId: daniela.id, detalle: "Ver lista adjunta (lista-materiales-darwin.pdf)", para: diaISO(new Date(Date.now() + 3 * 86_400_000)), estado: "ENVIADA_A_COMPRAS",
+    extra: { observacionesSolicitante: "Descargar por Darwin, el portón de Thames está cerrado. Avisar a Lolo antes de mandar. El cemento que sea Loma Negra." },
   });
-  await historia(conLista.id, [["SOLICITADO", daniela.id]]);
+  await historia(conLista.id, [["ENVIADA_A_COMPRAS", daniela.id]]);
   const pdf = pdfSimple(["Lista de materiales - Obra Darwin 1299", "40 bolsas de cemento Loma Negra x 50 kg", "20 barras de hierro del 8", "10 m3 de arena gruesa", "Pedido por Daniela"]);
   const archivo = await db.archivo.create({ data: { tipo: "application/pdf", nombre: "lista-materiales-darwin.pdf", datos: new Uint8Array(pdf), tamano: pdf.length, subidoPorId: daniela.id } });
-  await db.adjunto.create({ data: { entidadTipo: "PEDIDO_MATERIAL", entidadId: conLista.id, nombre: "lista-materiales-darwin.pdf", url: `db:${archivo.id}`, tipoMime: "application/pdf", tamanoBytes: pdf.length, subidoPorId: daniela.id } });
+  await db.adjunto.create({ data: { entidadTipo: "ORDEN_COMPRA", entidadId: conLista.id, nombre: "lista-materiales-darwin.pdf", url: `db:${archivo.id}`, tipoMime: "application/pdf", tamanoBytes: pdf.length, subidoPorId: daniela.id } });
 
-  // 2) OC ESPERANDO_APROBACION (Bayres Connect, Hierros Martínez).
-  const paraBayres = await db.pedidoMaterial.create({
-    data: { obraId: bayres.id, solicitanteId: leandro.id, descripcion: "Malla sima 15x15 del 6, 20 paneles", paraCuando: aFecha(pasadoManana, "12:00"), estado: "ESPERANDO_APROBACION", tomadoPorId: compras.id, tomadoEn: new Date() },
-  });
-  // 3) OC APROBADA (Darwin, cemento) con su PDF.
-  const cementoDarwin = await db.pedidoMaterial.create({
-    data: { obraId: darwin.id, solicitanteId: daniela.id, descripcion: "Cemento Portland, 40 bolsas", paraCuando: aFecha(hoy, "12:00"), estado: "RETIRO_PEDIDO", tomadoPorId: compras.id, tomadoEn: new Date(), aprobadoPorId: direccion.id, aprobadoEn: new Date() },
-  });
-
-  const oc = async (pm: { id: string; obraId: string; solicitanteId: string }, estado: "APROBADA" | "ESPERANDO_APROBACION", suc: { id: string; proveedorId: string }, renglones: { descripcion: string; cantidad: number; unidad: string; precio: number }[]) => {
-    const subtotal = renglones.reduce((s, r) => s + r.cantidad * r.precio, 0);
-    const iva = Math.round(subtotal * 0.21);
+  // 2) Esperando la autorización del dueño (Bayres Connect, Hierros Martínez) y 3) autorizada y habilitada (Darwin, cemento).
+  const conNumero = async (estado: "AUTORIZADA" | "ESPERANDO_AUTORIZACION" | "HABILITADA", d: { obraId: string; solicitanteId: string; detalle: string; para: string }, suc: { id: string; proveedorId: string }, importe: number) => {
     const n = await db.$transaction((tx) => siguienteNumero(tx, "OC"));
-    return db.ordenCompra.create({
-      data: {
-        numero: n.numero, numeroTexto: String(n.secuencia), anio: anioArgentina(), secuencia: n.secuencia, pedidoMaterialId: pm.id, obraId: pm.obraId, solicitanteId: pm.solicitanteId, proveedorId: suc.proveedorId, sucursalId: suc.id,
-        empresaCompraId: (await db.razonSocial.findFirst({ orderBy: { orden: "asc" } }))?.id ?? null,
-        detallePedido: renglones.map((r) => `${r.cantidad} - ${r.unidad} de ${r.descripcion}`).join("\n"), proveedorSugerido: null, presupuestoNumero: estado === "APROBADA" ? "P-2231" : null,
-        fechaNecesaria: aFecha(hoy, "12:00"), formaPago: estado === "APROBADA" ? "TRANSFERENCIA" : "CUENTA_CORRIENTE", condicionPago: estado === "APROBADA" ? "ACOPIO" : "SALDO_30_DIAS",
-        condicionPagoTexto: estado === "APROBADA" ? "Acopio en el corralón, se retira en partes" : null, importe: D(subtotal + iva),
-        estadoTablero: estado === "APROBADA" ? "ENCARGADO" : "PEDIR_AUTORIZACION", estadoTableroAuto: estado === "APROBADA" ? "ENCARGADO" : "PEDIR_AUTORIZACION",
-        proximosPasos: estado === "APROBADA" ? "Claudio retira el jueves a primera hora." : null,
-        subtotal: D(subtotal), ivaPorcentaje: D(21), iva: D(iva), total: D(subtotal + iva), estado, creadaPorId: compras.id, enviadaEn: new Date(),
+    const autorizada = estado !== "ESPERANDO_AUTORIZACION";
+    return doc({
+      ...d, estado,
+      extra: {
+        numero: n.numero, numeroTexto: String(n.secuencia), anio: anioArgentina(), secuencia: n.secuencia, proveedorId: suc.proveedorId, sucursalId: suc.id,
+        presupuestoNumero: autorizada ? "P-2231" : null, formaPago: autorizada ? "ACOPIO" : "CUENTA_CORRIENTE", importe: D(importe), enviadaEn: new Date(),
+        estadoTablero: autorizada ? (estado === "HABILITADA" ? "HABILITADA" : "AUTORIZADA") : "PEDIR_AUTORIZACION", estadoTableroAuto: autorizada ? (estado === "HABILITADA" ? "HABILITADA" : "AUTORIZADA") : "PEDIR_AUTORIZACION",
+        proximosPasos: autorizada ? "Claudio retira el jueves a primera hora." : null,
         // Sin PDF guardado: /api/oc/[id]/pdf lo genera con la plantilla desde estos datos.
-        ...(estado === "APROBADA" ? { aprobadaPorId: direccion.id, aprobadaEn: new Date() } : {}),
-        renglones: { create: renglones.map((r, i) => ({ orden: i + 1, descripcion: r.descripcion, cantidad: D(r.cantidad), unidad: r.unidad, precioUnitario: D(r.precio), subtotal: D(r.cantidad * r.precio) })) },
+        ...(autorizada ? { aprobadaPorId: direccion.id, aprobadaEn: new Date(), encargadaEn: new Date() } : {}),
       },
     });
   };
-  const ocAprobada = await oc(cementoDarwin, "APROBADA", scVillaCrespo, [{ descripcion: "Cemento Portland Loma Negra x 50 kg", cantidad: 40, unidad: "bolsas", precio: 11_500 }]);
-  const ocPendiente = await oc(paraBayres, "ESPERANDO_APROBACION", hierros.sucursales.find((s) => s.principal)!, [{ descripcion: "Malla sima 15x15 del 6", cantidad: 20, unidad: "paneles", precio: 38_000 }, { descripcion: "Alambre de atar", cantidad: 5, unidad: "kg", precio: 4_200 }]);
-  await db.pedidoMaterial.update({ where: { id: cementoDarwin.id }, data: { ordenCompraId: ocAprobada.id, ordenCompraNumero: ocAprobada.numero, montoAprobado: ocAprobada.total } });
-  await db.pedidoMaterial.update({ where: { id: paraBayres.id }, data: { ordenCompraId: ocPendiente.id, ordenCompraNumero: ocPendiente.numero, montoAprobado: ocPendiente.total } });
-  await historia(paraBayres.id, [["SOLICITADO", leandro.id], ["EN_COMPRA", compras.id], ["ESPERANDO_APROBACION", compras.id]]);
-  await historia(cementoDarwin.id, [["SOLICITADO", daniela.id], ["EN_COMPRA", compras.id], ["ESPERANDO_APROBACION", compras.id], ["APROBADO", direccion.id], ["LISTO_PARA_RETIRAR", compras.id], ["RETIRO_PEDIDO", daniela.id]]);
+  const ocPendiente = await conNumero("ESPERANDO_AUTORIZACION", { obraId: bayres.id, solicitanteId: leandro.id, detalle: "20 - paneles de Malla sima 15x15 del 6\n5 - kg de Alambre de atar", para: pasadoManana }, hierros.sucursales.find((s) => s.principal)!, 945_010);
+  const cementoDarwin = await conNumero("HABILITADA", { obraId: darwin.id, solicitanteId: daniela.id, detalle: "40 - bolsas de Cemento Portland Loma Negra x 50 kg", para: hoy }, scVillaCrespo, 556_600);
+  await historia(ocPendiente.id, [["ENVIADA_A_COMPRAS", leandro.id], ["EN_COMPRAS", compras.id], ["ESPERANDO_AUTORIZACION", compras.id]]);
+  await historia(cementoDarwin.id, [["ENVIADA_A_COMPRAS", daniela.id], ["EN_COMPRAS", compras.id], ["ESPERANDO_AUTORIZACION", compras.id], ["AUTORIZADA", direccion.id], ["ENCARGADA", compras.id], ["HABILITADA", compras.id]]);
 
   // Los otros dos que se retiran en la misma sucursal: hierro para Chubut y cemento para Pinares II (4.000 kg: no entra en el Kia).
-  const hierroChubut = await db.pedidoMaterial.create({
-    data: { obraId: chubut.id, solicitanteId: cesar.id, descripcion: "Hierro del 12, 20 barras", paraCuando: aFecha(hoy, "12:00"), estado: "RETIRO_PEDIDO", tomadoPorId: compras.id, tomadoEn: new Date(), aprobadoPorId: direccion.id, aprobadoEn: new Date(), ordenCompraNumero: "OC en papel 4512" },
-  });
-  const cementoPinares = await db.pedidoMaterial.create({
-    data: { obraId: pinares.id, solicitanteId: daniela.id, descripcion: "Cemento y cal para platea, 160 bolsas", paraCuando: aFecha(hoy, "12:00"), estado: "RETIRO_PEDIDO", tomadoPorId: compras.id, tomadoEn: new Date(), aprobadoPorId: direccion.id, aprobadoEn: new Date(), ordenCompraNumero: "OC en papel 4518" },
-  });
-  await historia(hierroChubut.id, [["SOLICITADO", cesar.id], ["EN_COMPRA", compras.id], ["APROBADO", direccion.id], ["LISTO_PARA_RETIRAR", compras.id], ["RETIRO_PEDIDO", cesar.id]]);
-  await historia(cementoPinares.id, [["SOLICITADO", daniela.id], ["EN_COMPRA", compras.id], ["APROBADO", direccion.id], ["LISTO_PARA_RETIRAR", compras.id], ["RETIRO_PEDIDO", daniela.id]]);
+  const hierroChubut = await doc({ obraId: chubut.id, solicitanteId: cesar.id, detalle: "Hierro del 12, 20 barras", para: hoy, estado: "HABILITADA", extra: { aprobadaPorId: direccion.id, aprobadaEn: new Date(), estadoTablero: "HABILITADA", estadoTableroAuto: "HABILITADA" } });
+  const cementoPinares = await doc({ obraId: pinares.id, solicitanteId: daniela.id, detalle: "Cemento y cal para platea, 160 bolsas", para: hoy, estado: "HABILITADA", extra: { aprobadaPorId: direccion.id, aprobadaEn: new Date(), estadoTablero: "HABILITADA", estadoTableroAuto: "HABILITADA" } });
+  await historia(hierroChubut.id, [["ENVIADA_A_COMPRAS", cesar.id], ["EN_COMPRAS", compras.id], ["AUTORIZADA", direccion.id], ["HABILITADA", compras.id]]);
+  await historia(cementoPinares.id, [["ENVIADA_A_COMPRAS", daniela.id], ["EN_COMPRAS", compras.id], ["AUTORIZADA", direccion.id], ["HABILITADA", compras.id]]);
 
   // ─────────────────── Pedidos de viaje ───────────────────
   const destino = (o: typeof darwin) => ({ obraId: o.id, destinoNombre: `Obra ${o.nombre}`, destinoDireccion: `${o.direccion}, ${o.localidad}`, destinoLat: o.latitud, destinoLng: o.longitud });
@@ -153,17 +142,17 @@ export async function cargarDatosPrueba(db: PrismaClient) {
       },
     });
   const nombreVC = "Corralón San Martín · Sucursal Villa Crespo";
-  const listo = async (pm: { id: string; obraId: string }, descripcion: string, renglones: { descripcion: string; cantidad: number; unidad: string }[], pesoKg: number, ocNumero: string | null, pedidoViajeId: string) =>
+  const listo = async (pm: { id: string; obraId: string | null }, descripcion: string, renglones: { descripcion: string; cantidad: number; unidad: string }[], pesoKg: number, ocNumero: string | null, pedidoViajeId: string) =>
     db.materialListo.create({
       data: {
-        pedidoMaterialId: pm.id, obraId: pm.obraId, proveedorId: sanMartin.id, sucursalId: scVillaCrespo.id, proveedorDireccion: `${scVillaCrespo.direccion}, ${scVillaCrespo.localidad}`,
+        ordenCompraId: pm.id, obraId: pm.obraId!, proveedorId: sanMartin.id, sucursalId: scVillaCrespo.id, proveedorDireccion: `${scVillaCrespo.direccion}, ${scVillaCrespo.localidad}`,
         proveedorLat: scVillaCrespo.latitud, proveedorLng: scVillaCrespo.longitud, horarioRetiro: scVillaCrespo.horarioRetiro, contactoRetiro: scVillaCrespo.contacto, ordenCompraNumero: ocNumero,
         descripcion, renglones, pesoKg, necesitaCamion: pesoKg > 1000, estado: "RETIRO_PEDIDO", habilitadoPorId: compras.id, pedidoViajeId,
       },
     });
 
   const pCemento = await pedido({ solicitanteId: daniela.id, tipo: "RETIRO_PROVEEDOR", descripcion: "Cemento Portland, 40 bolsas", pesoKg: 1200, dia: hoy, hora: "08:30", origen: desdeSucursal(scVillaCrespo, nombreVC), destino: destino(darwin) });
-  await listo(cementoDarwin, "Cemento Portland, 40 bolsas", [{ descripcion: "Cemento Portland Loma Negra x 50 kg", cantidad: 40, unidad: "bolsas" }], 1200, ocAprobada.numero, pCemento.id);
+  await listo(cementoDarwin, "Cemento Portland, 40 bolsas", [{ descripcion: "Cemento Portland Loma Negra x 50 kg", cantidad: 40, unidad: "bolsas" }], 1200, cementoDarwin.numero, pCemento.id);
   const pHierro = await pedido({ solicitanteId: cesar.id, tipo: "RETIRO_PROVEEDOR", descripcion: "Hierro del 12, 20 barras", pesoKg: 800, dia: hoy, hora: "09:00", origen: desdeSucursal(scVillaCrespo, nombreVC), destino: destino(chubut) });
   await listo(hierroChubut, "Hierro del 12, 20 barras", [{ descripcion: "Barras de hierro del 12", cantidad: 20, unidad: "barras" }], 800, "OC en papel 4512", pHierro.id);
   const pPinares = await pedido({ solicitanteId: daniela.id, tipo: "RETIRO_PROVEEDOR", descripcion: "Cemento y cal para platea, 160 bolsas", pesoKg: 4000, dia: hoy, hora: "10:00", origen: desdeSucursal(scVillaCrespo, nombreVC), destino: destino(pinares) });
@@ -189,6 +178,6 @@ export async function cargarDatosPrueba(db: PrismaClient) {
 
   return {
     proveedores: 3, sucursales: sanMartin.sucursales.length + hierros.sucursales.length + ferreteria.sucursales.length,
-    pedidosMaterial: 5, ordenesCompra: [ocAprobada.numero, ocPendiente.numero], pedidosPendientes: [pCemento.numero, pHierro.numero, pPinares.numero, pHormigonera.numero], viajePasadoManana: pBayres.numero,
+    documentosCompra: 5, ordenesCompra: [cementoDarwin.numero, ocPendiente.numero], pedidosPendientes: [pCemento.numero, pHierro.numero, pPinares.numero, pHormigonera.numero], viajePasadoManana: pBayres.numero,
   };
 }

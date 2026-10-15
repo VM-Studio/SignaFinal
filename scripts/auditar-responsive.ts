@@ -25,31 +25,32 @@ const VERBOSO = process.env.VERBOSO === "1";
 
 const RUTAS: Record<string, string[]> = {
   direccion: [
-    "/inicio", "/mapa", "/mapa/historial", "/solicitudes", "/solicitudes/{solicitud}", "/viajes", "/viajes-en-curso", "/aprobaciones", "/compras", "/compras/{material}",
-    "/compras/ordenes", "/compras/nuevo", "/habilitados", "/flota", "/flota/{vehiculo}", "/flota/agenda", "/flota/mantenimiento", "/costos", "/actividad", "/actividad/{usuario}",
+    "/inicio", "/mapa", "/mapa/historial", "/solicitudes", "/solicitudes/{solicitud}", "/viajes", "/viajes-en-curso", "/aprobaciones", "/compras", "/compras/oc/{material}",
+    "/compras/oc/nueva", "/compras/nuevo", "/habilitados", "/flota", "/flota/{vehiculo}", "/flota/agenda", "/flota/mantenimiento", "/costos", "/actividad", "/actividad/{usuario}",
     "/alertas", "/usuarios", "/obras", "/obras/{obra}", "/proveedores", "/proveedores/{proveedor}", "/configuracion/rastreo", "/configuracion/ubicaciones", "/avisos", "/cuenta",
     "/herramientas", "/herramientas/{herramienta}", "/herramientas/importar", "/sobrantes", "/entregas", "/combustible", "/pedir", "/pedir/retiro", "/pedir-materiales", "/mis-pedidos",
-    "/compras/tablero", "/compras/ordenes/nueva", "/configuracion/razones-sociales", "/configuracion/compras",
+    "/compras/tablero", "/compras/facturacion", "/aprobaciones?p=pagos", "/compras/oc/nueva?tipo=PE", "/configuracion/razones-sociales", "/configuracion/compras",
   ],
-  daniela: ["/inicio", "/obras", "/obras/{obra}", "/pedir", "/pedir/retiro", "/pedir-materiales", "/mis-pedidos", "/mis-pedidos?tab=materiales", "/mis-pedidos/{mipedido}", "/mis-pedidos/material/{mimaterial}", "/viajes-en-curso", "/herramientas", "/herramientas/{herramienta}", "/avisos", "/cuenta"],
+  daniela: ["/inicio", "/obras", "/obras/{obra}", "/pedir", "/pedir/retiro", "/pedir-materiales", "/mis-pedidos", "/mis-pedidos?tab=materiales", "/mis-pedidos/{mipedido}", "/compras/oc/{mimaterial}", "/compras/oc/nueva?tipo=OC", "/viajes-en-curso", "/herramientas", "/herramientas/{herramienta}", "/avisos", "/cuenta"],
   claudio: ["/inicio", "/hoy", "/hoy?vista=proximos", "/hoy?vista=todos", "/solicitudes", "/solicitudes/{solicitud}", "/viaje/{viaje}", "/combustible", "/avisos", "/cuenta"],
-  compras: ["/inicio", "/compras", "/compras/{material}", "/compras/ordenes", "/compras/nuevo", "/habilitados", "/proveedores", "/proveedores/{proveedor}", "/pedir-materiales", "/avisos", "/cuenta",
-    "/compras/tablero", "/compras/ordenes/nueva", "/compras/ordenes/nueva?tipo=PE", "/compras/importar", "/compras/viajes", "/compras/viajes/solicitudes", "/configuracion/compras"],
+  compras: ["/compras", "/compras/oc/{material}", "/compras/oc/nueva", "/compras/nuevo", "/habilitados", "/proveedores", "/proveedores/{proveedor}", "/pedir-materiales", "/avisos", "/cuenta",
+    "/compras/tablero", "/compras/tablero?estado=HABILITADA", "/compras/oc/nueva?tipo=PE", "/compras/importar", "/compras/viajes", "/compras/viajes/solicitudes", "/configuracion/compras"],
   deposito: ["/inicio", "/herramientas", "/herramientas/{herramienta}", "/herramientas/importar", "/sobrantes", "/entregas", "/avisos", "/cuenta"],
-  administracion: ["/inicio", "/flota", "/flota/{vehiculo}", "/flota/agenda", "/flota/mantenimiento", "/costos", "/alertas", "/obras", "/usuarios", "/configuracion/ubicaciones", "/avisos", "/cuenta", "/compras/tablero", "/configuracion/razones-sociales"],
+  administracion: ["/inicio", "/flota", "/flota/{vehiculo}", "/flota/agenda", "/flota/mantenimiento", "/costos", "/alertas", "/obras", "/usuarios", "/configuracion/ubicaciones", "/avisos", "/cuenta", "/compras/tablero", "/compras/facturacion", "/compras/oc/{facturar}", "/configuracion/razones-sociales"],
 };
 
 /** De dónde sacar un id real: la lista y el prefijo del enlace al detalle. */
 const DETALLE: Record<string, { lista: string; prefijo: string }> = {
   solicitud: { lista: "/solicitudes", prefijo: "/solicitudes/" },
-  material: { lista: "/compras?p=todos", prefijo: "/compras/" },
+  material: { lista: "/compras?p=todos", prefijo: "/compras/oc/" },
+  facturar: { lista: "/compras/facturacion", prefijo: "/compras/oc/" },
   vehiculo: { lista: "/flota", prefijo: "/flota/" },
   usuario: { lista: "/actividad", prefijo: "/actividad/" },
   obra: { lista: "/obras", prefijo: "/obras/" },
   proveedor: { lista: "/proveedores", prefijo: "/proveedores/" },
   herramienta: { lista: "/herramientas?tab=herramientas", prefijo: "/herramientas/" },
   mipedido: { lista: "/mis-pedidos?p=aceptados", prefijo: "/mis-pedidos/" },
-  mimaterial: { lista: "/mis-pedidos?tab=materiales", prefijo: "/mis-pedidos/material/" },
+  mimaterial: { lista: "/mis-pedidos?tab=materiales", prefijo: "/compras/oc/" },
   viaje: { lista: "/hoy?vista=proximos", prefijo: "/viaje/" },
 };
 
@@ -67,7 +68,7 @@ async function entrar(nav: Browser, quien: string, ancho: number) {
   await p.fill("#email", `${quien}@signa.demo`);
   await p.fill("#password", "signa2026");
   await p.click('button[type="submit"]');
-  await p.waitForURL("**/inicio", { timeout: 60_000 });
+  await p.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 60_000 });
   // Desde acá, ningún toque cambia datos: las Server Actions no salen.
   await p.route("**/*", (r) => (r.request().method() === "POST" && r.request().headers()["next-action"] ? r.abort() : r.continue()));
   return p;

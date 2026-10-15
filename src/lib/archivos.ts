@@ -44,7 +44,7 @@ export const MAX_POR_SERVIDOR_BYTES = 4 * 1024 * 1024;
 
 /** Carpeta en el almacenamiento según a qué pertenece el archivo. */
 export const CARPETAS: Record<EntidadAdjunto, string> = {
-  PEDIDO_MATERIAL: "pedidos-material", ORDEN_COMPRA: "ordenes-compra", VIAJE: "viajes", HERRAMIENTA: "herramientas", VEHICULO: "vehiculos",
+  ORDEN_COMPRA: "ordenes-compra", VIAJE: "viajes", HERRAMIENTA: "herramientas", VEHICULO: "vehiculos",
 };
 
 export const SIN_ALMACENAMIENTO = "Almacenamiento de archivos no configurado";

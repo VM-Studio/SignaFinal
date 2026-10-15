@@ -70,7 +70,7 @@ export const TEXTO = {
 
 /** "OC 3141", "#3141" o "3141" → "OC #3141". */
 /** "OC-2026-0012" (las del sistema) tal cual; las viejas cargadas a mano, "OC #4512". */
-export const oc = (n: string | null | undefined) => (!n ? "la OC" : /^OC-\d{4}-\d+$/.test(n.trim()) ? n.trim() : `OC #${n.replace(/^\s*(OC)?\s*#?\s*/i, "")}`);
+export const oc = (n: string | null | undefined) => (!n ? "la OC" : /^(OC|PE)-[\w -]+$/.test(n.trim()) ? n.trim() : `OC #${n.replace(/^\s*(OC)?\s*#?\s*/i, "")}`);
 
 type M = { que: string; obra: string };
 
@@ -82,8 +82,8 @@ export function primerasPalabras(t: string, n = 10) {
 }
 
 export const TEXTO_MATERIAL = {
-  nuevo: (quien: string, p: M & { para: string; urgente: boolean; observaciones?: string | null; adjuntos?: number }) => ({
-    titulo: p.urgente ? "Pedido de material urgente" : "Pedido de material nuevo",
+  nuevo: (quien: string, p: M & { para: string; urgente: boolean; observaciones?: string | null; adjuntos?: number; tipo?: "OC" | "PE" }) => ({
+    titulo: `${p.tipo === "PE" ? "Pedido especial" : "Pedido de material"} ${p.urgente ? "urgente" : "nuevo"}`,
     cuerpo: `${quien} pidió ${queLleva(p.que)} para Obra ${p.obra}, ${p.para}${p.adjuntos ? `, con ${p.adjuntos === 1 ? "1 archivo adjunto" : `${p.adjuntos} archivos adjuntos`}` : ""}.${p.urgente ? " La obra se para sin esto." : ""}${p.observaciones ? ` Nota: "${primerasPalabras(p.observaciones)}"` : ""}`,
   }),
   tomado: (comprador: string, p: M) => ({
@@ -104,7 +104,7 @@ export const TEXTO_MATERIAL = {
   }),
   rechazado: (p: M & { oc: string | null; motivo: string }) => ({
     titulo: `${oc(p.oc)} rechazada`,
-    cuerpo: `El dueño rechazó ${oc(p.oc)} de ${queLleva(p.que)} para Obra ${p.obra}. Motivo: ${p.motivo}. Vuelve a "En compra".`,
+    cuerpo: `El dueño rechazó ${oc(p.oc)} de ${queLleva(p.que)} para Obra ${p.obra}. Motivo: ${p.motivo}. Vuelve a "En Compras".`,
   }),
   listo: (p: M & { proveedor: string; horario: string | null }) => ({
     titulo: `Listo para retirar: ${queLleva(p.que)}`,
@@ -127,7 +127,7 @@ export const TEXTO_MATERIAL = {
     cuerpo: `${p.motivo}: ${queLleva(p.que)} para Obra ${p.obra} vuelve a estar listo para retirar en ${p.proveedor}.`,
   }),
   cancelado: (quien: string, p: M & { motivo: string }) => ({
-    titulo: `Pedido de material cancelado`,
-    cuerpo: `${quien} canceló el pedido de ${queLleva(p.que)} para Obra ${p.obra}. Motivo: ${p.motivo}.`,
+    titulo: `Orden anulada`,
+    cuerpo: `${quien} anuló el pedido de ${queLleva(p.que)} para Obra ${p.obra}. Motivo: ${p.motivo}.`,
   }),
 };

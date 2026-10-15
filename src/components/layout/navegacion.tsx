@@ -35,6 +35,8 @@ function useDestino() {
 
 /** La sección activa es la más específica que coincide con la ruta. */
 function seccionActiva(hrefs: string[], ruta: string) {
+  // Un documento de compra se abre desde el tablero: no marca "Pedidos de material" por empezar con /compras.
+  if (ruta.startsWith("/compras/oc/") && hrefs.some((h) => h.split("?")[0] === "/compras/tablero")) return "/compras/tablero";
   const candidatas = hrefs.map((h) => h.split("?")[0]).filter((h) => ruta === h || ruta.startsWith(h + "/"));
   return candidatas.sort((a, b) => b.length - a.length)[0];
 }

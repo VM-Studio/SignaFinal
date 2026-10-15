@@ -7,7 +7,7 @@ export type AlertaCalculada = {
   severidad: Severidad;
   titulo: string;
   detalle: string;
-  entidadTipo: "PedidoViaje" | "Viaje" | "Vehiculo" | "DocumentoVehiculo" | "Usuario" | "Herramienta" | "CargaCombustible" | "PedidoMaterial" | "MaterialListo";
+  entidadTipo: "PedidoViaje" | "Viaje" | "Vehiculo" | "DocumentoVehiculo" | "Usuario" | "Herramienta" | "CargaCombustible" | "OrdenCompra" | "MaterialListo";
   entidadId: string;
   enlace: string;
   obraId?: string | null;

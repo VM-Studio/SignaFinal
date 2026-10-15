@@ -68,14 +68,11 @@ async function limpiar(db: PrismaClient) {
   await db.viajeParada.deleteMany();
   await db.viaje.deleteMany();
   await db.materialListo.deleteMany();
-  await db.pedidoMaterial.updateMany({ data: { ordenCompraId: null } });
   await db.renglonOC.deleteMany();
   await db.ordenCompra.deleteMany();
   await db.numeradorOC.deleteMany();
   await db.adjunto.deleteMany();
   await db.archivo.deleteMany();
-  await db.cambioEstadoMaterial.deleteMany();
-  await db.pedidoMaterial.deleteMany();
   await db.pedidoViaje.deleteMany();
   await db.incidenteVehiculo.deleteMany();
   await db.mantenimientoVehiculo.deleteMany();
@@ -217,7 +214,7 @@ export async function cargarDatosBase(db: PrismaClient) {
     ResponsableObra: await db.responsableObra.count(),
     Proveedor: await db.proveedor.count(),
     PedidoViaje: await db.pedidoViaje.count(),
-    PedidoMaterial: await db.pedidoMaterial.count(),
+    OrdenCompra: await db.ordenCompra.count(),
     Notificacion: await db.notificacion.count(),
     Alerta: await db.alerta.count(),
   };

@@ -59,11 +59,12 @@ model Usuario {
   posiciones                PosicionVehiculo[]
   notificaciones            Notificacion[]
   suscripcionesPush         SuscripcionPush[]
-  materialesPedidos         PedidoMaterial[]           @relation("MaterialSolicitante")
-  materialesTomados         PedidoMaterial[]           @relation("MaterialComprador")
-  materialesAprobados       PedidoMaterial[]           @relation("MaterialAprobador")
-  cambiosMaterial           CambioEstadoMaterial[]
   materialesHabilitados     MaterialListo[]
+  ocTomadas                 OrdenCompra[]              @relation("OCResponsableCompras")
+  ocPagosSolicitados        OrdenCompra[]              @relation("OCPagoSolicitadoPor")
+  cambiosOC                 CambioEstadoOC[]
+  cambiosCelda              CambioCelda[]
+  presenciasDocumento       PresenciaDocumento[]
   enviosPush                EnvioPush[]
   adjuntosSubidos           Adjunto[]
   ocCreadas                 OrdenCompra[]              @relation("OCCreadaPor")
@@ -101,7 +102,6 @@ model Obra {
   razonSocial         RazonSocial?            @relation(fields: [razonSocialId], references: [id])
   responsables        ResponsableObra[]
   pedidos             PedidoViaje[]
-  pedidosMaterial     PedidoMaterial[]
   materialesListos    MaterialListo[]
   cargasCombustible   CargaCombustible[]
   herramientas        Herramienta[]
@@ -128,9 +128,9 @@ model ObraSede {
   activa    Boolean  @default(true)
   creadoEn  DateTime @default(now())
 
-  obra            Obra             @relation(fields: [obraId], references: [id])
-  pedidos         PedidoViaje[]
-  pedidosMaterial PedidoMaterial[]
+  obra          Obra          @relation(fields: [obraId], references: [id])
+  pedidos       PedidoViaje[]
+  ordenesCompra OrdenCompra[]
 
   @@index([obraId, activa])
 }
@@ -995,7 +995,6 @@ model Archivo {
 }
 
 enum EntidadAdjunto {
-  PEDIDO_MATERIAL
   ORDEN_COMPRA
   VIAJE
   HERRAMIENTA
@@ -1037,91 +1036,9 @@ model GeocodeCache {
 // ═══════════════════════════ MATERIALES Y COMPRAS ═══════════════════════════
 // Los materiales no se piden a los choferes: se piden a Compras (CLAUDE.md, "Materiales y Compras").
 
-enum EstadoMaterial {
-  SOLICITADO
-  EN_COMPRA
-  ESPERANDO_APROBACION
-  APROBADO
-  LISTO_PARA_RETIRAR
-  RETIRO_PEDIDO
-  EN_CAMINO
-  ENTREGADO
-  CANCELADO
-}
-
-enum FuenteMaterial {
-  MANUAL
-  LEBANE // cuando llegue la API: EN_COMPRA → APROBADO se leen de la OC de Lebane
-}
-
-model PedidoMaterial {
-  id                    String         @id @default(cuid())
-  numero                Int            @unique @default(autoincrement())
-  obraId                String
-  solicitanteId         String
-  descripcion           String // qué y cuánto (resumen; con solo adjuntos: "Ver lista adjunta (planilla.xlsx)")
-  // Renglones: [{ descripcion, cantidad, unidad }]. Opcionales si viene un adjunto.
-  renglones             Json?
-  // Si la obra tiene sedes: para cuál.
-  obraSedeId            String?
-  cantidad              Decimal?       @db.Decimal(12, 2)
-  unidad                String?
-  paraCuando            DateTime       @db.Date
-  prioridad             Prioridad      @default(NORMAL)
-  estado                EstadoMaterial @default(SOLICITADO)
-  fuente                FuenteMaterial @default(MANUAL)
-  ordenCompraNumero     String?
-  ordenCompraLebaneId   String?
-  montoAprobado         Decimal?       @db.Decimal(14, 2)
-  aprobadoPorId         String?
-  aprobadoEn            DateTime?
-  tomadoPorId           String? // Compras
-  tomadoEn              DateTime?
-  // "Con esto no falta nada del pedido": al entregarse todas las habilitaciones, queda ENTREGADO.
-  completo              Boolean        @default(false)
-  motivoCancelacion     String?
-  observaciones         String?
-  // Notas internas de Compras: el solicitante no las ve.
-  notasCompras          String?
-  // EN_COMPRA con subestado: Compras pidió presupuesto antes de armar la OC ("Solicitud de presupuesto").
-  presupuestoSolicitado Boolean        @default(false)
-  // La orden de compra vigente (puede haber otras rechazadas o anuladas).
-  ordenCompraId         String?        @unique
-  creadoEn              DateTime       @default(now())
-  actualizadoEn         DateTime       @updatedAt
-
-  ordenCompra      OrdenCompra?           @relation("OCVigente", fields: [ordenCompraId], references: [id])
-  obraSede         ObraSede?              @relation(fields: [obraSedeId], references: [id])
-  ordenesCompra    OrdenCompra[]          @relation("OCsDelPedido")
-  obra             Obra                   @relation(fields: [obraId], references: [id])
-  solicitante      Usuario                @relation("MaterialSolicitante", fields: [solicitanteId], references: [id])
-  tomadoPor        Usuario?               @relation("MaterialComprador", fields: [tomadoPorId], references: [id])
-  aprobadoPor      Usuario?               @relation("MaterialAprobador", fields: [aprobadoPorId], references: [id])
-  cambios          CambioEstadoMaterial[]
-  materialesListos MaterialListo[]
-
-  @@index([obraId, estado])
-  @@index([estado, paraCuando])
-  @@index([solicitanteId])
-}
-
 /**
  * Historial de estados del pedido de material (la línea de tiempo de 8 pasos).
  */
-model CambioEstadoMaterial {
-  id               String          @id @default(cuid())
-  pedidoMaterialId String
-  de               EstadoMaterial?
-  a                EstadoMaterial
-  usuarioId        String?
-  fecha            DateTime        @default(now())
-  nota             String?
-
-  pedidoMaterial PedidoMaterial @relation(fields: [pedidoMaterialId], references: [id])
-  usuario        Usuario?       @relation(fields: [usuarioId], references: [id])
-
-  @@index([pedidoMaterialId, fecha])
-}
 
 enum EstadoMaterialListo {
   LISTO
@@ -1141,8 +1058,9 @@ enum ModoEntrega {
  */
 model MaterialListo {
   id                   String              @id @default(cuid())
-  pedidoMaterialId     String
-  obraId               String // copiado del pedido
+  // El documento de compra (OC/PE) del que sale este retiro.
+  ordenCompraId        String
+  obraId               String // copiado del documento
   proveedorId          String
   sucursalId           String
   // Copiados al habilitar, por si el proveedor cambia después.
@@ -1166,15 +1084,15 @@ model MaterialListo {
   pedidoViajeId        String?
   entregadoEn          DateTime?
 
-  pedidoMaterial PedidoMaterial    @relation(fields: [pedidoMaterialId], references: [id])
-  obra           Obra              @relation(fields: [obraId], references: [id])
-  proveedor      Proveedor         @relation(fields: [proveedorId], references: [id])
-  sucursal       SucursalProveedor @relation(fields: [sucursalId], references: [id])
-  habilitadoPor  Usuario           @relation(fields: [habilitadoPorId], references: [id])
-  pedidoViaje    PedidoViaje?      @relation(fields: [pedidoViajeId], references: [id])
+  ordenCompra   OrdenCompra       @relation(fields: [ordenCompraId], references: [id])
+  obra          Obra              @relation(fields: [obraId], references: [id])
+  proveedor     Proveedor         @relation(fields: [proveedorId], references: [id])
+  sucursal      SucursalProveedor @relation(fields: [sucursalId], references: [id])
+  habilitadoPor Usuario           @relation(fields: [habilitadoPorId], references: [id])
+  pedidoViaje   PedidoViaje?      @relation(fields: [pedidoViajeId], references: [id])
 
   @@index([obraId, estado])
-  @@index([pedidoMaterialId])
+  @@index([ordenCompraId])
   @@index([pedidoViajeId])
 }
 
@@ -1215,10 +1133,15 @@ enum Moneda {
 }
 
 enum EstadoOC {
-  BORRADOR
-  ESPERANDO_APROBACION
-  APROBADA
-  RECHAZADA
+  BORRADOR // lo está armando quien lo pidió (o volvió con una nota de Compras)
+  ENVIADA_A_COMPRAS // llegó a Compras, nadie lo abrió todavía
+  EN_COMPRAS // Compras lo abrió y lo está completando
+  ESPERANDO_AUTORIZACION // Compras lo envió al dueño (tiene número)
+  AUTORIZADA
+  RECHAZADA // histórico: un rechazo vuelve a EN_COMPRAS con el motivo
+  ENCARGADA // pedido al proveedor
+  HABILITADA // hay algo listo para retirar (o lo trae el proveedor)
+  ENTREGADA
   ANULADA
 }
 
@@ -1229,11 +1152,13 @@ enum TipoOrden {
 }
 
 /// Forma de Pago de la plantilla: Transferencia, Echeq, Efectivo (y cuenta corriente).
+/// Forma de Pago de la plantilla. Acopio: el material queda en el proveedor (Compras puede marcarlo).
 enum FormaPago {
   TRANSFERENCIA
   ECHEQ
   EFECTIVO
   CUENTA_CORRIENTE
+  ACOPIO
 }
 
 /// Condición de Pago de la plantilla: Anticipo, saldo a 30 días, acopio, contra entrega (u otra).
@@ -1251,6 +1176,7 @@ enum EstadoTablero {
   AUTORIZADA
   SOLICITUD_PRESUPUESTO
   ENCARGADO
+  HABILITADA
   ENTREGADO
   ANULADA
 }
@@ -1263,9 +1189,26 @@ enum SemaforoPE {
   ANULADA
 }
 
+/// Quién empezó el documento (o si vino de la planilla de Excel).
 enum FuenteOC {
-  SISTEMA
-  IMPORTADA_EXCEL
+  ARQUITECTA
+  COMPRAS
+  ADMINISTRACION
+  DIRECCION
+  IMPORTADA
+}
+
+/// Sección 3 (Facturación).
+enum EstadoFacturacion {
+  PENDIENTE
+  FACTURADA
+}
+
+/// Sección 4 (Orden de Pago).
+enum EstadoPago {
+  PENDIENTE
+  AUTORIZADO
+  PAGADO
 }
 
 /// Razón social que compra o factura (hoja NOTOCAR de la planilla: obras y CUITs).
@@ -1292,116 +1235,209 @@ model SolicitanteExterno {
   ordenes OrdenCompra[]
 }
 
+/**
+ * DOCUMENTO DE COMPRA (OC o PE): un solo objeto desde que alguien pide hasta que se paga. La plantilla
+ * oficial (docs/plantilla-oc/orden-de-compra.pdf) es la pantalla de edición compartida; cada celda de la
+ * plantilla está en src/lib/compras/permisosCeldas.ts (nombre exacto, campo, quién la edita y cuándo).
+ * Antes había un PedidoMaterial aparte: la migración documento_compra_unificado lo convirtió en esto.
+ */
 model OrdenCompra {
-  id                       String         @id @default(cuid())
-  tipo                     TipoOrden      @default(OC)
-  // OC-NNNN / PE-NNNN (formato en src/lib/compras/numerar.ts). Se asigna al enviar a aprobación (los
+  id                       String            @id @default(cuid())
+  // Referencia interna "#123" (existe desde el borrador; el número de orden recién al enviar a autorización).
+  numeroInterno            Int               @unique @default(autoincrement())
+  tipo                     TipoOrden         @default(OC)
+  // N° de Orden: OC-NNNN / PE-NNNN (src/lib/compras/numerar.ts). Se asigna al enviar a autorización (los
   // borradores no gastan número). Las importadas pueden traer "41 B": numeroTexto lo guarda tal cual.
-  numero                   String?        @unique
+  numero                   String?           @unique
   numeroTexto              String?
   anio                     Int?
   secuencia                Int?
-  // Sin pedido de material: las importadas del Excel.
-  pedidoMaterialId         String?
-  obraId                   String?
-  // Obra como venía en el Excel cuando no se pudo emparejar.
-  obraTexto                String?
+  // ── 1. Orden de Pedido ──
+  empresaCompraId          String? // Empresa
+  fecha                    DateTime          @default(now()) @db.Date // Fecha del pedido
+  fechaNecesaria           DateTime?         @db.Date // Fecha de caducidad (= "para cuándo" del que pidió)
   // Solicitado por: un usuario, un solicitante externo, o el texto tal cual (importadas).
   solicitanteId            String?
   solicitanteExternoId     String?
   solicitadoPorTexto       String?
-  empresaCompraId          String?
+  obraId                   String?
+  obraSedeId               String?
+  // Obra como venía en el Excel cuando no se pudo emparejar.
+  obraTexto                String?
+  detallePedido            String? // Detalle del Pedido
+  proveedorSugerido        String?
   proveedorId              String? // Proveedor Final
   sucursalId               String?
-  proveedorSugerido        String?
-  // Fecha del pedido.
-  fecha                    DateTime       @default(now()) @db.Date
-  // Fecha de caducidad (nombre interno de antes).
-  fechaNecesaria           DateTime?      @db.Date
-  // Fecha de entrega programada (columna FECHA DE ENTREGA del tablero).
-  fechaEntrega             DateTime?      @db.Date
-  detallePedido            String?
-  presupuestoNumero        String?
-  importe                  Decimal?       @db.Decimal(14, 2)
-  importeAConfirmar        Boolean        @default(false)
-  moneda                   Moneda         @default(ARS)
+  presupuestoNumero        String? // Presupuesto N°
+  importe                  Decimal?          @db.Decimal(14, 2)
+  importeAConfirmar        Boolean           @default(false)
+  moneda                   Moneda            @default(ARS)
   // Cotización del dólar del día (venta oficial) en las OC en USD.
-  cotizacionUsd            Decimal?       @db.Decimal(12, 2)
-  formaPago                FormaPago?
-  condicionPago            CondicionPago?
-  condicionPagoTexto       String?
+  cotizacionUsd            Decimal?          @db.Decimal(12, 2)
+  formaPago                FormaPago? // Forma de Pago (sección 1)
   // 1.1 Observaciones de la Orden de Pedido.
   observaciones            String?
-  notasInternas            String?
-  subtotal                 Decimal?       @db.Decimal(14, 2)
-  iva                      Decimal?       @db.Decimal(14, 2)
-  // 21 por defecto; null = sin IVA.
-  ivaPorcentaje            Decimal?       @db.Decimal(5, 2)
-  total                    Decimal?       @db.Decimal(14, 2)
-  estado                   EstadoOC       @default(BORRADOR)
-  // Tablero: estadoTablero es lo que se ve; estadoTableroAuto, lo que sale del estado real
-  // (src/lib/compras/estadoTablero.ts). Compras puede ajustarlo a mano hasta el próximo cambio real.
+  // ── Del que pidió (fuera de la grilla de la plantilla) ──
+  observacionesSolicitante String?
+  prioridad                Prioridad         @default(NORMAL)
+  // Fecha de entrega programada (columna FECHA DE ENTREGA del tablero).
+  fechaEntrega             DateTime?         @db.Date
+  // ── Compras ──
+  notasInternas            String? // el que pidió no las ve
+  tomadoPorId              String? // la persona de Compras responsable (al abrirla por primera vez)
+  tomadoEn                 DateTime?
+  presupuestoSolicitado    Boolean           @default(false)
+  // "Con esto no falta nada": al entregarse todas las habilitaciones, queda ENTREGADA.
+  completo                 Boolean           @default(false)
+  // Nota de Compras al devolverla a quien la pidió (vuelve a BORRADOR).
+  notaDevolucion           String?
+  // ── 2. Autorización ──
+  estado                   EstadoOC          @default(BORRADOR)
+  enviadaAComprasEn        DateTime?
+  enviadaEn                DateTime? // a autorización
+  aprobadaPorId            String?
+  aprobadaEn               DateTime?
+  motivoRechazo            String?
+  rechazadaEn              DateTime?
+  motivoAnulacion          String?
+  // ── 3. Facturación ──
+  empresaFacturarId        String? // Empresa para Facturar (trae el CUIT)
+  facturaNumero            String?
+  facturaImporte           Decimal?          @db.Decimal(14, 2)
+  facturaFecha             DateTime?         @db.Date
+  facturaFormaPago         FormaPago?
+  facturaCondicion         CondicionPago? // Condición de Pago
+  condicionPagoTexto       String?
+  facturaAdjuntoId         String?
+  estadoFacturacion        EstadoFacturacion @default(PENDIENTE)
+  // ── 4. Orden de Pago ──
+  pagoSolicitadoPorId      String?
+  pagoSolicitadoEn         DateTime?
+  ordenPagoAutorizadaPorId String?
+  ordenPagoAutorizadaEn    DateTime?
+  fechaPago                DateTime?         @db.Date
+  pagoImporte              Decimal?          @db.Decimal(14, 2)
+  pagoObservaciones        String?
+  estadoPago               EstadoPago        @default(PENDIENTE)
+  // ── Tablero ──
+  // estadoTablero es lo que se ve; estadoTableroAuto, lo que sale del estado real (estadoTablero.ts).
+  // Compras puede ajustarlo a mano hasta el próximo cambio real.
   estadoTablero            EstadoTablero?
   estadoTableroAuto        EstadoTablero?
   proximosPasos            String?
   comentarios              String?
   semaforoPE               SemaforoPE?
-  // "Encargado" al proveedor (sin habilitación todavía).
   encargadaEn              DateTime?
-  // 3. Facturación
-  empresaFacturarId        String?
-  facturaNumero            String?
-  facturaImporte           Decimal?       @db.Decimal(14, 2)
-  facturaFecha             DateTime?      @db.Date
-  facturaFormaPago         FormaPago?
-  facturaCondicion         CondicionPago?
-  facturaAdjuntoId         String?
-  // 4. Orden de pago
-  ordenPagoAutorizadaPorId String?
-  ordenPagoAutorizadaEn    DateTime?
-  fechaPago                DateTime?      @db.Date
-  pagoImporte              Decimal?       @db.Decimal(14, 2)
-  pagoObservaciones        String?
-  fuente                   FuenteOC       @default(SISTEMA)
+  // ── Documento ──
+  fuente                   FuenteOC          @default(COMPRAS)
   creadaPorId              String
-  enviadaEn                DateTime?
-  aprobadaPorId            String?
-  aprobadaEn               DateTime?
-  motivoRechazo            String?
-  motivoAnulacion          String?
+  // Versión de cada celda ({ "importe": 3, … }): el guardado por celda la compara para no pisar al otro.
+  versionesCeldas          Json              @default("{}")
   pdfUrl                   String?
   pdfAprobadaUrl           String?
-  // Sube con cada edición. Si una aprobada vuelve a aprobación por un cambio de fondo: v2, v3…
-  version                  Int            @default(1)
-  versionAprobacion        Int            @default(1)
+  // Sube con cada edición. Si una autorizada vuelve a autorización por un cambio de fondo: v2, v3…
+  version                  Int               @default(1)
+  versionAprobacion        Int               @default(1)
   // Cuando exista la API de Lebane: el número que le asigne Lebane.
   ordenCompraLebaneId      String?
-  creadoEn                 DateTime       @default(now())
-  actualizadoEn            DateTime       @updatedAt
+  // Viejos (antes de la plantilla en celdas): renglones con IVA. Se conservan por las órdenes ya hechas.
+  subtotal                 Decimal?          @db.Decimal(14, 2)
+  iva                      Decimal?          @db.Decimal(14, 2)
+  ivaPorcentaje            Decimal?          @db.Decimal(5, 2)
+  total                    Decimal?          @db.Decimal(14, 2)
+  condicionPago            CondicionPago? // viejo: ahora es la Condición de Pago de la sección 3
+  creadoEn                 DateTime          @default(now())
+  actualizadoEn            DateTime          @updatedAt
 
-  pedidoMaterial         PedidoMaterial?     @relation("OCsDelPedido", fields: [pedidoMaterialId], references: [id])
-  vigenteDe              PedidoMaterial?     @relation("OCVigente")
-  obra                   Obra?               @relation(fields: [obraId], references: [id])
-  solicitante            Usuario?            @relation("OCSolicitante", fields: [solicitanteId], references: [id])
-  solicitanteExterno     SolicitanteExterno? @relation(fields: [solicitanteExternoId], references: [id])
-  empresaCompra          RazonSocial?        @relation("OCEmpresaCompra", fields: [empresaCompraId], references: [id])
-  empresaFacturar        RazonSocial?        @relation("OCEmpresaFacturar", fields: [empresaFacturarId], references: [id])
-  proveedor              Proveedor?          @relation(fields: [proveedorId], references: [id])
-  sucursal               SucursalProveedor?  @relation(fields: [sucursalId], references: [id])
-  creadaPor              Usuario             @relation("OCCreadaPor", fields: [creadaPorId], references: [id])
-  aprobadaPor            Usuario?            @relation("OCAprobadaPor", fields: [aprobadaPorId], references: [id])
-  ordenPagoAutorizadaPor Usuario?            @relation("OCOrdenPagoAutorizada", fields: [ordenPagoAutorizadaPorId], references: [id])
+  obra                   Obra?                @relation(fields: [obraId], references: [id])
+  obraSede               ObraSede?            @relation(fields: [obraSedeId], references: [id])
+  solicitante            Usuario?             @relation("OCSolicitante", fields: [solicitanteId], references: [id])
+  solicitanteExterno     SolicitanteExterno?  @relation(fields: [solicitanteExternoId], references: [id])
+  empresaCompra          RazonSocial?         @relation("OCEmpresaCompra", fields: [empresaCompraId], references: [id])
+  empresaFacturar        RazonSocial?         @relation("OCEmpresaFacturar", fields: [empresaFacturarId], references: [id])
+  proveedor              Proveedor?           @relation(fields: [proveedorId], references: [id])
+  sucursal               SucursalProveedor?   @relation(fields: [sucursalId], references: [id])
+  creadaPor              Usuario              @relation("OCCreadaPor", fields: [creadaPorId], references: [id])
+  tomadoPor              Usuario?             @relation("OCResponsableCompras", fields: [tomadoPorId], references: [id])
+  aprobadaPor            Usuario?             @relation("OCAprobadaPor", fields: [aprobadaPorId], references: [id])
+  pagoSolicitadoPor      Usuario?             @relation("OCPagoSolicitadoPor", fields: [pagoSolicitadoPorId], references: [id])
+  ordenPagoAutorizadaPor Usuario?             @relation("OCOrdenPagoAutorizada", fields: [ordenPagoAutorizadaPorId], references: [id])
   renglones              RenglonOC[]
+  materialesListos       MaterialListo[]
+  cambios                CambioEstadoOC[]
+  cambiosCelda           CambioCelda[]
+  presencias             PresenciaDocumento[]
 
   @@unique([tipo, numeroTexto])
   @@index([estado, enviadaEn])
-  @@index([pedidoMaterialId])
+  @@index([estado, fechaNecesaria])
   @@index([proveedorId])
-  @@index([obraId])
+  @@index([obraId, estado])
   @@index([estadoTablero, fechaNecesaria])
   @@index([tipo, secuencia])
   @@index([fecha])
   @@index([solicitanteId])
+  @@index([creadaPorId, estado])
+  @@index([estadoFacturacion, estadoPago])
+}
+
+/// Historia de estados del documento (la línea de tiempo).
+model CambioEstadoOC {
+  id            String    @id @default(cuid())
+  ordenCompraId String
+  de            EstadoOC?
+  a             EstadoOC
+  usuarioId     String?
+  fecha         DateTime  @default(now())
+  nota          String?
+
+  ordenCompra OrdenCompra @relation(fields: [ordenCompraId], references: [id], onDelete: Cascade)
+  usuario     Usuario?    @relation(fields: [usuarioId], references: [id])
+
+  @@index([ordenCompraId, fecha])
+}
+
+/// Historial por celda (panel "Cambios"): quién, cuándo y el valor anterior.
+model CambioCelda {
+  id            String   @id @default(cuid())
+  ordenCompraId String
+  celda         String
+  version       Int
+  anterior      String?
+  nuevo         String?
+  usuarioId     String
+  fecha         DateTime @default(now())
+
+  ordenCompra OrdenCompra @relation(fields: [ordenCompraId], references: [id], onDelete: Cascade)
+  usuario     Usuario     @relation(fields: [usuarioId], references: [id])
+
+  @@index([ordenCompraId, fecha])
+  @@index([ordenCompraId, celda, version])
+}
+
+/// Quién tiene abierto el documento ("Alejandra, Camila están viendo"): se renueva cada 20 s.
+model PresenciaDocumento {
+  ordenCompraId String
+  usuarioId     String
+  vistoEn       DateTime @default(now())
+
+  ordenCompra OrdenCompra @relation(fields: [ordenCompraId], references: [id], onDelete: Cascade)
+  usuario     Usuario     @relation(fields: [usuarioId], references: [id])
+
+  @@id([ordenCompraId, usuarioId])
+  @@index([ordenCompraId, vistoEn])
+}
+
+/// Token de un solo uso para que el generador de PDF abra /compras/oc/[id]/imprimir sin sesión.
+model TokenDocumento {
+  id            String    @id @default(cuid())
+  hash          String    @unique
+  ordenCompraId String
+  expiraEn      DateTime
+  usadoEn       DateTime?
+  creadoEn      DateTime  @default(now())
+
+  @@index([ordenCompraId])
 }
 
 model RenglonOC {
@@ -1456,7 +1492,6 @@ model Recordatorio {
 enum EntidadCambio {
   PEDIDO_VIAJE
   VIAJE
-  PEDIDO_MATERIAL
   ORDEN_COMPRA
   MATERIAL_LISTO
   HERRAMIENTA

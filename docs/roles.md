@@ -184,39 +184,23 @@ alertas de vehículos o choferes, ni la actividad de los demás.
 
 ---
 
-## Compras (la persona de compras)
+## Compras (Alejandra)
 
-- **Inicio** ("Hola, Alejandra", grilla de 12): **Pedidos nuevos** a lo ancho (N, con botón); **Esperando
-  aprobación**, **Encargado** y **Listos sin retirar hace más de 3 días** (en rojo si hay); **Demorados** y
-  el **dólar** (blue y oficial, compra y venta, hora).
-- **Barra**: Pedidos · Órdenes · Viajes · Más (Pedidos con el número de nuevos sin tomar). **Órdenes** ES su
-  planilla (el tablero, sin pestañas); **Viajes**: Coordinar viaje · Solicitudes. En **Más**: Habilitados,
-  Proveedores, Mis avisos, Cuenta. En escritorio: Inicio arriba de todo, navbar de 64 px con el dólar como
-  píldora verde. Guía completa: **docs/compras.md**.
-- **Pedidos** (la cola): Nuevos / En compra / Esperando aprobación / Aprobados / Listos. Urgentes
-  primero, después por para cuándo; en rojo lo demorado (más de 2 días hábiles sin comprar, más de
-  un día esperando al dueño). Filtros en una fila (obra, arquitecto/a, prioridad, estado, con adjuntos).
-  **Nuevo pedido** para lo que le piden por teléfono (es su "pedir materiales").
-- **Detalle**: arriba las **observaciones** del que pidió y sus **adjuntos** (se ven en la app o se
-  descargan); **notas internas de Compras** y adjuntos propios (presupuestos) que el que pidió no ve.
-  UN botón con lo que sigue: **Tomar** → **Armar orden de compra** → (esperando al dueño) →
-  **Habilitar para retirar** → listo. Cancelar con motivo.
-- **Orden de compra / pedido especial**: la plantilla de su planilla (Empresa, Fecha del pedido, Fecha de
-  caducidad, Solicitado por, Obra, Detalle del Pedido con **Pasar a renglones**, Proveedor Sugerido y
-  Final, Presupuesto N°, Importe o "A confirmar", Forma y Condición de Pago, 1.1 Observaciones,
-  Facturación y Orden de Pago). **Guardar** (borrador en Órdenes), **Vista previa PDF**, **Enviar a
-  aprobación** (número OC-NNNN o PE-NNNN, cada uno con su numeración). Se arma desde un pedido o directo
-  desde Órdenes. Editar una autorizada con un cambio de fondo vuelve a aprobación como v2.
-- **Habilitar para retirar**: si hay OC aprobada, viene precargado (proveedor, sucursal, OC y renglones
-  para tildar lo que se retira ahora; retiros parciales).
-- **Órdenes** (el tablero): calcado de su planilla (encabezado gris, grilla, Nº con el código de color, ESTADO
-  como lista pintada, "A confirmar" en amarillo), cuatro tarjetas-filtro, filtros, vistas guardadas,
-  Próximos pasos y Comentarios editables en la celda y **Exportar a Excel** con sus colores. Importar su
-  planilla vieja lo hace el dueño (Más → Compras → Importar Excel).
-- **Habilitados**: lo que habilitó y qué pasó después (sin retiro pedido, retiro pedido, en camino,
-  entregado), con filtros de obra y proveedor; en rojo lo que lleva 3 días o más sin que la obra pida el viaje.
-- **Proveedores**: buscador, ficha (en el panel derecho) con CUIT, teléfono, mail y sus **sucursales** (dirección en el mapa,
-  horario y contacto de retiro), y las OC de ese proveedor.
+- **Sin inicio**: entra directo al **Tablero**. **Barra**: Tablero · Pedidos · Viajes · Más (Pedidos con el
+  número de nuevos sin tomar). En **Más**: Habilitados, Proveedores, Mis avisos, Cuenta. Guía completa:
+  **docs/compras.md**.
+- **Tablero**: calcado de su planilla, con la franja negra "N pedidos nuevos esperan que los tomes → Ver
+  pedidos", cinco tarjetas-filtro (Todas · Pedir autorización · Encargado · Listas para retirar · Entregado
+  este mes), columna Facturación y **Exportar a Excel**. Una fila abre el documento a página completa; **←
+  Volver al tablero** vuelve con los mismos filtros y el scroll.
+- **Pedidos**: la bandeja (Nuevos · En Compras · Todos) con "Con OC cargada" / "Solo indicaciones" y qué le
+  falta a cada uno. Abrir uno nuevo lo pasa a En Compras.
+- **El documento** (la plantilla OC/PE compartida): completa la sección 1 y 1.1, se guarda solo por celda.
+  **Enviar a autorización** (número OC-NNNN / PE-NNNN), **Devolver con nota**, **Anular**; autorizada,
+  **Marcar como encargada** y **Habilitar para retirar** (barra verde). **Modificar** una autorizada: si cambia
+  el proveedor o el importe vuelve a autorización como v2.
+- **Habilitados**: lo que habilitó y qué pasó después; en rojo lo que lleva 3 días o más sin viaje.
+- **Proveedores**: buscador y ficha con sus **sucursales** y las órdenes de ese proveedor.
 
 **Avisos**: pedido de material nuevo (con las primeras palabras de las observaciones y cuántos
 adjuntos trae), el dueño aprobó o rechazó la OC, faltó material en un retiro ("Retiraron 30 de 40
@@ -230,11 +214,14 @@ inicia viajes.
 
 ---
 
-## Administración (oficina)
+## Administración (Camila)
 
 - **Inicio**: vencimientos de documentación de los próximos 30 días y el costo del mes por obra.
 - **Barra**: Flota · Costos · Alertas · Más. En **Más**: Obras, Proveedores, Razones sociales, Agenda,
-  Mantenimiento, Tablero de Compras (solo mirar), Ubicaciones, Usuarios, Mis avisos, Inicio, Mi cuenta.
+  Mantenimiento, **Tablero**, **Facturación**, Ubicaciones, Usuarios, Mis avisos, Inicio, Mi cuenta.
+- **Facturación**: las órdenes autorizadas con la factura o el pago pendientes. En el documento completa
+  **3. Facturación**, adjunta la factura (sale como página 2 del PDF) y **Pide autorización** del pago al
+  dueño; después la Fecha de Pago. Aviso cuando una orden se autoriza y cuando se marca Acopio.
 - Documentación de vehículos, mantenimiento, incidentes, costos por obra y por vehículo con
   exportación para Lebane. Un viaje con varias obras **reparte su costo** por tramo entre ellas.
 - **Usuarios**: alta de personas, rol, teléfono, licencia de los choferes y obras de cada
@@ -244,5 +231,5 @@ inicia viajes.
 **Alertas**: documentos por vencer o vencidos, licencias, service próximo, consumo de combustible
 anómalo, vehículos en movimiento fuera de horario o parados en viaje.
 
-**No ve**: solicitudes ni pedidos de viaje, el mapa en vivo, depósito ni la actividad de los demás. El
-tablero de Compras lo ve pero no lo edita.
+**No ve**: solicitudes ni pedidos de viaje, el mapa en vivo, depósito ni la actividad de los demás. En el
+documento de compra solo edita las secciones 3 y 4.

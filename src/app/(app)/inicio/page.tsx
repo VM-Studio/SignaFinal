@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
 import { EsqueletoLista } from "@/components/ui/esqueletos";
@@ -22,9 +23,8 @@ import { BotonLink } from "@/components/ui/boton";
 import { AccionPrincipal, Cifra, Esqueleto, FilaLista, Insignia, Lista, Llamado, Subtitulo, Titulo, Vacio } from "@/components/ui/basicos";
 import { DOCUMENTO } from "@/lib/etiquetas";
 import { cuando, fecha, finDelDia, plata, vencimiento } from "@/lib/formato";
-import { cuantasParaAprobar, esperandoACompras, listosEnMisObrasDetalle, resumenCompras } from "@/lib/materiales/consultas";
-import { contadoresTablero, leerFiltros } from "@/lib/compras/tablero";
-import { ColaMateriales, MisMateriales } from "@/components/materiales/lista-materiales";
+import { cuantasParaAprobar, esperandoACompras, listosEnMisObrasDetalle } from "@/lib/materiales/consultas";
+import { MisDocumentos, TarjetasListos } from "@/components/materiales/lista-materiales";
 import { Map as MapIcon, ShoppingCart, Stamp } from "lucide-react";
 
 export const metadata: Metadata = { title: "Inicio" };
@@ -32,18 +32,19 @@ export const metadata: Metadata = { title: "Inicio" };
 /** Un inicio por rol, cada uno con UNA acción principal grande. */
 export default async function Inicio() {
   const u = await exigirSesion();
+  // Compras no tiene inicio: entra al Tablero (también si llega por un redirect interno).
+  if (u.rol === "COMPRAS") redirect("/compras/tablero");
   return (
     <div>
-      <Titulo siempre>Hola, {u.rol === "COMPRAS" ? u.nombre.split(" ")[0] : u.nombre}</Titulo>
-      {/* Celular: la cotización del dólar arriba (en escritorio está en el header; Compras la tiene en su grilla). */}
-      {puede(u.rol, "dolar.ver") && u.rol !== "COMPRAS" && <div className="mb-3 lg:hidden"><CotizacionDolar variante="tarjeta" /></div>}
+      <Titulo siempre>Hola, {u.nombre}</Titulo>
+      {/* Celular: la cotización del dólar arriba (en escritorio está en el header). */}
+      {puede(u.rol, "dolar.ver") && <div className="mb-3 lg:hidden"><CotizacionDolar variante="tarjeta" /></div>}
       {/* El saludo sale al instante; cada bloque llega cuando está listo. */}
       <Suspense fallback={<EsqueletoLista filas={4} />}>
         {u.rol === "CHOFER" && <InicioChofer />}
         {(u.rol === "RESPONSABLE_OBRA" || u.rol === "CAPATAZ") && <InicioObra />}
         {u.rol === "DEPOSITO" && <InicioDeposito />}
         {u.rol === "ADMINISTRACION" && <InicioAdministracion />}
-        {u.rol === "COMPRAS" && <InicioCompras />}
       </Suspense>
       {u.rol === "DIRECCION" && <InicioDireccion />}
     </div>
@@ -64,18 +65,14 @@ async function InicioObra() {
         {listos.length === 0 ? (
           <Vacio titulo="Nada listo para retirar">Cuando Compras habilite un material, aparece acá para pedir el viaje.</Vacio>
         ) : (
-          <Lista>
-            {listos.map((m) => (
-              <FilaLista key={m.id} href={`/pedir/retiro?obra=${m.obraId}&material=${m.id}`} titulo={m.descripcion} detalle={`Obra ${m.obra} · en ${m.proveedor}${m.horario ? ` · ${m.horario}` : ""}`} derecha={<span className="text-sm font-medium text-ok">Pedir el viaje</span>} />
-            ))}
-          </Lista>
+          <TarjetasListos listos={listos} />
         )}
       </section>
       <section>
         <Subtitulo accion={<Link href="/viajes-en-curso" className="text-sm font-medium underline">Ver viajes</Link>}>En camino hoy</Subtitulo>
         {enMisObras.length === 0 ? <Vacio titulo="Ningún viaje hacia tus obras hoy" /> : <ListaViajes filas={enMisObras} base="/viajes-en-curso" />}
         <Subtitulo accion={<Link href="/mis-pedidos?tab=materiales" className="text-sm font-medium underline">Ver todos</Link>}>Esperando a Compras</Subtitulo>
-        {esperando.length === 0 ? <Vacio titulo="Nada esperando a Compras" /> : <MisMateriales filas={esperando} />}
+        {esperando.length === 0 ? <Vacio titulo="Nada esperando a Compras" /> : <MisDocumentos filas={esperando} desde="mis-pedidos" />}
       </section>
     </div>
   );
@@ -257,55 +254,6 @@ async function CifrasDireccion() {
 }
 
 // ───────────────────────────── Compras ─────────────────────────────
-
-/** Tarjeta-cifra del inicio de Compras: etiqueta de 11px arriba, número de 32px abajo (todas a la misma línea). */
-function CifraCompras({ href, etiqueta, valor, rojo = false }: { href: string; etiqueta: string; valor: number; rojo?: boolean }) {
-  return (
-    <Link href={href} className="flex h-full min-h-24 flex-col justify-between gap-4 rounded-[var(--radius-caja)] border border-linea bg-papel p-4 hover:border-linea-fuerte lg:col-span-4">
-      <span className="etiqueta">{etiqueta}</span>
-      <span className={`text-[32px] leading-9 font-semibold tabular-nums ${rojo ? "text-critico" : ""}`}>{valor}</span>
-    </Link>
-  );
-}
-
-/**
- * Inicio de Compras: grilla de 12 con gutter de 24. Pedidos nuevos a lo ancho (la acción principal); tres
- * cifras iguales (esperando aprobación, encargado, listos sin retirar +3 días); Demorados (8) y el dólar (4).
- */
-async function InicioCompras() {
-  const [r, cont] = await Promise.all([resumenCompras(), contadoresTablero(leerFiltros({}))]);
-  const nuevos = r.nuevos.length;
-  return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-6">
-      <section className="flex min-h-24 flex-col gap-4 rounded-[var(--radius-caja)] border border-linea bg-papel p-4 sm:flex-row sm:items-center lg:col-span-12 lg:h-24 lg:px-6 lg:py-0">
-        <span className="text-[32px] leading-9 font-semibold tabular-nums">{nuevos}</span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-semibold">{nuevos === 1 ? "Pedido nuevo" : "Pedidos nuevos"}</p>
-          <p className="text-sm text-suave">{nuevos ? "Tomalos, armá la OC y mandala a aprobación." : "No hay pedidos nuevos sin tomar."}</p>
-        </div>
-        <BotonLink href="/compras" icono={<ShoppingCart />}>Ver pedidos nuevos</BotonLink>
-      </section>
-      <CifraCompras href="/compras/ordenes?estado=PEDIR_AUTORIZACION" etiqueta="Esperando aprobación" valor={cont.pedir} />
-      <CifraCompras href="/compras/ordenes?estado=ENCARGADO" etiqueta="Encargado" valor={cont.encargado} />
-      <CifraCompras href="/habilitados" etiqueta="Listos sin retirar hace más de 3 días" valor={r.sinRetirar} rojo={r.sinRetirar > 0} />
-      <section className="flex min-h-64 min-w-0 flex-col overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel lg:col-span-8">
-        <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-linea px-4">
-          <h2 className="etiqueta">Demorados{r.demorados.length ? ` (${r.demorados.length})` : ""}</h2>
-          <Link href="/compras" className="text-[13px] font-medium text-suave hover:text-tinta">Ver la cola</Link>
-        </div>
-        {r.demorados.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-1 p-6 text-center">
-            <p className="font-medium">Nada demorado</p>
-            <p className="text-sm text-suave">Todo está dentro de los tiempos.</p>
-          </div>
-        ) : (
-          <ColaMateriales filas={r.demorados.slice(0, 6)} compacta sinMarco />
-        )}
-      </section>
-      <div className="min-w-0 lg:col-span-4"><CotizacionDolar variante="panel" /></div>
-    </div>
-  );
-}
 
 // ─────────────────────────── Administración ───────────────────────────
 

@@ -52,11 +52,14 @@ async function destinosPedidoViaje(cliente: Cliente, pedidoId: string) {
   ];
 }
 
-/** Pedido de material (y su OC y lo habilitado): Compras, Dirección, el que pidió y los responsables de la obra. */
-async function destinosMaterial(cliente: Cliente, pedidoMaterialId: string) {
-  const p = await cliente.pedidoMaterial.findUnique({ where: { id: pedidoMaterialId }, select: { solicitanteId: true, obraId: true } });
-  if (!p) return [];
-  return [p.solicitanteId, ...(await responsables(cliente, [p.obraId])), ...(await conRol(cliente, ["COMPRAS", "DIRECCION", "CAPATAZ"]))];
+/**
+ * Documento de compra (OC/PE, y lo habilitado): quien lo creó y quien lo pidió, los responsables de la obra,
+ * Compras, Dirección, Administración y el capataz. Así la plantilla abierta se actualiza sola en todos.
+ */
+async function destinosDocumento(cliente: Cliente, ordenCompraId: string) {
+  const d = await cliente.ordenCompra.findUnique({ where: { id: ordenCompraId }, select: { solicitanteId: true, creadaPorId: true, obraId: true } });
+  if (!d) return [];
+  return [d.solicitanteId, d.creadaPorId, ...(d.obraId ? await responsables(cliente, [d.obraId]) : []), ...(await conRol(cliente, ["COMPRAS", "DIRECCION", "ADMINISTRACION", "CAPATAZ"]))];
 }
 
 /** Herramienta: Depósito, Dirección, el capataz y los responsables de la obra donde está. */
@@ -76,14 +79,11 @@ export async function cambioDeAuditoria(cliente: Cliente, d: { entidad: string; 
       const destinos = await destinosPedidoViaje(cliente, d.entidadId);
       await emitirCambio(destinos, "PEDIDO_VIAJE", d.entidadId, d.accion, cliente);
       if (d.accion.startsWith("viaje.")) await emitirCambio(destinos, "VIAJE", d.entidadId, d.accion, cliente);
-    } else if (d.entidad === "PedidoMaterial") {
-      const destinos = await destinosMaterial(cliente, d.entidadId);
-      await emitirCambio(destinos, "PEDIDO_MATERIAL", d.entidadId, d.accion, cliente);
-      if (/^oc\.|aprob|rechaz/i.test(d.accion)) await emitirCambio([...destinos, ...(await conRol(cliente, ["ADMINISTRACION"]))], "ORDEN_COMPRA", d.entidadId, d.accion, cliente);
-      if (/habilit|retiro|listo/i.test(d.accion)) await emitirCambio(destinos, "MATERIAL_LISTO", d.entidadId, d.accion, cliente);
     } else if (d.entidad === "OrdenCompra") {
-      // Tablero de Compras (órdenes sin pedido: creadas o importadas; celdas editadas en línea).
-      await emitirCambio(await conRol(cliente, ["COMPRAS", "DIRECCION", "ADMINISTRACION"]), "ORDEN_COMPRA", d.entidadId, d.accion, cliente);
+      // El documento de compra (cada celda guardada, cada paso) y lo habilitado.
+      const destinos = await destinosDocumento(cliente, d.entidadId);
+      await emitirCambio(destinos, "ORDEN_COMPRA", d.entidadId, d.accion, cliente);
+      if (/habilit|retiro|listo|recibido/i.test(d.accion)) await emitirCambio(destinos, "MATERIAL_LISTO", d.entidadId, d.accion, cliente);
     } else if (d.entidad === "Herramienta" && d.entidadId !== "csv") {
       await emitirCambio(await destinosHerramienta(cliente, d.entidadId), "HERRAMIENTA", d.entidadId, d.accion, cliente);
     } else if (d.entidad === "Herramienta" || d.entidad === "MaterialSobrante") {

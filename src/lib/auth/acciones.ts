@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { inicioDe } from "@/lib/permisos";
 import { auditar } from "@/lib/auditoria";
 import { abrirSesion, cerrarSesionCookie, obtenerSesion } from "./sesion";
 
@@ -31,7 +32,8 @@ export async function ingresar(_: EstadoLogin, form: FormData): Promise<EstadoLo
   await abrirSesion(u);
   await auditar(db, { usuarioId: u.id, accion: "sesion.ingresar", entidad: "Usuario", entidadId: u.id, resumen: `${u.nombre} ingresó al sistema` });
   const v = d.data.volver;
-  redirect(v && v.startsWith("/") && !v.startsWith("//") ? v : "/inicio");
+  // El inicio de cada rol (Compras entra directo al Tablero).
+  redirect(v && v.startsWith("/") && !v.startsWith("//") ? v : inicioDe(u.rol));
 }
 
 /**

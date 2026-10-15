@@ -93,14 +93,14 @@ export function FormularioMateriales({ obras: iniciales, obraInicial, compras = 
     setEnviando(false);
     if (!r.ok) return setError(r.error);
     aviso({
-      mensaje: compras ? `Pedido ${r.datos.numero} cargado. Ya está en Nuevos.` : "Pedido enviado a Compras. Te avisamos en cada paso.",
+      mensaje: compras ? `Pedido #${r.datos.numero} cargado: ya está en Compras.` : "Pedido enviado a Compras. Te avisamos en cada paso.",
       deshacer: async () => {
         const x = await deshacerPedidoMaterial(r.datos.id);
         if (!x.ok) aviso({ mensaje: x.error, tono: "error" });
         router.refresh();
       },
     });
-    router.push(compras ? `/compras/${r.datos.id}` : "/mis-pedidos?tab=materiales");
+    router.push(compras ? `/compras/oc/${r.datos.id}?desde=pedidos` : "/mis-pedidos?tab=materiales");
   }
 
   return (
@@ -174,7 +174,7 @@ export function FormularioMateriales({ obras: iniciales, obraInicial, compras = 
               ))}
             </ul>
           )}
-          <SubirAdjuntos entidadTipo="PEDIDO_MATERIAL" etiqueta="Adjuntar lista de materiales" onCambio={(ids, s) => { setAdjuntos(ids); setSubiendo(s); }} />
+          <SubirAdjuntos entidadTipo="ORDEN_COMPRA" etiqueta="Adjuntar lista de materiales" onCambio={(ids, s) => { setAdjuntos(ids); setSubiendo(s); }} />
           <p className="text-[12px] text-suave">PDF, Excel, Word, CSV o fotos (hasta 20 MB cada uno). Se pueden adjuntar varios.</p>
         </fieldset>
       </div>

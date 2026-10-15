@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ChevronRight, PackageOpen, X } from "lucide-react";
 import type { EstadoMaterialListo } from "@prisma/client";
 import { habilitados } from "@/lib/materiales/consultas";
-import { diasDesde, haceDias, LIMITES } from "@/lib/materiales/presentacion";
+import { diasDesde, haceDias, LIMITES } from "@/lib/compras/documento";
 import { cuando, hora, peso } from "@/lib/formato";
 import { limiteDe } from "@/lib/pagina";
 import { vistasDe } from "@/lib/vistas/consultas";
@@ -72,10 +72,10 @@ export default async function PaginaHabilitados({ searchParams }: { searchParams
           <ul className="-mx-4 divide-y divide-linea border-y border-linea bg-papel lg:hidden">
             {filas.map((m) => (
               <li key={m.id} data-vivo-id={m.id}>
-                <Link href={`/compras/${m.pedidoMaterial.id}`} className="flex min-h-14 items-center gap-3 px-4 py-2 hover:bg-hover">
+                <Link href={`/compras/oc/${m.ordenCompra.id}?desde=habilitados`} className="flex min-h-14 items-center gap-3 px-4 py-2 hover:bg-hover">
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{m.descripcion}</p>
-                    <p className="truncate text-sm text-suave">Obra {m.obra.nombre} · {m.proveedor.nombre}{m.pesoKg ? ` · hasta ${peso(m.pesoKg)}` : ""} · pidió {m.pedidoMaterial.solicitante.nombre}</p>
+                    <p className="truncate text-sm text-suave">Obra {m.obra.nombre} · {m.proveedor.nombre}{m.pesoKg ? ` · hasta ${peso(m.pesoKg)}` : ""} · pidió {m.ordenCompra.solicitante?.nombre ?? m.ordenCompra.creadaPor.nombre}</p>
                     <p className={`text-sm ${rojo(m) ? "font-medium text-critico" : "text-suave"}`}>{detalle(m)}{rojo(m) ? " · nadie pidió el viaje" : ""}</p>
                   </div>
                   <ChevronRight aria-hidden className="size-5 shrink-0 text-apagado" />
@@ -90,12 +90,12 @@ export default async function PaginaHabilitados({ searchParams }: { searchParams
               <tbody>
                 {filas.map((m) => (
                   <tr key={m.id} data-vivo-id={m.id}>
-                    <td className="max-w-[360px]"><Link href={`/compras/${m.pedidoMaterial.id}`} className="block truncate font-medium hover:underline">{m.descripcion}</Link></td>
+                    <td className="max-w-[360px]"><Link href={`/compras/oc/${m.ordenCompra.id}?desde=habilitados`} className="block truncate font-medium hover:underline">{m.descripcion}</Link></td>
                     <td>Obra {m.obra.nombre}</td>
                     <td>{m.proveedor.nombre}</td>
                     <td className="text-suave tabular-nums">{m.ordenCompraNumero ?? "—"}</td>
                     <td className="num text-suave">{m.pesoKg ? peso(m.pesoKg) : "—"}</td>
-                    <td>{m.pedidoMaterial.solicitante.nombre}</td>
+                    <td>{m.ordenCompra.solicitante?.nombre ?? m.ordenCompra.creadaPor.nombre}</td>
                     <td className={rojo(m) ? "font-medium text-critico" : ""}>{detalle(m)}{rojo(m) ? " · nadie pidió el viaje" : ""}</td>
                   </tr>
                 ))}

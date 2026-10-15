@@ -1,5 +1,5 @@
 import "server-only";
-import type { EstadoMaterial, EstadoPedido, Franja, OrigenTipo, Prioridad, Prisma, TipoFavorito, TipoPedido } from "@prisma/client";
+import type { EstadoOC, EstadoPedido, Franja, OrigenTipo, Prioridad, Prisma, TipoFavorito, TipoPedido } from "@prisma/client";
 import { db } from "@/lib/db";
 import { exigirSesion, type UsuarioSesion } from "@/lib/auth/sesion";
 import { puede } from "@/lib/permisos";
@@ -52,24 +52,22 @@ export type ItemHistorial = {
 };
 export type Favorito = { id: string; nombre: string; pedidoId: string; tipo: TipoFavorito; datos: PrecargaMateriales | PrecargaViaje };
 
-const ESTADO_MATERIAL: Record<EstadoMaterial, { t: string; tono: ItemHistorial["tono"] }> = {
-  SOLICITADO: { t: "Pedido", tono: "aviso" }, EN_COMPRA: { t: "En compra", tono: "aviso" }, ESPERANDO_APROBACION: { t: "Esperando aprobación", tono: "aviso" },
-  APROBADO: { t: "Aprobado", tono: "aviso" }, LISTO_PARA_RETIRAR: { t: "Listo para retirar", tono: "ok" }, RETIRO_PEDIDO: { t: "Retiro pedido", tono: "aviso" },
-  EN_CAMINO: { t: "En camino", tono: "aviso" }, ENTREGADO: { t: "Entregado", tono: "ok" }, CANCELADO: { t: "Cancelado", tono: "critico" },
+const ESTADO_MATERIAL: Record<EstadoOC, { t: string; tono: ItemHistorial["tono"] }> = {
+  BORRADOR: { t: "Borrador", tono: "neutro" }, ENVIADA_A_COMPRAS: { t: "Enviado", tono: "aviso" }, EN_COMPRAS: { t: "En Compras", tono: "aviso" },
+  ESPERANDO_AUTORIZACION: { t: "Esperando autorización", tono: "aviso" }, AUTORIZADA: { t: "Autorizada", tono: "aviso" }, RECHAZADA: { t: "Rechazada", tono: "critico" },
+  ENCARGADA: { t: "Encargada", tono: "aviso" }, HABILITADA: { t: "Listo para retirar", tono: "ok" }, ENTREGADA: { t: "Entregada", tono: "ok" }, ANULADA: { t: "Anulada", tono: "critico" },
 };
 const ESTADO_VIAJE: Record<EstadoPedido, { t: string; tono: ItemHistorial["tono"] }> = {
   PENDIENTE: { t: "Pendiente", tono: "aviso" }, TOMADO: { t: "Aceptado", tono: "aviso" }, EN_VIAJE: { t: "En viaje", tono: "aviso" }, ENTREGADO: { t: "Entregado", tono: "ok" }, CANCELADO: { t: "Cancelado", tono: "critico" },
 };
 
 /** "40 bolsas Cemento · 20 barras Hierro del 8" o "lista adjunta (planilla.xlsx)". */
-function resumenMaterial(p: { descripcion: string; renglones: Prisma.JsonValue }) {
-  const r = Array.isArray(p.renglones) ? (p.renglones as { descripcion?: string; cantidad?: number | null; unidad?: string | null }[]) : [];
-  if (r.length) {
-    const t = r.slice(0, 2).map((x) => [x.cantidad != null ? x.cantidad.toLocaleString("es-AR") : null, x.unidad, x.descripcion].filter(Boolean).join(" ")).join(" · ");
-    return r.length > 2 ? `${t} y ${r.length - 2} más` : t;
-  }
-  const m = p.descripcion.match(/^Ver lista adjunta \((.*)\)$/);
-  return m ? `lista adjunta (${m[1]})` : p.descripcion.split("\n").slice(0, 2).join(" · ");
+function resumenMaterial(p: { detallePedido: string | null }) {
+  const d = p.detallePedido ?? "";
+  const m = d.match(/^Ver lista adjunta \((.*)\)$/);
+  if (m) return `lista adjunta (${m[1]})`;
+  const lineas = d.split("\n").map((l) => l.trim()).filter(Boolean);
+  return lineas.length > 2 ? `${lineas.slice(0, 2).join(" · ")} y ${lineas.length - 2} más` : lineas.join(" · ") || "sin detalle";
 }
 /**
  * Pedidos sin renglones guardados (los viejos, o escritos en una línea): se arman desde la descripción.
@@ -88,30 +86,34 @@ export function renglonesDeDescripcion(descripcion: string): RenglonPrecarga[] {
 
 const gestiona = (u: Pick<UsuarioSesion, "rol">) => puede(u.rol, "materiales.gestionar") || puede(u.rol, "materiales.aprobar");
 
-/** Qué pedidos de material puede ver en su historial (y repetir). */
-function alcanceMateriales(u: UsuarioSesion, todas: boolean): Prisma.PedidoMaterialWhereInput {
-  if (todas && gestiona(u)) return {};
-  return { OR: [{ solicitanteId: u.id }, { obra: filtroObras(u) }] };
+/** Qué documentos de compra puede ver en su historial (y repetir). Los borradores e importados, no. */
+function alcanceMateriales(u: UsuarioSesion, todas: boolean): Prisma.OrdenCompraWhereInput {
+  const base: Prisma.OrdenCompraWhereInput = { estado: { not: "BORRADOR" }, fuente: { not: "IMPORTADA" }, obraId: { not: null } };
+  if (todas && gestiona(u)) return base;
+  return { AND: [base, { OR: [{ solicitanteId: u.id }, { creadaPorId: u.id }, { obra: filtroObras(u) }] }] };
 }
 
 const selMaterial = {
-  id: true, numero: true, creadoEn: true, descripcion: true, renglones: true, estado: true, solicitanteId: true, obraId: true, obraSedeId: true, observaciones: true, prioridad: true,
+  id: true, numeroInterno: true, creadoEn: true, detallePedido: true, estado: true, solicitanteId: true, creadaPorId: true, obraId: true, obraSedeId: true, observacionesSolicitante: true, prioridad: true,
+  numero: true, aprobadaEn: true,
   obra: { select: { nombre: true } },
-  ordenCompra: { select: { numero: true, estado: true, proveedor: { select: { nombre: true } } } },
-} satisfies Prisma.PedidoMaterialSelect;
+  proveedor: { select: { nombre: true } },
+  renglones: { orderBy: { orden: "asc" as const }, select: { descripcion: true, cantidad: true, unidad: true } },
+} satisfies Prisma.OrdenCompraSelect;
 
 export async function historialMateriales(o: { q?: string; todas?: boolean } = {}): Promise<ItemHistorial[]> {
   const u = await exigirSesion();
   const q = o.q?.trim();
-  const busqueda: Prisma.PedidoMaterialWhereInput = q
-    ? { OR: [{ descripcion: { contains: q, mode: "insensitive" } }, { obra: { nombre: { contains: q, mode: "insensitive" } } }, { ordenesCompra: { some: { numero: { contains: q, mode: "insensitive" } } } }] }
+  const busqueda: Prisma.OrdenCompraWhereInput = q
+    ? { OR: [{ detallePedido: { contains: q, mode: "insensitive" } }, { obra: { nombre: { contains: q, mode: "insensitive" } } }, { numero: { contains: q, mode: "insensitive" } }] }
     : {};
-  const filas = await db.pedidoMaterial.findMany({ where: { AND: [alcanceMateriales(u, !!o.todas), busqueda] }, orderBy: { creadoEn: "desc" }, take: 60, select: selMaterial });
+  const filas = await db.ordenCompra.findMany({ where: { AND: [alcanceMateriales(u, !!o.todas), busqueda] }, orderBy: { creadoEn: "desc" }, take: 60, select: selMaterial });
   // Los propios primero (cada grupo, del más nuevo al más viejo).
-  const ordenados = [...filas.filter((f) => f.solicitanteId === u.id), ...filas.filter((f) => f.solicitanteId !== u.id)].slice(0, LIMITE);
+  const mio = (f: (typeof filas)[number]) => f.solicitanteId === u.id || f.creadaPorId === u.id;
+  const ordenados = [...filas.filter(mio), ...filas.filter((f) => !mio(f))].slice(0, LIMITE);
   return ordenados.map((f) => ({
-    id: f.id, numero: f.numero, fecha: f.creadoEn.toISOString(), obra: f.obra.nombre, resumen: resumenMaterial(f),
-    estado: ESTADO_MATERIAL[f.estado].t, tono: ESTADO_MATERIAL[f.estado].tono, oc: f.ordenCompra?.numero ?? null, propio: f.solicitanteId === u.id,
+    id: f.id, numero: f.numeroInterno, fecha: f.creadoEn.toISOString(), obra: f.obra?.nombre ?? "", resumen: resumenMaterial(f),
+    estado: ESTADO_MATERIAL[f.estado].t, tono: ESTADO_MATERIAL[f.estado].tono, oc: f.numero, propio: mio(f),
   }));
 }
 
@@ -124,31 +126,32 @@ export async function historialViajes(o: { q?: string } = {}): Promise<ItemHisto
   const busqueda: Prisma.PedidoViajeWhereInput = q ? { OR: [{ descripcion: { contains: q, mode: "insensitive" } }, { obra: { nombre: { contains: q, mode: "insensitive" } } }, { origenNombre: { contains: q, mode: "insensitive" } }] } : {};
   const filas = await db.pedidoViaje.findMany({
     where: conAlcance(u, { AND: [base, busqueda] }), orderBy: { creadoEn: "desc" }, take: 60,
-    select: { id: true, numero: true, creadoEn: true, descripcion: true, estado: true, solicitanteId: true, coordinadoPorId: true, tipo: true, origenNombre: true, obra: { select: { nombre: true } }, materialesListos: { take: 1, select: { pedidoMaterialId: true, ordenCompraNumero: true } } },
+    select: { id: true, numero: true, creadoEn: true, descripcion: true, estado: true, solicitanteId: true, coordinadoPorId: true, tipo: true, origenNombre: true, obra: { select: { nombre: true } }, materialesListos: { take: 1, select: { ordenCompraId: true, ordenCompraNumero: true } } },
   });
   const mio = (f: (typeof filas)[number]) => f.solicitanteId === u.id || f.coordinadoPorId === u.id;
   const ordenados = [...filas.filter(mio), ...filas.filter((f) => !mio(f))].slice(0, LIMITE);
   return ordenados.map((f) => ({
     id: f.id, numero: f.numero, fecha: f.creadoEn.toISOString(), obra: f.obra.nombre, resumen: `${f.descripcion} · desde ${f.origenNombre.split(" · ")[0]}`,
     estado: ESTADO_VIAJE[f.estado].t, tono: ESTADO_VIAJE[f.estado].tono, oc: f.materialesListos[0]?.ordenCompraNumero ?? null, propio: mio(f),
-    materialId: f.tipo === "RETIRO_PROVEEDOR" ? f.materialesListos[0]?.pedidoMaterialId ?? null : undefined,
+    materialId: f.tipo === "RETIRO_PROVEEDOR" ? f.materialesListos[0]?.ordenCompraId ?? null : undefined,
   }));
 }
 
 /** Lo que hay que precargar para repetir un pedido de material (si lo puede ver). */
 export async function precargaMaterial(id: string, todas = false): Promise<PrecargaMateriales | null> {
   const u = await exigirSesion();
-  const p = await db.pedidoMaterial.findFirst({ where: { AND: [{ id }, alcanceMateriales(u, todas || gestiona(u))] }, select: selMaterial });
-  if (!p) return null;
-  const r = Array.isArray(p.renglones) ? (p.renglones as { descripcion?: string; cantidad?: number | null; unidad?: string | null }[]) : [];
+  const p = await db.ordenCompra.findFirst({ where: { AND: [{ id }, alcanceMateriales(u, todas || gestiona(u))] }, select: selMaterial });
+  if (!p || !p.obraId) return null;
   // Los adjuntos que vio el que pidió (no los internos de Compras).
-  const adjuntos = await db.adjunto.findMany({ where: { entidadTipo: "PEDIDO_MATERIAL", entidadId: p.id, interno: false }, orderBy: { creadoEn: "asc" }, select: { id: true, nombre: true, tipoMime: true, tamanoBytes: true } });
-  const oc = p.ordenCompra && p.ordenCompra.estado === "APROBADA" && p.ordenCompra.numero ? { numero: p.ordenCompra.numero, proveedor: p.ordenCompra.proveedor?.nombre ?? "el proveedor" } : null;
+  const adjuntos = await db.adjunto.findMany({ where: { entidadTipo: "ORDEN_COMPRA", entidadId: p.id, interno: false }, orderBy: { creadoEn: "asc" }, select: { id: true, nombre: true, tipoMime: true, tamanoBytes: true } });
+  const oc = p.aprobadaEn && p.numero ? { numero: p.numero, proveedor: p.proveedor?.nombre ?? "el proveedor" } : null;
   // Las observaciones del sistema ("Lo cargó Compras…") no se repiten.
-  const observaciones = (p.observaciones ?? "").replace(/^Lo cargó .*? por pedido de [^.]+\.\s*/, "");
-  const renglones = r.length ? r.map((x) => ({ descripcion: x.descripcion ?? "", cantidad: x.cantidad != null ? String(x.cantidad) : "", unidad: x.unidad || "u" })) : renglonesDeDescripcion(p.descripcion);
+  const observaciones = (p.observacionesSolicitante ?? "").replace(/^Lo cargó .*? por pedido de [^.]+\.\s*/, "");
+  const renglones = p.renglones.length
+    ? p.renglones.map((x) => ({ descripcion: x.descripcion, cantidad: String(x.cantidad.toNumber()), unidad: x.unidad || "u" }))
+    : renglonesDeDescripcion(p.detallePedido ?? "");
   return {
-    origen: { id: p.id, numero: p.numero, fecha: diaISO(p.creadoEn), obra: p.obra.nombre, items: renglones.length || adjuntos.length, oc },
+    origen: { id: p.id, numero: p.numeroInterno, fecha: diaISO(p.creadoEn), obra: p.obra?.nombre ?? "", items: renglones.length || adjuntos.length, oc },
     obraId: p.obraId, sedeId: p.obraSedeId,
     renglones,
     adjuntos, observaciones, prioridad: p.prioridad,

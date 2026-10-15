@@ -26,8 +26,8 @@ async function cargar() {
     const e = estados[i % estados.length];
     const dia = new Date(Date.UTC(2025, 0, 1) + (i % 600) * 86_400_000);
     return {
-      tipo: i % 7 === 0 ? "PE" : "OC", numero: `${i % 7 === 0 ? "PE" : "OC"}-R${i + 1}`, numeroTexto: `R${i + 1}`, fuente: "IMPORTADA_EXCEL",
-      estado: e === "ANULADA" ? "ANULADA" : e === "PEDIR_AUTORIZACION" ? "ESPERANDO_APROBACION" : e === "SOLICITUD_PRESUPUESTO" ? "BORRADOR" : "APROBADA",
+      tipo: i % 7 === 0 ? "PE" : "OC", numero: `${i % 7 === 0 ? "PE" : "OC"}-R${i + 1}`, numeroTexto: `R${i + 1}`, fuente: "IMPORTADA",
+      estado: e === "ANULADA" ? "ANULADA" : e === "PEDIR_AUTORIZACION" ? "ESPERANDO_AUTORIZACION" : e === "SOLICITUD_PRESUPUESTO" ? "EN_COMPRAS" : e === "ENTREGADO" ? "ENTREGADA" : e === "ENCARGADO" ? "ENCARGADA" : "AUTORIZADA",
       estadoTablero: e, estadoTableroAuto: e, fecha: dia, fechaNecesaria: new Date(dia.getTime() + 7 * 86_400_000),
       fechaEntrega: e === "ENTREGADO" ? new Date(dia.getTime() + 10 * 86_400_000) : null,
       obraId: obras[i % obras.length].id, solicitanteId: usuarios[i % usuarios.length]?.id ?? null, proveedorId: proveedores.length ? proveedores[i % proveedores.length].id : null,

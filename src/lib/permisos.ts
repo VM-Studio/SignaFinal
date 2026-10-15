@@ -8,6 +8,7 @@ import type { Rol } from "@prisma/client";
  * │ Rol              │ Rutas                                                                        │
  * ├──────────────────┼──────────────────────────────────────────────────────────────────────────────┤
  * │ RESPONSABLE_OBRA │ /inicio /obras /obras/[id] /pedir /pedir/** /pedir-materiales /mis-pedidos/** │
+ * │                  │ /compras/oc/** (el documento de compra que arma y sigue)                      │
  * │ CAPATAZ          │ /viajes-en-curso /viajes-en-curso/[id] /herramientas /herramientas/[id]       │
  * │                  │ /avisos /cuenta                                                              │
  * │ CHOFER           │ /inicio /hoy /solicitudes /solicitudes/[id] /viaje/[id] /combustible         │
@@ -15,6 +16,7 @@ import type { Rol } from "@prisma/client";
  * │ DEPOSITO         │ /inicio /herramientas/** /entregas /sobrantes                                │
  * │                  │ /avisos /cuenta                                                              │
  * │ ADMINISTRACION   │ /inicio /flota/** /costos /alertas /obras/** /usuarios /avisos /cuenta       │
+ * │                  │ /compras/tablero /compras/facturacion /compras/oc/** (documento de compra)   │
  * │ COMPRAS          │ /inicio /compras /compras/** /habilitados /proveedores /proveedores/[id]     │
  * │                  │ /avisos /cuenta                                                              │
  * │ DIRECCION        │ todas las anteriores + /mapa/** /actividad /solicitudes/** /viajes           │
@@ -58,6 +60,8 @@ const OBRA: Entrada = {
   rutas: [
     "/inicio", "/obras", "/obras/[id]", "/pedir", "/pedir/**", "/pedir-materiales", "/mis-pedidos", "/mis-pedidos/[id]", "/mis-pedidos/material/[id]",
     "/viajes-en-curso", "/viajes-en-curso/[id]", "/herramientas", "/herramientas/[id]", "/avisos", "/cuenta",
+    // El documento de compra (OC/PE) que arma, envía a Compras y sigue: la plantilla compartida.
+    "/compras/oc/**",
   ],
   acciones: [
     "pedidos.ver", "pedidos.crear", "pedidos.cancelarPropios", "herramientas.ver", "herramientas.solicitar", "herramientas.devolver",
@@ -82,7 +86,8 @@ const DEPOSITO: Entrada = {
 };
 
 const ADMINISTRACION: Entrada = {
-  rutas: ["/inicio", "/flota/**", "/costos", "/alertas", "/obras/**", "/proveedores", "/proveedores/[id]", "/usuarios", "/configuracion/ubicaciones", "/configuracion/razones-sociales", "/compras/tablero", "/avisos", "/cuenta"],
+  // Camila: el tablero de Compras y la facturación de las órdenes (secciones 3 y 4 de la plantilla).
+  rutas: ["/inicio", "/flota/**", "/costos", "/alertas", "/obras/**", "/proveedores", "/proveedores/[id]", "/usuarios", "/configuracion/ubicaciones", "/configuracion/razones-sociales", "/compras/tablero", "/compras/facturacion", "/compras/oc/**", "/avisos", "/cuenta"],
   acciones: [
     "pedidos.ver", "viajes.verTodos", "flota.ver", "flota.editar", "flota.documentacion", "flota.agenda", "combustible.cargar",
     "combustible.ver", "mantenimiento.ver", "mantenimiento.registrar", "incidentes.registrar", "herramientas.ver", "herramientas.editar",
@@ -148,6 +153,9 @@ export function rutaPermitida(rol: Rol, ruta: string): boolean {
   return MATRIZ[rol].rutas.some((p) => coincide(p, limpia));
 }
 
+/** Adónde entra cada rol (Compras no tiene inicio: entra al Tablero). */
+export const inicioDe = (rol: Rol) => (rol === "COMPRAS" ? "/compras/tablero" : "/inicio");
+
 /** Roles que ven todas las obras. Responsable de obra: solo las suyas. */
 export function veTodasLasObras(rol: Rol) {
   // (Compras ve los pedidos de material de todas las obras.)
@@ -170,9 +178,12 @@ export function rutaNueva(rol: Rol, ruta: string): string | null {
   // Escaneo y etiquetas QR ya no existen: al depósito (o a las herramientas de la obra).
   if (["/escanear", "/herramientas/escanear", "/herramientas/etiquetas"].includes(ruta) || ruta.startsWith("/h/") || ruta.startsWith("/imprimir/")) return "/herramientas";
   if (ruta === "/alertas" && !rutaPermitida(rol, "/alertas")) return "/avisos";
-  // Enlace neutro de un pedido de material (avisos y alertas): a la pantalla de cada rol.
-  const material = ruta.match(/^\/materiales\/([^/]+)$/);
-  if (material) return rutaPermitida(rol, "/compras/[id]") ? `/compras/${material[1]}` : `/mis-pedidos/material/${material[1]}`;
+  // Compras no tiene inicio: entra directo al tablero.
+  if (ruta === "/inicio" && rol === "COMPRAS") return inicioDe(rol);
+  // El pedido de material ahora es el documento de compra: los enlaces viejos van a su plantilla.
+  const viejo = ruta.match(/^\/(?:materiales|mis-pedidos\/material|compras\/ordenes)\/([^/]+)$/) ?? ruta.match(/^\/compras\/([^/]+)(?:\/oc)?$/);
+  if (viejo && !["tablero", "ordenes", "viajes", "importar", "nuevo", "facturacion", "oc"].includes(viejo[1]) && viejo[1] !== "nueva") return `/compras/oc/${viejo[1]}`;
+  if (ruta === "/compras/ordenes" || ruta === "/compras/ordenes/nueva") return ruta === "/compras/ordenes" ? "/compras/tablero" : "/compras/oc/nueva";
   return null;
 }
 

@@ -38,10 +38,10 @@ export async function notificarEvento(evento: Evento | null, o: { tx?: Cliente; 
 export async function baseViaje(cliente: Cliente, pedidoId: string, chofer?: string): Promise<V> {
   const p = await cliente.pedidoViaje.findUniqueOrThrow({
     where: { id: pedidoId },
-    select: { id: true, numero: true, solicitanteId: true, coordinadoPorId: true, obraId: true, descripcion: true, destinoNombre: true, tomadoPor: { select: { nombre: true } }, materialesListos: { take: 1, select: { pedidoMaterialId: true } } },
+    select: { id: true, numero: true, solicitanteId: true, coordinadoPorId: true, obraId: true, descripcion: true, destinoNombre: true, tomadoPor: { select: { nombre: true } }, materialesListos: { take: 1, select: { ordenCompraId: true } } },
   });
   return {
     pedidoId: p.id, numero: p.numero, solicitanteId: p.solicitanteId, coordinadoPorId: p.coordinadoPorId, obraId: p.obraId, descripcion: p.descripcion, destino: p.destinoNombre,
-    chofer: chofer ?? p.tomadoPor?.nombre ?? "El chofer", pedidoMaterialId: p.materialesListos[0]?.pedidoMaterialId ?? null,
+    chofer: chofer ?? p.tomadoPor?.nombre ?? "El chofer", ordenCompraId: p.materialesListos[0]?.ordenCompraId ?? null,
   };
 }

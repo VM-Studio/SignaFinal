@@ -3,16 +3,16 @@ import type { EntidadAdjunto } from "@prisma/client";
 import { db } from "@/lib/db";
 import type { UsuarioSesion } from "@/lib/auth/sesion";
 import { puede } from "@/lib/permisos";
-import { esObraDelUsuario, viajesVisibles } from "@/lib/alcance";
+import { viajesVisibles } from "@/lib/alcance";
+import { puedeVerDocumento } from "@/lib/compras/acceso";
 
 /** Quién puede subir archivos a cada tipo de cosa. */
 export function puedeSubir(u: UsuarioSesion, entidad: EntidadAdjunto, interno = false) {
   if (interno) return puede(u.rol, "materiales.gestionar");
   switch (entidad) {
-    case "PEDIDO_MATERIAL":
-      return puede(u.rol, "materiales.pedir") || puede(u.rol, "materiales.gestionar");
     case "ORDEN_COMPRA":
-      return puede(u.rol, "materiales.gestionar");
+      // Quien pide (lista de materiales), Compras (presupuestos) y Administración (la factura).
+      return puede(u.rol, "materiales.pedir") || puede(u.rol, "materiales.gestionar") || u.rol === "ADMINISTRACION";
     case "VIAJE":
       return puede(u.rol, "viajes.ejecutar") || puede(u.rol, "pedidos.reasignar");
     case "HERRAMIENTA":
@@ -32,14 +32,11 @@ export async function puedeVer(u: UsuarioSesion, a: { entidadTipo: EntidadAdjunt
   if (!a.entidadId) return false;
   if (u.rol === "DIRECCION") return true;
   switch (a.entidadTipo) {
-    case "PEDIDO_MATERIAL": {
-      if (puede(u.rol, "materiales.gestionar")) return true;
-      const p = await db.pedidoMaterial.findUnique({ where: { id: a.entidadId }, select: { obraId: true } });
-      return !!p && puede(u.rol, "materiales.pedir") && (await esObraDelUsuario(u, p.obraId));
+    case "ORDEN_COMPRA": {
+      // Quien ve el documento ve sus adjuntos (los internos de Compras, arriba).
+      const d = await db.ordenCompra.findUnique({ where: { id: a.entidadId }, select: { creadaPorId: true, solicitanteId: true, obraId: true } });
+      return !!d && (await puedeVerDocumento(u, d));
     }
-    case "ORDEN_COMPRA":
-      // Presupuestos, facturas y listas de la orden: llevan importes. Solo Compras, el dueño y Administración.
-      return puede(u.rol, "materiales.gestionar") || puede(u.rol, "materiales.aprobar") || u.rol === "ADMINISTRACION";
     case "VIAJE":
       return (await db.viaje.count({ where: { id: a.entidadId, ...viajesVisibles(u) } })) > 0;
     case "HERRAMIENTA":

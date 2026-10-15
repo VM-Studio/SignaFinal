@@ -1,8 +1,7 @@
 "use server";
 
 import { precargaMaterial } from "@/lib/historial/consultas";
-import { eliminar, engancharAdjuntos } from "@/lib/archivos";
-import { guardarPDF } from "@/lib/compras/servicio";
+import { engancharAdjuntos } from "@/lib/archivos";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { exigirPermiso, exigirSesion } from "@/lib/auth/sesion";
@@ -20,9 +19,9 @@ import { nombreSucursal, resolverPuntos, sucursalDe } from "@/lib/pedidos/puntos
 import { describirPedido, necesitaCamion } from "@/lib/pedidos/reglas";
 import { avisarSolicitudNueva } from "@/lib/pedidos/avisos";
 import { FRANJA } from "@/lib/pedidos/presentacion";
-import { sincronizarTableroDePedido } from "@/lib/compras/estadoTablero";
+import { estadoInicial, fuenteDe } from "@/lib/compras/documento";
 import { cambiarEstado, recalcular } from "./circuito";
-import { auditar, deMaterial, describir, exigirEstado, pedidoOError } from "./comun";
+import { auditar, deDocumento, describir, documentoOError } from "./comun";
 
 
 const refrescar = () => {
@@ -67,6 +66,11 @@ export type DatosPedirMateriales = z.input<typeof esquemaPedir>;
 const textoRenglon = (r: { descripcion: string; cantidad?: number; unidad?: string }) =>
   r.cantidad ? `${r.cantidad.toLocaleString("es-AR")}${r.unidad ? ` ${r.unidad}` : ""} ${r.descripcion}` : r.descripcion;
 
+/**
+ * "Pedir materiales" (rápido): obra, detalle (texto o adjuntos), observaciones, para cuándo y prioridad.
+ * Crea el documento (OC) con esas celdas y lo ENVÍA A COMPRAS en el acto (Compras o el dueño lo cargan
+ * directo en Compras).
+ */
 export async function pedirMateriales(entrada: DatosPedirMateriales): Promise<Resultado<{ id: string; numero: number }>> {
   return ejecutar(async () => {
     const yo = await exigirSesion();
@@ -75,7 +79,7 @@ export async function pedirMateriales(entrada: DatosPedirMateriales): Promise<Re
     const d = esquemaPedir.parse(entrada);
     if (d.dia < diaISO()) throw new ErrorNegocio("El día ya pasó. Elegí hoy o una fecha futura.");
 
-    const obra = await db.obra.findUnique({ where: { id: d.obraId }, select: { id: true, nombre: true, estado: true, sedes: { where: { activa: true }, select: { id: true, nombre: true } } } });
+    const obra = await db.obra.findUnique({ where: { id: d.obraId }, select: { id: true, nombre: true, estado: true, razonSocialId: true, sedes: { where: { activa: true }, select: { id: true, nombre: true } } } });
     if (!obra || obra.estado !== "ACTIVA") throw new ErrorNegocio("Esa obra no está activa.");
     if (!comoCompras && !(await esObraDelUsuario(yo, obra.id))) throw new ErrorNegocio(`No sos responsable de Obra ${obra.nombre}.`);
     const sede = d.obraSedeId ? obra.sedes.find((x) => x.id === d.obraSedeId) : null;
@@ -85,228 +89,75 @@ export async function pedirMateriales(entrada: DatosPedirMateriales): Promise<Re
     if (!solicitante) throw new ErrorNegocio("Elegí quién lo pidió.");
 
     // Los archivos tienen que ser de esta persona, recién subidos y sin enganchar.
-    const encontrados = d.adjuntos.length ? await db.adjunto.findMany({ where: { id: { in: d.adjuntos }, subidoPorId: yo.id, entidadTipo: "PEDIDO_MATERIAL", entidadId: null }, select: { id: true, nombre: true, tipoMime: true } }) : [];
+    const encontrados = d.adjuntos.length ? await db.adjunto.findMany({ where: { id: { in: d.adjuntos }, subidoPorId: yo.id, entidadTipo: "ORDEN_COMPRA", entidadId: null }, select: { id: true, nombre: true, tipoMime: true } }) : [];
     // En el orden en que se adjuntaron, con las planillas y los PDF antes que las fotos (la descripción nombra el primero).
     const adjuntos = [...encontrados].sort((a, b) => Number(a.tipoMime.startsWith("image/")) - Number(b.tipoMime.startsWith("image/")) || d.adjuntos.indexOf(a.id) - d.adjuntos.indexOf(b.id));
     if (adjuntos.length !== d.adjuntos.length) throw new ErrorNegocio("Algún archivo no se terminó de subir. Quitalo y adjuntalo de nuevo.");
     // Repetir: el pedido de origen tiene que ser uno que puede ver; sus adjuntos se copian como referencia.
     const origen = d.repiteDe ? await precargaMaterial(d.repiteDe, comoCompras) : null;
     if (d.repiteDe && !origen) throw new ErrorNegocio("El pedido que querés repetir ya no está disponible.");
-    const repetidos = origen ? await db.adjunto.findMany({ where: { id: { in: d.adjuntosRepetidos }, entidadTipo: "PEDIDO_MATERIAL", entidadId: origen.origen.id, interno: false } }) : [];
+    const repetidos = origen ? await db.adjunto.findMany({ where: { id: { in: d.adjuntosRepetidos }, entidadTipo: "ORDEN_COMPRA", entidadId: origen.origen.id, interno: false } }) : [];
     if (repetidos.length !== d.adjuntosRepetidos.length) throw new ErrorNegocio("Algún archivo del pedido anterior ya no está. Quitalo y volvé a intentar.");
     const todos = [...adjuntos, ...repetidos];
     if (!d.renglones.length && !todos.length) throw new ErrorNegocio("Escribí qué necesitás o adjuntá la lista de materiales.");
 
     const lineas = d.renglones.map(textoRenglon);
-    const descripcion = lineas.length
+    const detalle = lineas.length
       ? lineas.join("\n")
       : `Ver lista adjunta (${todos[0].nombre}${todos.length > 1 ? ` y ${todos.length - 1} más` : ""})`;
+    // Compras o el dueño lo cargan directo en Compras; el resto lo envía a Compras.
+    const estado = estadoInicial(yo.rol, true);
     const observaciones = [comoCompras ? `Lo cargó ${yo.nombre} (Compras) por pedido de ${solicitante.nombre}.` : null, d.observaciones].filter(Boolean).join(" ") || null;
+    const empresa = obra.razonSocialId ?? (await db.razonSocial.findFirst({ where: { activa: true }, orderBy: [{ orden: "asc" }, { nombre: "asc" }], select: { id: true } }))?.id ?? null;
     const p = await db.$transaction(async (tx) => {
-      const p = await tx.pedidoMaterial.create({
+      const p = await tx.ordenCompra.create({
         data: {
-          obraId: obra.id, obraSedeId: sede?.id ?? null, solicitanteId: solicitante.id, descripcion, paraCuando: aFecha(d.dia, "12:00"), prioridad: d.prioridad, observaciones,
-          renglones: d.renglones.length ? d.renglones.map((r) => ({ descripcion: r.descripcion, cantidad: r.cantidad ?? null, unidad: r.unidad ?? null })) : undefined,
+          tipo: "OC", estado, fuente: fuenteDe(yo.rol), creadaPorId: yo.id, fecha: aFecha(diaISO(), "12:00"), empresaCompraId: empresa,
+          obraId: obra.id, obraSedeId: sede?.id ?? null, solicitanteId: solicitante.id, detallePedido: detalle, fechaNecesaria: aFecha(d.dia, "12:00"),
+          prioridad: d.prioridad, observacionesSolicitante: observaciones, enviadaAComprasEn: new Date(),
+          ...(yo.rol === "COMPRAS" ? { tomadoPorId: yo.id, tomadoEn: new Date() } : {}),
+          renglones: d.renglones.length ? { create: d.renglones.map((r, i) => ({ orden: i + 1, descripcion: r.descripcion, cantidad: r.cantidad ?? 1, unidad: r.unidad ?? "u" })) } : undefined,
           // Para que Compras cotice igual y más rápido: con quién se compró la vez anterior (nota interna).
-          notasCompras: origen ? `Repite el pedido #${origen.origen.numero}.${origen.origen.oc ? ` La vez anterior lo compró ${origen.origen.oc.proveedor}, ${origen.origen.oc.numero}.` : ""}` : null,
+          notasInternas: origen ? `Repite el pedido #${origen.origen.numero}.${origen.origen.oc ? ` La vez anterior lo compró ${origen.origen.oc.proveedor}, ${origen.origen.oc.numero}.` : ""}` : null,
+          cambios: { create: { de: null, a: estado, usuarioId: yo.id, nota: comoCompras ? `Cargado por Compras a pedido de ${solicitante.nombre}` : "Pedir materiales" } },
         },
-        select: { id: true, numero: true },
+        select: { id: true, numeroInterno: true },
       });
-      await engancharAdjuntos(tx, adjuntos.map((a) => a.id), "PEDIDO_MATERIAL", p.id, yo.id);
+      await engancharAdjuntos(tx, adjuntos.map((a) => a.id), "ORDEN_COMPRA", p.id, yo.id);
       if (repetidos.length) {
         await tx.adjunto.createMany({
-          data: repetidos.map((a) => ({ entidadTipo: "PEDIDO_MATERIAL" as const, entidadId: p.id, nombre: a.nombre, url: a.url, tipoMime: a.tipoMime, tamanoBytes: a.tamanoBytes, subidoPorId: yo.id, referenciaDe: `del pedido #${origen!.origen.numero}` })),
+          data: repetidos.map((a) => ({ entidadTipo: "ORDEN_COMPRA" as const, entidadId: p.id, nombre: a.nombre, url: a.url, tipoMime: a.tipoMime, tamanoBytes: a.tamanoBytes, subidoPorId: yo.id, referenciaDe: `del pedido #${origen!.origen.numero}` })),
         });
       }
-      await tx.cambioEstadoMaterial.create({ data: { pedidoMaterialId: p.id, de: null, a: "SOLICITADO", usuarioId: yo.id, nota: comoCompras ? `Cargado por Compras a pedido de ${solicitante.nombre}` : null } });
       await auditar(tx, {
         usuarioId: yo.id, accion: "material.pedir", entidadId: p.id,
-        resumen: `${yo.nombre} pidió a Compras ${queLleva(descripcion)}${lineas.length > 1 ? ` y ${lineas.length - 1} más` : ""} para Obra ${obra.nombre}${sede ? ` (${sede.nombre})` : ""}${todos.length ? ` con ${todos.length} ${todos.length === 1 ? "archivo adjunto" : "archivos adjuntos"}` : ""}${d.prioridad === "URGENTE" ? " (urgente)" : ""}${comoCompras ? ` a nombre de ${solicitante.nombre}` : ""}${origen ? ` (repite el pedido #${origen.origen.numero})` : ""}`,
-        despues: { estado: "SOLICITADO", renglones: d.renglones, adjuntos: adjuntos.map((a) => a.nombre), dia: d.dia, prioridad: d.prioridad, observaciones: d.observaciones ?? null },
+        resumen: `${yo.nombre} pidió a Compras ${queLleva(detalle)}${lineas.length > 1 ? ` y ${lineas.length - 1} más` : ""} para Obra ${obra.nombre}${sede ? ` (${sede.nombre})` : ""}${todos.length ? ` con ${todos.length} ${todos.length === 1 ? "archivo adjunto" : "archivos adjuntos"}` : ""}${d.prioridad === "URGENTE" ? " (urgente)" : ""}${comoCompras ? ` a nombre de ${solicitante.nombre}` : ""}${origen ? ` (repite el pedido #${origen.origen.numero})` : ""}`,
+        despues: { estado, renglones: d.renglones, adjuntos: adjuntos.map((a) => a.nombre), dia: d.dia, prioridad: d.prioridad, observaciones: d.observaciones ?? null },
       });
       // A Compras (push) y al dueño (bandeja). Si lo cargó Compras, no se avisa a sí mismo.
-      await notificarEvento(EVENTO.materialNuevo({
-        pedidoMaterialId: p.id, solicitanteId: solicitante.id, obraId: obra.id, obra: obra.nombre, quien: solicitante.nombre, para: aFecha(d.dia, "12:00"), urgente: d.prioridad === "URGENTE",
-        que: lineas.length ? descripcion : `materiales (lista adjunta: ${todos[0].nombre})`,
-        observaciones: d.observaciones ?? null, adjuntos: todos.length,
-      }), { tx, actor: yo.id });
+      if (estado === "ENVIADA_A_COMPRAS") {
+        await notificarEvento(EVENTO.materialNuevo({
+          ordenCompraId: p.id, solicitanteId: solicitante.id, obraId: obra.id, obra: obra.nombre, quien: solicitante.nombre, para: aFecha(d.dia, "12:00"), urgente: d.prioridad === "URGENTE",
+          que: lineas.length ? detalle : `materiales (lista adjunta: ${todos[0].nombre})`,
+          observaciones: d.observaciones ?? null, adjuntos: todos.length,
+        }), { tx, actor: yo.id });
+      }
       return p;
     });
     refrescar();
-    return p;
+    return { id: p.id, numero: p.numeroInterno };
   });
 }
 
-// ═══════════════════════════ Compras: notas internas y adjuntos ═══════════════════════════
-
-/** Notas internas de Compras sobre el pedido (el solicitante no las ve). */
-export async function guardarNotasCompras(id: string, notas: string): Promise<Resultado> {
-  return ejecutar(async () => {
-    const yo = await exigirPermiso("materiales.gestionar");
-    const t = notas.trim().slice(0, 2000);
-    const p = await db.pedidoMaterial.findUnique({ where: { id }, select: { numero: true } });
-    if (!p) throw new ErrorNegocio("No existe ese pedido.");
-    await db.pedidoMaterial.update({ where: { id }, data: { notasCompras: t || null } });
-    await auditar(db, { usuarioId: yo.id, accion: "material.notasCompras", entidadId: id, resumen: `${yo.nombre} actualizó las notas internas del pedido de material ${p.numero}` });
-    revalidar("materiales");
-    return null;
-  });
-}
-
-/** Compras suma archivos al pedido (presupuestos del proveedor, etc.). Internos: el solicitante no los ve. */
-export async function adjuntarAPedido(id: string, adjuntoIds: string[]): Promise<Resultado<{ cantidad: number }>> {
-  return ejecutar(async () => {
-    const yo = await exigirPermiso("materiales.gestionar");
-    const p = await db.pedidoMaterial.findUnique({ where: { id }, select: { numero: true } });
-    if (!p) throw new ErrorNegocio("No existe ese pedido.");
-    const n = await db.$transaction(async (tx) => {
-      const n = await engancharAdjuntos(tx, adjuntoIds, "PEDIDO_MATERIAL", id, yo.id);
-      if (n) await auditar(tx, { usuarioId: yo.id, accion: "material.adjuntar", entidadId: id, resumen: `${yo.nombre} adjuntó ${n} ${n === 1 ? "archivo" : "archivos"} al pedido de material ${p.numero}` });
-      return n;
-    });
-    revalidar("materiales");
-    return { cantidad: n };
-  });
-}
-
-/** "Deshacer" justo después de pedir (10 s en pantalla, 2 min de margen): queda cancelado. */
+/** "Deshacer" justo después de pedir (10 s en pantalla, 2 min de margen): queda anulado. */
 export async function deshacerPedidoMaterial(id: string): Promise<Resultado> {
   return ejecutar(async () => {
     const yo = await exigirSesion();
     await db.$transaction(async (tx) => {
-      const p = await pedidoOError(tx, id);
-      if (p.estado !== "SOLICITADO" || Date.now() - p.creadoEn.getTime() > 120_000) throw new ErrorNegocio("Ya no se puede deshacer.");
-      const cargo = await tx.cambioEstadoMaterial.findFirst({ where: { pedidoMaterialId: id, a: "SOLICITADO" }, select: { usuarioId: true } });
-      if (cargo?.usuarioId !== yo.id) throw new ErrorNegocio("Ya no se puede deshacer.");
-      await cambiarEstado(tx, p, "CANCELADO", yo.id, "Se deshizo al pedirlo", { motivoCancelacion: "Se deshizo al pedirlo" });
-      await auditar(tx, { usuarioId: yo.id, accion: "material.deshacer", entidadId: id, resumen: `${yo.nombre} deshizo ${describir(p)}`, antes: { estado: "SOLICITADO" }, despues: { estado: "CANCELADO" } });
-    });
-    refrescar();
-    return null;
-  });
-}
-
-// ═══════════════════════════ Cancelar ═══════════════════════════
-
-/** Quien pidió: solo mientras está SOLICITADO. Compras y el dueño: siempre que no haya un viaje en marcha. */
-export async function cancelarMaterial(id: string, motivo: string): Promise<Resultado> {
-  return ejecutar(async () => {
-    const yo = await exigirSesion();
-    const m = motivo.trim();
-    if (m.length < 3) throw new ErrorNegocio("Contá por qué se cancela.");
-    await db.$transaction(async (tx) => {
-      const p = await pedidoOError(tx, id);
-      const gestiona = puede(yo.rol, "materiales.gestionar");
-      if (!gestiona) {
-        if (p.solicitanteId !== yo.id) throw new ErrorNegocio("Solo quien lo pidió puede cancelarlo.");
-        if (p.estado !== "SOLICITADO") throw new ErrorNegocio(`Compras ya lo está comprando. Hablá con ${p.tomadoPor?.nombre ?? "Compras"} para cancelarlo.`);
-      }
-      if (p.estado === "CANCELADO" || p.estado === "ENTREGADO") throw new ErrorNegocio(p.estado === "CANCELADO" ? "Ya estaba cancelado." : "Ya se entregó.");
-      const enViaje = await tx.materialListo.count({ where: { pedidoMaterialId: id, estado: { in: ["RETIRO_PEDIDO", "EN_CAMINO"] } } });
-      if (enViaje) throw new ErrorNegocio("Hay un viaje pedido para retirarlo. Cancelá primero ese viaje.");
-      const ok = await cambiarEstado(tx, p, "CANCELADO", yo.id, m, { motivoCancelacion: m });
-      if (!ok) throw new ErrorNegocio("El pedido cambió mientras lo cancelabas.");
-      await tx.materialListo.updateMany({ where: { pedidoMaterialId: id, estado: "LISTO" }, data: { estado: "CANCELADO" } });
-      // Que se entere el otro lado.
-      await notificarEvento(EVENTO.materialCancelado({ ...deMaterial(p), quien: yo.nombre, motivo: m, porCompras: gestiona, compradorId: p.tomadoPorId }), { tx, actor: yo.id });
-      await auditar(tx, { usuarioId: yo.id, accion: "material.cancelar", entidadId: id, resumen: `${yo.nombre} canceló ${describir(p)}: ${m}`, antes: { estado: p.estado }, despues: { estado: "CANCELADO", motivo: m } });
-    });
-    refrescar();
-    return null;
-  });
-}
-
-// ═══════════════════════════ Compras ═══════════════════════════
-
-/** SOLICITADO → EN_COMPRA: "lo tomo yo". */
-export async function tomarMaterial(id: string): Promise<Resultado> {
-  return ejecutar(async () => {
-    const yo = await exigirPermiso("materiales.gestionar");
-    await db.$transaction(async (tx) => {
-      const p = await pedidoOError(tx, id);
-      exigirEstado(p, "SOLICITADO");
-      const ok = await cambiarEstado(tx, p, "EN_COMPRA", yo.id, undefined, { tomadoPorId: yo.id, tomadoEn: new Date() });
-      if (!ok) exigirEstado(await pedidoOError(tx, id), "SOLICITADO");
-      await notificarEvento(EVENTO.materialTomado({ ...deMaterial(p), comprador: yo.nombre }), { tx, actor: yo.id });
-      await auditar(tx, { usuarioId: yo.id, accion: "material.tomar", entidadId: id, resumen: `${yo.nombre} tomó ${describir(p)} y lo está comprando`, antes: { estado: "SOLICITADO" }, despues: { estado: "EN_COMPRA" } });
-    });
-    refrescar();
-    return null;
-  });
-}
-
-/**
- * ESPERANDO_APROBACION → APROBADO. El dueño desde /aprobaciones; Compras solo con "El dueño ya aprobó
- * en papel" (queda en la auditoría que lo marcó Compras).
- */
-export async function aprobarMaterial(id: string, enPapel = false): Promise<Resultado> {
-  return ejecutar(async () => {
-    const yo = await exigirSesion();
-    let ocAprobada: string | null = null;
-    if (enPapel ? !puede(yo.rol, "materiales.gestionar") : !puede(yo.rol, "materiales.aprobar")) throw new ErrorNegocio("Solo el dueño aprueba las órdenes de compra.");
-    await db.$transaction(async (tx) => {
-      const p = await pedidoOError(tx, id);
-      exigirEstado(p, "ESPERANDO_APROBACION");
-      const nota = enPapel ? `El dueño aprobó en papel (lo marcó ${yo.nombre})` : undefined;
-      const ok = await cambiarEstado(tx, p, "APROBADO", yo.id, nota, { aprobadoPorId: yo.id, aprobadoEn: new Date() });
-      if (!ok) throw new ErrorNegocio("El pedido cambió. Actualizá la pantalla.");
-      // La orden de compra del sistema queda aprobada con quién y cuándo (el PDF con el sello, después).
-      if (p.ordenCompraId) await tx.ordenCompra.updateMany({ where: { id: p.ordenCompraId, estado: "ESPERANDO_APROBACION" }, data: { estado: "APROBADA", aprobadaPorId: yo.id, aprobadaEn: new Date() } });
-      ocAprobada = p.ordenCompraId;
-      await sincronizarTableroDePedido(tx, p.id);
-      await notificarEvento(EVENTO.materialAprobado({ ...deMaterial(p), oc: p.ordenCompraNumero, enPapel, compradorId: p.tomadoPorId }), { tx, actor: yo.id });
-      await auditar(tx, {
-        usuarioId: yo.id, accion: enPapel ? "material.aprobadoEnPapel" : "material.aprobar", entidadId: id,
-        resumen: enPapel ? `${yo.nombre} marcó que el dueño aprobó en papel ${describir(p)}` : `${yo.nombre} aprobó la OC de ${describir(p)}`,
-        antes: { estado: "ESPERANDO_APROBACION" }, despues: { estado: "APROBADO", enPapel },
-      });
-    });
-    if (ocAprobada) await guardarPDF(ocAprobada, true);
-    refrescar();
-    return null;
-  });
-}
-
-/** Deshacer la aprobación (10 s en pantalla, 2 min de margen) mientras no se habilitó nada. */
-export async function deshacerAprobacion(id: string): Promise<Resultado> {
-  return ejecutar(async () => {
-    const yo = await exigirSesion();
-    let pdfViejo: string | null = null;
-    await db.$transaction(async (tx) => {
-      const p = await pedidoOError(tx, id);
-      if (p.estado !== "APROBADO" || p.aprobadoPorId !== yo.id || !p.aprobadoEn || Date.now() - p.aprobadoEn.getTime() > 120_000) throw new ErrorNegocio("Ya no se puede deshacer.");
-      if (await tx.materialListo.count({ where: { pedidoMaterialId: id } })) throw new ErrorNegocio("Compras ya lo habilitó para retirar.");
-      await cambiarEstado(tx, p, "ESPERANDO_APROBACION", yo.id, "Se deshizo la aprobación", { aprobadoPorId: null, aprobadoEn: null });
-      if (p.ordenCompraId) {
-        const oc = await tx.ordenCompra.findUnique({ where: { id: p.ordenCompraId }, select: { pdfAprobadaUrl: true } });
-        await tx.ordenCompra.updateMany({ where: { id: p.ordenCompraId, estado: "APROBADA" }, data: { estado: "ESPERANDO_APROBACION", aprobadaPorId: null, aprobadaEn: null, pdfAprobadaUrl: null } });
-        pdfViejo = oc?.pdfAprobadaUrl ?? null;
-      }
-      await sincronizarTableroDePedido(tx, p.id);
-      await auditar(tx, { usuarioId: yo.id, accion: "material.deshacerAprobacion", entidadId: id, resumen: `${yo.nombre} deshizo la aprobación de ${describir(p)}`, antes: { estado: "APROBADO" }, despues: { estado: "ESPERANDO_APROBACION" } });
-    });
-    if (pdfViejo) await eliminar(pdfViejo);
-    refrescar();
-    return null;
-  });
-}
-
-/** El dueño rechaza: vuelve a EN_COMPRA con el motivo. */
-export async function rechazarMaterial(id: string, motivo: string): Promise<Resultado> {
-  return ejecutar(async () => {
-    const yo = await exigirPermiso("materiales.aprobar");
-    const m = motivo.trim();
-    if (m.length < 3) throw new ErrorNegocio("Contá por qué se rechaza.");
-    await db.$transaction(async (tx) => {
-      const p = await pedidoOError(tx, id);
-      exigirEstado(p, "ESPERANDO_APROBACION");
-      // La OC del sistema queda RECHAZADA (con el motivo) y deja de ser la vigente: Compras la corrige y reenvía con número nuevo.
-      const ok = await cambiarEstado(tx, p, "EN_COMPRA", yo.id, `Rechazado: ${m}`, p.ordenCompraId ? { ordenCompraId: null, ordenCompraNumero: null, montoAprobado: null } : {});
-      if (!ok) throw new ErrorNegocio("El pedido cambió. Actualizá la pantalla.");
-      if (p.ordenCompraId) await tx.ordenCompra.updateMany({ where: { id: p.ordenCompraId, estado: "ESPERANDO_APROBACION" }, data: { estado: "RECHAZADA", motivoRechazo: m } });
-      await sincronizarTableroDePedido(tx, p.id);
-      await notificarEvento(EVENTO.materialRechazado({ ...deMaterial(p), oc: p.ordenCompraNumero, motivo: m, compradorId: p.tomadoPorId }), { tx, actor: yo.id });
-      await auditar(tx, { usuarioId: yo.id, accion: "material.rechazar", entidadId: id, resumen: `${yo.nombre} rechazó la OC de ${describir(p)}: ${m}`, antes: { estado: "ESPERANDO_APROBACION" }, despues: { estado: "EN_COMPRA", motivo: m } });
+      const p = await documentoOError(tx, id);
+      if (!["ENVIADA_A_COMPRAS", "EN_COMPRAS"].includes(p.estado) || p.creadaPorId !== yo.id || Date.now() - p.creadoEn.getTime() > 120_000) throw new ErrorNegocio("Ya no se puede deshacer.");
+      await cambiarEstado(tx, p, "ANULADA", yo.id, "Se deshizo al pedirlo", { motivoAnulacion: "Se deshizo al pedirlo" });
+      await auditar(tx, { usuarioId: yo.id, accion: "material.deshacer", entidadId: id, resumen: `${yo.nombre} deshizo ${describir(p)}`, antes: { estado: p.estado }, despues: { estado: "ANULADA" } });
     });
     refrescar();
     return null;
@@ -335,17 +186,22 @@ const esquemaHabilitar = z
   });
 export type DatosHabilitar = z.input<typeof esquemaHabilitar>;
 
-/** "Habilitar para retirar": crea el MaterialListo y le avisa a la obra. Se puede habilitar en partes. */
+/**
+ * "Habilitar para retirar" (Compras, desde la barra de la orden autorizada): crea el MaterialListo (sucursal
+ * confirmada, horario, contacto, qué parte, peso, retira chofer o entrega el proveedor), la orden pasa a
+ * HABILITADA y al que pidió le llega "Listo para retirar" con "Pedir el viaje". Se puede habilitar en partes.
+ */
 export async function habilitarRetiro(entrada: DatosHabilitar): Promise<Resultado> {
   return ejecutar(async () => {
     const yo = await exigirPermiso("materiales.gestionar");
     const d = esquemaHabilitar.parse(entrada);
     await db.$transaction(async (tx) => {
-      const p = await pedidoOError(tx, d.id);
-      if (!["APROBADO", "LISTO_PARA_RETIRAR", "RETIRO_PEDIDO", "EN_CAMINO"].includes(p.estado)) {
-        throw new ErrorNegocio(p.estado === "ESPERANDO_APROBACION" ? "Falta la aprobación del dueño." : "Este pedido no está para habilitar.");
+      const p = await documentoOError(tx, d.id);
+      if (!["AUTORIZADA", "ENCARGADA", "HABILITADA"].includes(p.estado)) {
+        throw new ErrorNegocio(p.estado === "ESPERANDO_AUTORIZACION" ? "Falta la autorización del dueño." : "Esta orden no está para habilitar.");
       }
-      if (p.completo) throw new ErrorNegocio("Ya se habilitó todo este pedido.");
+      if (!p.obraId) throw new ErrorNegocio("La orden no tiene obra.");
+      if (p.completo) throw new ErrorNegocio("Ya se habilitó todo de esta orden.");
       const suc = await sucursalDe(tx, d.sucursalId ?? d.proveedorId);
       if (!suc || suc.proveedorId !== d.proveedorId) throw new ErrorNegocio("Elegí la sucursal del proveedor donde se retira.");
       if (!Number.isFinite(suc.latitud) || !Number.isFinite(suc.longitud)) throw new ErrorNegocio("Esa sucursal no tiene ubicación en el mapa. Cargala de nuevo con la dirección.");
@@ -355,25 +211,25 @@ export async function habilitarRetiro(entrada: DatosHabilitar): Promise<Resultad
 
       const ml = await tx.materialListo.create({
         data: {
-          pedidoMaterialId: p.id, obraId: p.obraId, proveedorId: prov.id, sucursalId: suc.id, proveedorDireccion: `${suc.direccion}, ${suc.localidad}`, proveedorLat: suc.latitud, proveedorLng: suc.longitud,
-          horarioRetiro: d.horario ?? suc.horarioRetiro ?? null, contactoRetiro: d.contacto ?? suc.contacto ?? null, renglones: d.renglones?.length ? d.renglones : undefined, ordenCompraNumero: d.ordenCompra ?? p.ordenCompraNumero, descripcion: d.descripcion,
+          ordenCompraId: p.id, obraId: p.obraId, proveedorId: prov.id, sucursalId: suc.id, proveedorDireccion: `${suc.direccion}, ${suc.localidad}`, proveedorLat: suc.latitud, proveedorLng: suc.longitud,
+          horarioRetiro: d.horario ?? suc.horarioRetiro ?? null, contactoRetiro: d.contacto ?? suc.contacto ?? null, renglones: d.renglones?.length ? d.renglones : undefined, ordenCompraNumero: d.ordenCompra ?? p.numero, descripcion: d.descripcion,
           pesoKg: d.pesoKg, necesitaCamion: necesitaCamion("RETIRO_PROVEEDOR", d.pesoKg), modoEntrega: d.modo,
           fechaEntregaEstimada: d.fechaEstimada ? aFecha(d.fechaEstimada, "12:00") : null,
           // Lo entrega el proveedor: ya viene en camino, no hace falta viaje.
           estado: d.modo === "ENTREGA_PROVEEDOR" ? "EN_CAMINO" : "LISTO", habilitadoPorId: yo.id,
         },
       });
-      if (d.completo) await tx.pedidoMaterial.update({ where: { id: p.id }, data: { completo: true } });
+      if (d.completo) await tx.ordenCompra.update({ where: { id: p.id }, data: { completo: true } });
       await recalcular(tx, p.id, yo.id, `${d.descripcion} · ${prov.nombre}${d.completo ? " · No falta nada" : ""}`);
 
-      // Al que pidió y a los demás responsables de la obra (push); a Compras, bandeja.
+      // Al que pidió y a los demás responsables de la obra (push, con "Pedir el viaje"); a Compras, bandeja.
       await notificarEvento(EVENTO.materialHabilitado({
-        ...deMaterial(p), que: d.descripcion, proveedor: prov.nombre, horario: d.horario ?? null,
+        ...deDocumento(p), materialListoId: ml.id, que: d.descripcion, proveedor: prov.nombre, horario: d.horario ?? ml.horarioRetiro ?? null,
         entregaProveedor: d.modo === "ENTREGA_PROVEEDOR", cuando: d.fechaEstimada ? `el ${fecha(aFecha(d.fechaEstimada, "12:00"))}` : null,
       }), { tx, actor: yo.id });
       await auditar(tx, {
         usuarioId: yo.id, accion: "material.habilitar", entidadId: p.id,
-        resumen: `${yo.nombre} habilitó ${queLleva(d.descripcion)} en ${prov.nombre} para Obra ${p.obra.nombre}${d.modo === "ENTREGA_PROVEEDOR" ? " (lo entrega el proveedor)" : ""}${d.completo ? "; no falta nada" : ""}`,
+        resumen: `${yo.nombre} habilitó ${queLleva(d.descripcion)} en ${prov.nombre} para Obra ${p.obra?.nombre ?? ""}${d.modo === "ENTREGA_PROVEEDOR" ? " (lo entrega el proveedor)" : ""}${d.completo ? "; no falta nada" : ""}`,
         despues: { materialListoId: ml.id, proveedor: prov.nombre, modo: d.modo, pesoKg: d.pesoKg, completo: d.completo },
       });
     });
@@ -387,15 +243,15 @@ export async function marcarRecibido(materialListoId: string): Promise<Resultado
   return ejecutar(async () => {
     const yo = await exigirSesion();
     await db.$transaction(async (tx) => {
-      const ml = await tx.materialListo.findUnique({ where: { id: materialListoId }, include: { proveedor: { select: { nombre: true } }, pedidoMaterial: { include: { obra: { select: { nombre: true } } } } } });
+      const ml = await tx.materialListo.findUnique({ where: { id: materialListoId }, include: { proveedor: { select: { nombre: true } }, ordenCompra: { include: { obra: { select: { nombre: true } } } } } });
       if (!ml || ml.modoEntrega !== "ENTREGA_PROVEEDOR") throw new ErrorNegocio("No existe esa entrega.");
       const gestiona = puede(yo.rol, "materiales.gestionar");
       if (!gestiona && !(puede(yo.rol, "materiales.pedir") && (await esObraDelUsuario(yo, ml.obraId)))) throw new ErrorNegocio("No es de tus obras.");
       const r = await tx.materialListo.updateMany({ where: { id: ml.id, estado: "EN_CAMINO" }, data: { estado: "ENTREGADO", entregadoEn: new Date() } });
       if (!r.count) throw new ErrorNegocio("Ya estaba marcado.");
-      const cambio = await recalcular(tx, ml.pedidoMaterialId, yo.id, `Recibido en obra: ${ml.descripcion}`);
-      await notificarEvento(EVENTO.materialEntregado({ ...deMaterial(ml.pedidoMaterial), que: ml.descripcion, completo: cambio?.a === "ENTREGADO" }), { tx, actor: yo.id });
-      await auditar(tx, { usuarioId: yo.id, accion: "material.recibido", entidadId: ml.pedidoMaterialId, resumen: `${yo.nombre} recibió en Obra ${ml.pedidoMaterial.obra.nombre} ${queLleva(ml.descripcion)} que entregó ${ml.proveedor.nombre}` });
+      const cambio = await recalcular(tx, ml.ordenCompraId, yo.id, `Recibido en obra: ${ml.descripcion}`);
+      await notificarEvento(EVENTO.materialEntregado({ ...deDocumento(ml.ordenCompra), que: ml.descripcion, completo: cambio?.a === "ENTREGADA" }), { tx, actor: yo.id });
+      await auditar(tx, { usuarioId: yo.id, accion: "material.recibido", entidadId: ml.ordenCompraId, resumen: `${yo.nombre} recibió en Obra ${ml.ordenCompra.obra?.nombre ?? ""} ${queLleva(ml.descripcion)} que entregó ${ml.proveedor.nombre}` });
     });
     refrescar();
     return null;
@@ -445,7 +301,7 @@ export async function pedirRetiro(entrada: DatosRetiro): Promise<Resultado<{ ped
     const max = (await db.vehiculo.aggregate({ where: { activo: true }, _max: { capacidadCargaKg: true } }))._max.capacidadCargaKg ?? 0;
 
     const creados = await db.$transaction(async (tx) => {
-      const ml = await tx.materialListo.findMany({ where: { id: { in: d.materiales } }, include: { pedidoMaterial: { select: { obraSedeId: true } }, proveedor: { select: { nombre: true } }, pedidoViaje: { select: { id: true, estado: true } } } });
+      const ml = await tx.materialListo.findMany({ where: { id: { in: d.materiales } }, include: { ordenCompra: { select: { obraSedeId: true } }, proveedor: { select: { nombre: true } }, pedidoViaje: { select: { id: true, estado: true } } } });
       // Regla: solo material habilitado, LISTO, de esta obra y para retirar con chofer.
       if (ml.length !== new Set(d.materiales).size) throw new ErrorNegocio("Algún material ya no está. Actualizá la pantalla.");
       for (const m of ml) {
@@ -462,7 +318,7 @@ export async function pedirRetiro(entrada: DatosRetiro): Promise<Resultado<{ ped
         const peso = grupo.reduce((s, m) => s + (m.pesoKg ?? 0), 0);
         if (peso > max) throw new ErrorNegocio(`Lo de ${grupo[0].proveedor.nombre} pesa ${peso.toLocaleString("es-AR")} kg y ningún vehículo carga más de ${max.toLocaleString("es-AR")} kg. Marcalo en dos viajes.`);
         // Si el material era para una sede de la obra, el viaje va a esa sede.
-        const sede = grupo.map((m) => m.pedidoMaterial.obraSedeId).find(Boolean) ?? null;
+        const sede = grupo.map((m) => m.ordenCompra.obraSedeId).find(Boolean) ?? null;
         const puntos = await resolverPuntos(tx, { origenTipo: "PROVEEDOR", origenId: sucursalId, obraId: obra.id, destinoSedeId: sede });
         const primero = grupo[0];
         const proveedorId = primero.proveedorId;
@@ -486,10 +342,10 @@ export async function pedirRetiro(entrada: DatosRetiro): Promise<Resultado<{ ped
             await tx.pedidoViaje.update({ where: { id: viejo }, data: { estado: "CANCELADO", motivoCancelacion: "Se volvió a pedir el retiro", canceladoEn: new Date() } });
           }
         }
-        for (const pmId of new Set(grupo.map((m) => m.pedidoMaterialId))) {
-          await recalcular(tx, pmId, yo.id, `Viaje #${p.numero} pedido`);
-          const pm = await tx.pedidoMaterial.findUniqueOrThrow({ where: { id: pmId }, include: { obra: { select: { nombre: true } } } });
-          await notificarEvento(EVENTO.materialRetiroPedido({ ...deMaterial(pm), quien: yo.nombre, proveedor: primero.proveedor.nombre }), { tx, actor: yo.id });
+        for (const ocId of new Set(grupo.map((m) => m.ordenCompraId))) {
+          await recalcular(tx, ocId, yo.id, `Viaje #${p.numero} pedido`);
+          const oc = await tx.ordenCompra.findUniqueOrThrow({ where: { id: ocId }, include: { obra: { select: { nombre: true } } } });
+          await notificarEvento(EVENTO.materialRetiroPedido({ ...deDocumento(oc), quien: yo.nombre, proveedor: primero.proveedor.nombre }), { tx, actor: yo.id });
         }
         await auditarBase(tx, {
           usuarioId: yo.id, accion: "pedido.crear", entidad: "PedidoViaje", entidadId: p.id,
@@ -518,8 +374,8 @@ export async function deshacerRetiro(pedidoIds: string[]): Promise<Resultado> {
         });
         if (!r.count) throw new ErrorNegocio("Ya no se puede deshacer.");
         await tx.materialListo.updateMany({ where: { pedidoViajeId: id, estado: "RETIRO_PEDIDO" }, data: { estado: "LISTO" } });
-        const pms = await tx.materialListo.findMany({ where: { pedidoViajeId: id }, select: { pedidoMaterialId: true } });
-        for (const pmId of new Set(pms.map((m) => m.pedidoMaterialId))) await recalcular(tx, pmId, yo.id, "Se deshizo el pedido del viaje");
+        const ocs = await tx.materialListo.findMany({ where: { pedidoViajeId: id }, select: { ordenCompraId: true } });
+        for (const ocId of new Set(ocs.map((m) => m.ordenCompraId))) await recalcular(tx, ocId, yo.id, "Se deshizo el pedido del viaje");
         await auditarBase(tx, { usuarioId: yo.id, accion: "pedido.deshacer", entidad: "PedidoViaje", entidadId: id, resumen: `${yo.nombre} deshizo ${await describirPedido(tx, id)}`, antes: { estado: "PENDIENTE" }, despues: { estado: "CANCELADO" } });
       }
     });

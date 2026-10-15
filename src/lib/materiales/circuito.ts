@@ -1,49 +1,36 @@
 import "server-only";
-import type { EstadoMaterial, EstadoMaterialListo, Prisma } from "@prisma/client";
+import type { EstadoMaterialListo, EstadoOC, Prisma } from "@prisma/client";
 import { notificarEvento } from "@/lib/notificaciones/enviar";
 import { EVENTO } from "@/lib/notificaciones/eventos";
-import { sincronizarTableroDePedido } from "@/lib/compras/estadoTablero";
+import { sincronizarTablero } from "@/lib/compras/estadoTablero";
+import { estadoSegunHabilitaciones } from "@/lib/compras/documento";
+import { deDocumento } from "./comun";
 
 type Tx = Prisma.TransactionClient;
 
-/** Enlace neutro: cada rol lo abre en su pantalla (permisos.ts, rutaNueva). */
-export const enlaceMaterial = (id: string) => `/materiales/${id}`;
-
-/** Cambia el estado del pedido de material y deja la historia (CambioEstadoMaterial). */
-export async function cambiarEstado(tx: Tx, pm: { id: string; estado: EstadoMaterial }, a: EstadoMaterial, usuarioId: string | null, nota?: string, datos: Prisma.PedidoMaterialUncheckedUpdateInput = {}) {
-  // Cerrojo: si otro lo cambió en el medio, no se pisa.
-  const r = await tx.pedidoMaterial.updateMany({ where: { id: pm.id, estado: pm.estado }, data: { ...datos, estado: a } });
+/** Cambia el estado del documento y deja la historia (CambioEstadoOC). Cerrojo: si otro lo cambió en el medio, no se pisa. */
+export async function cambiarEstado(tx: Tx, d: { id: string; estado: EstadoOC }, a: EstadoOC, usuarioId: string | null, nota?: string, datos: Prisma.OrdenCompraUncheckedUpdateInput = {}) {
+  const r = await tx.ordenCompra.updateMany({ where: { id: d.id, estado: d.estado }, data: { ...datos, estado: a, version: { increment: 1 } } });
   if (!r.count) return false;
-  if (pm.estado !== a) await tx.cambioEstadoMaterial.create({ data: { pedidoMaterialId: pm.id, de: pm.estado, a, usuarioId, nota: nota?.slice(0, 300) } });
-  // El tablero de Compras sigue al estado real (habilitaciones, viajes, entregas).
-  await sincronizarTableroDePedido(tx, pm.id);
+  if (d.estado !== a || nota) await tx.cambioEstadoOC.create({ data: { ordenCompraId: d.id, de: d.estado, a, usuarioId, nota: nota?.slice(0, 300) } });
+  // El tablero de Compras sigue al estado real.
+  await sincronizarTablero(tx, d.id);
   return true;
 }
 
-/**
- * Estado del pedido según sus habilitaciones (retiros parciales):
- * algo en camino → EN_CAMINO; algo con retiro pedido → RETIRO_PEDIDO; algo listo → LISTO_PARA_RETIRAR;
- * todo entregado → ENTREGADO si Compras marcó "no falta nada", si no APROBADO (falta habilitar el resto).
- */
-export function estadoSegunHabilitaciones(completo: boolean, habilitaciones: { estado: EstadoMaterialListo }[]): EstadoMaterial {
-  const activas = habilitaciones.filter((h) => h.estado !== "CANCELADO");
-  if (activas.some((h) => h.estado === "EN_CAMINO")) return "EN_CAMINO";
-  if (activas.some((h) => h.estado === "RETIRO_PEDIDO")) return "RETIRO_PEDIDO";
-  if (activas.some((h) => h.estado === "LISTO")) return "LISTO_PARA_RETIRAR";
-  if (activas.length && completo) return "ENTREGADO";
-  return "APROBADO";
-}
+const CON_HABILITACIONES: EstadoOC[] = ["AUTORIZADA", "ENCARGADA", "HABILITADA", "ENTREGADA"];
 
-const DESPUES_DE_APROBADO: EstadoMaterial[] = ["APROBADO", "LISTO_PARA_RETIRAR", "RETIRO_PEDIDO", "EN_CAMINO"];
-
-/** Recalcula el estado de un pedido aprobado a partir de sus habilitaciones. Devuelve el cambio, si hubo. */
-export async function recalcular(tx: Tx, pedidoMaterialId: string, usuarioId: string | null, nota?: string) {
-  const pm = await tx.pedidoMaterial.findUniqueOrThrow({ where: { id: pedidoMaterialId }, select: { id: true, estado: true, completo: true, materialesListos: { select: { estado: true } } } });
-  if (!DESPUES_DE_APROBADO.includes(pm.estado)) return null;
-  const a = estadoSegunHabilitaciones(pm.completo, pm.materialesListos);
-  if (a === pm.estado) return null;
-  await cambiarEstado(tx, pm, a, usuarioId, nota);
-  return { de: pm.estado, a };
+/** Recalcula el estado de un documento autorizado a partir de sus habilitaciones. Devuelve el cambio, si hubo. */
+export async function recalcular(tx: Tx, ordenCompraId: string, usuarioId: string | null, nota?: string) {
+  const d = await tx.ordenCompra.findUniqueOrThrow({ where: { id: ordenCompraId }, select: { id: true, estado: true, completo: true, encargadaEn: true, materialesListos: { select: { estado: true } } } });
+  if (!CON_HABILITACIONES.includes(d.estado)) return null;
+  const a = estadoSegunHabilitaciones(d.encargadaEn ? "ENCARGADA" : "AUTORIZADA", d.completo, d.materialesListos);
+  if (a === d.estado) {
+    if (nota) await tx.cambioEstadoOC.create({ data: { ordenCompraId: d.id, de: d.estado, a, usuarioId, nota: nota.slice(0, 300) } });
+    return null;
+  }
+  await cambiarEstado(tx, d, a, usuarioId, nota);
+  return { de: d.estado, a };
 }
 
 /** Lo que le pasa al viaje de retiro y cómo se mueve el material. */
@@ -61,15 +48,14 @@ const HACIA: Record<EventoViaje, EstadoMaterialListo> = {
 };
 
 /**
- * Enganche con el viaje (CLAUDE.md, "Materiales y Compras"): en viaje → EN_CAMINO; entregado → ENTREGADO
- * (y el pedido ENTREGADO si está todo y "no falta nada"); el chofer lo suelta o se cancela → vuelve a LISTO.
- * El material sigue unido al pedido de viaje: si otro chofer lo acepta, vuelve a "retiro pedido".
- * No hace nada si el viaje no es un retiro de material.
+ * Enganche con el viaje: en viaje → la habilitación EN_CAMINO; entregado → ENTREGADO (y el documento
+ * ENTREGADA si está todo y "no falta nada"); el chofer lo suelta o se cancela → vuelve a LISTO. No hace nada
+ * si el viaje no es un retiro de material.
  */
 export async function alCambiarElViaje(tx: Tx, pedidoViajeId: string, evento: EventoViaje, usuarioId: string | null) {
   const listos = await tx.materialListo.findMany({
     where: { pedidoViajeId, estado: { in: DESDE[evento] } },
-    include: { proveedor: { select: { nombre: true } }, pedidoMaterial: { select: { id: true, descripcion: true, solicitanteId: true, obraId: true, obra: { select: { nombre: true } } } } },
+    include: { proveedor: { select: { nombre: true } }, ordenCompra: { select: { id: true, detallePedido: true, solicitanteId: true, creadaPorId: true, obraId: true, obra: { select: { nombre: true } } } } },
   });
   if (!listos.length) return;
   const ahora = new Date();
@@ -78,14 +64,14 @@ export async function alCambiarElViaje(tx: Tx, pedidoViajeId: string, evento: Ev
     data: { estado: HACIA[evento], ...(evento === "ENTREGADO" ? { entregadoEn: ahora } : {}) },
   });
 
-  const viaje = await tx.pedidoViaje.findUnique({ where: { id: pedidoViajeId }, select: { solicitanteId: true, numero: true, tomadoPor: { select: { nombre: true } } } });
+  const viaje = await tx.pedidoViaje.findUnique({ where: { id: pedidoViajeId }, select: { numero: true, tomadoPor: { select: { nombre: true } } } });
   const nota = { TOMADO: `Viaje #${viaje?.numero} aceptado`, EN_VIAJE: `Viaje #${viaje?.numero} en camino`, ENTREGADO: `Viaje #${viaje?.numero} entregado`, LIBERADO: `El chofer soltó el viaje #${viaje?.numero}`, CANCELADO: `Se canceló el viaje #${viaje?.numero}` }[evento];
 
-  for (const m of new Map(listos.map((x) => [x.pedidoMaterial.id, x])).values()) {
-    const cambio = await recalcular(tx, m.pedidoMaterial.id, usuarioId, nota);
-    const base = { pedidoMaterialId: m.pedidoMaterial.id, solicitanteId: m.pedidoMaterial.solicitanteId, obraId: m.pedidoMaterial.obraId, que: m.descripcion, obra: m.pedidoMaterial.obra.nombre };
+  for (const m of new Map(listos.map((x) => [x.ordenCompra.id, x])).values()) {
+    const cambio = await recalcular(tx, m.ordenCompra.id, usuarioId, nota);
+    const base = { ...deDocumento(m.ordenCompra), que: m.descripcion };
     // En viaje: los avisos de las etapas del viaje ya le llegan al que pidió y a Compras (eventos.ts).
-    if (evento === "ENTREGADO") await notificarEvento(EVENTO.materialEntregado({ ...base, completo: cambio?.a === "ENTREGADO" }), { tx, actor: usuarioId });
+    if (evento === "ENTREGADO") await notificarEvento(EVENTO.materialEntregado({ ...base, completo: cambio?.a === "ENTREGADA" }), { tx, actor: usuarioId });
     if (evento === "LIBERADO" || evento === "CANCELADO") {
       await notificarEvento(EVENTO.materialVuelveAListo({ ...base, proveedor: m.proveedor.nombre, motivo: evento === "LIBERADO" ? `${viaje?.tomadoPor?.nombre ?? "El chofer"} soltó el viaje` : "Se canceló el viaje" }), { tx, actor: usuarioId });
     }

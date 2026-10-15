@@ -5,13 +5,12 @@ import { exigirPermiso } from "@/lib/auth/sesion";
 import { db } from "@/lib/db";
 import { puede } from "@/lib/permisos";
 import { cuando, fecha, plata } from "@/lib/formato";
-import { ESTADO_LISTO } from "@/lib/materiales/presentacion";
+import { ESTADO_DOC, ESTADO_RETIRO } from "@/lib/compras/documento";
 import { claseBoton } from "@/components/ui/boton";
 import { Insignia, Lista, FilaLista, Subtitulo, Tarjeta, Vacio } from "@/components/ui/basicos";
 import { MapaPunto } from "@/components/mapa/punto";
 import { BotonPrincipal, BotonSucursal, EditarProveedor } from "@/components/proveedores/botones";
 
-const ESTADO_OC = { BORRADOR: { t: "Borrador", tono: "neutro" }, ESPERANDO_APROBACION: { t: "Esperando aprobación", tono: "aviso" }, APROBADA: { t: "Aprobada", tono: "ok" }, RECHAZADA: { t: "Rechazada", tono: "critico" }, ANULADA: { t: "Anulada", tono: "neutro" } } as const;
 
 /**
  * Ficha del proveedor: datos, sucursales (dirección, horario, contacto y mapa), órdenes de compra y lo
@@ -31,7 +30,7 @@ export async function FichaProveedor({ id, cerrar }: { id: string; cerrar?: stri
   });
   if (!p) notFound();
   const ordenes = compras
-    ? await db.ordenCompra.findMany({ where: { proveedorId: id, estado: { not: "BORRADOR" } }, orderBy: { creadoEn: "desc" }, take: 20, include: { obra: { select: { nombre: true } }, sucursal: { select: { nombre: true } } } })
+    ? await db.ordenCompra.findMany({ where: { proveedorId: id, estado: { notIn: ["BORRADOR", "ENVIADA_A_COMPRAS", "EN_COMPRAS"] } }, orderBy: { creadoEn: "desc" }, take: 20, include: { obra: { select: { nombre: true } }, sucursal: { select: { nombre: true } } } })
     : [];
   const habilitados = compras
     ? await db.materialListo.findMany({ where: { proveedorId: id, estado: { in: ["LISTO", "RETIRO_PEDIDO", "EN_CAMINO"] } }, orderBy: { habilitadoEn: "asc" }, include: { obra: { select: { nombre: true } }, sucursal: { select: { nombre: true } } } })
@@ -100,11 +99,11 @@ export async function FichaProveedor({ id, cerrar }: { id: string; cerrar?: stri
                 <tbody>
                   {ordenes.map((o) => (
                     <tr key={o.id}>
-                      <td className="font-medium tabular-nums"><Link href={`/compras/ordenes?ver=${o.id}`} className="hover:underline">{o.numero}</Link></td>
+                      <td className="font-medium tabular-nums"><Link href={`/compras/oc/${o.id}`} className="hover:underline">{o.numero}</Link></td>
                       <td>{o.obra ? `Obra ${o.obra.nombre}` : o.obraTexto ?? "—"}</td>
                       <td className="hidden text-suave sm:table-cell">{o.sucursal?.nombre ?? "—"}</td>
                       <td className="text-suave">{fecha(o.fecha)}</td>
-                      <td><Insignia tono={ESTADO_OC[o.estado].tono}>{ESTADO_OC[o.estado].t}</Insignia></td>
+                      <td><Insignia tono={ESTADO_DOC[o.estado].tono}>{ESTADO_DOC[o.estado].titulo}</Insignia></td>
                       <td className="num">{o.importe != null ? plata(o.importe.toNumber()) : o.importeAConfirmar ? "A confirmar" : "—"}</td>
                     </tr>
                   ))}
@@ -116,7 +115,7 @@ export async function FichaProveedor({ id, cerrar }: { id: string; cerrar?: stri
           {habilitados.length === 0 ? <Tarjeta className="p-4 text-sm text-suave">Nada habilitado en este proveedor.</Tarjeta> : (
             <Lista>
               {habilitados.map((m) => (
-                <FilaLista key={m.id} href={`/compras/${m.pedidoMaterialId}`} titulo={m.descripcion} detalle={`Obra ${m.obra.nombre} · ${m.sucursal.nombre} · ${m.horarioRetiro ?? "sin horario"}`} derecha={<Insignia tono={ESTADO_LISTO[m.estado].tono}>{ESTADO_LISTO[m.estado].titulo}</Insignia>} />
+                <FilaLista key={m.id} href={`/compras/oc/${m.ordenCompraId}`} titulo={m.descripcion} detalle={`Obra ${m.obra.nombre} · ${m.sucursal.nombre} · ${m.horarioRetiro ?? "sin horario"}`} derecha={<Insignia tono={ESTADO_RETIRO[m.estado].tono}>{ESTADO_RETIRO[m.estado].titulo}</Insignia>} />
               ))}
             </Lista>
           )}

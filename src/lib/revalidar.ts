@@ -20,8 +20,8 @@ const MODULOS = {
     detalles: ["/flota/[id]"],
   },
   materiales: {
-    listas: ["/inicio", "/compras", "/habilitados", "/aprobaciones", "/mis-pedidos", "/pedir", "/avisos", "/alertas"],
-    detalles: ["/compras/[id]", "/mis-pedidos/material/[id]"],
+    listas: ["/inicio", "/compras", "/compras/tablero", "/compras/facturacion", "/habilitados", "/aprobaciones", "/mis-pedidos", "/pedir", "/avisos", "/alertas"],
+    detalles: ["/compras/oc/[id]"],
   },
   avisos: { listas: ["/avisos", "/alertas", "/inicio"], detalles: [] as string[] },
   usuarios: { listas: ["/usuarios", "/obras", "/alertas", "/actividad"], detalles: ["/obras/[id]", "/actividad/[id]"] },

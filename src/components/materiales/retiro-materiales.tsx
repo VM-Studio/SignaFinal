@@ -10,7 +10,7 @@ import { Vacio } from "@/components/ui/basicos";
 import { useAviso } from "@/components/ui/avisos";
 import { deshacerRetiro, pedirRetiro } from "@/lib/materiales/acciones";
 import type { ListoParaRetirar } from "@/lib/materiales/consultas";
-import { haceDias } from "@/lib/materiales/presentacion";
+import { haceDias } from "@/lib/compras/documento";
 import { diaISO, peso, sumarDias } from "@/lib/formato";
 
 /**

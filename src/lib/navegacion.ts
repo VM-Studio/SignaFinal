@@ -5,7 +5,7 @@ export type Icono =
   | "inicio" | "pedidos" | "pedir" | "viajes" | "combustible" | "flota" | "mantenimiento" | "herramientas"
   | "deposito" | "entregas" | "sobrantes" | "mapa" | "alertas" | "obras" | "proveedores" | "usuarios" | "cuenta" | "mas"
   | "agenda" | "costos" | "hoy" | "avisos" | "actividad" | "importar" | "compras" | "habilitados" | "aprobaciones" | "rastreo"
-  | "buscar" | "tablero" | "configuracion";
+  | "buscar" | "tablero" | "configuracion" | "facturacion";
 
 /** Contadores de la barra (punto rojo con número): los arma el servidor y los actualiza el tiempo real. */
 export type ClaveContador = "aprobaciones" | "pedidosNuevos" | "solicitudesNuevas" | "avisos" | "listosRetirar";
@@ -23,8 +23,8 @@ export const SECCIONES = {
   // Compras
   compras: { href: "/compras", titulo: "Pedidos de material", corto: "Pedidos", icono: "compras", contador: "pedidosNuevos" },
   pedidosMaterial: { href: "/compras", titulo: "Pedidos de material", corto: "Pedidos", icono: "compras" },
-  tablero: { href: "/compras/ordenes", titulo: "Órdenes", icono: "tablero" },
-  tableroLectura: { href: "/compras/tablero", titulo: "Tablero de Compras", icono: "tablero" },
+  tablero: { href: "/compras/tablero", titulo: "Tablero", icono: "tablero" },
+  facturacion: { href: "/compras/facturacion", titulo: "Facturación", icono: "facturacion" },
   viajesCompras: { href: "/compras/viajes", titulo: "Viajes", icono: "viajes" },
   importarExcel: { href: "/compras/importar", titulo: "Importar Excel", icono: "importar" },
   habilitados: { href: "/habilitados", titulo: "Habilitados", icono: "habilitados" },
@@ -85,7 +85,7 @@ const NAV: Record<Rol, NavRol> = {
     barra: ["aprobaciones", "pedidosMaterial", "avisos"],
     mas: [
       { titulo: "Viajes", claves: ["mapa", "viajes", "solicitudesDireccion", "historial", "pedir", "misPedidos", "viajesAObras", "hoyChoferes"] },
-      { titulo: "Compras", claves: ["tablero", "habilitados", "importarExcel", "pedirMateriales"] },
+      { titulo: "Compras", claves: ["tablero", "habilitados", "facturacion", "importarExcel", "pedirMateriales"] },
       { titulo: "Flota", claves: ["flota", "costos", "agenda", "mantenimiento", "combustible"] },
       { titulo: "Depósito", claves: ["herramientasDeposito", "sobrantes", "entregas"] },
       { titulo: "Seguimiento", claves: ["actividad", "alertas"] },
@@ -94,13 +94,13 @@ const NAV: Record<Rol, NavRol> = {
       { titulo: null, claves: ["inicio"] },
     ],
   },
-  // Escritorio: Inicio arriba de todo; "Pedir materiales" es "Nuevo pedido" dentro de Pedidos de material.
-  COMPRAS: { barra: ["compras", "tablero", "viajesCompras"], lateral: ["inicio", "compras", "tablero", "viajesCompras"], mas: [{ titulo: null, claves: ["habilitados", "proveedores", "misAvisos", "cuentaCorta", "inicio"] }] },
+  // Sin inicio: entra al Tablero. "Pedir materiales" es "Nueva" en el Tablero y en Pedidos de material.
+  COMPRAS: { barra: ["tablero", "compras", "viajesCompras"], mas: [{ titulo: null, claves: ["habilitados", "proveedores", "misAvisos", "cuentaCorta"] }] },
   RESPONSABLE_OBRA: { barra: ["pedir", "misPedidos", "viajesObra"], mas: [{ titulo: null, claves: ["herramientas", "obras", "pedirMateriales", "misAvisos", "inicio"] }] },
   CAPATAZ: { barra: ["pedir", "misPedidos", "viajesObra"], mas: [{ titulo: null, claves: ["herramientas", "obras", "pedirMateriales", "misAvisos", "inicio"] }] },
   CHOFER: { barra: ["hoy", "solicitudes", "avisos"], mas: [{ titulo: null, claves: ["combustible", "inicio"] }] },
   DEPOSITO: { barra: ["buscar", "herramientasDeposito", "entregas"], mas: [{ titulo: null, claves: ["sobrantes", "importar", "misAvisos", "inicio"] }] },
-  ADMINISTRACION: { barra: ["flota", "costos", "alertas"], mas: [{ titulo: null, claves: ["obras", "proveedores", "razonesSociales", "agenda", "mantenimiento", "tableroLectura", "ubicaciones", "usuarios", "misAvisos", "inicio"] }] },
+  ADMINISTRACION: { barra: ["flota", "costos", "alertas"], mas: [{ titulo: null, claves: ["obras", "proveedores", "razonesSociales", "agenda", "mantenimiento", "tablero", "facturacion", "ubicaciones", "usuarios", "misAvisos", "inicio"] }] },
 };
 
 // Nunca se muestra un enlace a una ruta que el rol no tiene (la matriz manda).
@@ -142,9 +142,10 @@ export function tituloDeRuta(pathname: string, propias: Seccion[] = []): string 
   if (exacta) return exacta.titulo;
   if (/^\/compras\/[^/]+\/oc$/.test(pathname)) return "Orden de compra";
   if (pathname === "/compras/tablero") return "Tablero";
+  if (pathname === "/compras/oc/nueva") return "Nueva";
+  if (pathname.startsWith("/compras/oc/")) return "Documento de compra";
+  if (pathname === "/compras/facturacion") return "Facturación";
   if (pathname.startsWith("/compras/viajes")) return "Viajes";
-  if (pathname === "/compras/ordenes/nueva") return "Nueva orden";
-  if (pathname.startsWith("/compras/ordenes/")) return "Orden";
   if (pathname === "/compras/importar") return "Importar desde Excel";
   if (pathname.startsWith("/compras/") || pathname.startsWith("/mis-pedidos/material/")) return "Pedido de material";
   if (pathname.startsWith("/viaje/")) return "Viaje";
@@ -159,10 +160,13 @@ export function tituloDeRuta(pathname: string, propias: Seccion[] = []): string 
  * header). Una ruta cuenta como enlazada si hay un enlace igual o si vive dentro de una sección
  * enlazada (/pedir/retiro está en /pedir). Las rutas con [id] se abren desde las listas.
  */
+/** Rutas que no van en la barra: se abren desde una lista o un botón (el documento de compra y "Nueva"). */
+const SOLO_DESDE_LISTAS = ["/compras/oc"];
+
 export function rutasSinEnlace(rol: Rol, rutas: readonly string[]): string[] {
   const enlaces = enlacesDelRol(rol);
   return rutas
     .map((r) => (r.endsWith("/**") ? r.slice(0, -3) : r))
-    .filter((r) => !r.includes("["))
+    .filter((r) => !r.includes("[") && !SOLO_DESDE_LISTAS.includes(r))
     .filter((r) => !enlaces.some((e) => r === e || r.startsWith(`${e}/`)));
 }

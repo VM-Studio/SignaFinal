@@ -26,11 +26,11 @@ base** (con `MODO_DEMO=true`; borra todo lo cargado y no se puede deshacer).
 | Rol | Barra (celular) | En "Más" |
 |---|---|---|
 | Dirección | Aprobaciones · Pedidos · Avisos · Más | Mapa, Viajes en curso, Solicitudes, Flota, Costos, Actividad, Herramientas, Rastreo, Obras, Proveedores, Configuración |
-| Compras | Pedidos · Órdenes · Viajes · Más | Habilitados, Proveedores, Mis avisos, Cuenta (en escritorio, Inicio arriba de todo) |
+| Compras | Tablero · Pedidos · Viajes · Más | Habilitados, Proveedores, Mis avisos, Cuenta (sin inicio: entra al Tablero) |
 | Responsable / Capataz | Pedir · Mis pedidos · Viajes · Más | Herramientas, Obras, Pedir materiales, Avisos |
 | Chofer | Hoy · Solicitudes · Avisos · Más | Combustible |
 | Depósito | Buscar · Herramientas · Entregas · Más | Sobrantes, Alta masiva, Avisos |
-| Administración | Flota · Costos · Alertas · Más | Obras, Proveedores, Razones sociales, Agenda, Mantenimiento, Tablero de Compras, Usuarios |
+| Administración | Flota · Costos · Alertas · Más | Obras, Proveedores, Razones sociales, Agenda, Mantenimiento, Tablero, Facturación, Usuarios |
 
 En escritorio, la barra lateral tiene los mismos tres arriba y el resto en "Más" (plegado). Mi cuenta y
 Cerrar sesión, en el avatar y al pie de "Más".
@@ -59,21 +59,18 @@ quién es). Para revisar un usuario desde la terminal: `npx tsx scripts/push-pro
 Con datos de prueba (solo en desarrollo: `npx prisma db seed`; **nunca** contra producción) o con los
 datos reales cargados:
 
-1. **Daniela** → *Pedir* → **Pedir materiales a Compras**: elige Obra Darwin, **adjunta la planilla de
-   Excel** (o una foto) en lugar de escribir renglón por renglón, escribe observaciones ("el cemento que
-   sea Loma Negra") y pide.
-2. **Compras** ve el pedido con el clip y la nota, abre el adjunto en la app, **Tomar** → **Armar orden
-   de compra**: la plantilla de Compras (Detalle del Pedido → **Pasar a renglones**, o **Importar de la
-   planilla**), Proveedor Final **Corralón San Martín** y su **sucursal**, Importe, Forma y Condición de
-   Pago, **Vista previa PDF** → **Enviar a aprobación**: recibe el número **OC-000N**. La ve en
-   *Órdenes* (su planilla) como **PEDIR AUTORIZACIÓN** y anota los **Próximos pasos** en la misma celda.
-3. **El dueño** recibe el push (y el número en *Aprobaciones*) y ve la OC **con todos los datos escritos**
-   (detalle, proveedor, importe, forma y condición de pago, lo que pidió la obra) y el PDF → **Aprobar**.
-   En el tablero de Compras pasa a **Autorizada**. (Para probar el
-   rechazo: **Rechazar** con motivo → Compras **Corregir y reenviar** → número nuevo.)
-4. **Compras** → **Habilitar para retirar**: viene todo precargado de la OC; tilda lo que se retira.
-   **Daniela** ve en su pedido la OC aprobada con su PDF.
-5. **Daniela** (o César, Lolo) → *Pedir* → **Retiro en proveedor** → marca lo listo → pide el viaje.
+1. **Daniela** → *Pedir* → **Armar orden de compra**: la plantilla de Compras, en blanco. Elige Obra Darwin,
+   escribe el Detalle del Pedido ("40 - bolsas de cemento"), el Proveedor Sugerido y adjunta la planilla →
+   **Enviar a Compras**. (El rápido: **Pedir materiales**, solo obra y qué hace falta.)
+2. **Compras** (con la misma hoja abierta ve aparecer lo que escribe Daniela) la tiene en *Pedidos* como
+   **Con OC cargada**; al abrirla pasa a **En Compras**. Completa Proveedor Final, Importe y Forma de Pago (se
+   guarda solo) → **Enviar a autorización**: recibe el número **OC-000N**. Daniela ve el Proveedor Final en
+   gris (no lo puede tocar).
+3. **El dueño** recibe el push y en *Aprobaciones* ve la hoja con todos los datos y el PDF → **Autorizar**.
+   (Para probar el rechazo: **Rechazar** con motivo → vuelve a Compras con el motivo arriba.)
+4. **Compras** → **Marcar como encargada** → **Habilitar para retirar** (sucursal, horario): la barra se pone
+   verde. **Daniela** ve la tarjeta verde en *Mis pedidos* con **Pedir el viaje**.
+5. **Daniela** → **Pedir el viaje** (llega con el material ya marcado) → día y hora → pide el viaje.
    (O **Compras** → *Viajes* → **Coordinar viaje**: para Daniela, obra Darwin → el pedido sale a nombre de
    Daniela y Claudio ve "Pidió Daniela · coordinó …".)
 6. **Claudio** → *Solicitudes* → **Aceptar** el cemento para Darwin: **Aprovechá el viaje** le ofrece el
@@ -87,9 +84,12 @@ datos reales cargados:
 8. **Fechas**: el viaje aceptado para pasado mañana aparece en *Hoy → Próximos* con la fecha grande y el
    botón **Iniciar** deshabilitado; **Pedir que lo adelanten** → el dueño lo **Reprograma** para hoy →
    Claudio recibe el aviso y los recordatorios.
-9. **Compras** → *Órdenes* → **Nuevo PE**: el pedido especial sale con su numeración aparte (PE-0001).
-   *Exportar a Excel* baja el tablero con las mismas columnas y colores de su planilla. Su planilla vieja la
-   carga el dueño en *Más → Compras → Importar Excel*, con vista previa fila por fila.
+9. **Camila** (Administración) → *Facturación* → abre la orden → completa **3. Facturación**, adjunta la
+   factura → **Pedir autorización** del pago → el dueño la autoriza en *Aprobaciones → Pagos*. **Imprimir /
+   PDF** sale con dos páginas: la hoja y la factura.
+   **Lolo**, desde el celular → *Pedir* → **Armar pedido especial**: solo obra y detalle → **Enviar a
+   Compras**; a Alejandra le llega como **Solo indicaciones**. *Exportar a Excel* baja el tablero con sus
+   colores; la planilla vieja la carga el dueño en *Más → Compras → Importar Excel*.
 10. **Depósito**: buscar una herramienta (filtro Maquinaria / Herramientas) y entregarla a una obra. En
    *Sobrantes*, cargar lo que sobró de una obra.
 

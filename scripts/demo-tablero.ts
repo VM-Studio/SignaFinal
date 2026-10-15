@@ -20,7 +20,7 @@ const MUESTRAS: Muestra[] = [
   { tipo: "PE", n: "2", estado: "ANULADA", dias: -12, importe: 84402.96, obra: 0, sol: 1, prov: 0, detalle: "98 unid. - Placa Durlock Estándar (12.5mm)", comentarios: "Repetida con la OC 46 A" },
 ];
 
-const ESTADO_OC: Record<EstadoTablero, EstadoOC> = { PEDIR_AUTORIZACION: "ESPERANDO_APROBACION", AUTORIZADA: "APROBADA", SOLICITUD_PRESUPUESTO: "BORRADOR", ENCARGADO: "APROBADA", ENTREGADO: "APROBADA", ANULADA: "ANULADA" };
+const ESTADO_OC: Record<EstadoTablero, EstadoOC> = { PEDIR_AUTORIZACION: "ESPERANDO_AUTORIZACION", AUTORIZADA: "AUTORIZADA", SOLICITUD_PRESUPUESTO: "EN_COMPRAS", ENCARGADO: "ENCARGADA", HABILITADA: "HABILITADA", ENTREGADO: "ENTREGADA", ANULADA: "ANULADA" };
 const dia = (d: number) => new Date(Date.now() + d * 86_400_000);
 
 (async () => {
@@ -39,7 +39,7 @@ const dia = (d: number) => new Date(Date.now() + d * 86_400_000);
   for (const [i, m] of MUESTRAS.entries()) {
     await db.ordenCompra.create({
       data: {
-        id: `${PREFIJO}${i}`, tipo: m.tipo, numero: `${m.tipo}-${m.n}`, numeroTexto: m.n, fuente: "IMPORTADA_EXCEL",
+        id: `${PREFIJO}${i}`, tipo: m.tipo, numero: `${m.tipo}-${m.n}`, numeroTexto: m.n, fuente: "IMPORTADA",
         estado: ESTADO_OC[m.estado], estadoTablero: m.estado, estadoTableroAuto: m.estado,
         fecha: dia(m.dias), fechaNecesaria: dia(m.dias + 7), fechaEntrega: m.entrega != null ? dia(m.entrega) : null,
         obraId: obras[m.obra % obras.length]?.id, solicitanteId: sols[m.sol % sols.length]?.id, proveedorId: provs[m.prov % provs.length]?.id,

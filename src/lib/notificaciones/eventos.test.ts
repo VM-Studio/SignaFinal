@@ -28,7 +28,7 @@ function correr(e: Evento | null, actor?: string) {
 }
 
 const viaje = { pedidoId: "p1", solicitanteId: "daniela", obraId: DARWIN, descripcion: "Cemento, 30 bolsas", destino: "Obra Darwin", chofer: "Claudio" };
-const material = { pedidoMaterialId: "m1", solicitanteId: "daniela", obraId: DARWIN, que: "Cemento Portland, 30 bolsas", obra: "Darwin" };
+const material = { ordenCompraId: "m1", solicitanteId: "daniela", obraId: DARWIN, que: "Cemento Portland, 30 bolsas", obra: "Darwin" };
 
 describe("matriz de avisos", () => {
   it("solicitud nueva normal: choferes y Dirección, solo bandeja", () => {
@@ -55,19 +55,21 @@ describe("matriz de avisos", () => {
   });
 
   it("llegó a destino un retiro de material: el que pidió (push), Dirección y Compras (bandeja, en su pantalla)", () => {
-    const r = correr(EVENTO.viajeEnDestino({ ...viaje, pedidoMaterialId: "m1", llego: new Date() }));
+    const r = correr(EVENTO.viajeEnDestino({ ...viaje, ordenCompraId: "m1", llego: new Date() }));
     expect(r.quien).toEqual(["compras", "daniela*", "dueno"]);
-    expect(r.enlace.compras).toBe("/compras/m1");
+    expect(r.enlace.compras).toBe("/compras/oc/m1");
   });
 
   it("material habilitado: el que pidió y los demás responsables de la obra (push), Compras bandeja", () => {
-    const r = correr(EVENTO.materialHabilitado({ ...material, proveedor: "Corralón San Martín", horario: "8 a 12", entregaProveedor: false, cuando: null }), "otro-de-compras");
+    const r = correr(EVENTO.materialHabilitado({ ...material, materialListoId: "ml1", proveedor: "Corralón San Martín", horario: "8 a 12", entregaProveedor: false, cuando: null }), "otro-de-compras");
     expect(r.quien).toEqual(["cesar*", "compras", "daniela*"]);
-    expect(r.enlace.daniela).toBe("/mis-pedidos/material/m1");
+    // "Pedir el viaje" directo, con ese material marcado.
+    expect(r.enlace.daniela).toBe(`/pedir/retiro?obra=${DARWIN}&material=ml1`);
+    expect(r.enlace.compras).toBe("/compras/oc/m1");
   });
 
-  it("esperando aprobación: push solo al dueño", () => {
-    const r = correr(EVENTO.materialParaAprobar({ ...material, oc: "3150", monto: "$ 4.030.000" }), "compras");
+  it("esperando autorización: push solo al dueño", () => {
+    const r = correr(EVENTO.ocParaAprobar({ ...material, numero: "OC-0012", proveedor: "Corralón San Martín", renglones: "40 bolsas", total: "$ 4.030.000", quien: "Daniela" }), "compras");
     expect(r.quien).toEqual(["dueno*"]);
     expect(r.enlace.dueno).toBe("/aprobaciones");
   });
@@ -95,9 +97,9 @@ describe("matriz de avisos", () => {
 
   it("Vicky no recibe nada de Darwin, aunque la nombren", () => {
     const eventos = [
-      EVENTO.materialHabilitado({ ...material, solicitanteId: "vicky", proveedor: "X", horario: null, entregaProveedor: false, cuando: null }),
+      EVENTO.materialHabilitado({ ...material, materialListoId: "ml1", solicitanteId: "vicky", proveedor: "X", horario: null, entregaProveedor: false, cuando: null }),
       EVENTO.viajeEnDestino({ ...viaje, solicitanteId: "vicky", llego: new Date() }),
-      EVENTO.alerta({ regla: "MATERIAL_SIN_RETIRAR", severidad: "AVISO", titulo: "x", detalle: "x", enlace: "/materiales/m1", claveUnica: "k", obraId: DARWIN, personas: ["vicky"] }),
+      EVENTO.alerta({ regla: "MATERIAL_SIN_RETIRAR", severidad: "AVISO", titulo: "x", detalle: "x", enlace: "/compras/oc/m1", claveUnica: "k", obraId: DARWIN, personas: ["vicky"] }),
     ];
     for (const e of eventos) expect(correr(e).quien.some((q) => q.startsWith("vicky"))).toBe(false);
   });

@@ -8,8 +8,9 @@ import { CargarMas } from "@/components/ui/cargar-mas";
 import { limiteDe } from "@/lib/pagina";
 import { exigirSesion } from "@/lib/auth/sesion";
 import { puede } from "@/lib/permisos";
-import { misMateriales } from "@/lib/materiales/consultas";
-import { MisMateriales } from "@/components/materiales/lista-materiales";
+import { listosEnMisObrasDetalle, misDocumentos } from "@/lib/materiales/consultas";
+import { Borradores, MisDocumentos, TarjetasListos } from "@/components/materiales/lista-materiales";
+import { RestaurarLista } from "@/components/ui/volver";
 import { ShoppingCart } from "lucide-react";
 
 export const metadata: Metadata = { title: "Mis pedidos" };
@@ -20,7 +21,11 @@ const VACIO: Record<PestanaMisPedidos, string> = {
   entregados: "Todavía no se entregó nada de lo que pediste",
 };
 
-/** Viajes: solo los propios. Materiales: los propios y los de mis obras. */
+/**
+ * Viajes: solo los propios. Materiales: los documentos de compra propios y los de mis obras, con los
+ * borradores ("Seguir completando") arriba. Siempre arriba de todo: "Listos para retirar" (tarjetas verdes
+ * con "Pedir el viaje").
+ */
 export default async function PaginaMisPedidos({ searchParams }: { searchParams: Promise<{ p?: string; n?: string; tab?: string }> }) {
   const { p, n, tab } = await searchParams;
   const u = await exigirSesion();
@@ -28,6 +33,13 @@ export default async function PaginaMisPedidos({ searchParams }: { searchParams:
   const enMateriales = conMateriales && tab === "materiales";
   const pestana: PestanaMisPedidos = p && p in PESTANAS_MIS_PEDIDOS ? (p as PestanaMisPedidos) : "pendientes";
   const { limite, siguiente } = await limiteDe(n);
+  const listos = conMateriales ? await listosEnMisObrasDetalle(12) : [];
+  const listosArriba = listos.length > 0 && (
+    <section className="mb-6">
+      <h2 className="etiqueta mb-2">Listos para retirar</h2>
+      <TarjetasListos listos={listos} />
+    </section>
+  );
   // Arriba: viajes o materiales. Abajo (viajes): pendientes, aceptados, entregados.
   const pestanas = (cuantos?: Partial<Record<PestanaMisPedidos, number>>) => (
     <>
@@ -45,16 +57,24 @@ export default async function PaginaMisPedidos({ searchParams }: { searchParams:
   );
 
   if (enMateriales) {
-    const m = await misMateriales(limite);
+    const m = await misDocumentos(limite);
     return (
       <div>
-        <Titulo accion={<BotonLink href="/pedir-materiales" icono={<PlusCircle />}>Pedir materiales</BotonLink>}>Mis pedidos</Titulo>
+        <RestaurarLista clave="mis-pedidos" />
+        <Titulo accion={<BotonLink href="/compras/oc/nueva" icono={<PlusCircle />}>Pedir materiales</BotonLink>}>Mis pedidos</Titulo>
         {pestanas()}
-        {m.filas.length === 0 ? (
-          <Vacio icono={<ShoppingCart className="size-10" />} titulo="No pediste materiales" accion={<BotonLink href="/pedir-materiales" variante="secundario">Pedir materiales a Compras</BotonLink>}>Lo que le pidas a Compras aparece acá con su estado, paso a paso.</Vacio>
-        ) : (
-          <MisMateriales filas={m.filas} />
+        {listosArriba}
+        {m.borradores.length > 0 && (
+          <section className="mb-6">
+            <h2 className="etiqueta mb-2">Borradores</h2>
+            <Borradores filas={m.borradores} desde="mis-pedidos" />
+          </section>
         )}
+        {m.filas.length === 0 && !m.borradores.length ? (
+          <Vacio icono={<ShoppingCart className="size-10" />} titulo="No pediste materiales" accion={<BotonLink href="/compras/oc/nueva" variante="secundario">Pedir materiales</BotonLink>} />
+        ) : m.filas.length > 0 ? (
+          <MisDocumentos filas={m.filas} desde="mis-pedidos" />
+        ) : null}
         {m.hayMas && <CargarMas href={`/mis-pedidos?tab=materiales&n=${siguiente}`} />}
       </div>
     );
@@ -65,6 +85,7 @@ export default async function PaginaMisPedidos({ searchParams }: { searchParams:
     <div>
       <Titulo accion={<BotonLink href="/pedir" icono={<PlusCircle />}>Pedir un viaje</BotonLink>}>Mis pedidos</Titulo>
       {pestanas(cuantos)}
+      {listosArriba}
       {filas.length === 0 ? <Vacio icono={<ListOrdered className="size-10" />} titulo={VACIO[pestana]} /> : <ListaPedidos filas={filas} base="/mis-pedidos" />}
       {hayMas && <CargarMas href={`/mis-pedidos?${pestana !== "pendientes" ? `p=${pestana}&` : ""}n=${siguiente}`} />}
     </div>

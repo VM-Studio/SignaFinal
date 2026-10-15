@@ -1,16 +1,16 @@
 import Link from "next/link";
-import { ClipboardList, FileSpreadsheet, FilePen, PlusCircle, X } from "lucide-react";
+import { ArrowRight, ClipboardList, FileSpreadsheet, PlusCircle, X } from "lucide-react";
 import { exigirSesion } from "@/lib/auth/sesion";
 import { puede } from "@/lib/permisos";
 import { contadoresTablero, leerFiltros, opcionesTablero, ORDENES_TABLERO, tablero } from "@/lib/compras/tablero";
-import { ordenesCompra, ordenPorId } from "@/lib/compras/consultas";
+import { cuantosNuevos } from "@/lib/materiales/consultas";
 import { ESTADO_TABLERO, LEYENDA_TABLERO, PLANILLA_TABLERO } from "@/lib/compras/estadoTablero";
 import { vistasDe } from "@/lib/vistas/consultas";
 import { BotonLink, claseBoton } from "@/components/ui/boton";
 import { PaginaCompleta, Titulo, Vacio } from "@/components/ui/basicos";
 import { BarraFiltros } from "@/components/ui/barra-filtros";
+import { RestaurarLista } from "@/components/ui/volver";
 import { ListaTablero, TablaTablero } from "@/components/compras/tablero";
-import { DetalleOrden } from "@/components/compras/detalle-orden";
 
 type Sp = Record<string, string | string[] | undefined>;
 
@@ -43,24 +43,23 @@ function Leyenda() {
 }
 
 /**
- * ÓRDENES = TABLERO DE CONTROL de Compras (/compras/ordenes; Administración lo mira en /compras/tablero).
- * Arriba, cuatro tarjetas-filtro (Todas · Pedir autorización · Encargado · Entregado este mes) con la
+ * TABLERO DE CONTROL de Compras (/compras/tablero; lo primero que ve Compras, y el dueño y Administración).
+ * Arriba, si hay pedidos nuevos sin tomar, la franja negra "4 pedidos nuevos esperan que los tomes"; cinco
+ * tarjetas-filtro (Todas · Pedir autorización · Encargado · Listas para retirar · Entregado este mes) con la
  * leyenda de su planilla; la barra de filtros en una fila; la franja "Planilla de control COMPRAS" y la
- * planilla. Tocar una fila abre la orden completa en un panel de 560 px (el tablero no se va).
+ * planilla. Tocar una fila abre la orden en página completa (con "← Volver al tablero", que deja todo igual).
  */
 export async function PaginaTablero({ sp, ruta }: { sp: Sp; ruta: string }) {
   const u = await exigirSesion();
   const f = leerFiltros(sp);
-  const ver = typeof sp.ver === "string" ? sp.ver : null;
   const gestiona = puede(u.rol, "materiales.gestionar");
-  const [datos, cont, op, vistas, orden, borradores] = await Promise.all([
-    tablero(f), contadoresTablero(f), opcionesTablero(), vistasDe("tablero"), ver ? ordenPorId(ver) : null,
-    gestiona ? ordenesCompra({}, 1).then((r) => r.borradores) : Promise.resolve([]),
+  const [datos, cont, op, vistas, nuevos] = await Promise.all([
+    tablero(f), contadoresTablero(f), opcionesTablero(), vistasDe("tablero"), u.rol === "COMPRAS" ? cuantosNuevos() : Promise.resolve(0),
   ]);
   const plano = Object.entries(sp).filter(([, v]) => typeof v === "string") as [string, string][];
-  const qs = new URLSearchParams(plano.filter(([k]) => k !== "ver" && k !== "pagina")).toString();
+  const qs = new URLSearchParams(plano.filter(([k]) => k !== "pagina")).toString();
   const url = (cambios: Record<string, string | null>) => {
-    const n = new URLSearchParams(plano.filter(([k]) => k !== "ver" && k !== "pagina"));
+    const n = new URLSearchParams(plano.filter(([k]) => k !== "pagina"));
     for (const [k, v] of Object.entries(cambios)) {
       if (v == null) n.delete(k);
       else n.set(k, v);
@@ -72,27 +71,34 @@ export async function PaginaTablero({ sp, ruta }: { sp: Sp; ruta: string }) {
   const hayFiltros = qs.replace(/(^|&)orden=[^&]*/, "").length > 0;
   const soloEstado = (e: string | null, mes = false) => url({ estado: e, entregado: mes ? "mes" : null });
   const estadoUnico = f.estado.length === 1 ? f.estado[0] : null;
-  const detalle = orden ? <DetalleOrden oc={orden} editable={gestiona} autorizaPago={datos.autorizaPago} compacto /> : null;
   const nombre = u.rol === "COMPRAS" ? u.nombre.split(" ")[0] : "Alejandra";
 
   return (
     <PaginaCompleta>
+      <RestaurarLista clave="tablero" />
       <Titulo siempre
         accion={
           <>
-            {gestiona && <BotonLink href="/compras/ordenes/nueva" icono={<PlusCircle />}>Nueva OC</BotonLink>}
-            {gestiona && <BotonLink href="/compras/ordenes/nueva?tipo=PE" variante="secundario" icono={<PlusCircle />}>Nuevo PE</BotonLink>}
+            <BotonLink href="/compras/oc/nueva" icono={<PlusCircle />}>Nueva</BotonLink>
             <a href={`/api/compras/tablero/exportar${qs ? `?${qs}` : ""}`} className={claseBoton("secundario")}><FileSpreadsheet /> Exportar a Excel</a>
           </>
         }>
-        Órdenes
+        Tablero
       </Titulo>
 
+      {nuevos > 0 && (
+        <Link href="/compras?filtro=nuevos" className="-mx-4 mb-4 flex min-h-12 items-center justify-between gap-3 bg-negro px-4 text-[15px] font-medium text-white lg:mx-0 lg:mb-6 lg:rounded-[var(--radius-caja)] lg:px-5">
+          <span>{nuevos === 1 ? "1 pedido nuevo espera que lo tomes" : `${nuevos} pedidos nuevos esperan que los tomes`}</span>
+          <span className="flex shrink-0 items-center gap-1.5">Ver pedidos <ArrowRight className="size-4" /></span>
+        </Link>
+      )}
+
       <div className="mb-4 grid gap-6 lg:mb-6 lg:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 lg:gap-4">
           <TarjetaFiltro href={soloEstado(null)} etiqueta="Todas" valor={cont.todas} activa={!f.estado.length && !f.mes} />
           <TarjetaFiltro href={soloEstado("PEDIR_AUTORIZACION")} etiqueta="Pedir autorización" valor={cont.pedir} activa={estadoUnico === "PEDIR_AUTORIZACION" && !f.mes} />
           <TarjetaFiltro href={soloEstado("ENCARGADO")} etiqueta="Encargado" valor={cont.encargado} activa={estadoUnico === "ENCARGADO" && !f.mes} />
+          <TarjetaFiltro href={soloEstado("HABILITADA")} etiqueta="Listas para retirar" valor={cont.habilitadas} activa={estadoUnico === "HABILITADA" && !f.mes} />
           <TarjetaFiltro href={soloEstado(null, true)} etiqueta="Entregado este mes" valor={cont.entregadoMes} activa={!!f.mes && !f.estado.length} />
         </div>
         <Leyenda />
@@ -115,20 +121,6 @@ export async function PaginaTablero({ sp, ruta }: { sp: Sp; ruta: string }) {
         ]}
       />
 
-      {/* Borradores (sin número): no están en la planilla hasta que se envían; se retoman desde acá. */}
-      {borradores.length > 0 && (
-        <div className="mb-4 flex min-w-0 items-center gap-2 overflow-x-auto text-[13px]">
-          <span className="etiqueta shrink-0">Borradores sin enviar</span>
-          {borradores.slice(0, 6).map((b) => (
-            <Link key={b.id} href={`/compras/ordenes/${b.id}`} className="inline-flex h-8 max-w-64 shrink-0 items-center gap-1.5 rounded-full border border-linea bg-papel px-3 hover:border-linea-fuerte">
-              <FilePen className="size-3.5 shrink-0 text-suave" /><span className="font-medium">{b.tipo}</span>
-              <span className="truncate text-suave">{b.detallePedido?.split("\n")[0] || b.obra || "sin detalle"}</span>
-            </Link>
-          ))}
-          {borradores.length > 6 && <span className="shrink-0 text-suave">y {borradores.length - 6} más</span>}
-        </div>
-      )}
-
       {/* La franja de título de su planilla. */}
       <div className="-mx-4 flex h-9 shrink-0 items-center justify-between gap-3 border-y border-[#BFBFBF] bg-[#F2DCDB] px-4 lg:mx-0 lg:border-x lg:border-b-0">
         <p className="truncate text-[15px] italic">Planilla de control COMPRAS - {nombre}</p>
@@ -138,24 +130,12 @@ export async function PaginaTablero({ sp, ruta }: { sp: Sp; ruta: string }) {
       {datos.total === 0 ? (
         <Vacio llenar icono={<ClipboardList className="size-10" />} titulo={hayFiltros ? "Ninguna orden con esos filtros" : "Todavía no hay órdenes"}
           accion={hayFiltros ? <BotonLink href={ruta} variante="secundario" icono={<X />}>Limpiar filtros</BotonLink> : undefined}>
-          {hayFiltros ? "Probá sacando alguno." : gestiona ? "Creá la primera con “Nueva OC” o “Nuevo PE”." : null}
+          {hayFiltros ? "Probá sacando alguno." : gestiona ? "Lo que Compras envía a autorización aparece acá." : null}
         </Vacio>
       ) : (
         <>
-          <div className={orden ? "lg:grid lg:grid-cols-[minmax(0,1fr)_560px] lg:gap-4" : ""}>
-            <div className="min-w-0">
-              <TablaTablero filas={datos.filas} editable={gestiona} />
-              <ListaTablero filas={datos.filas} editable={gestiona} detalle={detalle} />
-            </div>
-            {orden && (
-              <aside className="@container hidden min-w-0 lg:block">
-                <div className="sticky top-[calc(var(--alto-header)+24px)] max-h-[calc(100dvh-var(--alto-header)-48px)] overflow-y-auto rounded-[var(--radius-caja)] border border-linea bg-papel p-4">
-                  <div className="mb-2 flex justify-end"><Link scroll={false} href={pagina(f.pagina)} className="inline-flex items-center gap-1 text-[12px] font-medium text-suave hover:text-tinta"><X className="size-3.5" /> Cerrar</Link></div>
-                  {detalle}
-                </div>
-              </aside>
-            )}
-          </div>
+          <TablaTablero filas={datos.filas} editable={gestiona} />
+          <ListaTablero filas={datos.filas} editable={gestiona} />
           {datos.paginas > 1 && (
             <nav className="mt-4 flex items-center justify-between gap-2" aria-label="Páginas">
               {f.pagina > 1 ? <BotonLink href={pagina(f.pagina - 1)} variante="secundario">Anterior</BotonLink> : <span />}

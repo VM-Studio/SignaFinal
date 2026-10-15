@@ -64,8 +64,8 @@ sirve. Si una pantalla no le cambia el día a esa persona, no existe para ella.
 | CAPATAZ | Lolo | Igual que RESPONSABLE_OBRA, pero con todas las obras |
 | CHOFER | Claudio, Cristian, David | Sus viajes de hoy, próximos y todos. Las solicitudes pendientes. Acepta, inicia, marca retiro y destino. Combustible |
 | DEPOSITO | encargado del depósito | Depósito (maquinaria y herramientas), entregas y devoluciones, mantenimiento de maquinaria, sobrantes de materiales |
-| ADMINISTRACION | oficina | Flota, documentación, costos, exportaciones |
-| COMPRAS | la persona de compras | Pedidos de material: los toma, arma la OC, pide aprobación al dueño, habilita para retirar. Proveedores |
+| ADMINISTRACION | oficina (Camila) | Flota, documentación, costos, exportaciones. Tablero (lectura) y Facturación: completa las secciones 3 y 4 del documento de compra, adjunta la factura y pide la autorización del pago |
+| COMPRAS | la persona de compras (Alejandra) | Documentos de compra (OC/PE): los toma, los completa, pide autorización al dueño, marca encargada y habilita para retirar. Proveedores |
 
 Reglas de visibilidad (se verifican en el servidor, en cada query y cada action):
 - RESPONSABLE_OBRA solo ve datos de las obras donde está asignado (tabla ResponsableObra).
@@ -81,18 +81,17 @@ Reglas de visibilidad (se verifican en el servidor, en cada query y cada action)
 | Rol | Barra inferior (4 ítems) | En "Más" |
 |---|---|---|
 | DIRECCION | Aprobaciones · Pedidos · Avisos · Más | Mapa, Viajes en curso, Solicitudes, Flota, Costos, Actividad, Herramientas, Rastreo, Obras, Proveedores, Configuración |
-| COMPRAS | Pedidos · Órdenes · Viajes · Más | Habilitados, Proveedores, Mis avisos, Cuenta |
+| COMPRAS | Tablero · Pedidos · Viajes · Más | Habilitados, Proveedores, Mis avisos, Cuenta |
 | RESPONSABLE_OBRA / CAPATAZ | Pedir · Mis pedidos · Viajes · Más | Herramientas, Obras, Avisos, Cuenta |
 | CHOFER | Hoy · Solicitudes · Avisos · Más | Combustible, Cuenta |
 | DEPOSITO | Escanear · Herramientas · Entregas · Más | Avisos, Cuenta |
-| ADMINISTRACION | Flota · Costos · Alertas · Más | Obras, Proveedores, Razones sociales, Avisos, Cuenta |
+| ADMINISTRACION | Flota · Costos · Alertas · Más | Obras, Proveedores, Razones sociales, Tablero, Facturación, Avisos, Cuenta |
 
-- Todo en src/lib/navegacion.ts (NAV). Para COMPRAS, "Órdenes" ES el tablero (/compras/ordenes, sin pestañas;
-  /compras/tablero queda para Administración, en solo lectura, y lleva a Órdenes a los demás), "Pedidos" es la
-  cola de pedidos de materiales (pedir materiales es su botón "Nuevo pedido") y "Viajes" son Coordinar viaje ·
-  Solicitudes. En escritorio su barra lateral empieza por Inicio (NAV.lateral). Importar Excel y "Numeración y
-  solicitantes" no están en su navegación: el dueño los tiene en Más (Compras · Configuración); los "Solicitado
-  por" sin usuario se agregan con "+ otro nombre".
+- Todo en src/lib/navegacion.ts (NAV). COMPRAS no tiene /inicio: entra directo al **Tablero** (/compras/tablero;
+  inicioDe(rol) en permisos.ts, también al ingresar). "Pedidos" (Pedidos de material) es la bandeja de documentos
+  ENVIADA_A_COMPRAS / EN_COMPRAS (/compras) y "Viajes" son Coordinar viaje · Solicitudes. Arriba del tablero, la
+  franja negra "N pedidos nuevos esperan que los tomes → Ver pedidos" (/compras?filtro=nuevos). Importar Excel y
+  "Numeración y solicitantes" están en Más del dueño (Compras · Configuración).
   "Pedidos" del dueño es la vista global de pedidos de materiales (/compras).
 - DEPOSITO: "Escanear" se muestra como **Buscar** (abre el depósito con el buscador enfocado): no hay escaneo
   ni etiquetas QR, las herramientas se buscan por nombre.
@@ -109,10 +108,8 @@ Reglas de visibilidad (se verifican en el servidor, en cada query y cada action)
   (PaginaCompleta + <Vacio llenar>). Capturas antes/después: npx tsx scripts/capturas.ts compras-<etiqueta>.
 - Ninguna ruta de la matriz queda sin enlace: scripts/verificar-navegacion.ts (y su test).
 - Inicios: DIRECCION, órdenes que esperan aprobación, viajes de hoy, alertas críticas y el mapa como
-  tarjeta chica. COMPRAS, pedidos nuevos, esperando aprobación, listos sin retirar +3 días y el dólar.
-  Obra, "Pedir", listo para retirar (con Pedir el viaje), en camino hoy y esperando a Compras.
-  El de COMPRAS es una grilla de 12: "Pedidos nuevos" a lo ancho; Esperando aprobación · Encargado · Listos sin
-  retirar +3 días (4 + 4 + 4); Demorados (8) y el dólar (4). Saluda con el nombre real ("Hola, Alejandra").
+  tarjeta chica. Obra, "Pedir", listos para retirar (tarjetas verdes con Pedir el viaje), en camino hoy y
+  esperando a Compras. COMPRAS no tiene inicio (va al Tablero).
 
 ## Ciclo de un viaje (la lógica más importante de la app)
 
@@ -242,81 +239,84 @@ sale de un solo lugar: src/app/globals.css (tokens) y src/components/ui (compone
 - Splash de carga negro con public/loading.png centrado, barra fina y porcentaje, 2,5 s: al abrir
   el sistema (una vez por sesión) y al ingresar. Login con public/inicio.png arriba del formulario.
 
-## Materiales y Compras (circuito nuevo)
+## Documento de compra (OC/PE)
 
-Hoy el responsable de obra pide material a Compras por WhatsApp y nadie sabe en qué quedó.
-El circuito queda en la app, con un estado a la vista de todos:
-
-SOLICITADO → EN_COMPRA → ESPERANDO_APROBACION → APROBADO → LISTO_PARA_RETIRAR →
-RETIRO_PEDIDO → EN_CAMINO → ENTREGADO, o CANCELADO.
-
-- El responsable de obra (o el capataz) pide el material: obra, qué y cuánto, para cuándo,
-  prioridad. Lo ve Compras (con copia al dueño).
-- Compras lo toma (EN_COMPRA), cotiza y arma la ORDEN DE COMPRA en el sistema (ver "Órdenes de
-  compra, proveedores y viajes con paradas") y la envía a aprobación (ESPERANDO_APROBACION).
-- El dueño (DIRECCION) aprueba o rechaza en /aprobaciones. Si rechaza, vuelve a EN_COMPRA con
-  el motivo.
-- Cuando el proveedor lo tiene, Compras lo **habilita para retirar** (MaterialListo):
-  proveedor, horario y contacto de retiro, OC, qué se retira, peso, y si lo retira un chofer
-  o lo entrega el proveedor. Un pedido puede tener **retiros parciales** (varios MaterialListo);
-  queda ENTREGADO cuando todos se entregaron y Compras marcó "con esto no falta nada".
-- Un viaje RETIRO_PROVEEDOR **solo se pide desde un material habilitado** (LISTO, misma obra,
-  mismo proveedor). Varios proveedores = varios pedidos de viaje. El viaje copia dirección,
-  horario y contacto del proveedor.
-- ENTREGA_PROVEEDOR: el proveedor lo lleva a la obra; no hace falta viaje.
-- Los estados del viaje mueven el material: en viaje → EN_CAMINO; entregado → ENTREGADO;
-  si el chofer lo suelta o se cancela, vuelve a LISTO.
-- Rol nuevo COMPRAS. El dueño aprueba en /aprobaciones.
-- A futuro, los pedidos pueden venir de Lebane (fuente LEBANE, ordenCompraLebaneId).
-
-## Compras según Alejandra
+Esta sección manda sobre lo que diga otra cosa de pedidos de material u órdenes de compra.
 
 Compras (Alejandra) trabajaba con una planilla (docs/plantilla-oc/ORDENES_DE_COMPRA_PEDIDOS_ESPECIALES.xlsx,
-solo local: tiene datos reales de la empresa y el repo es PÚBLICO, así que está en .gitignore; nunca se sube):
-hojas "OC NUEVA" y "PEDIDOS ESPECIALES" (bloques de orden uno debajo del otro), "TABLERO DE CONTROL
-ORDENES DE C" (la lista de control), "SolicitadoPor", "NOTOCAR" (obras y CUITs) y "OP". El sistema
-usa SU vocabulario y SUS campos; esta sección manda sobre lo que diga otra cosa de las OC más arriba.
+solo local: tiene datos reales y el repo es PÚBLICO, así que está en .gitignore; nunca se sube). Su bloque
+impreso es docs/plantilla-oc/orden-de-compra.pdf. **El pedido de material y la orden de compra son UN SOLO
+objeto: OrdenCompra, el "documento de compra"**, que es la plantilla de Alejandra compartida entre todos.
+(PedidoMaterial se migró a OrdenCompra en la migración documento_compra_unificado y ya no existe.)
 
-- Vocabulario oficial (etiquetas de la plantilla, tal cual): Fecha del pedido · Fecha de caducidad ·
-  N° de Orden · Solicitado por · Obra · Detalle del Pedido · Proveedor Sugerido · Proveedor Final ·
-  Presupuesto N° · Importe · Forma de Pago · Condición de Pago · Empresa para facturar · Observaciones
-  de la Orden de Pedido (1.1) · Autorización (2) · Facturación (3) · Orden de Pago (4).
-- Dos tipos de orden, cada uno con su numeración y sin año: **OC** (orden de compra, OC-NNNN) y **PE**
-  (pedido especial, PE-NNNN). Formato en src/lib/compras/numerar.ts (FORMATO_NUMERO). NumeradorOC es
-  (tipo, ultimo); el próximo número se fija en /configuracion/compras, solo DIRECCION y solo hacia
-  arriba. Las OC-AAAA-NNNN de antes conservan su número.
-- EL TABLERO CALCADO DE SU PLANILLA (components/compras/tablero.tsx, pagina-tablero.tsx): franja rosa "Planilla
-  de control COMPRAS - Alejandra", tarjetas-filtro Todas · Pedir autorización · Encargado · Entregado este mes
-  (entregado=mes) con la leyenda de colores al lado, encabezado gris #D9D9D9 fijo, grilla completa, columna Nº con
-  el código de su leyenda (0 pedir autorización/autorizada, 1 solicitud presupuesto, 2 encargado, 3 entregado),
-  ESTADO como lista pintada del color del estado (PLANILLA_TABLERO en estadoTablero.ts, también en la
-  exportación), "A confirmar" y fechas raras en amarillo, fechas d/M/yyyy, texto completo con saltos de línea,
-  Próximos pasos y Comentarios editables en la celda (sale de la celda o Ctrl+Enter guarda, Esc cancela). Un
-  estado puesto a mano que no es el del circuito queda anotado en Comentarios "(ajustado a mano por Alejandra el
-  14/10)". Los borradores (sin número, fuera de la planilla) se retoman desde la fila "Borradores sin enviar".
-- Estados del tablero (columna ESTADO, EstadoTablero): Pedir autorización · Autorizada · Solicitud de
-  presupuesto · Encargado · Entregado · Anulada. Se derivan del estado real (función única
-  src/lib/compras/estadoTablero.ts, con tests: enviada → Pedir autorización; aprobada → Autorizada;
-  encargada al proveedor o con algo habilitado → Encargado; todo entregado → Entregado; rechazada o
-  anulada → Anulada; borrador con presupuesto pedido → Solicitud de presupuesto). Compras puede
-  ajustarlo a mano (auditado); el ajuste vale hasta el próximo cambio real. Los PE tienen además su
-  semáforo (No se hizo nada todavía · En proceso · Lista · Anulada).
-- Razones sociales (RazonSocial: nombre, CUIT único) en /configuracion/razones-sociales (DIRECCION y
-  ADMINISTRACION), con la que compra por defecto cada obra (Obra.razonSocialId; si no, Signa Desarrollos).
-- "Solicitado por": usuarios activos o SolicitanteExterno (nombres sin usuario, como Romina o Hernán),
-  con alta rápida "+ otro nombre". Nunca se crean usuarios por esto.
-- Los renglones son opcionales: Alejandra escribe el Detalle del Pedido como lista; "Pasar a renglones"
-  (src/lib/compras/renglones.ts) convierte cada línea "40 - bolsas de cemento" en un renglón.
-- Importe en Decimal, con "A confirmar" (los "????" de su planilla). Las OC en USD guardan la cotización
-  del día (cotizacionUsd). Dólar blue y oficial de dolarapi.com en src/lib/dolar.ts (caché 15 min en
-  EstadoSistema, refresco en el job de cada minuto, último valor conocido si no responde), visible para
-  COMPRAS, DIRECCION y ADMINISTRACION en el header de escritorio y en el inicio del celular.
-- El sistema arranca VACÍO: ninguna OC de ejemplo en producción. El historial se importa después
-  desde el Excel del tablero con las mismas columnas (/compras/importar). Las importadas quedan con
-  fuente IMPORTADA_EXCEL, sin pedido de material ni PDF, y nunca entran en /aprobaciones.
-- Guía para Alejandra con capturas: docs/compras.md. Capturas y recorridos: scripts/recorrido-compras.ts,
-  scripts/recorrido-coordinar.ts, scripts/capturas-compras.ts, scripts/capturas-roles.ts. Rendimiento del
-  tablero con 2.000 órdenes: scripts/rendimiento-tablero.ts (solo en desarrollo; menos de 1 s).
+- **Dos tipos**, misma hoja: **OC** (franja celeste #BDD7EE, OC-NNNN) y **PE** (pedido especial, franja verde
+  #C6E0B4, PE-NNNN). Numeración sin año (src/lib/compras/numerar.ts, NumeradorOC por tipo, nunca se repite;
+  el número se asigna al enviarla a autorización; antes se muestra "OC #182" con numeroInterno). El próximo
+  número se fija en /configuracion/compras (solo DIRECCION, solo hacia arriba).
+- **Celdas con el nombre exacto de la plantilla** (CELDAS en src/lib/compras/permisosCeldas.ts): Empresa ·
+  Fecha del pedido · Fecha de caducidad · N° de Orden · Solicitado por · Obra · Detalle del Pedido · Proveedor
+  Sugerido · Proveedor Final · Presupuesto N° · Importe · Forma de Pago · 1.1 Observaciones · 2 Autorización ·
+  3 Facturación (Empresa para Facturar, Cuit, Factura N°, Importe, Forma y Condición de Pago, la factura) ·
+  4 Orden de Pago (Autorización, Fecha de Pago).
+- **Estados** (EstadoOC, transiciones en src/lib/compras/documento.ts): BORRADOR → ENVIADA_A_COMPRAS →
+  EN_COMPRAS → ESPERANDO_AUTORIZACION → AUTORIZADA → ENCARGADA → HABILITADA → ENTREGADA, más RECHAZADA (vuelve
+  a EN_COMPRAS con el motivo) y ANULADA. Aparte: estadoFacturacion (PENDIENTE/FACTURADA) y estadoPago
+  (PENDIENTE/AUTORIZADO/PAGADO). fuente: ARQUITECTA | COMPRAS | ADMINISTRACION | DIRECCION | IMPORTADA.
+- **Permisos por celda** (src/lib/compras/permisosCeldas.ts, puedeEditarCelda, verificado en el servidor en
+  cada guardado): la obra completa la sección 1 menos Proveedor Final / Presupuesto / N° (en gris #F3F4F6);
+  Compras toda la sección 1 y 1.1; Administración la 3 y la fecha de pago; nadie el N° de Orden. Después de
+  autorizada, cambiar algo pide "Modificar" (y vuelve a autorización si cambia el importe o el proveedor).
+  Obligatorias vacías con borde rojo y "Faltan: …" (OBLIGATORIAS: enviar a Compras = obra + detalle; enviar a
+  autorización = empresa, solicitado por, obra, detalle, proveedor final, importe).
+- **La plantilla** (/compras/oc/[id], components/compras/documento/): hoja A4 de 794 px con sombra de papel
+  centrada sobre #F3F4F6 (a todo el ancho en celular), celdas en línea, menús flotantes para elegir (Nuevo
+  proveedor / Agregar sucursal en hoja lateral). Se guarda sola por celda (800 ms, Ctrl+S) con "Guardado 17:59".
+  Cabecera fija: "← Volver al tablero / a pedidos / a mis pedidos" (VolverA, restaura filtros, orden y scroll
+  desde sessionStorage por usuario), número y estado, acciones. Sin "Cómo funciona" ni panel lateral.
+- **Edición compartida**: versión por celda (versionesCeldas; guardar-celda.ts con SELECT … FOR UPDATE): si
+  otro la cambió antes, "Alejandra cambió esto hace 10 s" y no se pisa. Cada guardado deja CambioCelda y un
+  EventoCambio: las celdas que cambió otro destellan 1 s. PresenciaDocumento (avatares "Daniela está viendo") y
+  panel plegable "Cambios".
+- **El circuito**: se crea desde todos los roles menos CHOFER y DEPOSITO, con tres opciones (/compras/oc/nueva):
+  "Pedir materiales" (rápido, sale directo a Compras), "Armar orden de compra" y "Armar pedido especial". Los
+  borradores de la obra quedan en Mis pedidos con "Seguir completando". Si lo crea Compras o el dueño, empieza
+  EN_COMPRAS. Bandeja de Compras (/compras): chips "Con OC cargada" / "Solo indicaciones" (conOCCargada) y
+  "Faltan" por fila; abrir un documento ENVIADA_A_COMPRAS lo pasa a EN_COMPRAS. Acciones: Enviar a autorización,
+  Devolver con nota, Anular. El dueño autoriza en /aprobaciones (pestañas Órdenes · Pagos) viendo el PDF.
+  Barra fija "Marcar como encargada" / "Habilitar para retirar" (MaterialListo: sucursal, horario, contacto,
+  retiros parciales); habilitada, la barra se pone verde #E2EFDA "LISTO PARA RETIRAR en … · horario" o "Entrega
+  el proveedor el …", con push y "Pedir el viaje" al que pidió (tarjetas verdes en Mis pedidos e inicio).
+  Un viaje RETIRO_PROVEEDOR solo se pide desde un material habilitado; el viaje mueve el estado del retiro
+  (en camino, entregado; si se suelta o cancela vuelve a listo). ENTREGADA cuando todo se entregó y Compras
+  marcó "con esto no falta nada".
+- **Administración (Camila)**: Tablero y /compras/facturacion (falta la factura · falta el pago). Completa la 3,
+  adjunta la factura y "Pide autorización" del pago; el dueño lo autoriza en Aprobaciones → Pagos. Le llega
+  aviso cuando una orden se autoriza y cuando se marca Acopio.
+- **PDF = la plantilla**: /compras/oc/[id]/imprimir (grupo (impresion), una hoja A4 exacta) impreso con
+  Chromium (playwright-core en desarrollo, @sparticuz/chromium en Vercel) con un TokenDocumento de un solo uso;
+  si no hay Chromium, @react-pdf (pdfHoja.tsx). Todo en /api/oc/[id]/pdf (GET en vivo con X-PDF-Motor; POST
+  interno para guardarlo, llamado con after() al enviar a autorización y al autorizar). La factura se agrega
+  como página 2 (pdf-lib). Botón "Imprimir / PDF" siempre visible. **Nunca se parsea un archivo para leer los
+  datos de una OC: los datos son la fuente, el PDF sale de ellos.**
+- **Tablero** (components/compras/tablero.tsx, pagina-tablero.tsx), calcado de su planilla: franja rosa
+  "Planilla de control COMPRAS - Alejandra", tarjetas-filtro Todas · Pedir autorización · Encargado · Listas para
+  retirar · Entregado este mes con la leyenda, encabezado gris fijo, Nº con el código de su leyenda, ESTADO como
+  lista pintada (PLANILLA_TABLERO), columna FACTURACIÓN, HABILITADA (#D9F2E6, ícono de camión). Una fila abre
+  el documento a página completa (?desde=tablero).
+- **Estados del tablero** (EstadoTablero, función única src/lib/compras/estadoTablero.ts con tests): Pedir
+  autorización · Autorizada · Solicitud de presupuesto · Encargado · Habilitada · Entregado · Anulada,
+  derivados del estado real; Compras puede ajustarlo a mano (auditado, vale hasta el próximo cambio real). Los
+  PE tienen además su semáforo.
+- Razones sociales (RazonSocial) en /configuracion/razones-sociales, con la de cada obra por defecto.
+  "Solicitado por": usuarios activos o SolicitanteExterno ("+ otro nombre"), nunca se crean usuarios.
+  Renglones opcionales ("Pasar a renglones", src/lib/compras/renglones.ts). Importe en Decimal, con "A
+  confirmar"; en USD guarda cotizacionUsd. Métodos de pago: ACOPIO, CUENTA_CORRIENTE, TRANSFERENCIA, EFECTIVO,
+  ECHEQ. Dólar blue y oficial (src/lib/dolar.ts) para COMPRAS, DIRECCION y ADMINISTRACION.
+- El sistema arranca VACÍO en producción. El historial se importa del Excel del tablero (/compras/importar,
+  fuente IMPORTADA, sin PDF, nunca en /aprobaciones). A futuro, Lebane (ordenCompraLebaneId).
+- Guía para Alejandra y Camila: docs/compras.md. Recorrido completo de punta a punta con varias sesiones:
+  scripts/recorrido-documento.ts. Capturas: scripts/capturas-compras.ts. Rendimiento del tablero con 2.000
+  órdenes: scripts/rendimiento-tablero.ts (solo desarrollo).
 
 ## Filtros, vistas guardadas y "Coordinar viaje"
 
@@ -343,16 +343,9 @@ usa SU vocabulario y SUS campos; esta sección manda sobre lo que diga otra cosa
 
 Reglas (reemplazan lo que diga otra cosa más arriba):
 
-- **Pedido de material**: admite adjuntos (PDF, Excel, Word, CSV, fotos) y observaciones. Con un
-  adjunto alcanza: los renglones son opcionales. Compras puede sumar sus adjuntos (presupuestos) y
-  notas internas que el solicitante no ve.
-- **Orden de compra**: Compras la arma en el sistema con la plantilla de Alejandra (ver "Compras según
-  Alejandra"). El sistema genera el PDF calcado de su bloque y le asigna el número único **OC-NNNN** o
-  **PE-NNNN** al enviarla a aprobación (src/lib/compras/numerar.ts: fila del tipo bloqueada, nunca se
-  repite ni se reutiliza; los borradores no gastan número). El dueño aprueba viendo los datos escritos y el PDF. **Nunca se
-  parsea un archivo para leer los datos de una OC: los datos son la fuente, el PDF sale de ellos.**
-  Una OC vigente por pedido; puede haber otras si una se rechazó o se anuló.
-- **Métodos de pago**: ACOPIO, CUENTA_CORRIENTE, TRANSFERENCIA, EFECTIVO, ECHEQ.
+- **Documento de compra**: ver "Documento de compra (OC/PE)". Admite adjuntos (PDF, Excel, Word, CSV,
+  fotos) y observaciones; con un adjunto alcanza. Compras suma sus adjuntos (presupuestos) y notas internas
+  que el solicitante no ve.
 - **Proveedores**: un proveedor tiene una o más **sucursales**; lo que se elige, se habilita y
   adonde va el chofer es la sucursal. No se habilita ni se arma una OC sin sucursal con coordenadas.
 - **Direcciones**: toda dirección nueva (obra, sede, sucursal, depósito) se geocodifica al cargarla

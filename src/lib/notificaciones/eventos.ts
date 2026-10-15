@@ -14,10 +14,15 @@
  * │ Etapas del viaje           │ solicitante                   │ Dirección, Compras (material) │
  * │ Sin señal > 10 min         │ —                             │ solicitante, Dirección        │
  * │ Demora > 15 min            │ solicitante (una vez)         │ —                             │
- * │ Material nuevo             │ Compras                       │ Dirección                     │
- * │ Tomado / OC armada         │ —                             │ solicitante                   │
- * │ Esperando aprobación (OC)  │ Dirección                     │ —                             │
- * │ Aprobado / rechazado       │ Compras                       │ solicitante                   │
+ * │ Enviado a Compras (OC/PE)  │ Compras                       │ Dirección                     │
+ * │ Compras la abrió / armó    │ —                             │ solicitante                   │
+ * │ Devuelto a quien pidió     │ solicitante                   │ —                             │
+ * │ Esperando autorización     │ Dirección                     │ —                             │
+ * │ Autorizada / rechazada     │ Compras                       │ solicitante                   │
+ * │ Autorizada: a facturar     │ Administración                │ —                             │
+ * │ Compras marcó Acopio       │ —                             │ Administración                │
+ * │ Pago para autorizar        │ Dirección                     │ —                             │
+ * │ Pago autorizado            │ Administración                │ —                             │
  * │ Habilitado                 │ solicitante, responsables obra│ Compras                       │
  * │ Retiro pedido              │ —                             │ Compras                       │
  * │ Material entregado         │ solicitante                   │ Compras                       │
@@ -56,8 +61,8 @@ const usuario = (id: string | null | undefined, p: boolean, enlace?: string): De
 
 // ═══════════════════════════════ Pedidos de viaje ═══════════════════════════════
 
-/** Lo común de un pedido de viaje. Si retira material de Compras, pedidoMaterialId para el enlace de Compras. */
-export type V = { pedidoId: string; numero?: number; solicitanteId: string; obraId: string; descripcion: string; destino: string; chofer: string; pedidoMaterialId?: string | null; coordinadoPorId?: string | null };
+/** Lo común de un pedido de viaje. Si retira material de Compras, ordenCompraId para el enlace de Compras. */
+export type V = { pedidoId: string; numero?: number; solicitanteId: string; obraId: string; descripcion: string; destino: string; chofer: string; ordenCompraId?: string | null; coordinadoPorId?: string | null };
 
 /** El que pidió y, si Compras coordinó el viaje por él, también quien lo coordinó (los dos reciben lo mismo). */
 const pide = (v: V, p: boolean, enlace?: string): Destinatario[] => [usuario(v.solicitanteId, p, enlace), ...(v.coordinadoPorId ? [usuario(v.coordinadoPorId, p, enlace)] : [])];
@@ -67,7 +72,7 @@ const enlacePedido = (id: string) => `/pedidos/${id}`;
 const etapaDelViaje = (v: V): Destinatario[] => [
   ...pide(v, push),
   rol("DIRECCION", bandeja),
-  ...(v.pedidoMaterialId ? [rol("COMPRAS", bandeja, `/materiales/${v.pedidoMaterialId}`)] : []),
+  ...(v.ordenCompraId ? [rol("COMPRAS", bandeja, `/compras/oc/${v.ordenCompraId}`)] : []),
 ];
 
 export const EVENTO = {
@@ -150,7 +155,7 @@ export const EVENTO = {
       titulo: `Faltó material: ${queLleva(v.item)}`,
       cuerpo: `${cuanto} de ${queLleva(v.item)} en ${v.lugar}.${v.nota ? ` ${v.chofer}: "${v.nota}".` : ""}`,
       enlace: enlacePedido(v.pedidoId), entidad: `viaje:${v.pedidoId}:faltante:${v.item}`, obraId: v.obraId, datos: { pedidoId: v.pedidoId },
-      para: [...pide(v, push), rol("DIRECCION", bandeja), ...(v.pedidoMaterialId ? [rol("COMPRAS", push, `/materiales/${v.pedidoMaterialId}`)] : [])],
+      para: [...pide(v, push), rol("DIRECCION", bandeja), ...(v.ordenCompraId ? [rol("COMPRAS", push, `/compras/oc/${v.ordenCompraId}`)] : [])],
     };
   },
 
@@ -237,9 +242,10 @@ export const EVENTO = {
 
   // ═══════════════════════════════ Materiales y Compras ═══════════════════════════════
 
-  materialNuevo: (m: M & { quien: string; para: Date; urgente: boolean; observaciones?: string | null; adjuntos?: number }): Evento => ({
+  /** Llegó a Compras (desde "Pedir materiales" o "Enviar a Compras"). */
+  materialNuevo: (m: M & { quien: string; para: Date | null; urgente: boolean; observaciones?: string | null; adjuntos?: number; tipo?: "OC" | "PE" }): Evento => ({
     nombre: "material.nuevo", tipo: "MATERIAL",
-    ...TEXTO_MATERIAL.nuevo(m.quien, { que: m.que, obra: m.obra, para: paraElDia(m.para), urgente: m.urgente, observaciones: m.observaciones, adjuntos: m.adjuntos }),
+    ...TEXTO_MATERIAL.nuevo(m.quien, { que: m.que, obra: m.obra, para: m.para ? paraElDia(m.para) : "sin fecha", urgente: m.urgente, observaciones: m.observaciones, adjuntos: m.adjuntos, tipo: m.tipo }),
     ...material(m, "nuevo"), para: [rol("COMPRAS", push), rol("DIRECCION", bandeja)],
   }),
 
@@ -248,20 +254,23 @@ export const EVENTO = {
     ...material(m, "tomado"), para: [usuario(m.solicitanteId, bandeja)],
   }),
 
+  /** Compras se la devolvió a quien pidió (vuelve a borrador) con una nota. */
+  documentoDevuelto: (m: M & { quien: string; nota: string; creadorId: string | null }): Evento => ({
+    nombre: "oc.devuelta", tipo: "MATERIAL",
+    titulo: `Compras te devolvió ${queLleva(m.que)}`,
+    cuerpo: `${m.quien}: "${m.nota}". Completalo y volvé a enviarlo a Compras.`,
+    ...material(m, "devuelto"), para: [usuario(m.creadorId ?? m.solicitanteId, push), ...(m.creadorId && m.creadorId !== m.solicitanteId ? [usuario(m.solicitanteId, bandeja)] : [])],
+  }),
+
   materialOcArmada: (m: M): Evento => ({
     nombre: "material.ocArmada", tipo: "MATERIAL", ...TEXTO_MATERIAL.esperando(m),
     ...material(m, "ocArmada"), para: [usuario(m.solicitanteId, bandeja)],
   }),
 
-  materialParaAprobar: (m: M & { oc: string | null; monto: string | null }): Evento => ({
-    nombre: "material.paraAprobar", tipo: "MATERIAL", ...TEXTO_MATERIAL.paraAprobar(m),
-    ...material(m, "paraAprobar"), enlace: "/aprobaciones", para: [rol("DIRECCION", push)],
-  }),
-
-  /** Orden de compra del sistema enviada a aprobación: el dueño ve todo en una línea. */
+  /** Compras la envió a autorización: el dueño ve todo en una línea. */
   ocParaAprobar: (m: M & { numero: string; proveedor: string; renglones: string; total: string | null; quien: string }): Evento => ({
     nombre: "oc.paraAprobar", tipo: "ORDEN_COMPRA",
-    titulo: `${m.numero} para aprobar`,
+    titulo: `${m.numero} para autorizar`,
     cuerpo: [m.numero, m.proveedor, m.renglones, m.total, `Obra ${m.obra}`, `pidió ${m.quien}`].filter(Boolean).join(" · "),
     ...material(m, "paraAprobar"), enlace: "/aprobaciones", para: [rol("DIRECCION", push)],
   }),
@@ -271,15 +280,49 @@ export const EVENTO = {
     ...material(m, "aprobado"), para: [m.compradorId ? usuario(m.compradorId, push) : rol("COMPRAS", push), usuario(m.solicitanteId, bandeja)],
   }),
 
+  /** Autorizada: a Administración, para completar la facturación. */
+  ocAFacturar: (m: M & { numero: string }): Evento => ({
+    nombre: "oc.aFacturar", tipo: "ORDEN_COMPRA",
+    titulo: `${m.numero} autorizada: completar facturación`,
+    cuerpo: `${m.numero} de ${queLleva(m.que)} para Obra ${m.obra} ya está autorizada. Completá la sección 3 cuando llegue la factura.`,
+    ...material(m, "aFacturar"), para: [rol("ADMINISTRACION", push)],
+  }),
+
+  /** Compras marcó la forma de pago como Acopio: Administración lo tiene en cuenta. */
+  ocAcopio: (m: M & { numero: string; quien: string }): Evento => ({
+    nombre: "oc.acopio", tipo: "ORDEN_COMPRA",
+    titulo: `${m.numero}: acopio`,
+    cuerpo: `${m.quien} marcó ${m.numero} (${queLleva(m.que)}, Obra ${m.obra}) como acopio.`,
+    ...material(m, "acopio"), para: [rol("ADMINISTRACION", bandeja)],
+  }),
+
+  /** Administración pide la autorización de la orden de pago. */
+  pagoParaAutorizar: (m: M & { numero: string; quien: string; importe: string | null; proveedorFinal: string | null }): Evento => ({
+    nombre: "pago.paraAutorizar", tipo: "ORDEN_COMPRA",
+    titulo: `Pago para autorizar: ${m.numero}`,
+    cuerpo: [`${m.quien} pide autorizar el pago de ${m.numero}`, m.proveedorFinal, m.importe, `Obra ${m.obra}`].filter(Boolean).join(" · "),
+    ...material(m, "pagoParaAutorizar"), enlace: "/aprobaciones?p=pagos", para: [rol("DIRECCION", push)],
+  }),
+
+  pagoAutorizado: (m: M & { numero: string; quien: string }): Evento => ({
+    nombre: "pago.autorizado", tipo: "ORDEN_COMPRA",
+    titulo: `Pago autorizado: ${m.numero}`,
+    cuerpo: `${m.quien} autorizó el pago de ${m.numero} (${queLleva(m.que)}, Obra ${m.obra}). Cargá la fecha de pago cuando se pague.`,
+    ...material(m, "pagoAutorizado"), para: [rol("ADMINISTRACION", push)],
+  }),
+
   materialRechazado: (m: M & { oc: string | null; motivo: string; compradorId: string | null }): Evento => ({
     nombre: "material.rechazado", tipo: "MATERIAL", ...TEXTO_MATERIAL.rechazado(m),
     ...material(m, "rechazado"), para: [m.compradorId ? usuario(m.compradorId, push) : rol("COMPRAS", push), usuario(m.solicitanteId, bandeja)],
   }),
 
-  materialHabilitado: (m: M & { proveedor: string; horario: string | null; entregaProveedor: boolean; cuando: string | null }): Evento => ({
+  /** Listo para retirar: push al que pidió y a los responsables de la obra, con "Pedir el viaje" directo. */
+  materialHabilitado: (m: M & { proveedor: string; horario: string | null; entregaProveedor: boolean; cuando: string | null; materialListoId: string }): Evento => ({
     nombre: "material.habilitado", tipo: "MATERIAL",
     ...(m.entregaProveedor ? TEXTO_MATERIAL.loLlevaElProveedor(m) : TEXTO_MATERIAL.listo(m)),
-    ...material(m, `habilitado:${m.proveedor}`), para: [usuario(m.solicitanteId, push), { obra: m.obraId, push }, rol("COMPRAS", bandeja)],
+    ...material(m, `habilitado:${m.proveedor}`),
+    ...(m.entregaProveedor ? {} : { enlace: `/pedir/retiro?obra=${m.obraId}&material=${m.materialListoId}` }),
+    para: [usuario(m.solicitanteId, push), { obra: m.obraId, push }, rol("COMPRAS", bandeja, `/compras/oc/${m.ordenCompraId}`)],
   }),
 
   materialRetiroPedido: (m: M & { quien: string; proveedor: string }): Evento => ({
@@ -299,7 +342,7 @@ export const EVENTO = {
     ...material(m, "vuelveAListo"), para: [usuario(m.solicitanteId, bandeja), rol("COMPRAS", bandeja)],
   }),
 
-  /** Lo cancela Compras o el dueño → le llega a la obra; lo cancela quien pidió → a Compras. */
+  /** La anula Compras o el dueño → le llega a la obra; la anula quien la pidió → a Compras. */
   materialCancelado: (m: M & { quien: string; motivo: string; porCompras: boolean; compradorId: string | null }): Evento => ({
     nombre: "material.cancelado", tipo: "MATERIAL", ...TEXTO_MATERIAL.cancelado(m.quien, m),
     ...material(m, "cancelado"),
@@ -352,8 +395,8 @@ export const EVENTO = {
 
 // ─────────────────────────── Materiales: lo común ───────────────────────────
 
-type M = { pedidoMaterialId: string; solicitanteId: string; obraId: string; que: string; obra: string; proveedor?: string; horario?: string | null; cuando?: string | null };
+type M = { ordenCompraId: string; solicitanteId: string; obraId: string; que: string; obra: string; proveedor?: string; horario?: string | null; cuando?: string | null };
 const material = (m: M, que: string) => ({
-  enlace: `/materiales/${m.pedidoMaterialId}`, entidad: `material:${m.pedidoMaterialId}:${que}`, obraId: m.obraId, datos: { pedidoMaterialId: m.pedidoMaterialId },
+  enlace: `/compras/oc/${m.ordenCompraId}`, entidad: `oc:${m.ordenCompraId}:${que}`, obraId: m.obraId, datos: { ordenCompraId: m.ordenCompraId },
 });
 

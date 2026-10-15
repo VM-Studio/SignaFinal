@@ -1,211 +1,172 @@
 import "server-only";
-import type { EstadoMaterial, EstadoMaterialListo, Prisma } from "@prisma/client";
+import type { EstadoMaterialListo, EstadoOC, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { exigirPermiso, exigirSesion, type UsuarioSesion } from "@/lib/auth/sesion";
 import { filtroObras, obrasDelUsuario } from "@/lib/alcance";
 import { puede } from "@/lib/permisos";
 import { hora } from "@/lib/formato";
-import { adjuntosDe } from "@/lib/archivos";
 import { proveedoresConSucursales } from "@/lib/proveedores/consultas";
-import { demorado, PESTANAS_COMPRAS, type PestanaCompras } from "./presentacion";
+import { conOCCargada, demorado, nombreDoc } from "@/lib/compras/documento";
+import { faltan, textoFaltan } from "@/lib/compras/permisosCeldas";
+import { celdasSeccion1, incluirDocumento, valoresDe } from "@/lib/compras/celdas";
+import { primeraLinea } from "./comun";
 
 /**
- * Qué pedidos de material ve cada uno. TODA query de materiales pasa por acá.
- * Compras y Dirección: todos. Responsable de obra: los de sus obras. Capataz: todas las obras.
- * El resto: ninguno.
+ * LISTAS DE DOCUMENTOS DE COMPRA (OC/PE) y de lo habilitado. Qué ve cada uno: Compras, Dirección y
+ * Administración, todos; la gente de obra, los que creó o pidió y los de sus obras (el capataz, todas).
+ * Chofer y Depósito, ninguno. TODA lista pasa por documentosVisibles.
  */
-export function materialesVisibles(u: Pick<UsuarioSesion, "id" | "rol">): Prisma.PedidoMaterialWhereInput {
-  if (puede(u.rol, "materiales.gestionar")) return {};
-  if (puede(u.rol, "materiales.pedir")) return { OR: [{ solicitanteId: u.id }, { obra: filtroObras(u) }] };
+export function documentosVisibles(u: Pick<UsuarioSesion, "id" | "rol">): Prisma.OrdenCompraWhereInput {
+  if (u.rol === "COMPRAS" || u.rol === "DIRECCION" || u.rol === "ADMINISTRACION" || u.rol === "CAPATAZ") return {};
+  if (u.rol === "RESPONSABLE_OBRA") return { OR: [{ creadaPorId: u.id }, { solicitanteId: u.id }, { obra: filtroObras(u) }] };
   return { id: "-" };
 }
-
-const conAlcance = (u: Pick<UsuarioSesion, "id" | "rol">, where: Prisma.PedidoMaterialWhereInput = {}): Prisma.PedidoMaterialWhereInput => ({ AND: [materialesVisibles(u), where] });
+const conAlcance = (u: Pick<UsuarioSesion, "id" | "rol">, where: Prisma.OrdenCompraWhereInput = {}): Prisma.OrdenCompraWhereInput => ({ AND: [documentosVisibles(u), where] });
 
 /** Cuándo entró al estado actual (el último cambio). */
-const ultimoCambio = { cambios: { orderBy: { fecha: "desc" as const }, take: 1, select: { fecha: true } } };
-
 const filaInclude = {
-  obra: { select: { nombre: true } },
-  solicitante: { select: { nombre: true } },
-  tomadoPor: { select: { nombre: true } },
-  ...ultimoCambio,
+  ...incluirDocumento,
+  cambios: { orderBy: { fecha: "desc" as const }, take: 1, select: { fecha: true } },
   materialesListos: {
     where: { estado: { not: "CANCELADO" as EstadoMaterialListo } },
     orderBy: { habilitadoEn: "asc" as const },
-    select: {
-      id: true, estado: true, proveedor: { select: { nombre: true } },
-      pedidoViaje: { select: { id: true, viaje: { select: { etaDestino: true, llegadaReal: true } } } },
-    },
+    select: { id: true, estado: true, modoEntrega: true, fechaEntregaEstimada: true, horarioRetiro: true, proveedor: { select: { nombre: true } }, pedidoViaje: { select: { id: true, viaje: { select: { etaDestino: true } } } } },
   },
-} satisfies Prisma.PedidoMaterialInclude;
+} satisfies Prisma.OrdenCompraInclude;
+type FilaDb = Prisma.OrdenCompraGetPayload<{ include: typeof filaInclude }>;
 
-type FilaDb = Prisma.PedidoMaterialGetPayload<{ include: typeof filaInclude }>;
-
-export type FilaMaterial = {
-  id: string; numero: number; descripcion: string; obraId: string; obra: string; solicitante: string; comprador: string | null;
-  estado: EstadoMaterial; prioridad: "NORMAL" | "URGENTE"; paraCuando: string; enEstadoDesde: string; demorado: boolean;
-  ordenCompra: string | null; monto: number | null;
+export type FilaDoc = {
+  id: string; numeroInterno: number; tipo: "OC" | "PE"; nombre: string; detalle: string; lineas: number;
+  obraId: string | null; obra: string; solicitante: string; comprador: string | null;
+  estado: EstadoOC; prioridad: "NORMAL" | "URGENTE"; caducidad: string | null; enEstadoDesde: string; demorado: boolean;
+  /** Bandeja de Compras: "Faltan: Proveedor Final, Importe" y si ya viene con OC cargada. */
+  faltan: string | null; conOC: boolean;
   /** Para la frase del que pidió: dónde retirar y a qué hora llega. */
-  proveedorListo: string | null; llega: string | null; listoId: string | null;
-  /** Para la cola de Compras: clip con cuántos archivos y si trae observaciones. */
-  adjuntos: number; conNota: boolean;
+  proveedorListo: string | null; horarioListo: string | null; listoId: string | null; retiro: EstadoMaterialListo | null; llega: string | null; entregaProveedor: string | null;
+  adjuntos: number; conNota: boolean; motivoRechazo: string | null; notaDevolucion: string | null;
 };
 
-function aFila(p: FilaDb): FilaMaterial {
-  const desde = p.cambios[0]?.fecha ?? p.creadoEn;
-  const listo = p.materialesListos.find((m) => m.estado === "LISTO");
-  const enCamino = p.materialesListos.find((m) => m.estado === "EN_CAMINO");
+const fechaLarga = (d: Date) => new Intl.DateTimeFormat("es-AR", { timeZone: "UTC", weekday: "long", day: "numeric", month: "numeric" }).format(d);
+
+function aFila(d: FilaDb): FilaDoc {
+  const desde = d.cambios[0]?.fecha ?? d.creadoEn;
+  const listo = d.materialesListos.find((m) => m.estado === "LISTO" && m.modoEntrega === "RETIRA_CHOFER");
+  const enCamino = d.materialesListos.find((m) => m.estado === "EN_CAMINO");
+  const pedido = d.materialesListos.find((m) => m.estado === "RETIRO_PEDIDO");
+  const proveedorTrae = d.materialesListos.find((m) => m.modoEntrega === "ENTREGA_PROVEEDOR" && m.estado !== "ENTREGADO");
   const eta = enCamino?.pedidoViaje?.viaje?.etaDestino;
+  const v = valoresDe(d);
+  const lineas = (d.detallePedido ?? "").split("\n").filter((l) => l.trim()).length;
   return {
-    id: p.id, numero: p.numero, descripcion: p.descripcion, obraId: p.obraId, obra: p.obra.nombre, solicitante: p.solicitante.nombre, comprador: p.tomadoPor?.nombre ?? null,
-    estado: p.estado, prioridad: p.prioridad, paraCuando: p.paraCuando.toISOString(), enEstadoDesde: desde.toISOString(), demorado: demorado(p.estado, desde),
-    ordenCompra: p.ordenCompraNumero, monto: p.montoAprobado ? p.montoAprobado.toNumber() : null,
-    proveedorListo: listo?.proveedor.nombre ?? null, listoId: listo?.id ?? null, llega: eta ? hora(eta) : null,
-    adjuntos: 0, conNota: !!p.observaciones?.trim(),
+    id: d.id, numeroInterno: d.numeroInterno, tipo: d.tipo, nombre: nombreDoc(d), detalle: primeraLinea(d.detallePedido), lineas,
+    obraId: d.obraId, obra: d.obra?.nombre ?? d.obraTexto ?? "sin obra", solicitante: d.solicitante?.nombre ?? d.solicitanteExterno?.nombre ?? d.solicitadoPorTexto ?? d.creadaPor.nombre,
+    comprador: d.tomadoPor?.nombre ?? null,
+    estado: d.estado, prioridad: d.prioridad, caducidad: d.fechaNecesaria?.toISOString() ?? null, enEstadoDesde: desde.toISOString(), demorado: demorado(d.estado, desde),
+    faltan: d.estado === "ENVIADA_A_COMPRAS" || d.estado === "EN_COMPRAS" ? textoFaltan(faltan("enviarAAutorizacion", v)) : d.estado === "BORRADOR" ? textoFaltan(faltan("enviarACompras", v)) : null,
+    conOC: conOCCargada({ proveedorSugerido: d.proveedorSugerido, importe: d.importe, importeAConfirmar: d.importeAConfirmar, celdasSeccion1: celdasSeccion1(v) }),
+    proveedorListo: listo?.proveedor.nombre ?? null, horarioListo: listo?.horarioRetiro ?? null, listoId: listo?.id ?? null,
+    retiro: enCamino ? "EN_CAMINO" : pedido ? "RETIRO_PEDIDO" : listo ? "LISTO" : null, llega: eta ? hora(eta) : null,
+    entregaProveedor: proveedorTrae ? (proveedorTrae.fechaEntregaEstimada ? `el ${fechaLarga(proveedorTrae.fechaEntregaEstimada)}` : "") : null,
+    adjuntos: 0, conNota: !!d.observacionesSolicitante?.trim(), motivoRechazo: d.motivoRechazo, notaDevolucion: d.notaDevolucion,
   };
 }
 
-/** Cuántos archivos (visibles para quien mira) tiene cada pedido de la lista. */
-async function conAdjuntos(filas: FilaMaterial[], internos: boolean) {
+/** Cuántos archivos (visibles para quien mira) tiene cada documento de la lista. */
+async function conAdjuntos(filas: FilaDoc[], internos: boolean) {
   if (!filas.length) return filas;
-  const n = await db.adjunto.groupBy({ by: ["entidadId"], where: { entidadTipo: "PEDIDO_MATERIAL", entidadId: { in: filas.map((f) => f.id) }, ...(internos ? {} : { interno: false }) }, _count: true });
+  const n = await db.adjunto.groupBy({ by: ["entidadId"], where: { entidadTipo: "ORDEN_COMPRA", entidadId: { in: filas.map((f) => f.id) }, ...(internos ? {} : { interno: false }) }, _count: true });
   const m = new Map(n.map((x) => [x.entidadId, x._count]));
   return filas.map((f) => ({ ...f, adjuntos: m.get(f.id) ?? 0 }));
 }
 
-/** Urgentes primero, después para cuándo. */
-const ORDEN_COLA: Prisma.PedidoMaterialOrderByWithRelationInput[] = [{ prioridad: "desc" }, { paraCuando: "asc" }, { creadoEn: "asc" }];
+// ═══════════════════════════ Bandeja de Compras ═══════════════════════════
 
-// ═══════════════════════════ Compras ═══════════════════════════
+/** Pestañas de la bandeja: lo que llegó (sin abrir) y lo que Compras está comprando. */
+export const PESTANAS_BANDEJA = {
+  nuevos: { titulo: "Nuevos", estados: ["ENVIADA_A_COMPRAS"] },
+  "en-compras": { titulo: "En Compras", estados: ["EN_COMPRAS"] },
+  todos: { titulo: "Todos", estados: ["ENVIADA_A_COMPRAS", "EN_COMPRAS"] },
+} as const satisfies Record<string, { titulo: string; estados: EstadoOC[] }>;
+export type PestanaBandeja = keyof typeof PESTANAS_BANDEJA;
 
-export async function colaCompras(pestana: PestanaCompras, obraId: string | undefined, limite: number) {
-  const u = await exigirPermiso("materiales.gestionar");
-  const porObra: Prisma.PedidoMaterialWhereInput = obraId ? { obraId } : {};
-  const [filas, conteos, obras] = await Promise.all([
-    db.pedidoMaterial.findMany({
-      where: conAlcance(u, { ...porObra, estado: { in: [...PESTANAS_COMPRAS[pestana].estados] } }),
-      include: filaInclude, orderBy: ORDEN_COLA, take: limite + 1,
-    }),
-    db.pedidoMaterial.groupBy({ by: ["estado"], where: conAlcance(u, porObra), _count: true }),
-    db.obra.findMany({ where: { pedidosMaterial: { some: {} } }, select: { id: true, nombre: true }, orderBy: { nombre: "asc" } }),
-  ]);
-  const n = new Map(conteos.map((c) => [c.estado, c._count]));
-  const cuantos = Object.fromEntries(
-    (Object.keys(PESTANAS_COMPRAS) as PestanaCompras[]).map((k) => [k, PESTANAS_COMPRAS[k].estados.reduce((s, e) => s + (n.get(e) ?? 0), 0)]),
-  ) as Record<PestanaCompras, number>;
-  return { filas: await conAdjuntos(filas.slice(0, limite).map(aFila), true), hayMas: filas.length > limite, cuantos, obras };
-}
-
-export type FiltrosCola = { obra: string[]; sol: string[]; prioridad: ("URGENTE" | "NORMAL")[]; estado: EstadoMaterial[]; adjuntos: boolean; q?: string; orden: string };
-const ESTADOS_MATERIAL: EstadoMaterial[] = ["SOLICITADO", "EN_COMPRA", "ESPERANDO_APROBACION", "APROBADO", "LISTO_PARA_RETIRAR", "RETIRO_PEDIDO", "EN_CAMINO", "ENTREGADO", "CANCELADO"];
-export function leerFiltrosCola(sp: Record<string, string | string[] | undefined>): FiltrosCola {
+export type FiltrosBandeja = { obra: string[]; sol: string[]; prioridad: ("URGENTE" | "NORMAL")[]; adjuntos: boolean; carga: "oc" | "indicaciones" | null; q?: string; orden: string };
+export function leerFiltrosBandeja(sp: Record<string, string | string[] | undefined>): FiltrosBandeja {
   const l = (k: string) => (typeof sp[k] === "string" && sp[k] ? (sp[k] as string).split(",").filter(Boolean).slice(0, 50) : []);
   return {
     obra: l("obra"), sol: l("sol"),
     prioridad: l("prioridad").filter((x): x is "URGENTE" | "NORMAL" => x === "URGENTE" || x === "NORMAL"),
-    estado: l("estado").filter((x): x is EstadoMaterial => (ESTADOS_MATERIAL as string[]).includes(x)),
-    adjuntos: sp.adjuntos === "1", q: typeof sp.q === "string" ? sp.q.trim().slice(0, 100) || undefined : undefined,
+    adjuntos: sp.adjuntos === "1", carga: sp.carga === "oc" ? "oc" : sp.carga === "indicaciones" ? "indicaciones" : null,
+    q: typeof sp.q === "string" ? sp.q.trim().slice(0, 100) || undefined : undefined,
     orden: typeof sp.orden === "string" ? sp.orden : "caducidad",
   };
 }
 
 /**
- * Cola de Compras con la barra de filtros: obra, arquitecto/solicitante, prioridad, estado (si se
- * elige, manda sobre la pestaña), con adjuntos y buscador. Orden: caducidad más cercana primero (o
- * más lejana). Devuelve también cuántos tiene cada solicitante (el panel que filtra al tocar).
+ * BANDEJA DE COMPRAS (/compras, "Pedidos de material"): los documentos ENVIADA_A_COMPRAS y EN_COMPRAS,
+ * con "Con OC cargada" / "Solo indicaciones", qué falta en cada uno y la barra de filtros. La bandeja es
+ * chica (lo que está en manos de Compras): se filtra en memoria lo que no entra en un where.
  */
-export async function colaComprasFiltrada(pestana: PestanaCompras, f: FiltrosCola, limite: number) {
+export async function bandejaCompras(pestana: PestanaBandeja, f: FiltrosBandeja, limite: number) {
   const u = await exigirPermiso("materiales.gestionar");
-  const conAdj = f.adjuntos ? (await db.adjunto.groupBy({ by: ["entidadId"], where: { entidadTipo: "PEDIDO_MATERIAL" } })).map((x) => x.entidadId).filter((x): x is string => !!x) : null;
-  const filtros = (sinSol = false, sinEstado = false): Prisma.PedidoMaterialWhereInput => ({
+  const base: Prisma.OrdenCompraWhereInput = {
     AND: [
+      { estado: { in: ["ENVIADA_A_COMPRAS", "EN_COMPRAS"] } },
       f.obra.length ? { obraId: { in: f.obra } } : {},
-      f.sol.length && !sinSol ? { solicitanteId: { in: f.sol } } : {},
+      f.sol.length ? { solicitanteId: { in: f.sol } } : {},
       f.prioridad.length ? { prioridad: { in: f.prioridad } } : {},
-      sinEstado ? {} : { estado: { in: f.estado.length ? f.estado : [...PESTANAS_COMPRAS[pestana].estados] } },
-      conAdj ? { id: { in: conAdj } } : {},
-      f.q ? { OR: [{ descripcion: { contains: f.q, mode: "insensitive" } }, { observaciones: { contains: f.q, mode: "insensitive" } }, { ordenCompraNumero: { contains: f.q, mode: "insensitive" } }, { obra: { nombre: { contains: f.q, mode: "insensitive" } } }] } : {},
+      f.q ? { OR: [{ detallePedido: { contains: f.q, mode: "insensitive" } }, { observacionesSolicitante: { contains: f.q, mode: "insensitive" } }, { proveedorSugerido: { contains: f.q, mode: "insensitive" } }, { obra: { nombre: { contains: f.q, mode: "insensitive" } } }] } : {},
     ],
-  });
-  const orderBy: Prisma.PedidoMaterialOrderByWithRelationInput[] = f.orden === "caducidad-lejana" ? [{ paraCuando: "desc" }, { prioridad: "desc" }] : f.orden === "nuevos" ? [{ creadoEn: "desc" }] : [{ paraCuando: "asc" }, { prioridad: "desc" }, { creadoEn: "asc" }];
-  const [filas, conteos, porSolicitante, obras, usuarios] = await Promise.all([
-    db.pedidoMaterial.findMany({ where: conAlcance(u, filtros()), include: filaInclude, orderBy, take: limite + 1 }),
-    db.pedidoMaterial.groupBy({ by: ["estado"], where: conAlcance(u, filtros(false, true)), _count: true }),
-    db.pedidoMaterial.groupBy({ by: ["solicitanteId"], where: conAlcance(u, filtros(true)), _count: true }),
-    db.obra.findMany({ where: { pedidosMaterial: { some: {} } }, select: { id: true, nombre: true }, orderBy: { nombre: "asc" } }),
-    db.usuario.findMany({ where: { materialesPedidos: { some: {} } }, select: { id: true, nombre: true }, orderBy: { nombre: "asc" } }),
+  };
+  const orderBy: Prisma.OrdenCompraOrderByWithRelationInput[] = f.orden === "caducidad-lejana" ? [{ fechaNecesaria: { sort: "desc", nulls: "last" } }] : f.orden === "nuevos" ? [{ creadoEn: "desc" }] : [{ prioridad: "desc" }, { fechaNecesaria: { sort: "asc", nulls: "last" } }, { creadoEn: "asc" }];
+  const [docs, obras, usuarios] = await Promise.all([
+    db.ordenCompra.findMany({ where: conAlcance(u, base), include: filaInclude, orderBy, take: 1000 }),
+    db.obra.findMany({ where: { ordenesCompra: { some: { estado: { in: ["ENVIADA_A_COMPRAS", "EN_COMPRAS"] } } } }, select: { id: true, nombre: true }, orderBy: { nombre: "asc" } }),
+    db.usuario.findMany({ where: { ocSolicitadas: { some: { estado: { in: ["ENVIADA_A_COMPRAS", "EN_COMPRAS"] } } } }, select: { id: true, nombre: true }, orderBy: { nombre: "asc" } }),
   ]);
-  const n = new Map(conteos.map((c) => [c.estado, c._count]));
-  const cuantos = Object.fromEntries((Object.keys(PESTANAS_COMPRAS) as PestanaCompras[]).map((k) => [k, PESTANAS_COMPRAS[k].estados.reduce((s, e) => s + (n.get(e) ?? 0), 0)])) as Record<PestanaCompras, number>;
+  let filas = await conAdjuntos(docs.map(aFila), true);
+  if (f.adjuntos) filas = filas.filter((x) => x.adjuntos > 0);
+  const enPestana = (x: FilaDoc, p: PestanaBandeja) => (PESTANAS_BANDEJA[p].estados as readonly EstadoOC[]).includes(x.estado);
+  const cuantos = Object.fromEntries((Object.keys(PESTANAS_BANDEJA) as PestanaBandeja[]).map((p) => [p, filas.filter((x) => enPestana(x, p)).length])) as Record<PestanaBandeja, number>;
+  const dePestana = filas.filter((x) => enPestana(x, pestana));
+  const chips = { oc: dePestana.filter((x) => x.conOC).length, indicaciones: dePestana.filter((x) => !x.conOC).length };
+  const lista = f.carga ? dePestana.filter((x) => (f.carga === "oc" ? x.conOC : !x.conOC)) : dePestana;
+  const porSolicitante = new Map<string, number>();
+  for (const d of docs) if (d.solicitanteId) porSolicitante.set(d.solicitanteId, (porSolicitante.get(d.solicitanteId) ?? 0) + 1);
   return {
-    filas: await conAdjuntos(filas.slice(0, limite).map(aFila), true), hayMas: filas.length > limite, cuantos,
-    porEstado: ESTADOS_MATERIAL.map((e) => ({ valor: e, cantidad: n.get(e) ?? 0 })),
+    filas: lista.slice(0, limite), hayMas: lista.length > limite, cuantos, chips,
     obras: obras.map((o) => ({ valor: o.id, etiqueta: `Obra ${o.nombre}` })),
-    solicitantes: usuarios.map((x) => ({ valor: x.id, etiqueta: x.nombre })),
-    porSolicitante: porSolicitante.map((x) => ({ id: x.solicitanteId, nombre: usuarios.find((y) => y.id === x.solicitanteId)?.nombre ?? "—", cantidad: x._count })).sort((a, b) => b.cantidad - a.cantidad),
+    solicitantes: usuarios.map((x) => ({ valor: x.id, etiqueta: x.nombre, cantidad: porSolicitante.get(x.id) })),
   };
 }
 
-/** Inicio de Compras: cuántos hay en cada paso y los que están demorados. */
-export async function resumenCompras() {
-  const u = await exigirPermiso("materiales.gestionar");
-  const activos = await db.pedidoMaterial.findMany({
-    where: conAlcance(u, { estado: { in: ["SOLICITADO", "EN_COMPRA", "ESPERANDO_APROBACION", "APROBADO"] } }),
-    include: filaInclude, orderBy: ORDEN_COLA,
-  });
-  const filas = activos.map(aFila);
-  const sinRetirar = await db.materialListo.count({ where: { estado: "LISTO", habilitadoEn: { lt: new Date(Date.now() - 3 * 86_400_000) } } });
-  return {
-    nuevos: filas.filter((f) => f.estado === "SOLICITADO"),
-    enCompra: filas.filter((f) => f.estado === "EN_COMPRA").length,
-    esperando: filas.filter((f) => f.estado === "ESPERANDO_APROBACION").length,
-    aprobados: filas.filter((f) => f.estado === "APROBADO").length,
-    demorados: filas.filter((f) => f.demorado),
-    sinRetirar,
-  };
+/** Cuántos llegaron sin que nadie los abra (franja negra del tablero de Compras). */
+export async function cuantosNuevos() {
+  return db.ordenCompra.count({ where: { estado: "ENVIADA_A_COMPRAS" } });
 }
 
-/** Detalle con todo lo que hace falta para la acción que sigue. */
-export async function detalleMaterial(id: string) {
+// ═══════════════════════════ Administración: facturación ═══════════════════════════
+
+/** "Facturación": autorizadas en adelante con la factura o el pago pendientes, por fecha. */
+export async function paraFacturar(f: { q?: string; obra: string[]; pendiente: "factura" | "pago" | null }, limite: number) {
   const u = await exigirSesion();
-  const p = await db.pedidoMaterial.findFirst({
-    where: conAlcance(u, { id }),
-    include: {
-      obra: { select: { id: true, nombre: true, direccion: true, localidad: true, latitud: true, longitud: true } },
-      obraSede: { select: { nombre: true, latitud: true, longitud: true } },
-      solicitante: { select: { id: true, nombre: true, telefono: true } },
-      tomadoPor: { select: { nombre: true } },
-      aprobadoPor: { select: { nombre: true } },
-      cambios: { orderBy: { fecha: "asc" }, include: { usuario: { select: { nombre: true } } } },
-      materialesListos: {
-        orderBy: { habilitadoEn: "asc" },
-        include: {
-          proveedor: { select: { id: true, nombre: true, telefono: true } },
-          habilitadoPor: { select: { nombre: true } },
-          pedidoViaje: { select: { id: true, numero: true, estado: true, tomadoPor: { select: { nombre: true } }, viaje: { select: { etaDestino: true, llegadaReal: true } } } },
-        },
-      },
-    },
-  });
-  if (!p) return null;
-  const { montoAprobado, cantidad, notasCompras, ...resto } = p;
-  const internos = puede(u.rol, "materiales.gestionar") || puede(u.rol, "materiales.aprobar");
-  return {
-    ...resto,
-    // Las notas internas de Compras no salen del servidor para el que pidió.
-    notasCompras: internos ? notasCompras : null,
-    renglones: (Array.isArray(p.renglones) ? p.renglones : []) as { descripcion: string; cantidad: number | null; unidad: string | null }[],
-    adjuntos: await adjuntosDe("PEDIDO_MATERIAL", p.id, internos),
-    // Ningún Decimal cruza a un Client Component.
-    monto: montoAprobado ? montoAprobado.toNumber() : null,
-    cantidad: cantidad ? cantidad.toNumber() : null,
-    esMio: p.solicitanteId === u.id,
-    gestiona: puede(u.rol, "materiales.gestionar"),
-    aprueba: puede(u.rol, "materiales.aprobar"),
+  if (u.rol !== "ADMINISTRACION" && u.rol !== "DIRECCION") throw new Error("Sin permiso");
+  const where: Prisma.OrdenCompraWhereInput = {
+    AND: [
+      { estado: { in: ["AUTORIZADA", "ENCARGADA", "HABILITADA", "ENTREGADA"] } },
+      f.pendiente === "factura" ? { estadoFacturacion: "PENDIENTE" } : f.pendiente === "pago" ? { estadoPago: { not: "PAGADO" } } : { OR: [{ estadoFacturacion: "PENDIENTE" }, { estadoPago: { not: "PAGADO" } }] },
+      f.obra.length ? { obraId: { in: f.obra } } : {},
+      f.q ? { OR: [{ numero: { contains: f.q, mode: "insensitive" } }, { facturaNumero: { contains: f.q, mode: "insensitive" } }, { proveedor: { nombre: { contains: f.q, mode: "insensitive" } } }, { detallePedido: { contains: f.q, mode: "insensitive" } }] } : {},
+    ],
   };
+  const [filas, total, obras] = await Promise.all([
+    db.ordenCompra.findMany({ where, orderBy: [{ aprobadaEn: "asc" }, { fecha: "asc" }], take: limite + 1, include: incluirDocumento }),
+    db.ordenCompra.count({ where }),
+    db.obra.findMany({ where: { ordenesCompra: { some: { estado: { in: ["AUTORIZADA", "ENCARGADA", "HABILITADA", "ENTREGADA"] } } } }, select: { id: true, nombre: true }, orderBy: { nombre: "asc" } }),
+  ]);
+  return { filas: filas.slice(0, limite), hayMas: filas.length > limite, total, obras: obras.map((o) => ({ valor: o.id, etiqueta: `Obra ${o.nombre}` })) };
 }
-export type DetalleMaterial = NonNullable<Awaited<ReturnType<typeof detalleMaterial>>>;
+
+// ═══════════════════════════ Habilitados ═══════════════════════════
 
 /** Proveedores (con sus sucursales) para la hoja "Habilitar para retirar". */
 export async function proveedoresParaHabilitar() {
@@ -213,10 +174,10 @@ export async function proveedoresParaHabilitar() {
   return proveedoresConSucursales();
 }
 
-/** Habilitados por estado, con hace cuánto (Compras ve lo que quedó colgado del lado de la obra). */
 /** Filtros de Habilitados (barra de filtros): obra, proveedor y buscador (qué se retira, OC). */
 export type FiltrosHabilitados = { obra: string[]; prov: string[]; q?: string };
 
+/** Habilitados por estado, con hace cuánto (Compras ve lo que quedó colgado del lado de la obra). */
 export async function habilitados(estado: EstadoMaterialListo, limite: number, f: FiltrosHabilitados = { obra: [], prov: [] }) {
   await exigirPermiso("materiales.gestionar");
   const filtro: Prisma.MaterialListoWhereInput = {
@@ -231,7 +192,7 @@ export async function habilitados(estado: EstadoMaterialListo, limite: number, f
       take: limite + 1,
       include: {
         obra: { select: { nombre: true } }, proveedor: { select: { nombre: true } },
-        pedidoMaterial: { select: { id: true, numero: true, solicitante: { select: { nombre: true } } } },
+        ordenCompra: { select: { id: true, numeroInterno: true, solicitante: { select: { nombre: true } }, creadaPor: { select: { nombre: true } } } },
         pedidoViaje: { select: { numero: true, tomadoPor: { select: { nombre: true } }, viaje: { select: { etaDestino: true } } } },
       },
     }),
@@ -252,38 +213,33 @@ export async function habilitados(estado: EstadoMaterialListo, limite: number, f
   };
 }
 
-/** Aprobaciones del dueño. */
-export async function paraAprobar() {
-  await exigirPermiso("materiales.aprobar");
-  const filas = await db.pedidoMaterial.findMany({
-    where: { estado: "ESPERANDO_APROBACION" },
-    orderBy: ORDEN_COLA,
-    include: { ...filaInclude },
-  });
-  return filas.map(aFila);
-}
-
 // ═══════════════════════════ Obra ═══════════════════════════
 
-/** Mis pedidos, pestaña Materiales: los propios y los de mis obras. */
-export async function misMateriales(limite: number) {
-  const u = await exigirPermiso("materiales.pedir");
-  const filas = await db.pedidoMaterial.findMany({
-    where: conAlcance(u, { OR: [{ estado: { notIn: ["ENTREGADO", "CANCELADO"] } }, { actualizadoEn: { gte: new Date(Date.now() - 14 * 86_400_000) } }] }),
-    include: filaInclude,
-    // Lo listo para retirar arriba: es lo único que le pide una acción.
-    orderBy: [{ actualizadoEn: "desc" }],
-    take: limite + 1,
-  });
-  // La obra no ve importes de órdenes de compra (ni en los datos).
-  const todas = filas.slice(0, limite).map((x) => ({ ...aFila(x), monto: null }));
-  const peso = (f: FilaMaterial) => (f.listoId ? 0 : f.estado === "ENTREGADO" || f.estado === "CANCELADO" ? 2 : 1);
-  return { filas: todas.sort((a, b) => peso(a) - peso(b)), hayMas: filas.length > limite };
+/**
+ * Mis pedidos, pestaña Materiales: arriba los borradores ("Seguir completando") y lo listo para retirar
+ * (tarjetas verdes con "Pedir el viaje"); después lo que está en curso y lo entregado o anulado hace poco.
+ */
+export async function misDocumentos(limite: number) {
+  const u = await exigirSesion();
+  const [borradores, enCurso] = await Promise.all([
+    db.ordenCompra.findMany({ where: conAlcance(u, { estado: "BORRADOR", creadaPorId: u.id }), include: filaInclude, orderBy: { actualizadoEn: "desc" }, take: 20 }),
+    db.ordenCompra.findMany({
+      where: conAlcance(u, { estado: { not: "BORRADOR" }, OR: [{ estado: { notIn: ["ENTREGADA", "ANULADA", "RECHAZADA"] } }, { actualizadoEn: { gte: new Date(Date.now() - 14 * 86_400_000) } }] }),
+      include: filaInclude, orderBy: [{ actualizadoEn: "desc" }], take: limite + 1,
+    }),
+  ]);
+  const peso = (f: FilaDoc) => (f.listoId ? 0 : f.estado === "ENTREGADA" || f.estado === "ANULADA" ? 2 : 1);
+  return {
+    borradores: borradores.map(aFila),
+    filas: enCurso.slice(0, limite).map(aFila).sort((a, b) => peso(a) - peso(b)),
+    hayMas: enCurso.length > limite,
+  };
 }
 
 /** Datos del formulario "Pedir materiales". */
 export async function datosPedirMateriales() {
-  const u = await exigirPermiso("materiales.pedir");
+  const u = await exigirSesion();
+  if (!puede(u.rol, "materiales.pedir")) throw new Error("Sin permiso");
   const [obras, responsables] = await Promise.all([
     db.obra.findMany({
       where: { estado: "ACTIVA", ...filtroObras(u) },
@@ -323,7 +279,7 @@ export async function listosParaRetirar(obraId: string) {
   const u = await exigirSesion();
   if (!puede(u.rol, "pedidos.crear") && !puede(u.rol, "pedidos.coordinar")) throw new Error("Sin permiso");
   const filas = await db.materialListo.findMany({
-    where: { obraId, estado: "LISTO", modoEntrega: "RETIRA_CHOFER", pedidoMaterial: materialesVisibles(u) },
+    where: { obraId, estado: "LISTO", modoEntrega: "RETIRA_CHOFER", ordenCompra: documentosVisibles(u) },
     orderBy: { habilitadoEn: "asc" },
     include: { proveedor: { select: { id: true, nombre: true } } },
   });
@@ -365,35 +321,42 @@ export async function datosCoordinar() {
   };
 }
 
-/** Inicio de obra: los materiales habilitados en mis obras, con "Pedir el viaje". */
+/** Lo habilitado para retirar en mis obras, con "Pedir el viaje" (inicio de obra y Mis pedidos). */
 export async function listosEnMisObrasDetalle(limite = 6) {
-  const u = await exigirPermiso("materiales.pedir");
+  const u = await exigirSesion();
+  if (!puede(u.rol, "materiales.pedir")) return [];
   const filas = await db.materialListo.findMany({
-    where: { estado: "LISTO", modoEntrega: "RETIRA_CHOFER", pedidoMaterial: materialesVisibles(u) },
+    where: { estado: "LISTO", modoEntrega: "RETIRA_CHOFER", ordenCompra: documentosVisibles(u) },
     orderBy: { habilitadoEn: "asc" }, take: limite,
-    include: { proveedor: { select: { nombre: true } }, obra: { select: { nombre: true } } },
+    include: { proveedor: { select: { nombre: true } }, obra: { select: { nombre: true } }, ordenCompra: { select: { id: true, tipo: true, numero: true, numeroInterno: true } } },
   });
-  return filas.map((m) => ({ id: m.id, obraId: m.obraId, obra: m.obra.nombre, proveedor: m.proveedor.nombre, descripcion: m.descripcion, horario: m.horarioRetiro }));
+  return filas.map((m) => ({ id: m.id, obraId: m.obraId, obra: m.obra.nombre, proveedor: m.proveedor.nombre, descripcion: m.descripcion, horario: m.horarioRetiro, documentoId: m.ordenCompra.id, documento: nombreDoc(m.ordenCompra) }));
 }
 
 /** Inicio de obra: lo que pedí y todavía está en manos de Compras (sin habilitar). */
 export async function esperandoACompras(limite = 5) {
-  const u = await exigirPermiso("materiales.pedir");
-  const filas = await db.pedidoMaterial.findMany({
-    where: conAlcance(u, { solicitanteId: u.id, estado: { in: ["SOLICITADO", "EN_COMPRA", "ESPERANDO_APROBACION", "APROBADO"] } }),
-    include: filaInclude, orderBy: { paraCuando: "asc" }, take: limite,
+  const u = await exigirSesion();
+  const filas = await db.ordenCompra.findMany({
+    where: conAlcance(u, { OR: [{ solicitanteId: u.id }, { creadaPorId: u.id }], estado: { in: ["ENVIADA_A_COMPRAS", "EN_COMPRAS", "ESPERANDO_AUTORIZACION", "AUTORIZADA", "ENCARGADA"] } }),
+    include: filaInclude, orderBy: { fechaNecesaria: { sort: "asc", nulls: "last" } }, take: limite,
   });
-  return filas.map((x) => ({ ...aFila(x), monto: null }));
+  return filas.map(aFila);
 }
 
-/** Inicio de obra: cuántos materiales listos para retirar hay en mis obras. */
+/** Cuántos materiales listos para retirar hay en mis obras (contador de Mis pedidos). */
 export async function listosEnMisObras() {
-  const u = await exigirPermiso("materiales.pedir");
-  return db.materialListo.count({ where: { estado: "LISTO", modoEntrega: "RETIRA_CHOFER", pedidoMaterial: materialesVisibles(u) } });
+  const u = await exigirSesion();
+  if (!puede(u.rol, "materiales.pedir")) return 0;
+  return db.materialListo.count({ where: { estado: "LISTO", modoEntrega: "RETIRA_CHOFER", ordenCompra: documentosVisibles(u) } });
 }
 
-/** Inicio del dueño: cuántas órdenes de compra esperan su aprobación. */
+/** Inicio del dueño: cuántas órdenes esperan su autorización (las importadas del Excel nunca). */
 export async function cuantasParaAprobar() {
   await exigirPermiso("materiales.aprobar");
-  return db.pedidoMaterial.count({ where: { estado: "ESPERANDO_APROBACION" } });
+  return db.ordenCompra.count({ where: { estado: "ESPERANDO_AUTORIZACION", fuente: { not: "IMPORTADA" } } });
+}
+
+/** Pagos que Administración pidió autorizar. */
+export async function cuantosPagosParaAutorizar() {
+  return db.ordenCompra.count({ where: { pagoSolicitadoEn: { not: null }, ordenPagoAutorizadaEn: null, estado: { not: "ANULADA" } } });
 }

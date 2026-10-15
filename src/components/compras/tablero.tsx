@@ -2,13 +2,15 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Check } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, Truck } from "lucide-react";
 import type { EstadoTablero } from "@prisma/client";
 import { useAviso } from "@/components/ui/avisos";
 import { ajustarEstadoTablero, editarCeldaTablero } from "@/lib/compras/acciones";
 import { ESTADOS_TABLERO, PLANILLA_TABLERO } from "@/lib/compras/estadoTablero";
 import { importeTexto } from "@/lib/compras/estados";
+import { ESTADO_FACTURACION, ESTADO_PAGO } from "@/lib/compras/documento";
+import { guardarEstadoLista } from "@/components/ui/volver";
 import type { FilaTablero } from "@/lib/compras/tablero";
 
 /**
@@ -16,7 +18,8 @@ import type { FilaTablero } from "@/lib/compras/tablero";
  * mayúsculas, grilla completa, la columna Nº con el código de su leyenda, el ESTADO como una lista
  * pintada del color de cada estado, "A confirmar" en amarillo como sus "????", fechas d/M/yyyy y las
  * columnas de texto completas (con sus saltos de línea). Próximos pasos y Comentarios se escriben en la
- * celda, como en Excel. Tocar una fila (fuera de lo editable) abre la orden en el panel de la derecha.
+ * celda, como en Excel. La columna Facturación dice si falta la factura o el pago. Tocar una fila (fuera de
+ * lo editable) abre la orden en página completa; "← Volver al tablero" deja filtros, orden y scroll igual.
  */
 export const COLUMNAS_TABLERO = [
   { titulo: "Nº", ancho: 40 },
@@ -29,6 +32,7 @@ export const COLUMNAS_TABLERO = [
   { titulo: "IMPORTE", ancho: 120 },
   { titulo: "DESCRIPCION / MATERIALES", minimo: 320 },
   { titulo: "ESTADO", ancho: 180 },
+  { titulo: "FACTURACIÓN", ancho: 150 },
   { titulo: "FECHA DE ENTREGA", ancho: 110 },
   { titulo: "OBSERVACIONES EN OC / PRÓXIMOS PASOS", minimo: 280 },
   { titulo: "COMENTARIOS", ancho: 200 },
@@ -46,19 +50,7 @@ const vencida = (f: FilaTablero) => !!f.caducidad && f.estado !== "ENTREGADO" &&
 /** Celda de una línea: centrada; varias líneas: arriba (como el Excel). */
 const multilinea = (t: string | null | undefined) => !!t && (t.includes("\n") || t.length > 48);
 
-function useVer() {
-  const sp = useSearchParams();
-  const ruta = usePathname();
-  const ver = sp.get("ver");
-  const href = (id: string) => {
-    const n = new URLSearchParams(sp.toString());
-    if (ver === id) n.delete("ver");
-    else n.set("ver", id);
-    const s = n.toString();
-    return s ? `${ruta}?${s}` : ruta;
-  };
-  return { ver, href };
-}
+const enlace = (id: string) => `/compras/oc/${id}?desde=tablero`;
 
 /** Tilde chico que confirma que se guardó (1,5 s). */
 function useTilde() {
@@ -152,7 +144,8 @@ function CeldaEstado({ f, editable }: { f: FilaTablero; editable: boolean }) {
     router.refresh();
   }
 
-  if (!editable) return <span className="absolute inset-0 grid place-items-center px-2 text-center text-[12px] font-semibold uppercase" style={estilo}>{p?.palabra ?? ""}</span>;
+  const camion = estado === "HABILITADA" ? <Truck aria-hidden className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2" style={{ color: p?.texto }} /> : null;
+  if (!editable) return <span className="absolute inset-0 grid place-items-center px-2 text-center text-[12px] font-semibold uppercase" style={estilo}>{camion}{p?.palabra ?? ""}</span>;
   return (
     <span className="absolute inset-0" onClick={(e) => e.stopPropagation()}>
       <select value={estado ?? ""} disabled={guardando} aria-label={`Estado de la ${f.tipo} ${f.numero}`} onChange={(e) => cambiar(e.target.value as EstadoTablero)}
@@ -161,7 +154,21 @@ function CeldaEstado({ f, editable }: { f: FilaTablero; editable: boolean }) {
         {!estado && <option value="">—</option>}
         {ESTADOS_TABLERO.map((e) => <option key={e} value={e} style={{ background: "#fff", color: "#111827" }}>{PLANILLA_TABLERO[e].palabra}</option>)}
       </select>
+      {camion}
       {tilde}
+    </span>
+  );
+}
+
+/** Columna Facturación: Pendiente / Facturada · Pago pendiente / Pagado, con colores suaves. */
+function CeldaFacturacion({ f }: { f: FilaTablero }) {
+  if (!f.facturacion) return null;
+  const fa = ESTADO_FACTURACION[f.facturacion.factura];
+  const pa = ESTADO_PAGO[f.facturacion.pago];
+  return (
+    <span className="flex flex-col gap-1 text-[12px] leading-4">
+      <span className="rounded px-1.5 py-0.5 text-center font-medium" style={{ background: fa.fondo, color: fa.texto }}>{fa.titulo}</span>
+      <span className="rounded px-1.5 py-0.5 text-center font-medium" style={{ background: pa.fondo, color: pa.texto }}>{pa.titulo}</span>
     </span>
   );
 }
@@ -183,7 +190,10 @@ const importe = (f: FilaTablero) => (aConfirmar(f) ? "A confirmar" : f.importe !
  */
 export function TablaTablero({ filas, editable }: { filas: FilaTablero[]; editable: boolean }) {
   const router = useRouter();
-  const { ver, href } = useVer();
+  const abrir = (id: string) => {
+    guardarEstadoLista("tablero");
+    router.push(enlace(id));
+  };
   const fija = (i: number) => (i < FIJAS.length ? { position: "sticky" as const, left: FIJAS[i], zIndex: 1 } : undefined);
   return (
     <div className="planilla hidden max-h-[calc(100dvh-var(--alto-header)-48px)] overflow-auto border-r border-b border-[#BFBFBF] bg-papel lg:block">
@@ -201,19 +211,18 @@ export function TablaTablero({ filas, editable }: { filas: FilaTablero[]; editab
         </thead>
         <tbody>
           {filas.map((f) => {
-            const elegida = ver === f.id;
             const borde = "border-b border-l border-[#BFBFBF]";
             const td = `${borde} px-2.5 py-2 align-middle`;
             const tdTexto = (t: string | null | undefined) => `${borde} px-2.5 py-2 ${multilinea(t) ? "align-top" : "align-middle"}`;
             const pintada = `${borde} relative p-0`; // el contenido llena la celda aunque la fila crezca
-            const fondo = elegida ? "bg-[#F3F4F6]" : "bg-papel";
+            const fondo = "bg-papel";
             return (
-              <tr key={f.id} data-vivo-id={f.id} onClick={() => router.replace(href(f.id), { scroll: false })} aria-selected={elegida}
-                className={`fila-planilla h-14 cursor-pointer ${elegida ? "elegida" : ""}`}>
+              <tr key={f.id} data-vivo-id={f.id} onClick={() => abrir(f.id)}
+                className="fila-planilla h-14 cursor-pointer">
                 <td className={`${pintada} ${fondo}`} style={fija(0)}><CeldaCodigo estado={f.estado} /></td>
                 <td className={`${td} text-center ${fondo}`} style={fija(1)}>{f.tipo}</td>
                 <td className={`${td} text-center font-medium tabular-nums ${fondo}`} style={fija(2)}>
-                  <Link href={href(f.id)} scroll={false} onClick={(e) => e.stopPropagation()} className="hover:underline">{f.numero || "—"}</Link>
+                  <Link href={enlace(f.id)} onClick={(e) => { e.stopPropagation(); guardarEstadoLista("tablero"); }} className="hover:underline">{f.numero || "—"}</Link>
                   {f.version > 1 && <span className="block text-[11px] font-normal text-suave">v{f.version}</span>}
                 </td>
                 <td className={`${td} text-center tabular-nums ${fechaRara(f.fecha) ? "bg-[#FFFF00]" : fondo}`}>
@@ -229,6 +238,7 @@ export function TablaTablero({ filas, editable }: { filas: FilaTablero[]; editab
                   {f.urgente && <span className="mt-1 block text-[11px] font-semibold text-critico uppercase">Urgente</span>}
                 </td>
                 <td className={`${pintada} ${fondo}`}><CeldaEstado f={f} editable={editable} /></td>
+                <td className={`${td} ${fondo}`}><CeldaFacturacion f={f} /></td>
                 <td className={`${td} text-center tabular-nums ${fechaRara(f.fechaEntrega) ? "bg-[#FFFF00]" : fondo}`}>{fecha(f.fechaEntrega)}</td>
                 <td className={`${tdTexto(f.proximosPasos)} relative ${fondo}`}><CeldaEditable id={f.id} campo="proximosPasos" valor={f.proximosPasos} editable={editable} /></td>
                 <td className={`${tdTexto(f.comentarios)} relative ${fondo}`}><CeldaEditable id={f.id} campo="comentarios" valor={f.comentarios} editable={editable} /></td>
@@ -241,16 +251,15 @@ export function TablaTablero({ filas, editable }: { filas: FilaTablero[]; editab
   );
 }
 
-/** Celular: una fila por orden con el estado pintado como en la planilla; al tocar, la orden completa se abre abajo. */
-export function ListaTablero({ filas, editable, detalle }: { filas: FilaTablero[]; editable: boolean; detalle: React.ReactNode }) {
-  const { ver, href } = useVer();
+/** Celular: una fila por orden con el estado pintado como en la planilla; al tocar, se abre la orden. */
+export function ListaTablero({ filas, editable }: { filas: FilaTablero[]; editable: boolean }) {
   return (
     <ul className="-mx-4 divide-y divide-linea border-y border-linea bg-papel lg:hidden">
       {filas.map((f) => {
         const p = f.estado ? PLANILLA_TABLERO[f.estado] : null;
         return (
           <li key={f.id} data-vivo-id={f.id}>
-            <Link href={href(f.id)} scroll={false} className={`flex flex-col gap-1 px-4 py-3 ${ver === f.id ? "bg-black/[0.03]" : ""}`}>
+            <Link href={enlace(f.id)} onClick={() => guardarEstadoLista("tablero")} className="flex flex-col gap-1 px-4 py-3">
               <div className="flex items-center gap-2">
                 <span className="font-semibold tabular-nums">{f.tipo} {f.numero || "—"}{f.version > 1 ? ` v${f.version}` : ""}</span>
                 <span className="text-[13px] text-suave tabular-nums">{fecha(f.fecha)}</span>
@@ -263,7 +272,6 @@ export function ListaTablero({ filas, editable, detalle }: { filas: FilaTablero[
             {(f.proximosPasos || editable) && (
               <div className="relative px-4 pb-3 text-[13px]"><span className="etiqueta block">Próximos pasos</span><CeldaEditable id={f.id} campo="proximosPasos" valor={f.proximosPasos} editable={editable} compacta /></div>
             )}
-            {ver === f.id && <div className="border-t border-linea px-4 py-3">{detalle}</div>}
           </li>
         );
       })}

@@ -25,8 +25,8 @@ export async function existentes() {
 
 /** El estado real que corresponde a cada estado del tablero (las importadas nunca van a /aprobaciones). */
 const ESTADO_REAL: Record<EstadoTablero, EstadoOC> = {
-  PEDIR_AUTORIZACION: "ESPERANDO_APROBACION", AUTORIZADA: "APROBADA", SOLICITUD_PRESUPUESTO: "BORRADOR",
-  ENCARGADO: "APROBADA", ENTREGADO: "APROBADA", ANULADA: "ANULADA",
+  PEDIR_AUTORIZACION: "ESPERANDO_AUTORIZACION", AUTORIZADA: "AUTORIZADA", SOLICITUD_PRESUPUESTO: "EN_COMPRAS",
+  ENCARGADO: "ENCARGADA", HABILITADA: "HABILITADA", ENTREGADO: "ENTREGADA", ANULADA: "ANULADA",
 };
 
 export type ResumenImportacion = { creadas: number; actualizadas: number; excluidas: number; conError: number; solicitantesNuevos: string[]; proveedoresNuevos: string[]; obrasSinEmparejar: string[] };
@@ -34,14 +34,14 @@ export type ResumenImportacion = { creadas: number; actualizadas: number; exclui
 /**
  * Importa las filas válidas (vuelve a revisarlas acá, con lo que hay en la base ahora). Clave tipo +
  * número: importar dos veces el mismo archivo no duplica (actualiza las importadas). Las nuevas quedan
- * con fuente IMPORTADA_EXCEL, sin PDF ni pedido de material. Después sube los numeradores para que las
+ * con fuente IMPORTADA, sin PDF. Después sube los numeradores para que las
  * nuevas sigan después del mayor número importado.
  */
 export async function importarFilas(yo: { id: string; nombre: string }, filas: { n: number; celdas: Celda[] }[], mapeo: Mapeo, correcciones: Record<number, Correccion>): Promise<ResumenImportacion> {
   const catalogos = await catalogosImportacion();
   const ya = await existentes();
   const revisadas = revisarTodo(filas, mapeo, catalogos, correcciones);
-  for (const r of revisadas) if (r.tipo && r.numeroTexto && ya[`${r.tipo}-${r.numeroTexto}`] === "SISTEMA") r.errores.push("Ese número ya es de una orden armada en el sistema.");
+  for (const r of revisadas) if (r.tipo && r.numeroTexto && ya[`${r.tipo}-${r.numeroTexto}`] && ya[`${r.tipo}-${r.numeroTexto}`] !== "IMPORTADA") r.errores.push("Ese número ya es de una orden armada en el sistema.");
   const validas = revisadas.filter(filaValida);
   const resumen: ResumenImportacion = { creadas: 0, actualizadas: 0, excluidas: revisadas.filter((r) => r.excluida).length, conError: revisadas.filter((r) => !r.excluida && r.errores.length).length, solicitantesNuevos: [], proveedoresNuevos: [], obrasSinEmparejar: [] };
   if (!validas.length) return resumen;
@@ -73,7 +73,7 @@ export async function importarFilas(yo: { id: string; nombre: string }, filas: {
     const solicitado = r.solicitado;
     return {
       tipo: r.tipo!, numero: formatoOC(r.tipo!, r.numero ?? r.numeroTexto!), numeroTexto: r.numeroTexto!, secuencia: r.numero,
-      fuente: "IMPORTADA_EXCEL" as const, estado: estado ? ESTADO_REAL[estado] : ("BORRADOR" as const), estadoTablero: estado, estadoTableroAuto: estado,
+      fuente: "IMPORTADA" as const, estado: estado ? ESTADO_REAL[estado] : ("EN_COMPRAS" as const), estadoTablero: estado, estadoTableroAuto: estado,
       fecha: r.fecha ? aFecha(r.fecha, "12:00") : hoy, fechaEntrega: r.fechaEntrega ? aFecha(r.fechaEntrega, "12:00") : null,
       solicitanteId: solicitado?.tipo === "u" ? solicitado.id : null,
       solicitanteExternoId: solicitado?.tipo === "e" ? solicitado.id : solicitado?.tipo === "nuevo" ? externos.get(solicitado.nombre) ?? null : null,
@@ -94,7 +94,7 @@ export async function importarFilas(yo: { id: string; nombre: string }, filas: {
       for (const r of tanda) {
         const d = datos(r);
         const previa = await tx.ordenCompra.findFirst({ where: { tipo: r.tipo!, numeroTexto: r.numeroTexto! }, select: { id: true, fuente: true } });
-        if (previa?.fuente === "SISTEMA") continue;
+        if (previa && previa.fuente !== "IMPORTADA") continue;
         if (previa) {
           await tx.ordenCompra.update({ where: { id: previa.id }, data: d });
           resumen.actualizadas++;

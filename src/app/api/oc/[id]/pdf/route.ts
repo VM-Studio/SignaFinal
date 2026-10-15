@@ -1,30 +1,46 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { obtenerSesion } from "@/lib/auth/sesion";
-import { puede } from "@/lib/permisos";
-import { leer } from "@/lib/archivos";
-import { pdfDeOC } from "@/lib/compras/servicio";
+import { eliminar, subir } from "@/lib/archivos";
+import { puedeVerDocumento } from "@/lib/compras/acceso";
+import { generarPDF } from "@/lib/compras/pdf-generar";
+import { baseURL } from "@/lib/compras/pdf";
+
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 /**
- * PDF de una orden (OC o PE). ?aprobada=1: el que lleva el sello (si ya está aprobada). Lo ven Compras,
- * el dueño y Administración (lleva importes: la gente de obra no).
- * Se sirve el guardado; si no está (almacenamiento caído), se genera en el momento desde los datos.
+ * "Imprimir / PDF": el documento tal cual está ahora (la plantilla impresa; con la factura como segunda
+ * página si hay). Lo ve todo el que ve el documento. La cabecera X-PDF-Motor dice con qué se generó.
  */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const u = await obtenerSesion();
   if (!u) return NextResponse.json({ error: "Sin sesión" }, { status: 401 });
-  const oc = await db.ordenCompra.findUnique({ where: { id: (await params).id }, select: { id: true, numero: true, estado: true, fuente: true, versionAprobacion: true, pdfUrl: true, pdfAprobadaUrl: true } });
-  if (!oc) return NextResponse.json({ error: "No existe" }, { status: 404 });
+  const id = (await params).id;
+  const d = await db.ordenCompra.findUnique({ where: { id }, select: { creadaPorId: true, solicitanteId: true, obraId: true } });
+  if (!d || !(await puedeVerDocumento(u, d))) return NextResponse.json({ error: "No existe" }, { status: 404 });
+  const { pdf, motor, nombre } = await generarPDF(id, await baseURL());
   const url = new URL(req.url);
-  const aprobada = url.searchParams.get("aprobada") === "1" && oc.estado === "APROBADA";
-  const ve = puede(u.rol, "materiales.gestionar") || puede(u.rol, "materiales.aprobar") || u.rol === "ADMINISTRACION";
-  if (!ve) return NextResponse.json({ error: "No existe" }, { status: 404 });
-
-  const guardado = aprobada ? oc.pdfAprobadaUrl : oc.pdfUrl;
-  const archivo = guardado ? await leer(guardado) : null;
-  const cuerpo = archivo ? (archivo.datos as BodyInit) : new Uint8Array((await pdfDeOC(oc.id, aprobada)).pdf);
-  const nombre = `${oc.numero ?? "borrador"}${oc.versionAprobacion > 1 ? `-v${oc.versionAprobacion}` : ""}${aprobada ? "-aprobada" : ""}.pdf`;
-  return new NextResponse(cuerpo, {
-    headers: { "Content-Type": "application/pdf", "Cache-Control": "private, no-store", "Content-Disposition": `${url.searchParams.get("descargar") === "1" ? "attachment" : "inline"}; filename="${nombre}"` },
+  return new NextResponse(Buffer.from(pdf), {
+    headers: {
+      "Content-Type": "application/pdf", "Cache-Control": "private, no-store", "X-PDF-Motor": motor,
+      "Content-Disposition": `${url.searchParams.get("descargar") === "1" ? "attachment" : "inline"}; filename="${nombre}"`,
+    },
   });
+}
+
+/** Interno (lo llama guardarPDF después de enviar o autorizar): genera y guarda el PDF del momento. */
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const secreto = process.env.CRON_SECRET ?? process.env.AUTH_SECRET;
+  if (!secreto || req.headers.get("x-interno") !== secreto) return NextResponse.json({ error: "No" }, { status: 403 });
+  const id = (await params).id;
+  const { autorizada } = (await req.json().catch(() => ({}))) as { autorizada?: boolean };
+  const d = await db.ordenCompra.findUnique({ where: { id }, select: { creadaPorId: true, pdfUrl: true, pdfAprobadaUrl: true } });
+  if (!d) return NextResponse.json({ error: "No existe" }, { status: 404 });
+  const { pdf, motor, nombre } = await generarPDF(id, await baseURL());
+  const r = await subir({ nombre: autorizada ? nombre.replace(/\.pdf$/, "-autorizada.pdf") : nombre, tipo: "application/pdf", datos: Buffer.from(pdf) }, "ordenes-compra", d.creadaPorId);
+  const anterior = autorizada ? d.pdfAprobadaUrl : d.pdfUrl;
+  await db.ordenCompra.update({ where: { id }, data: autorizada ? { pdfAprobadaUrl: r.url } : { pdfUrl: r.url } });
+  if (anterior && anterior !== r.url) await eliminar(anterior).catch(() => {});
+  return NextResponse.json({ ok: true, motor });
 }

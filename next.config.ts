@@ -4,11 +4,14 @@ const nextConfig: NextConfig = {
   // Solo desarrollo: permite abrir la app también en 127.0.0.1.
   allowedDevOrigins: ["127.0.0.1"],
   // PDF de las órdenes de compra y lectura de planillas Excel: solo en el servidor, sin empaquetar.
-  serverExternalPackages: ["@react-pdf/renderer", "exceljs"],
+  serverExternalPackages: ["@react-pdf/renderer", "exceljs", "playwright-core", "@sparticuz/chromium", "pdf-lib"],
   // pdfkit (dentro de @react-pdf) lee sus fuentes estándar (Helvetica) con un require dinámico que el
   // rastreo de archivos de Vercel no ve: se incluyen a mano en las funciones que generan el PDF de la OC.
+  // El PDF del documento de compra (Chromium) se genera solo en /api/oc/[id]/pdf: el binario de
+  // @sparticuz/chromium va únicamente en esa función.
   outputFileTracingIncludes: {
     "/**": ["./node_modules/pdfkit/js/standard-fonts/**", "./node_modules/pdfkit/js/data/**"],
+    "/api/oc/[id]/pdf": ["./node_modules/@sparticuz/chromium/bin/**"],
   },
   experimental: {
     // Fotos de remitos y tickets (ya comprimidas en el teléfono a ~200 KB).

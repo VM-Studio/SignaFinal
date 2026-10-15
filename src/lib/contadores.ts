@@ -2,7 +2,7 @@ import "server-only";
 import type { UsuarioSesion } from "@/lib/auth/sesion";
 import { db } from "@/lib/db";
 import { puede } from "@/lib/permisos";
-import { materialesVisibles } from "@/lib/materiales/consultas";
+import { documentosVisibles } from "@/lib/materiales/consultas";
 import type { ClaveContador } from "@/lib/navegacion";
 
 /**
@@ -13,11 +13,17 @@ import type { ClaveContador } from "@/lib/navegacion";
  */
 export async function contadoresNav(u: Pick<UsuarioSesion, "id" | "rol">): Promise<Partial<Record<ClaveContador, number>>> {
   const [aprobaciones, pedidosNuevos, solicitudesNuevas, listosRetirar] = await Promise.all([
-    puede(u.rol, "materiales.aprobar") ? db.ordenCompra.count({ where: { estado: "ESPERANDO_APROBACION", fuente: "SISTEMA", pedidoMaterialId: { not: null } } }) : null,
-    u.rol === "COMPRAS" ? db.pedidoMaterial.count({ where: { estado: "SOLICITADO" } }) : null,
+    // Al dueño: órdenes y pagos que esperan su autorización.
+    puede(u.rol, "materiales.aprobar")
+      ? Promise.all([
+          db.ordenCompra.count({ where: { estado: "ESPERANDO_AUTORIZACION", fuente: { not: "IMPORTADA" } } }),
+          db.ordenCompra.count({ where: { pagoSolicitadoEn: { not: null }, ordenPagoAutorizadaEn: null, estado: { not: "ANULADA" } } }),
+        ]).then(([a, b]) => a + b)
+      : null,
+    u.rol === "COMPRAS" ? db.ordenCompra.count({ where: { estado: "ENVIADA_A_COMPRAS" } }) : null,
     u.rol === "CHOFER" ? db.pedidoViaje.count({ where: { estado: "PENDIENTE" } }) : null,
     u.rol === "RESPONSABLE_OBRA" || u.rol === "CAPATAZ"
-      ? db.materialListo.count({ where: { estado: "LISTO", modoEntrega: "RETIRA_CHOFER", pedidoMaterial: materialesVisibles(u) } })
+      ? db.materialListo.count({ where: { estado: "LISTO", modoEntrega: "RETIRA_CHOFER", ordenCompra: documentosVisibles(u) } })
       : null,
   ]);
   const r: Partial<Record<ClaveContador, number>> = {};

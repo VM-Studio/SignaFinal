@@ -40,7 +40,7 @@ export default async function PaginaProveedores({ searchParams }: { searchParams
     select: {
       id: true, nombre: true, telefono: true, cuit: true, rubro: true,
       sucursales: { where: { activa: true }, orderBy: [{ principal: "desc" }, { nombre: "asc" }], select: { localidad: true } },
-      ordenesCompra: { where: { estado: { in: ["APROBADA", "ESPERANDO_APROBACION"] } }, orderBy: { fecha: "desc" }, take: 1, select: { fecha: true, numero: true } },
+      ordenesCompra: { where: { estado: { in: ["ESPERANDO_AUTORIZACION", "AUTORIZADA", "ENCARGADA", "HABILITADA", "ENTREGADA"] } }, orderBy: { fecha: "desc" }, take: 1, select: { fecha: true, numero: true } },
       materialesListos: { orderBy: { habilitadoEn: "desc" }, take: 1, select: { habilitadoEn: true } },
     },
   });

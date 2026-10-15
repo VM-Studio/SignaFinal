@@ -6,7 +6,7 @@ import { puede } from "@/lib/permisos";
 import { diaISO } from "@/lib/formato";
 import { ESTADOS_TABLERO } from "./estadoTablero";
 import { numeroCorto } from "./numerar";
-import { obraDe, solicitadoPor } from "./servicio";
+import { obraDe, solicitadoPorDe } from "./celdas";
 
 /**
  * TABLERO DE CONTROL de Compras (la hoja "TABLERO DE CONTROL ORDENES DE C" de Alejandra). Una fila por
@@ -46,12 +46,12 @@ const inicioDia = (d: string) => new Date(`${d}T00:00:00Z`);
 const inicioMes = () => inicioDia(`${diaISO().slice(0, 8)}01`);
 /** "Entregado este mes": con fecha de entrega del mes (o, en las del sistema sin fecha, entregadas este mes). */
 const entregadoEsteMes = (): Prisma.OrdenCompraWhereInput => ({
-  AND: [{ estadoTablero: "ENTREGADO" }, { OR: [{ fechaEntrega: { gte: inicioMes() } }, { fechaEntrega: null, fuente: "SISTEMA", actualizadoEn: { gte: inicioMes() } }] }],
+  AND: [{ estadoTablero: "ENTREGADO" }, { OR: [{ fechaEntrega: { gte: inicioMes() } }, { fechaEntrega: null, fuente: { not: "IMPORTADA" }, actualizadoEn: { gte: inicioMes() } }] }],
 });
 
 /** El where de los filtros (lo comparten la tabla, los contadores y la exportación). */
 export function whereTablero(f: Omit<FiltrosTablero, "orden" | "pagina">, sinEstado = false): Prisma.OrdenCompraWhereInput {
-  const y: Prisma.OrdenCompraWhereInput[] = [{ OR: [{ estadoTablero: { not: null } }, { fuente: "IMPORTADA_EXCEL" }] }];
+  const y: Prisma.OrdenCompraWhereInput[] = [{ OR: [{ estadoTablero: { not: null } }, { fuente: "IMPORTADA" }] }];
   if (f.tipo.length) y.push({ tipo: { in: f.tipo } });
   if (f.obra.length) {
     const ids = f.obra.filter((o) => !o.startsWith("t:"));
@@ -119,9 +119,9 @@ function orderBy(orden: string): Prisma.OrdenCompraOrderByWithRelationInput[] {
 export const seleccionTablero = {
   id: true, tipo: true, numero: true, numeroTexto: true, secuencia: true, fecha: true, fechaNecesaria: true, fechaEntrega: true, estadoTablero: true, estado: true, fuente: true, semaforoPE: true,
   detallePedido: true, proveedorSugerido: true, importe: true, importeAConfirmar: true, moneda: true, proximosPasos: true, comentarios: true, obraTexto: true, solicitadoPorTexto: true,
-  versionAprobacion: true, pedidoMaterialId: true,
+  versionAprobacion: true, numeroInterno: true, prioridad: true, estadoFacturacion: true, estadoPago: true,
   obra: { select: { id: true, nombre: true, direccion: true, localidad: true, razonSocialId: true } },
-  pedidoMaterial: { select: { id: true, numero: true, estado: true, prioridad: true, obraSede: { select: { nombre: true, direccion: true, localidad: true } } } },
+  obraSede: { select: { nombre: true } },
   solicitante: { select: { id: true, nombre: true } }, solicitanteExterno: { select: { id: true, nombre: true } },
   proveedor: { select: { nombre: true } },
   renglones: { orderBy: { orden: "asc" as const }, select: { descripcion: true, cantidad: true, unidad: true } },
@@ -134,11 +134,13 @@ export function filaTablero(o: FilaDb) {
   return {
     id: o.id, tipo: o.tipo, numero: numeroCorto(o), numeroCompleto: o.numero, version: o.versionAprobacion, fuente: o.fuente, estadoReal: o.estado,
     fecha: diaISO(o.fecha), caducidad: o.fechaNecesaria ? diaISO(o.fechaNecesaria) : null, fechaEntrega: o.fechaEntrega ? diaISO(o.fechaEntrega) : null,
-    solicitadoPor: solicitadoPor(o), obra: obraDe(o),
+    solicitadoPor: solicitadoPorDe(o), obra: obraDe(o),
     proveedor: o.proveedor?.nombre ?? null, proveedorSugerido: o.proveedorSugerido,
     importe: o.importe?.toNumber() ?? null, importeAConfirmar: o.importeAConfirmar, moneda: o.moneda,
     materiales, estado: o.estadoTablero, semaforoPE: o.semaforoPE, proximosPasos: o.proximosPasos, comentarios: o.comentarios,
-    urgente: o.pedidoMaterial?.prioridad === "URGENTE",
+    urgente: o.prioridad === "URGENTE" && !["ENTREGADA", "ANULADA"].includes(o.estado),
+    // Columna "Facturación": Pendiente / Facturada · Pago pendiente / Pagado (no aplica a anuladas).
+    facturacion: o.estado === "ANULADA" ? null : { factura: o.estadoFacturacion, pago: o.estadoPago },
   };
 }
 export type FilaTablero = ReturnType<typeof filaTablero>;
@@ -171,23 +173,24 @@ export async function tablero(f: FiltrosTablero) {
   return { filas: filas.map(filaTablero), total, paginas: Math.max(1, Math.ceil(total / POR_PAGINA)), editable: puede(u.rol, "materiales.gestionar"), autorizaPago: puede(u.rol, "materiales.aprobar") };
 }
 
-/** Tarjetas de arriba: Todas · Pedir autorización · Encargado · Entregado este mes (con los filtros de tipo/obra/etc., sin el de estado). */
+/** Tarjetas de arriba: Todas · Pedir autorización · Encargado · Listas para retirar · Entregado este mes (con los filtros de tipo/obra/etc., sin el de estado). */
 export async function contadoresTablero(f: FiltrosTablero) {
   await exigirTablero();
   const base = whereTablero(f, true);
-  const [todas, pedir, encargado, entregadoMes] = await Promise.all([
+  const [todas, pedir, encargado, habilitadas, entregadoMes] = await Promise.all([
     db.ordenCompra.count({ where: base }),
     db.ordenCompra.count({ where: { AND: [base, { estadoTablero: "PEDIR_AUTORIZACION" }] } }),
     db.ordenCompra.count({ where: { AND: [base, { estadoTablero: "ENCARGADO" }] } }),
+    db.ordenCompra.count({ where: { AND: [base, { estadoTablero: "HABILITADA" }] } }),
     db.ordenCompra.count({ where: { AND: [base, entregadoEsteMes()] } }),
   ]);
-  return { todas, pedir, encargado, entregadoMes };
+  return { todas, pedir, encargado, habilitadas, entregadoMes };
 }
 
 /** Opciones de los chips (con cuántas órdenes tiene cada una en el tablero). */
 export async function opcionesTablero() {
   await exigirTablero();
-  const enTablero: Prisma.OrdenCompraWhereInput = { OR: [{ estadoTablero: { not: null } }, { fuente: "IMPORTADA_EXCEL" }] };
+  const enTablero: Prisma.OrdenCompraWhereInput = { OR: [{ estadoTablero: { not: null } }, { fuente: "IMPORTADA" }] };
   const [porObra, porObraTexto, porUsuario, porExterno, porTexto, porProv, porEstado, obras, usuarios, externos, proveedores] = await Promise.all([
     db.ordenCompra.groupBy({ by: ["obraId"], where: { ...enTablero, obraId: { not: null } }, _count: true }),
     db.ordenCompra.groupBy({ by: ["obraTexto"], where: { ...enTablero, obraId: null, obraTexto: { not: null } }, _count: true }),

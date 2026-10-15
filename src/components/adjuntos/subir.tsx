@@ -22,7 +22,7 @@ export function IconoArchivo({ nombre, className = "size-5" }: { nombre: string;
 }
 
 /** Sube un archivo chico al servidor con progreso (XHR); uno grande, directo a Blob. */
-function subirUno(f: File, entidadTipo: EntidadAdjunto, interno: boolean, progreso: (p: number) => void): Promise<AdjuntoSubido> {
+export function subirUno(f: File, entidadTipo: EntidadAdjunto, interno: boolean, progreso: (p: number) => void): Promise<AdjuntoSubido> {
   if (f.size > POR_SERVIDOR) return subirDirecto(f, entidadTipo, interno, progreso);
   return new Promise((ok, mal) => {
     const fd = new FormData();

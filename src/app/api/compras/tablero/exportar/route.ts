@@ -5,6 +5,7 @@ import { obtenerSesion } from "@/lib/auth/sesion";
 import { puede } from "@/lib/permisos";
 import { filasParaExportar, leerFiltros } from "@/lib/compras/tablero";
 import { ESTADO_TABLERO, PLANILLA_TABLERO } from "@/lib/compras/estadoTablero";
+import { ESTADO_FACTURACION, ESTADO_PAGO } from "@/lib/compras/documento";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -29,6 +30,7 @@ const COLUMNAS = [
   { header: "IMPORTE", key: "importe", width: 17, style: { numFmt: '"$" #,##0.00', alignment: { ...centro, horizontal: "right" as const } } },
   { header: "DESCRIPCION / MATERIALES", key: "materiales", width: 58, style: { alignment: texto } },
   { header: "ESTADO", key: "estado", width: 24, style: { alignment: centro } },
+  { header: "FACTURACIÓN", key: "facturacion", width: 22, style: { alignment: centro } },
   { header: "FECHA DE ENTREGA", key: "fechaEntrega", width: 14, style: { numFmt: "d/m/yyyy", alignment: centro } },
   { header: "Observaciones en OC / Próximos Pasos", key: "proximosPasos", width: 55, style: { alignment: texto } },
   { header: "Comentarios", key: "comentarios", width: 30, style: { alignment: texto } },
@@ -81,6 +83,7 @@ export async function GET(req: Request) {
           proveedor: (x.proveedor ?? x.proveedorSugerido ?? "").toUpperCase(),
           importe: x.importe ?? (aConfirmar ? "A CONFIRMAR" : null),
           materiales: x.materiales, estado: x.estado ? ESTADO_TABLERO[x.estado].excel : "", fechaEntrega: fecha(x.fechaEntrega),
+          facturacion: x.facturacion ? `${ESTADO_FACTURACION[x.facturacion.factura].titulo} · ${ESTADO_PAGO[x.facturacion.pago].titulo}` : "",
           proximosPasos: x.proximosPasos ?? "", comentarios: x.comentarios ?? "",
         });
         for (let c = 1; c <= COLUMNAS.length; c++) fila.getCell(c).border = borde("#BFBFBF");

@@ -26,7 +26,7 @@ export type Filtro =
   | { tipo: "si"; clave: string; etiqueta: string };
 
 export type PropsBarra = {
-  pantalla: "tablero" | "compras" | "solicitudes" | "ordenes" | "pedidos" | "coordinar" | "habilitados" | "proveedores";
+  pantalla: "tablero" | "compras" | "solicitudes" | "ordenes" | "pedidos" | "coordinar" | "habilitados" | "proveedores" | "facturacion";
   filtros: Filtro[];
   buscador?: { placeholder: string };
   orden?: { opciones: Opcion[]; porDefecto: string };

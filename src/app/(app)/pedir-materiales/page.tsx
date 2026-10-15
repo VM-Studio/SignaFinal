@@ -9,7 +9,7 @@ import { ElegirPedido } from "@/components/materiales/elegir-pedido";
 
 export const metadata: Metadata = { title: "Pedir materiales" };
 
-/** Pedir materiales a Compras (responsable de obra, capataz, Dirección y Compras). */
+/** "Pedir materiales" (rápido): obra, qué (texto o archivo), para cuándo; va a Compras en el acto. */
 export default async function PaginaPedirMateriales({ searchParams }: { searchParams: Promise<{ obra?: string; repetir?: string }> }) {
   const { obra, repetir } = await searchParams;
   const { obras, puedeCrearObra, responsables } = await datosPedirMateriales(); // verifica materiales.pedir
@@ -19,11 +19,11 @@ export default async function PaginaPedirMateriales({ searchParams }: { searchPa
   return (
     <div>
       <h1 className="sr-only">Pedir materiales a Compras</h1>
-      {puedePedirViaje && <ElegirPedido activo="materiales" obra={obra} />}
+      <ElegirPedido activo="materiales" obra={obra} viaje={puedePedirViaje} />
       {obras.length === 0 && !puedeCrearObra ? (
         <Vacio titulo="No tenés obras a cargo">Pedile a la oficina que te asigne tus obras para poder pedir materiales.</Vacio>
       ) : (
-        <MaterialesConHistorial historial={{ items, favoritos: favs }} precargaInicial={precarga} verBase="/mis-pedidos/material" obras={obras} obraInicial={obra} puedeCrearObra={puedeCrearObra} responsables={responsables} />
+        <MaterialesConHistorial historial={{ items, favoritos: favs }} precargaInicial={precarga} verBase="/compras/oc" obras={obras} obraInicial={obra} puedeCrearObra={puedeCrearObra} responsables={responsables} />
       )}
     </div>
   );

@@ -36,16 +36,16 @@ export function BotonActualizar({ className, iconos, oscuro = false }: { classNa
 
 /** Qué entidades le importan a cada pantalla (por ruta). Los formularios no se refrescan solos. */
 const POR_RUTA: [RegExp, EntidadCambio[]][] = [
-  // Formularios (la plantilla y la importación): no se refrescan solos.
-  [/^\/compras\/[^/]+\/oc/, []],
-  [/^\/compras\/(ordenes\/(nueva|[^/]+)|importar|viajes)$/, []],
+  // Formularios: no se refrescan solos. La plantilla del documento se actualiza celda por celda (plantilla.tsx).
+  [/^\/compras\/oc\//, []],
+  [/^\/compras\/(importar|viajes)$/, []],
   [/^\/(pedir|pedir-materiales)(\/|$)/, []],
-  [/^\/inicio/, ["PEDIDO_VIAJE", "VIAJE", "PEDIDO_MATERIAL", "ORDEN_COMPRA", "MATERIAL_LISTO", "HERRAMIENTA", "ALERTA"]],
+  [/^\/inicio/, ["PEDIDO_VIAJE", "VIAJE", "ORDEN_COMPRA", "MATERIAL_LISTO", "HERRAMIENTA", "ALERTA"]],
   [/^\/(solicitudes|hoy|viaje|viajes|viajes-en-curso)(\/|$)/, ["PEDIDO_VIAJE", "VIAJE"]],
-  [/^\/mis-pedidos/, ["PEDIDO_VIAJE", "VIAJE", "PEDIDO_MATERIAL", "ORDEN_COMPRA", "MATERIAL_LISTO"]],
-  [/^\/(compras|habilitados|aprobaciones|materiales)(\/|$)/, ["PEDIDO_MATERIAL", "ORDEN_COMPRA", "MATERIAL_LISTO", "PEDIDO_VIAJE"]],
+  [/^\/mis-pedidos/, ["PEDIDO_VIAJE", "VIAJE", "ORDEN_COMPRA", "MATERIAL_LISTO"]],
+  [/^\/(compras|habilitados|aprobaciones)(\/|$)/, ["ORDEN_COMPRA", "MATERIAL_LISTO", "PEDIDO_VIAJE"]],
   [/^\/(herramientas|entregas|sobrantes)(\/|$)/, ["HERRAMIENTA", "PEDIDO_VIAJE"]],
-  [/^\/obras/, ["PEDIDO_VIAJE", "PEDIDO_MATERIAL", "HERRAMIENTA"]],
+  [/^\/obras/, ["PEDIDO_VIAJE", "ORDEN_COMPRA", "HERRAMIENTA"]],
   [/^\/avisos/, ["AVISO"]],
   [/^\/alertas/, ["ALERTA"]],
   [/^\/mapa/, ["VIAJE", "PEDIDO_VIAJE"]],

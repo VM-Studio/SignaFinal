@@ -1,6 +1,6 @@
 /**
- * CAPTURAS DEL CIRCUITO DE COMPRAS a 390 y 1440 px (tmp/capturas/compras/): tablero (con el panel de una
- * orden), plantilla de OC, PDF, importación (vista previa con tmp/tablero-ejemplo.xlsx), cola con
+ * CAPTURAS DEL CIRCUITO DE COMPRAS a 390 y 1440 px (tmp/capturas/compras/): tablero con la franja de pedidos
+ * nuevos, una orden a página completa y la vuelta al tablero con filtros y scroll, plantilla de OC y PE, PDF, importación (vista previa con tmp/tablero-ejemplo.xlsx), cola con
  * filtros, coordinar viaje y solicitudes agrupadas por lugar. Las del inicio y la barra de cada rol las
  * saca scripts/capturas-roles.ts.
  *
@@ -22,7 +22,7 @@ async function entrar(nav: Browser, quien: string, ancho: number) {
   await p.fill("#email", `${quien}@signa.demo`);
   await p.fill("#password", "signa2026");
   await p.click('button[type="submit"]');
-  await p.waitForURL("**/inicio", { timeout: 60_000 });
+  await p.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 60_000 });
   await p.waitForTimeout(3000);
   return p;
 }
@@ -34,22 +34,40 @@ const ir = async (p: Page, ruta: string) => { await p.goto(`${BASE}${ruta}`); aw
     const p = await entrar(nav, "compras", ancho);
     const foto = (n: string, completa = false) => p.screenshot({ path: `${DIR}/${ancho}-${n}.png`, fullPage: completa });
 
-    await ir(p, "/compras/ordenes");
+    // Tablero con la franja negra de pedidos nuevos (Compras entra directo acá, sin /inicio).
+    await ir(p, "/compras/tablero");
     await foto("01-tablero");
-    const primera = ancho < 1024 ? p.locator("ul li a[href*='ver=']").first() : p.locator(".planilla tbody tr td:nth-child(6)").first();
-    await primera.click();
-    await p.waitForURL(/ver=/);
-    await p.waitForTimeout(1200);
-    await foto("02-tablero-orden", ancho < 1024);
-    const ocId = new URL(p.url()).searchParams.get("ver")!;
+    await ir(p, "/compras?filtro=nuevos");
+    await foto("01b-pedidos-nuevos");
 
-    await ir(p, `/compras/ordenes/${ocId}`);
+    // Una fila abre la orden a página completa; "← Volver al tablero" vuelve con los filtros y el scroll.
+    await ir(p, "/compras/tablero?orden=numero-asc&tipo=OC");
+    await p.evaluate(() => window.scrollTo(0, 400));
+    await p.waitForTimeout(400);
+    const antes = { url: p.url(), y: await p.evaluate(() => window.scrollY) };
+    const fila = ancho < 1024 ? p.locator("ul li a[href*='/compras/oc/']").last() : p.locator(".planilla tbody tr").last().locator("td").nth(5);
+    await fila.click();
+    await p.waitForURL(/\/compras\/oc\//);
+    await p.waitForTimeout(1500);
+    await foto("02-orden-pagina-completa");
+    const ocId = new URL(p.url()).pathname.split("/").pop()!;
     await foto("03-plantilla-oc", true);
-    await ir(p, "/compras/ordenes/nueva?tipo=PE");
+    await p.getByRole("link", { name: /Volver/ }).first().click();
+    await p.waitForURL(/\/compras\/tablero/);
+    await p.waitForTimeout(1500);
+    const despues = { url: p.url(), y: await p.evaluate(() => window.scrollY) };
+    console.log(`${ancho}: volver al tablero ${despues.url === antes.url && Math.abs(despues.y - antes.y) < 60 ? "✓" : "✗"} (${antes.url} y=${antes.y} → ${despues.url} y=${despues.y})`);
+    await foto("02b-volvio-al-tablero");
+
+    await ir(p, "/compras/oc/nueva");
+    await foto("04a-nueva");
+    await p.getByRole("button", { name: "Armar pedido especial" }).click();
+    await p.waitForURL(/\/compras\/oc\/(?!nueva)/);
+    await p.waitForTimeout(1500);
     await foto("04-plantilla-pe");
 
     if (ancho === 1440) {
-      const r = await p.context().request.get(`${BASE}/api/oc/${ocId}/pdf?aprobada=1`);
+      const r = await p.context().request.get(`${BASE}/api/oc/${ocId}/pdf`);
       writeFileSync(`${DIR}/05-pdf.pdf`, await r.body());
     }
 

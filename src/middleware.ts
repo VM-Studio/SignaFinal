@@ -7,6 +7,8 @@ export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const sesion = await verificar(req.cookies.get(COOKIE_SESION)?.value);
   const esLogin = pathname === "/login";
+  // La hoja de impresión del documento de compra: Chromium la abre con un token de un solo uso (la página lo valida).
+  if (!sesion && /^\/compras\/oc\/[^/]+\/imprimir$/.test(pathname) && req.nextUrl.searchParams.has("token")) return NextResponse.next();
 
   if (!sesion && !esLogin) {
     const url = new URL("/login", req.url);

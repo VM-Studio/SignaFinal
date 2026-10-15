@@ -5,7 +5,7 @@ import { ErrorNegocio } from "@/lib/resultado";
 import { CARPETAS, MAX_POR_SERVIDOR_BYTES, registrarAdjunto, subir } from "@/lib/archivos";
 import { puedeSubir } from "@/lib/adjuntos/permisos";
 
-const ENTIDADES: EntidadAdjunto[] = ["PEDIDO_MATERIAL", "ORDEN_COMPRA", "VIAJE", "HERRAMIENTA", "VEHICULO"];
+const ENTIDADES: EntidadAdjunto[] = ["ORDEN_COMPRA", "VIAJE", "HERRAMIENTA", "VEHICULO"];
 
 /**
  * Sube uno o varios archivos (multipart: "archivo", "entidadTipo", "interno") y devuelve los Adjunto

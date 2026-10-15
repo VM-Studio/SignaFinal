@@ -10,7 +10,7 @@ const esquema = z.object({
   nombre: z.string().min(1).max(200),
   tamano: z.number().int().positive(),
   tipo: z.string().optional(),
-  entidadTipo: z.enum(["PEDIDO_MATERIAL", "ORDEN_COMPRA", "VIAJE", "HERRAMIENTA", "VEHICULO"]),
+  entidadTipo: z.enum(["ORDEN_COMPRA", "VIAJE", "HERRAMIENTA", "VEHICULO"]),
   interno: z.boolean().optional(),
 });
 

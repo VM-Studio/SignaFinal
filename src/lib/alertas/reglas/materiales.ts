@@ -1,11 +1,12 @@
 import { db } from "@/lib/db";
 import { cuando } from "@/lib/formato";
 import { queLleva } from "@/lib/notificaciones/textos";
-import { demorado, diasDesde, LIMITES } from "@/lib/materiales/presentacion";
+import { demorado, diasDesde, LIMITES, nombreDoc } from "@/lib/compras/documento";
+import { primeraLinea } from "@/lib/materiales/comun";
 import type { AlertaCalculada, Regla } from "../tipos";
 
 const DIA = 86_400_000;
-const enlace = (id: string) => `/materiales/${id}`;
+const enlace = (id: string) => `/compras/oc/${id}`;
 
 /** Material habilitado para retirar hace más de 3 días y nadie pidió el viaje (aviso). */
 async function sinRetirar(): Promise<AlertaCalculada[]> {
@@ -14,47 +15,47 @@ async function sinRetirar(): Promise<AlertaCalculada[]> {
     include: {
       obra: { select: { nombre: true, responsables: { where: { activo: true }, select: { usuarioId: true } } } },
       proveedor: { select: { nombre: true } },
-      pedidoMaterial: { select: { solicitanteId: true } },
+      ordenCompra: { select: { solicitanteId: true, creadaPorId: true } },
     },
   });
   return m.map((x) => ({
     claveUnica: `MATERIAL_SIN_RETIRAR:${x.id}`, regla: "MATERIAL_SIN_RETIRAR", severidad: "AVISO",
     titulo: `Sin retirar hace ${diasDesde(x.habilitadoEn)} días: ${queLleva(x.descripcion)}`,
     detalle: `Para Obra ${x.obra.nombre}, listo en ${x.proveedor.nombre} desde ${cuando(x.habilitadoEn)}. Nadie pidió el viaje.`,
-    entidadTipo: "MaterialListo", entidadId: x.id, enlace: enlace(x.pedidoMaterialId), obraId: x.obraId,
-    usuarios: [x.pedidoMaterial.solicitanteId, ...x.obra.responsables.map((r) => r.usuarioId)],
+    entidadTipo: "MaterialListo", entidadId: x.id, enlace: enlace(x.ordenCompraId), obraId: x.obraId,
+    usuarios: [x.ordenCompra.solicitanteId ?? x.ordenCompra.creadaPorId, ...x.obra.responsables.map((r) => r.usuarioId)],
   }));
 }
 
-/** Pedido de material más de 2 días hábiles sin comprar (SOLICITADO o EN_COMPRA) (aviso). */
+/** Documento más de 2 días hábiles en manos de Compras sin enviar a autorización (aviso; urgente: crítica). */
 async function comprasDemorada(): Promise<AlertaCalculada[]> {
-  const p = await db.pedidoMaterial.findMany({
-    where: { estado: { in: ["SOLICITADO", "EN_COMPRA"] }, creadoEn: { lt: new Date(Date.now() - 2 * DIA) } },
-    include: { obra: { select: { nombre: true } }, solicitante: { select: { nombre: true } }, cambios: { orderBy: { fecha: "desc" }, take: 1, select: { fecha: true } } },
+  const p = await db.ordenCompra.findMany({
+    where: { estado: { in: ["ENVIADA_A_COMPRAS", "EN_COMPRAS"] }, creadoEn: { lt: new Date(Date.now() - 2 * DIA) } },
+    include: { obra: { select: { nombre: true } }, solicitante: { select: { nombre: true } }, creadaPor: { select: { nombre: true } }, cambios: { orderBy: { fecha: "desc" }, take: 1, select: { fecha: true } } },
   });
   return p
     .filter((x) => demorado(x.estado, x.cambios[0]?.fecha ?? x.creadoEn))
     .map((x) => ({
       claveUnica: `MATERIAL_DEMORADO:${x.id}`, regla: "MATERIAL_DEMORADO", severidad: x.prioridad === "URGENTE" ? "CRITICA" : "AVISO",
-      titulo: `${x.estado === "SOLICITADO" ? "Nadie tomó" : "Sigue en compra"}: ${queLleva(x.descripcion)}`,
-      detalle: `Pedido #${x.numero} de ${x.solicitante.nombre} para Obra ${x.obra.nombre}, ${x.estado === "SOLICITADO" ? "pedido" : "en compra"} desde ${cuando(x.cambios[0]?.fecha ?? x.creadoEn)} (más de ${LIMITES.compraDiasHabiles} días hábiles).`,
-      entidadTipo: "PedidoMaterial", entidadId: x.id, enlace: enlace(x.id), obraId: x.obraId,
+      titulo: `${x.estado === "ENVIADA_A_COMPRAS" ? "Nadie abrió" : "Sigue en Compras"}: ${queLleva(primeraLinea(x.detallePedido))}`,
+      detalle: `${nombreDoc(x)} de ${x.solicitante?.nombre ?? x.creadaPor.nombre}${x.obra ? ` para Obra ${x.obra.nombre}` : ""}, ${x.estado === "ENVIADA_A_COMPRAS" ? "enviada" : "en Compras"} desde ${cuando(x.cambios[0]?.fecha ?? x.creadoEn)} (más de ${LIMITES.compraDiasHabiles} días hábiles).`,
+      entidadTipo: "OrdenCompra", entidadId: x.id, enlace: enlace(x.id), obraId: x.obraId,
     }));
 }
 
-/** Orden de compra esperando la aprobación del dueño hace más de 1 día (aviso). */
+/** Orden esperando la autorización del dueño hace más de 1 día (aviso). */
 async function aprobacionDemorada(): Promise<AlertaCalculada[]> {
-  const p = await db.pedidoMaterial.findMany({
-    where: { estado: "ESPERANDO_APROBACION" },
+  const p = await db.ordenCompra.findMany({
+    where: { estado: "ESPERANDO_AUTORIZACION", fuente: { not: "IMPORTADA" } },
     include: { obra: { select: { nombre: true } }, cambios: { orderBy: { fecha: "desc" }, take: 1, select: { fecha: true } } },
   });
   return p
     .filter((x) => demorado(x.estado, x.cambios[0]?.fecha ?? x.creadoEn))
     .map((x) => ({
       claveUnica: `APROBACION_DEMORADA:${x.id}`, regla: "APROBACION_DEMORADA", severidad: "AVISO",
-      titulo: `OC para aprobar desde ${cuando(x.cambios[0]?.fecha ?? x.creadoEn)}`,
-      detalle: `${x.ordenCompraNumero ?? "Orden de compra"} de ${queLleva(x.descripcion)} para Obra ${x.obra.nombre}. Compras espera tu aprobación.`,
-      entidadTipo: "PedidoMaterial", entidadId: x.id, enlace: "/aprobaciones", obraId: x.obraId,
+      titulo: `${nombreDoc(x)} para autorizar desde ${cuando(x.cambios[0]?.fecha ?? x.creadoEn)}`,
+      detalle: `${nombreDoc(x)} de ${queLleva(primeraLinea(x.detallePedido))}${x.obra ? ` para Obra ${x.obra.nombre}` : ""}. Compras espera tu autorización.`,
+      entidadTipo: "OrdenCompra", entidadId: x.id, enlace: "/aprobaciones", obraId: x.obraId,
     }));
 }
 

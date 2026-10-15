@@ -52,7 +52,7 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
       <TirarParaActualizar />
       <BarraLateral principales={escritorio.principales} mas={escritorio.mas} />
       {/* Compras: navbar de 64px con la píldora del dólar (globals.css, .header-compras). */}
-      <div className={`flex min-h-dvh flex-col bg-fondo lg:pt-[var(--alto-header)] lg:pl-[232px] ${compras ? "header-64 header-compras" : puede(u.rol, "dolar.ver") ? "con-dolar" : ""}`}>
+      <div data-usuario={u.id} className={`flex min-h-dvh flex-col bg-fondo lg:pt-[var(--alto-header)] lg:pl-[232px] ${compras ? "header-64 header-compras" : puede(u.rol, "dolar.ver") ? "con-dolar" : ""}`}>
         <HeaderMovil perfil={perfil} secciones={secciones} />
         <HeaderEscritorio perfil={perfil} secciones={secciones} dolar={puede(u.rol, "dolar.ver")} variante={compras ? "compras" : undefined} />
         <div className="sticky top-[calc(52px+env(safe-area-inset-top))] z-20 lg:top-[var(--alto-header)]">

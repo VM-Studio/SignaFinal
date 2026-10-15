@@ -46,3 +46,5 @@ tmp/
 
 # Planillas reales de la empresa (datos de Compras): nunca al repo (es público)
 docs/plantilla-oc/*.xlsx
+docs/plantilla-oc/*.pdf
+docs/orden-de-compra.pdf

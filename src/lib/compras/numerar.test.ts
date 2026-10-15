@@ -8,15 +8,14 @@ import { asignarNumeroOC, formatoOC, numeroCorto, siguienteNumero, subirNumerado
  */
 const db = new PrismaClient();
 const hayBase = !!process.env.DATABASE_URL;
-let fixture: { obraId: string; usuarioId: string; pedidoId: string; numeradores: { tipo: "OC" | "PE"; ultimo: number }[] } | null = null;
+let fixture: { obraId: string; usuarioId: string; numeradores: { tipo: "OC" | "PE"; ultimo: number }[] } | null = null;
 
 describe.skipIf(!hayBase).sequential("numeración por tipo (con base)", () => {
   beforeAll(async () => {
     const usuario = await db.usuario.findFirstOrThrow({ select: { id: true } });
     const obra = await db.obra.create({ data: { nombre: "Prueba numeración", codigo: `TEST-OC-${Date.now()}`, direccion: "-", localidad: "-", latitud: 0, longitud: 0, estado: "FINALIZADA" } });
-    const pedido = await db.pedidoMaterial.create({ data: { obraId: obra.id, solicitanteId: usuario.id, descripcion: "prueba", paraCuando: new Date() } });
     const numeradores = await db.numeradorOC.findMany();
-    fixture = { obraId: obra.id, usuarioId: usuario.id, pedidoId: pedido.id, numeradores };
+    fixture = { obraId: obra.id, usuarioId: usuario.id, numeradores };
     // Números de prueba altos: no chocan con los reales.
     await db.numeradorOC.upsert({ where: { tipo: "OC" }, create: { tipo: "OC", ultimo: 900000 }, update: { ultimo: 900000 } });
     await db.numeradorOC.upsert({ where: { tipo: "PE" }, create: { tipo: "PE", ultimo: 800000 }, update: { ultimo: 800000 } });
@@ -24,8 +23,7 @@ describe.skipIf(!hayBase).sequential("numeración por tipo (con base)", () => {
 
   afterAll(async () => {
     if (fixture) {
-      await db.ordenCompra.deleteMany({ where: { pedidoMaterialId: fixture.pedidoId } });
-      await db.pedidoMaterial.delete({ where: { id: fixture.pedidoId } });
+      await db.ordenCompra.deleteMany({ where: { obraId: fixture.obraId } });
       await db.obra.delete({ where: { id: fixture.obraId } });
       await db.numeradorOC.deleteMany();
       if (fixture.numeradores.length) await db.numeradorOC.createMany({ data: fixture.numeradores });
@@ -35,7 +33,7 @@ describe.skipIf(!hayBase).sequential("numeración por tipo (con base)", () => {
 
   const nueva = (tipo: "OC" | "PE" = "OC") => {
     const f = fixture!;
-    return db.ordenCompra.create({ data: { tipo, pedidoMaterialId: f.pedidoId, obraId: f.obraId, solicitanteId: f.usuarioId, creadaPorId: f.usuarioId }, select: { id: true } });
+    return db.ordenCompra.create({ data: { tipo, estado: "EN_COMPRAS", obraId: f.obraId, solicitanteId: f.usuarioId, creadaPorId: f.usuarioId }, select: { id: true } });
   };
 
   it("50 OC enviadas en paralelo: 50 números distintos y seguidos", async () => {
