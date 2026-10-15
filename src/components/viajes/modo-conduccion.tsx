@@ -3,12 +3,14 @@
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Navigation, X } from "lucide-react";
+import { Check, Navigation, SatelliteDish, X } from "lucide-react";
 import type { PantallaViaje as Datos } from "@/lib/viajes/chofer";
 import { hora } from "@/lib/formato";
 import { metros, minutos } from "@/lib/rutas/formato";
 import { abrirEnGoogleMaps } from "@/lib/viajes/navegar";
-import { llegueAlDestino, marcarItem, responderLlegada, responderSalida, salgoHaciaDestino } from "@/lib/viajes/acciones";
+import { iniciarViaje, llegueAlDestino, marcarItem, responderLlegada, salgoHaciaDestino } from "@/lib/viajes/acciones";
+import { pasosDelViaje, type Paso } from "@/lib/viajes/pasos";
+import { bloqueoPorFecha } from "@/lib/viajes/fecha";
 import { enviarOGuardar } from "@/lib/offline/cola";
 import { useAviso } from "@/components/ui/avisos";
 import { useAlCambiar } from "@/components/layout/avisos-en-vivo";
@@ -26,20 +28,28 @@ export const CLAVE_CONDUCIENDO = "signa:conduciendo";
 const REFRESCO_MS = 10_000;
 
 /**
- * MODO CONDUCCIÓN (/viaje/[id]/conducir): pantalla completa y oscura, el mapa arriba (60 %) y abajo la
- * tarjeta de la parada actual con UN deslizador para lo que sigue (llegué, salgo, terminar). Nunca un botón
- * común para esas acciones. Mantiene la pantalla prendida (Wake Lock) y, al volver de Google Maps, trae el
- * estado del servidor. Todo termina en las mismas acciones del motor (auditoría con origen DESLIZADOR).
+ * MODO CONDUCCIÓN (/viaje/[id]/conducir): el viaje es una secuencia de deslizadores, UN paso por pantalla
+ * (src/lib/viajes/pasos.ts): "Paso 2 de 4", letra grande y solo la parada actual. El deslizador es el único
+ * control: si el GPS detecta la llegada se pone verde y vibra, pero se puede deslizar igual sin esperar; sin
+ * señal funciona igual (es manual) y abajo dice "Sin señal GPS". El chofer nunca escribe un número. Todo termina
+ * en las mismas acciones del motor, con la auditoría de origen DESLIZADOR (o GPS, cuando lo marca el motor).
  */
 export function ModoConduccion({ d }: { d: Datos }) {
   const router = useRouter();
   const aviso = useAviso();
   const [finalizar, setFinalizar] = useState(false);
-  const actual = d.paradas.find((p) => p.id === d.actualId) ?? null;
-  const faltan = d.paradas.filter((p) => p.estado !== "COMPLETADA" && p.estado !== "SALTEADA");
-  const llego = actual?.estado === "LLEGO";
-  const ultima = faltan.length <= 1;
-  const n = actual ? d.paradas.indexOf(actual) + 1 : d.paradas.length;
+  // Pasos hechos en este teléfono que el servidor todavía no reflejó (enviado o guardado sin señal).
+  const [hechosLocal, setHechosLocal] = useState<string[]>([]);
+  const [enviando, setEnviando] = useState(false);
+
+  const r = pasosDelViaje(d.paradas, { iniciado: d.estado !== "PROGRAMADO", terminado: d.estado === "FINALIZADO", porConfirmar: d.confirmar?.id ?? null });
+  const pasos = r.pasos.map((p) => (hechosLocal.includes(p.clave) ? { ...p, hecho: true } : p));
+  const indice = pasos.findIndex((p) => !p.hecho);
+  const paso: Paso | null = indice === -1 ? null : pasos[indice];
+  const parada = paso?.paradaId ? d.paradas.find((x) => x.id === paso.paradaId) ?? null : null;
+  const hacia = paso?.haciaId ? d.paradas.find((x) => x.id === paso.haciaId) ?? null : null;
+  const verde = !!paso && !!d.confirmar && paso.paradaId === d.confirmar.id && (paso.tipo === "LLEGUE" || paso.tipo === "TERMINAR");
+  const porFecha = paso?.tipo === "INICIAR" ? bloqueoPorFecha(new Date(d.paraCuando)) : null;
 
   // Recordar el viaje (para volver desde Google Maps) y traer el estado al volver a la pantalla.
   useEffect(() => {
@@ -77,11 +87,11 @@ export function ModoConduccion({ d }: { d: Datos }) {
     };
   }, []);
 
-  // Llegada detectada por GPS: vibra una vez.
-  const detectada = d.confirmar?.lugar ?? null;
+  // El GPS detectó la llegada (deslizador verde) o el paso cambió solo (salida por GPS): vibra.
+  const claveActual = paso?.clave ?? "fin";
   useEffect(() => {
-    if (detectada) navigator.vibrate?.(250);
-  }, [detectada]);
+    if (verde) navigator.vibrate?.(250);
+  }, [verde, claveActual]);
 
   const salir = () => {
     try {
@@ -90,101 +100,124 @@ export function ModoConduccion({ d }: { d: Datos }) {
     router.push(`/viaje/${d.pedidoId}`);
   };
 
-  /** Lo mismo que los botones (con su respaldo sin señal), con el origen DESLIZADOR. */
-  async function tramo(tipo: "viaje.llegada" | "viaje.salgo") {
+  /** Cada paso termina en la misma acción que antes (con su respaldo sin señal), con el origen DESLIZADOR. */
+  async function hacer() {
+    if (!paso) return;
+    if (paso.tipo === "TERMINAR") return setFinalizar(true);
+    setEnviando(true);
     const gps = await posicionActual();
-    const datos = { clientId: crypto.randomUUID(), pedidoId: d.pedidoId, paradaId: actual?.id, canal: "DESLIZADOR" as const, ocurridoEn: new Date().toISOString(), ...(gps ?? {}) };
-    const accion = tipo === "viaje.llegada" ? llegueAlDestino : salgoHaciaDestino;
-    const r = await enviarOGuardar({ id: datos.clientId, tipo, pedidoId: d.pedidoId, descripcion: `${tipo === "viaje.llegada" ? d.manual.llegue : d.manual.salgo} · pedido ${d.numero}`, datos }, () => accion(datos));
-    if (r.estado === "error") aviso({ mensaje: r.error, tono: "error" });
-    else if (r.estado === "guardado") aviso({ mensaje: "Sin señal: quedó guardado en el teléfono y se manda solo." });
-    router.refresh();
-  }
-  async function confirmar(si: boolean) {
-    const r = await responderLlegada(d.pedidoId, si, "DESLIZADOR");
-    if (!r.ok) aviso({ mensaje: r.error, tono: "error" });
-    else if (!si) aviso({ mensaje: "Listo. Te avisamos cuando llegues." });
-    router.refresh();
-  }
-  async function sigoAca() {
-    const r = await responderSalida(d.pedidoId, false, "DESLIZADOR");
-    aviso(r.ok ? { mensaje: "Listo: seguís en el lugar." } : { mensaje: r.error, tono: "error" });
+    const base = { clientId: crypto.randomUUID(), pedidoId: d.pedidoId, canal: "DESLIZADOR" as const, ocurridoEn: new Date().toISOString(), ...(gps ?? {}) };
+    let r: Awaited<ReturnType<typeof enviarOGuardar>>;
+    if (paso.tipo === "INICIAR") {
+      r = await enviarOGuardar({ id: base.clientId, tipo: "viaje.iniciar", pedidoId: d.pedidoId, descripcion: `Salida del pedido ${d.numero} con ${d.vehiculo}`, datos: base }, () => iniciarViaje(base));
+    } else if (paso.tipo === "LLEGUE" && verde) {
+      const x = await responderLlegada(d.pedidoId, true, "DESLIZADOR");
+      r = x.ok ? { estado: "enviado", datos: null } : { estado: "error", error: x.error };
+    } else {
+      const datos = { ...base, paradaId: paso.paradaId ?? undefined };
+      const tipo = paso.tipo === "LLEGUE" ? "viaje.llegada" : "viaje.salgo";
+      r = await enviarOGuardar({ id: base.clientId, tipo, pedidoId: d.pedidoId, descripcion: `${paso.titulo} · pedido ${d.numero}`, datos }, () => (tipo === "viaje.llegada" ? llegueAlDestino(datos) : salgoHaciaDestino(datos)));
+    }
+    setEnviando(false);
+    if (r.estado === "error") return aviso({ mensaje: r.error, tono: "error" });
+    setHechosLocal((h) => [...h, paso.clave]);
+    if (r.estado === "guardado") aviso({ mensaje: "Sin señal: quedó guardado en el teléfono y se manda solo." });
     router.refresh();
   }
 
-  // Qué pide el deslizador según el estado.
-  const cuando = d.manual.llegue.replace(/^Llegué /, "llegues ");
-  const deslizador = !actual || (llego && ultima && !detectada)
-    ? { texto: "Deslizá para terminar el viaje", verde: false, hacer: () => setFinalizar(true) }
-    : detectada
-      ? { texto: `Llegaste a ${detectada} · deslizá para confirmar`, verde: true, hacer: () => confirmar(true) }
-      : llego
-        ? { texto: "Deslizá cuando salgas", verde: false, hacer: () => tramo("viaje.salgo") }
-        : { texto: `Deslizá cuando ${cuando}`, verde: false, hacer: () => tramo("viaje.llegada") };
-
-  const hasta = actual ? { lat: actual.lat, lng: actual.lng } : null;
-  const mapa = d.tramo && actual
-    ? <MapaTramo geometria={d.tramo.geometria} desde={d.tramo.desde} hasta={d.tramo.hasta} nombreHasta={actual.nombre} otras={faltan.filter((p) => p.id !== actual.id).map((p) => ({ lat: p.lat, lng: p.lng, n: d.paradas.indexOf(p) + 1 }))} />
-    : hasta && actual
-      ? <MapaTramo geometria={[[hasta.lat, hasta.lng]]} desde={hasta} hasta={hasta} nombreHasta={actual.nombre} />
+  // El mapa, solo mientras va hacia un lugar (Llegué a… / Terminar antes de llegar).
+  const yendo = parada && parada.id === d.actualId && parada.estado !== "LLEGO" && (paso?.tipo === "LLEGUE" || paso?.tipo === "TERMINAR");
+  const mapa = yendo && d.tramo
+    ? <MapaTramo geometria={d.tramo.geometria} desde={d.tramo.desde} hasta={d.tramo.hasta} nombreHasta={parada.nombre} />
+    : yendo
+      ? <MapaTramo geometria={[[parada.lat, parada.lng]]} desde={{ lat: parada.lat, lng: parada.lng }} hasta={{ lat: parada.lat, lng: parada.lng }} nombreHasta={parada.nombre} />
       : null;
+  const primera = d.paradas[0] ?? null;
 
   return (
     <div data-sin-arrastre className="fixed inset-0 z-[45] flex flex-col bg-negro text-white">
-      {/* Mapa: 60 % de arriba. */}
-      <div className="relative isolate h-[60dvh] min-h-0 shrink-0">
-        {mapa ?? <div className="grid h-full place-items-center text-white/60">Sin recorrido para mostrar.</div>}
-        <button type="button" onClick={salir} aria-label="Salir del modo conducción" className="absolute top-[calc(12px+env(safe-area-inset-top))] left-3 z-[1000] grid size-12 place-items-center rounded-full bg-negro/85 text-white shadow-[0_4px_16px_rgba(0,0,0,.3)]">
+      <header className="flex shrink-0 items-center gap-3 px-4 pt-[calc(12px+env(safe-area-inset-top))] pb-3">
+        <button type="button" onClick={salir} aria-label="Salir del modo conducción" className="grid size-12 shrink-0 place-items-center rounded-full bg-white/10">
           <X className="size-6" />
         </button>
-      </div>
+        <p className="min-w-0 flex-1 text-[15px] font-semibold tracking-[0.04em] text-white/70 uppercase">{paso ? `Paso ${indice + 1} de ${pasos.length}` : "Viaje terminado"}</p>
+      </header>
 
-      {/* Tarjeta fija de abajo: todo al alcance del pulgar. */}
-      <section className="pb-segura flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-t-2xl border-t border-white/10 bg-white/[0.04] px-4 pt-4">
-        {actual ? (
+      {mapa && <div className="relative isolate h-[34dvh] min-h-0 shrink-0">{mapa}</div>}
+
+      <section className="pb-segura flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pt-4">
+        {paso?.tipo === "INICIAR" && (
           <>
-            <p className="text-[13px] font-medium tracking-[0.04em] text-white/60 uppercase">Parada {n} de {d.paradas.length} · {actual.tipo === "RETIRO" ? "Retiro" : "Entrega"}</p>
-            <div>
-              <p className="text-[26px] leading-8 font-semibold">{actual.nombre}</p>
-              <p className="mt-1 text-[15px] text-white/70">{actual.direccion}</p>
-            </div>
-            {d.tramo && !llego && (
+            <p className="text-[32px] leading-9 font-semibold">Iniciar viaje</p>
+            <p className="text-[17px] text-white/70">Con {d.vehiculo}{primera ? ` · primero: ${primera.nombre}` : ""}</p>
+            {primera && <p className="text-[15px] text-white/60">{primera.direccion}</p>}
+            {porFecha && <p className="text-[17px] font-semibold text-[#F5C26B]">{porFecha}</p>}
+          </>
+        )}
+
+        {paso && paso.tipo !== "INICIAR" && parada && (
+          <>
+            <p className="text-[32px] leading-9 font-semibold break-words">{paso.titulo}</p>
+            {paso.tipo === "EN_CAMINO" && hacia ? (
+              <p className="text-[17px] text-white/70">{hacia.direccion}</p>
+            ) : (
+              <p className="text-[17px] text-white/70">{parada.direccion}</p>
+            )}
+            {yendo && d.tramo && (
               <p className="text-[22px] font-semibold tabular-nums">
                 {metros(d.tramo.distanciaM)}
                 {d.eta && <span suppressHydrationWarning className="text-[15px] font-medium text-white/70"> · {minutos(Math.max(60, (new Date(d.eta).getTime() - Date.now()) / 1000))} · llegás {hora(d.eta)} (con tránsito)</span>}
               </p>
             )}
-            {!llego && d.navegacion.length > 0 && (
+            {yendo && d.navegacion.length > 0 && (
               <button type="button" onClick={() => abrirEnGoogleMaps(d.navegacion)} className="flex h-12 w-full items-center justify-center gap-2 rounded-md border border-white/25 text-[15px] font-semibold active:bg-white/10">
                 <Navigation className="size-5" /> Abrir en Google Maps
               </button>
             )}
-            {/* En el lugar: la lista para tildar. */}
-            {llego && !detectada && actual.items.length > 0 && <Lista items={actual.items} />}
+            {/* Datos del lugar de retiro (horario, contacto, OC). */}
+            {parada.retiro && (paso.tipo === "LLEGUE" || paso.tipo === "EN_CAMINO") && (parada.retiro.horario || parada.retiro.contacto || parada.retiro.oc) && (
+              <dl className="flex flex-col gap-1 rounded-md bg-white/5 px-3 py-2 text-[15px]">
+                {parada.retiro.horario && <div className="flex gap-2"><dt className="text-white/60">Horario</dt><dd>{parada.retiro.horario}</dd></div>}
+                {parada.retiro.contacto && <div className="flex gap-2"><dt className="text-white/60">Preguntar por</dt><dd className="min-w-0 break-words">{parada.retiro.contacto}</dd></div>}
+                {parada.retiro.oc && <div className="flex gap-2"><dt className="text-white/60">OC</dt><dd>{parada.retiro.oc}</dd></div>}
+              </dl>
+            )}
+            {/* Lo que se carga o se entrega acá: para tildar. */}
+            {parada.items.length > 0 && (
+              <>
+                <p className="mt-1 text-[13px] font-semibold tracking-[0.04em] text-white/60 uppercase">{parada.tipo === "RETIRO" ? `Cargar en ${parada.nombre}` : `Entregar en ${parada.nombre}`}</p>
+                <Lista items={parada.items} editable={d.estado === "EN_CURSO"} />
+              </>
+            )}
           </>
-        ) : (
-          <p className="text-[22px] font-semibold">Ya hiciste todas las paradas.</p>
         )}
 
+        {!paso && <p className="text-[26px] font-semibold">Ya hiciste todos los pasos.</p>}
+
         <div className="mt-auto flex flex-col gap-2 pt-2 pb-3">
-          <Deslizador texto={deslizador.texto} verde={deslizador.verde} onCompletar={deslizador.hacer} />
-          {detectada && (
-            <button type="button" onClick={() => confirmar(false)} className="h-11 text-[15px] font-medium text-white/80 underline">No llegué todavía</button>
+          {paso && (
+            <Deslizador
+              key={paso.clave}
+              texto={paso.titulo}
+              verde={verde}
+              deshabilitado={!!porFecha || enviando}
+              onCompletar={hacer}
+            />
           )}
-          {d.sigoAca && !detectada && (
-            <button type="button" onClick={sigoAca} className="h-11 text-[15px] font-medium text-white/80 underline">Sigo en {d.sigoAca.lugar}</button>
+          {d.estado === "EN_CURSO" && d.sinGps && (
+            <p className="flex items-center justify-center gap-1.5 text-[13px] text-white/50"><SatelliteDish className="size-4" /> Sin señal GPS</p>
           )}
         </div>
       </section>
 
-      <HojaFinalizar pedidoId={d.pedidoId} numero={d.numero} obra={actual?.nombre ?? d.paradas[d.paradas.length - 1]?.nombre ?? ""} kmSalida={d.kmSalida} abierta={finalizar} onCerrar={() => setFinalizar(false)} canal="DESLIZADOR"
+      <HojaFinalizar pedidoId={d.pedidoId} numero={d.numero} obra={parada?.nombre ?? d.paradas[d.paradas.length - 1]?.nombre ?? ""} abierta={finalizar} onCerrar={() => setFinalizar(false)} canal="DESLIZADOR"
         onTerminado={() => { try { sessionStorage.removeItem(CLAVE_CONDUCIENDO); } catch {} }} />
     </div>
   );
 }
 
-/** La lista de verificación, compacta y oscura: un toque tilda o destilda. */
-function Lista({ items }: { items: Datos["paradas"][number]["items"] }) {
+/** La lista de verificación, compacta y oscura: un toque tilda o destilda (en curso). */
+function Lista({ items, editable }: { items: Datos["paradas"][number]["items"]; editable: boolean }) {
   const [marcados, setMarcados] = useState(() => new Set(items.filter((i) => i.marcado && !i.faltante).map((i) => i.id)));
   async function alternar(id: string) {
     const ahora = !marcados.has(id);
@@ -202,9 +235,9 @@ function Lista({ items }: { items: Datos["paradas"][number]["items"] }) {
         const ok = marcados.has(i.id);
         return (
           <li key={i.id}>
-            <button type="button" role="checkbox" aria-checked={ok} disabled={i.faltante} onClick={() => alternar(i.id)} className={`flex min-h-12 w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-[15px] ${ok ? "border-ok bg-ok/25" : "border-white/15 bg-white/5"} disabled:opacity-60`}>
+            <button type="button" role="checkbox" aria-checked={ok} disabled={i.faltante || !editable} onClick={() => alternar(i.id)} className={`flex min-h-12 w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-[17px] ${ok ? "border-ok bg-ok/25" : "border-white/15 bg-white/5"} disabled:opacity-80`}>
               <span aria-hidden className={`grid size-6 shrink-0 place-items-center rounded border ${ok ? "border-ok bg-ok" : "border-white/40"}`}>{ok && <Check className="size-4" strokeWidth={3} />}</span>
-              <span className="min-w-0 flex-1 leading-snug">
+              <span className="min-w-0 flex-1 leading-snug break-words">
                 {[i.cantidad != null ? new Intl.NumberFormat("es-AR").format(i.cantidad) : null, i.unidad, i.descripcion].filter(Boolean).join(" ")}
                 <span className="block text-[13px] text-white/60">→ {i.obra.replace(/^Obra\s+/i, "")}{i.oc ? ` · ${i.oc}` : ""}{i.faltante ? " · faltó" : ""}</span>
               </span>

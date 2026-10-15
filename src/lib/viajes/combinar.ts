@@ -46,7 +46,7 @@ export type SugerenciaPlana = Omit<Sugerencia, "pedido"> & {
 
 /**
  * Sugerencias para combinar con estos pedidos (el que acepta y, si ya hay viaje, los que lleva): pendientes
- * de cualquiera y los propios del mismo día sin iniciar. Los de los próximos 7 días aparecen en gris.
+ * de cualquiera y los propios del mismo día sin iniciar, para ese día o antes.
  */
 export async function sugerenciasPara(u: Pick<UsuarioSesion, "id" | "rol">, pedidoIds: string[]): Promise<{ dia: string; sugerencias: SugerenciaPlana[] }> {
   const base = await db.pedidoViaje.findMany({ where: { id: { in: pedidoIds } }, select: seleccionCombinable });
@@ -72,7 +72,8 @@ export async function sugerenciasPara(u: Pick<UsuarioSesion, "id" | "rol">, pedi
     const j = idx.get(clave(b));
     return i != null && j != null ? m[i][j] : distancia(a, b) * 1.3;
   };
-  const sugerencias = sugerir(bases, candidatos, { dia, dist });
+  // Solo los que se pueden llevar: para el día del viaje o antes, y que se combinan (personas con escombros no).
+  const sugerencias = sugerir(bases, candidatos, { dia, dist }).filter((x) => !x.gris);
   return {
     dia,
     sugerencias: sugerencias.map((s) => ({

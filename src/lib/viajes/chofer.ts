@@ -197,7 +197,7 @@ export async function pantallaViaje(pedidoId: string) {
   // Llegada que detectó el GPS (o a otra parada antes que la que tocaba) que el chofer puede negar.
   const pendiente = estadoMotor(v).pendiente;
   const pend = pendiente && new Date(pendiente.hasta) > new Date() ? v.paradas.find((x) => x.id === pendiente.clave && x.estado === "LLEGO") : null;
-  const confirmar = pend ? { lugar: pend.nombre, adelantadaDe: pendiente?.adelantadaDe ?? null } : null;
+  const confirmar = pend ? { id: pend.id, lugar: pend.nombre, adelantadaDe: pendiente?.adelantadaDe ?? null } : null;
   // Salida que marcó el GPS: por 30 minutos puede decir "Sigo acá".
   const sp = estadoMotor(v).salidaPendiente;
   const salida = sp && new Date(sp.hasta) > new Date() ? v.paradas.find((x) => x.id === sp.clave && x.estado === "COMPLETADA") : null;

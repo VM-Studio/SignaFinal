@@ -77,7 +77,7 @@ function Hoy({ tarjetas }: { tarjetas: Tarjeta[] }) {
           href={`/viaje/${t.pedidoId}`}
           destacada={t === conBoton}
           accion={t === conBoton && t.etapa ? (
-            <BotonEtapa etapa={t.etapa} pedidoId={t.pedidoId} numero={t.numero} vehiculo={t.vehiculo ?? ""} kmActual={t.kmActual} kmSalida={t.kmSalida} obra={t.entregar.nombre} paraCuando={t.fecha} irAlViaje />
+            <BotonEtapa etapa={t.etapa} pedidoId={t.pedidoId} paraCuando={t.fecha} />
           ) : undefined}
         />
       ))}

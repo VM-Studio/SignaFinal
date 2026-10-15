@@ -6,12 +6,14 @@ import { diaSemana } from "./fecha";
 import { PARAMETROS_RUTEO as R } from "./parametros";
 
 /**
- * "APROVECHÁ EL VIAJE" (puro: lo prueban los tests). Al aceptar un pedido, qué otros conviene llevar
- * en el mismo viaje:
- *   a) MISMO LUGAR: salen del mismo corralón, depósito u obra (mismo id o a menos de radioMismoLugarM).
- *   b) CERCA DE TU CAMINO: su origen o destino queda a menos de radioCercaM de alguna parada, o el desvío
+ * "¿LLEVÁS ALGO MÁS?" (puro: lo prueban los tests). Al aceptar un pedido, qué otros conviene llevar en el
+ * mismo viaje, en tres grupos con un título simple:
+ *   a) MISMA OBRA: van a la misma obra (destino a menos de radioMismoLugarM), salgan de donde salgan.
+ *   b) MISMO LUGAR: salen del mismo corralón, depósito u obra (mismo id o a menos de radioMismoLugarM).
+ *   c) CERCA DE TU CAMINO: su origen o destino queda a menos de radioCercaM de alguna parada, o el desvío
  *      para pasar a buscarlo es menor que desvioMaximoM.
- * Los de otro día (posterior al viaje) aparecen en gris; personas y escombros no se combinan.
+ * Los de otro día (posterior al viaje) y personas con escombros vuelven con `gris` (el motivo); la pantalla
+ * del chofer solo muestra los que se pueden llevar.
  */
 export type PedidoCombinable = {
   id: string;
@@ -32,10 +34,14 @@ export type PedidoCombinable = {
 
 export type Sugerencia = {
   id: string;
-  grupo: "mismoLugar" | "cerca";
+  grupo: "mismaObra" | "mismoLugar" | "cerca";
+  /** Para la tarjeta: "Hormigonera 350 l". */
+  titulo: string;
+  /** Para la tarjeta: "retirar en Terreno Humboldt 2417", "para Chubut", "retirar en … para … · a 1,2 km del corralón". */
+  detalle: string;
   /** "hierro para Chubut (OC-2026-0010, 800 kg)" o "A 1,2 km del corralón: retirar hormigonera en Terreno Humboldt para Darwin". */
   texto: string;
-  /** Lugar de referencia del grupo "mismo lugar" ("Corralón San Martín"). */
+  /** Lugar de referencia del grupo: la obra ("Darwin") o el lugar de retiro ("Corralón San Martín"). */
   lugar: string;
   distanciaM: number;
   /** Si no se puede elegir: "es para el jueves", "no se combinan personas con escombros". */
@@ -48,6 +54,7 @@ const que = (d: string) => {
   const t = d.split(/[,(·]/)[0].trim().replace(/^Ver lista adjunta.*/i, "material");
   return (t.charAt(0).toLowerCase() + t.slice(1)).replace(/\s+\d+\s*(bolsas|barras|u|unidades)$/i, "");
 };
+const mayuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 const kg = (n: number | null) => (n ? (n >= 1000 ? `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(n / 1000)} tn` : `${n} kg`) : null);
 /** "del corralón", "del galpón", "de la obra". */
 function delLugar(tipo: LugarParada, nombre: string) {
@@ -85,10 +92,17 @@ export function sugerir(base: PedidoCombinable[], candidatos: PedidoCombinable[]
         ? "no se combinan personas con escombros"
         : null;
     const detalle = [c.oc, kg(c.pesoKg)].filter(Boolean).join(", ");
+    const titulo = mayuscula(que(c.descripcion));
+    const dondeRetira = c.sinRetiro ? "ya está arriba" : `retirar en ${c.origen.nombre.split(" · ")[0]}`;
 
+    const mismoDestino = base.find((b) => distancia(b.destino.punto, c.destino.punto) <= R.radioMismoLugarM);
+    if (mismoDestino) {
+      out.push({ id: c.id, grupo: "mismaObra", lugar: corto(mismoDestino.destino.obra), distanciaM: 0, gris, pedido: c, titulo, detalle: dondeRetira, texto: `${que(c.descripcion)} · ${dondeRetira}` });
+      continue;
+    }
     const igual = !c.sinRetiro ? retiros.find((r) => mismoLugar(r, c.origen)) : undefined;
     if (igual) {
-      out.push({ id: c.id, grupo: "mismoLugar", lugar: igual.nombre.split(" · ")[0], distanciaM: 0, gris, pedido: c, texto: `${que(c.descripcion)} para ${corto(c.destino.obra)}${detalle ? ` (${detalle})` : ""}` });
+      out.push({ id: c.id, grupo: "mismoLugar", lugar: igual.nombre.split(" · ")[0], distanciaM: 0, gris, pedido: c, titulo, detalle: `para ${corto(c.destino.obra)}`, texto: `${que(c.descripcion)} para ${corto(c.destino.obra)}${detalle ? ` (${detalle})` : ""}` });
       continue;
     }
     // Cerca: el origen a menos de radioCercaM de alguna parada (es lo que importa: pasar a buscarlo);
@@ -109,11 +123,12 @@ export function sugerir(base: PedidoCombinable[], candidatos: PedidoCombinable[]
     if (!cerca && desvioM > R.desvioMaximoM) continue;
     const verbo = c.tipo === "TRASLADO_MAQUINARIA" || c.tipo === "LLEVAR_A_OBRA" ? "retirar" : c.tipo === "TRASLADO_PERSONAS" ? "buscar a" : "retirar";
     const accion = c.sinRetiro ? `llevar ${que(c.descripcion)} a ${corto(c.destino.obra)}` : `${verbo} ${que(c.descripcion)} en ${c.origen.nombre.split(" · ")[0]} para ${corto(c.destino.obra)}`;
-    const mismaObra = base.some((b) => distancia(b.destino.punto, c.destino.punto) <= R.radioMismoLugarM) ? " (va a la misma obra)" : "";
-    const texto = (cerca ? `A ${metros(cerca.m)} ${delLugar(cerca.de.tipo, cerca.de.nombre)}: ${accion}` : `Desvío de ${metros(desvioM)}: ${accion}`) + mismaObra;
-    out.push({ id: c.id, grupo: "cerca", lugar: cerca?.de.nombre ?? "", distanciaM: Math.round(cerca?.m ?? desvioM), gris, pedido: c, texto });
+    const texto = cerca ? `A ${metros(cerca.m)} ${delLugar(cerca.de.tipo, cerca.de.nombre)}: ${accion}` : `Desvío de ${metros(desvioM)}: ${accion}`;
+    const aDonde = cerca ? `a ${metros(cerca.m)} ${delLugar(cerca.de.tipo, cerca.de.nombre)}` : `desvío de ${metros(desvioM)}`;
+    out.push({ id: c.id, grupo: "cerca", lugar: cerca?.de.nombre ?? "", distanciaM: Math.round(cerca?.m ?? desvioM), gris, pedido: c, titulo, detalle: `${c.sinRetiro ? "llevar" : dondeRetira} para ${corto(c.destino.obra)} · ${aDonde}`, texto });
   }
-  return out.sort((a, b) => (a.grupo === b.grupo ? a.distanciaM - b.distanciaM : a.grupo === "mismoLugar" ? -1 : 1));
+  const ORDEN = { mismaObra: 0, mismoLugar: 1, cerca: 2 } as const;
+  return out.sort((a, b) => (a.grupo === b.grupo ? a.distanciaM - b.distanciaM : ORDEN[a.grupo] - ORDEN[b.grupo]));
 }
 
 /** Validación de una combinación (al elegir vehículo y en el servidor al confirmar). */

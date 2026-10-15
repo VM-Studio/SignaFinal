@@ -75,11 +75,11 @@ export function Deslizador({ texto, verde = false, onCompletar, deshabilitado = 
         setX(nuevo);
         if (nuevo >= max * UMBRAL_DESLIZADOR) void completar();
       }}
-      className={`relative h-16 w-full touch-none select-none overflow-hidden rounded-full border outline-none focus-visible:ring-4 focus-visible:ring-white/40 ${verde ? "border-ok bg-ok" : "border-white/20 bg-white/10"} ${bloqueado ? "opacity-70" : ""}`}
+      className={`relative min-h-16 w-full touch-none select-none overflow-hidden rounded-full border outline-none focus-visible:ring-4 focus-visible:ring-white/40 ${verde ? "border-ok bg-ok" : "border-white/20 bg-white/10"} ${bloqueado ? "opacity-70" : ""}`}
     >
       {/* Relleno que acompaña al pulgar. */}
       <div aria-hidden className={`absolute inset-y-0 left-0 ${verde ? "bg-white/15" : "bg-white/10"}`} style={{ width: x + PULGAR + 4 }} />
-      <p aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-center pr-4 pl-16 text-center text-[15px] leading-tight font-semibold" style={{ opacity: 1 - progreso * 0.9 }}>
+      <p aria-hidden className="pointer-events-none relative flex min-h-16 items-center justify-center py-2 pr-4 pl-[68px] text-center text-[17px] leading-tight font-semibold break-words" style={{ opacity: 1 - progreso * 0.9 }}>
         {texto}
       </p>
       <div
@@ -96,7 +96,7 @@ export function Deslizador({ texto, verde = false, onCompletar, deshabilitado = 
         }}
         onPointerUp={soltar}
         onPointerCancel={soltar}
-        className={`absolute top-1 left-1 grid size-14 cursor-grab place-items-center rounded-full bg-white text-negro active:cursor-grabbing ${volviendo ? "transition-transform duration-300 ease-out" : ""}`}
+        className={`absolute top-1/2 left-1 -mt-7 grid size-14 cursor-grab place-items-center rounded-full bg-white text-negro active:cursor-grabbing ${volviendo ? "transition-transform duration-300 ease-out" : ""}`}
         style={{ transform: `translateX(${x}px)` }}
         onTransitionEnd={() => setVolviendo(false)}
       >

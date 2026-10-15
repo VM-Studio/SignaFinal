@@ -41,8 +41,10 @@ function ElegirVehiculo({ vehiculos, valor, onElegir }: { vehiculos: OpcionVehic
 }
 
 /**
- * "Aceptar": primero "Aprovechá el viaje" (otros pedidos del mismo lugar o de camino, con casilla), después
- * el vehículo (los que no sirven, en gris con el motivo; si el peso total no entra, aviso y no deja confirmar).
+ * "Aceptar": primero "¿Llevás algo más?" (si hay pedidos relacionados: misma obra, mismo lugar o cerca de tu
+ * camino; una tarjeta por pedido con "Sí, lo llevo" / "No"), después el vehículo (los que no sirven, en gris
+ * con el motivo; si el peso total no entra, aviso y no deja confirmar). El viaje se arma solo con las paradas
+ * en orden y el modo conducción genera los pasos.
  */
 export function BotonTomar({ pedidoId, numero, vehiculos, pesoKg = null, tipo = "OTRO", ancho = false, tamano = "normal" }: {
   pedidoId: string; numero: number; vehiculos: OpcionVehiculo[]; pesoKg?: number | null; tipo?: TipoPedido; ancho?: boolean; tamano?: "normal" | "grande";
@@ -52,6 +54,7 @@ export function BotonTomar({ pedidoId, numero, vehiculos, pesoKg = null, tipo = 
   const [paso, setPaso] = useState<"buscando" | "aprovecha" | "vehiculo">("buscando");
   const [sugerencias, setSugerencias] = useState<SugerenciaPlana[]>([]);
   const [elegidos, setElegidos] = useState<string[]>([]);
+  const [descartados, setDescartados] = useState<string[]>([]);
   const [vehiculoId, setVehiculoId] = useState(aptos.length === 1 ? aptos[0].id : "");
   const [error, setError] = useState<string>();
   const [enviando, setEnviando] = useState(false);
@@ -61,6 +64,7 @@ export function BotonTomar({ pedidoId, numero, vehiculos, pesoKg = null, tipo = 
   async function abrir() {
     setError(undefined);
     setElegidos([]);
+    setDescartados([]);
     setPaso("buscando");
     setAbierta(true);
     // Sin señal no se buscan sugerencias: se acepta solo este.
@@ -75,6 +79,12 @@ export function BotonTomar({ pedidoId, numero, vehiculos, pesoKg = null, tipo = 
   const pesoTotal = (pesoKg ?? 0) + sumados.reduce((t, s) => t + (s.pedido.pesoKg ?? 0), 0);
   const vehiculo = vehiculos.find((v) => v.id === vehiculoId);
   const noEntra = vehiculo && sumados.length ? validarCombinacion([{ tipo, pesoKg }, ...sumados.map((s) => ({ tipo: s.pedido.tipo, pesoKg: s.pedido.pesoKg }))], vehiculo, 0) : null;
+  // Antes de elegir vehículo: ¿entra en el más grande que se puede usar (o el único)? Si no, la tarjeta no tiene "Sí".
+  const mayor = aptos.reduce<OpcionVehiculo | null>((m, v) => (!m || v.capacidadCargaKg > m.capacidadCargaKg ? v : m), null);
+  const noEntraEnMayor = (s: SugerenciaPlana) =>
+    mayor && mayor.capacidadCargaKg > 0 && pesoTotal + (s.pedido.pesoKg ?? 0) > mayor.capacidadCargaKg
+      ? `No entra en el ${mayor.nombre} (${new Intl.NumberFormat("es-AR").format(mayor.capacidadCargaKg)} kg)`
+      : null;
 
   async function confirmar() {
     setEnviando(true);
@@ -109,17 +119,14 @@ export function BotonTomar({ pedidoId, numero, vehiculos, pesoKg = null, tipo = 
       <Boton ancho={ancho} tamano={tamano} icono={<Hand />} onClick={abrir}>
         Aceptar
       </Boton>
-      <Hoja abierta={abierta} onCerrar={() => setAbierta(false)} titulo={paso === "aprovecha" ? "Aprovechá el viaje" : `Aceptar pedido ${numero}`}>
+      <Hoja abierta={abierta} onCerrar={() => setAbierta(false)} titulo={paso === "aprovecha" ? "¿Llevás algo más?" : `Aceptar pedido ${numero}`}>
         {paso === "buscando" && <p className="py-6 text-center text-suave">Buscando pedidos para combinar…</p>}
         {paso === "aprovecha" && (
           <div className="flex flex-col gap-4">
-            <ListaSugerencias sugerencias={sugerencias} elegidos={elegidos} onCambiar={setElegidos} />
-            <div className="flex flex-col gap-2">
-              <Boton ancho tamano="grande" disabled={!elegidos.length} onClick={() => setPaso("vehiculo")}>
-                {elegidos.length ? `Sumar ${elegidos.length} y elegir vehículo` : "Elegí los que vas a llevar"}
-              </Boton>
-              <Boton ancho variante="secundario" onClick={() => { setElegidos([]); setPaso("vehiculo"); }}>Seguir con este solo</Boton>
-            </div>
+            <ListaSugerencias sugerencias={sugerencias} elegidos={elegidos} descartados={descartados} onCambiar={setElegidos} onDescartar={setDescartados} noEntra={noEntraEnMayor} />
+            <Boton ancho tamano="grande" onClick={() => setPaso("vehiculo")}>
+              {elegidos.length ? `Llevo ${elegidos.length + 1} pedidos · elegir vehículo` : "Seguir con este solo"}
+            </Boton>
           </div>
         )}
         {paso === "vehiculo" && (

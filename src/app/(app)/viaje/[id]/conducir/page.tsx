@@ -5,10 +5,10 @@ import { ModoConduccion } from "@/components/viajes/modo-conduccion";
 
 export const metadata: Metadata = { title: "Modo conducción" };
 
-/** Modo conducción del chofer: solo con el viaje en curso (antes de salir o ya terminado, la pantalla del viaje). */
+/** Modo conducción del chofer: desde "Iniciar viaje" hasta "Terminar viaje" (terminado, la pantalla del viaje). */
 export default async function PaginaConducir({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const d = await pantallaViaje(id);
-  if (!d || d.estado !== "EN_CURSO") redirect(`/viaje/${id}`);
+  if (!d || (d.estado !== "EN_CURSO" && d.estado !== "PROGRAMADO") || (d.estado === "PROGRAMADO" && d.otroEnCurso)) redirect(`/viaje/${id}`);
   return <ModoConduccion d={d} />;
 }

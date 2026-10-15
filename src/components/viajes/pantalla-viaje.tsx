@@ -4,25 +4,19 @@ import dynamic from "next/dynamic";
 import { VolverA } from "@/components/ui/volver";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, CheckCircle2, Flag, Gauge, Map as MapIcon, Navigation, PackageCheck, Satellite, Smartphone, Truck, WifiOff } from "lucide-react";
+import { CheckCircle2, Gauge, Map as MapIcon, Navigation, Satellite, Smartphone, Truck, WifiOff } from "lucide-react";
 import { BotonLink, Boton } from "@/components/ui/boton";
-import { Hoja } from "@/components/ui/hoja";
-import { MensajeError } from "@/components/ui/campos";
 import { FechaGrande, TarjetaChofer } from "./tarjeta-chofer";
 import { haceSeg, hora, km, peso } from "@/lib/formato";
 import { metros, minutos } from "@/lib/rutas/formato";
 import type { PantallaViaje as Datos } from "@/lib/viajes/chofer";
 import { useEscritorio } from "@/components/ui/escritorio";
-import { BotonFinalizar, BotonIniciar, BotonManual, ConfirmarLlegada } from "./acciones-viaje";
+import { BotonIniciar } from "./acciones-viaje";
 import { BotonAgregarParada, BotonReordenar, ListaParadas, ListaVerificacion } from "./paradas";
-import { CampoFoto } from "./campo-foto";
 import { PendienteEnvio } from "./pendiente-envio";
 import { useAlCambiar } from "@/components/layout/avisos-en-vivo";
 import { BotonSoltar } from "@/components/pedidos/acciones-detalle";
-import { salgoHaciaDestino } from "@/lib/viajes/acciones";
 import { abrirEnGoogleMaps } from "@/lib/viajes/navegar";
-import { enviarOGuardar } from "@/lib/offline/cola";
-import { posicionActual } from "./seguimiento-chofer";
 
 const MapaTramo = dynamic(() => import("@/components/mapa/mapa-tramo"), {
   ssr: false,
@@ -50,9 +44,7 @@ export function PantallaViaje({ d }: { d: Datos }) {
   // Si el GPS cambió la parada (el stream de avisos lo detecta), se refresca al instante.
   useAlCambiar((tipo) => tipo === "viaje" && router.refresh());
 
-  const base = { pedidoId: d.pedidoId, numero: d.numero };
   const actual = d.paradas.find((p) => p.id === d.actualId) ?? null;
-  const ultima = actual && d.paradas.filter((p) => p.estado !== "COMPLETADA" && p.estado !== "SALTEADA").length === 1;
   const llego = actual?.estado === "LLEGO";
   const escritorio = useEscritorio();
   const mapaTramo = d.tramo && actual && (
@@ -94,13 +86,12 @@ export function PantallaViaje({ d }: { d: Datos }) {
           {d.tramo.estimada && <span className="block text-[12px] font-normal text-suave">Distancia aproximada (sin ruteo).</span>}
         </p>
       )}
-      {!enCurso && d.salidaEstimada && <p className="mt-3 text-sm text-suave">km actual {km(d.kmActual)} · {d.vehiculo}</p>}
+      {!enCurso && d.salidaEstimada && <p className="mt-3 text-sm text-suave">{d.vehiculo}</p>}
       {enCurso && !llego && d.navegacion.length > 0 && (
         <Boton variante="secundario" icono={<Navigation />} onClick={() => abrirEnGoogleMaps(d.navegacion)} className="mt-3 w-full lg:w-auto">
           Abrir en Google Maps{d.navegacion.length > 1 ? " (con las paradas)" : ""}
         </Boton>
       )}
-      {enCurso && <BotonLink href={`/viaje/${d.pedidoId}/conducir`} variante="secundario" icono={<Gauge />} className="mt-2 w-full lg:w-auto">Modo conducción</BotonLink>}
     </section>
   );
 
@@ -114,9 +105,6 @@ export function PantallaViaje({ d }: { d: Datos }) {
         <p className="-mt-1 text-sm text-suave">{d.pedidos.length} pedidos · {d.paradas.length} paradas{d.totalM ? ` · ${metros(d.totalM)}` : ""}{d.pesoKg ? ` · ${peso(d.pesoKg)}` : ""}</p>
       )}
 
-      {/* El GPS detectó una llegada (o a otra parada antes de la que tocaba): el chofer la confirma o la niega. */}
-      {d.confirmar && <ConfirmarLlegada pedidoId={d.pedidoId} lugar={d.confirmar.lugar} antesDe={d.confirmar.adelantadaDe} />}
-
       {d.estado !== "FINALIZADO" && tarjetaActual}
 
       {/* Lista de verificación de la parada actual (tildable cuando llegó; antes, para saber qué se carga). */}
@@ -124,16 +112,11 @@ export function PantallaViaje({ d }: { d: Datos }) {
 
       <PendienteEnvio pedidoId={d.pedidoId} />
 
-      {/* Lo que sigue: iniciar, llegar (manual), "Cargué todo, salgo" / "Entregado acá", o "Viaje terminado". */}
+      {/* Lo que sigue: todo se hace en el modo conducción, un paso por pantalla. */}
       {d.estado === "PROGRAMADO" && (
-        <BotonIniciar {...base} vehiculo={d.vehiculo} kmActual={d.kmActual} paraCuando={d.paraCuando}
-          bloqueado={d.otroEnCurso ? "Tenés otro viaje en curso. Terminalo antes de iniciar este." : undefined} />
+        <BotonIniciar pedidoId={d.pedidoId} paraCuando={d.paraCuando} bloqueado={d.otroEnCurso ? "Tenés otro viaje en curso. Terminalo antes de iniciar este." : undefined} />
       )}
-      {enCurso && actual && !llego && (
-        <BotonManual {...base} tipo="viaje.llegada" etiqueta={d.manual.llegue} paradaId={d.manual.paradaId} principal={d.sinGps} />
-      )}
-      {enCurso && actual && llego && !ultima && <BotonCompletar pedidoId={d.pedidoId} numero={d.numero} paradaId={actual.id} tipo={actual.tipo} lugar={actual.nombre} />}
-      {enCurso && (!actual || (llego && ultima)) && <BotonFinalizar {...base} obra={actual?.nombre ?? d.paradas[d.paradas.length - 1]?.nombre ?? ""} kmSalida={d.kmSalida} />}
+      {enCurso && <BotonLink href={`/viaje/${d.pedidoId}/conducir`} ancho tamano="grande" icono={<Gauge />}>Seguir el viaje</BotonLink>}
 
       {d.estado === "FINALIZADO" && (
         <>
@@ -198,43 +181,6 @@ export function PantallaViaje({ d }: { d: Datos }) {
   );
 }
 
-/**
- * "Cargué todo, salgo" (retiro) o "Entregado acá" (entrega): completa la parada actual (también lo detecta
- * el GPS al alejarse). Con foto del remito opcional.
- */
-function BotonCompletar({ pedidoId, numero, paradaId, tipo, lugar }: { pedidoId: string; numero: number; paradaId: string; tipo: string; lugar: string }) {
-  const [abierta, setAbierta] = useState(false);
-  const [foto, setFoto] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState(false);
-  const [error, setError] = useState<string>();
-  const router = useRouter();
-  const etiqueta = tipo === "RETIRO" ? "Cargué todo, salgo" : "Entregado acá";
-  async function completar(conFoto: string | null) {
-    setEnviando(true);
-    setError(undefined);
-    const gps = await posicionActual();
-    const datos = { clientId: crypto.randomUUID(), pedidoId, paradaId, ocurridoEn: new Date().toISOString(), foto: conFoto ?? undefined, ...(gps ?? {}) };
-    const r = await enviarOGuardar({ id: datos.clientId, tipo: "viaje.salgo", pedidoId, descripcion: `${etiqueta} en ${lugar} · pedido ${numero}`, datos }, () => salgoHaciaDestino(datos));
-    setEnviando(false);
-    if (r.estado === "error") return setError(r.error);
-    setAbierta(false);
-    router.refresh();
-  }
-  return (
-    <div className="flex flex-col gap-2">
-      <MensajeError>{error}</MensajeError>
-      <Boton ancho tamano="grande" icono={tipo === "RETIRO" ? <PackageCheck /> : <Flag />} cargando={enviando && !abierta} onClick={() => completar(null)}>{etiqueta}</Boton>
-      <Boton ancho variante="fantasma" icono={<Camera />} onClick={() => setAbierta(true)}>Con foto del remito</Boton>
-      <Hoja abierta={abierta} onCerrar={() => setAbierta(false)} titulo={`${etiqueta} · ${lugar}`}>
-        <div className="flex flex-col gap-4">
-          <CampoFoto etiqueta="Foto del remito (opcional)" valor={foto} onCambio={setFoto} />
-          <MensajeError>{error}</MensajeError>
-          <Boton ancho tamano="grande" cargando={enviando} onClick={() => completar(foto)}>{etiqueta}</Boton>
-        </div>
-      </Hoja>
-    </div>
-  );
-}
 
 /** Al pie, chico: de dónde sale la posición y hace cuánto. */
 function Senal({ s }: { s: NonNullable<Datos["senal"]> }) {

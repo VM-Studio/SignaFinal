@@ -44,10 +44,9 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
   // Cambiar la fecha: Dirección y quien lo pidió, mientras no salió.
   const puedeReprogramar = (p.estado === "PENDIENTE" || (p.estado === "TOMADO" && (!p.viaje || p.viaje.etapa === "PROGRAMADO"))) && (puede(u.rol, "pedidos.reprogramar") || p.solicitanteId === u.id);
 
-  const [vehiculos, reasignar, vehiculoActual] = await Promise.all([
+  const [vehiculos, reasignar] = await Promise.all([
     esChofer && p.estado === "PENDIENTE" ? vehiculosParaTomar(p) : Promise.resolve(null),
     puedeReasignar ? opcionesReasignar(p) : Promise.resolve(null),
-    esMio && p.estado === "TOMADO" && p.viaje ? db.vehiculo.findUnique({ where: { id: p.viaje.vehiculo.id }, select: { kmActual: true } }) : Promise.resolve(null),
   ]);
 
   // Los cuatro momentos: pedido, aceptado, retiro y destino, con hora (o la estimada si todavía no pasó).
@@ -69,7 +68,7 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
       {esChofer && p.estado === "PENDIENTE" && vehiculos && <BotonTomar pedidoId={p.id} numero={p.numero} vehiculos={vehiculos} pesoKg={p.pesoKg} tipo={p.tipo} ancho />}
       {esMio && p.estado === "TOMADO" && p.viaje && (
         <>
-          <BotonIniciar pedidoId={p.id} numero={p.numero} vehiculo={p.viaje.vehiculo.nombre} kmActual={vehiculoActual?.kmActual ?? 0} paraCuando={p.paraCuando} />
+          <BotonIniciar pedidoId={p.id} paraCuando={p.paraCuando} />
           <BotonSoltar pedidoId={p.id} numero={p.numero} />
         </>
       )}

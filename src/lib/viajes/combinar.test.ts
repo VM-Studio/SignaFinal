@@ -103,10 +103,26 @@ describe("aprovechá el viaje: sugerencias", () => {
     expect(s[0]).toMatchObject({ grupo: "mismoLugar", lugar: "Corralón San Martín", gris: null, texto: "hierro del 12 para Chubut (OC-2026-0010, 800 kg)" });
   });
 
-  it("cerca de tu camino: la hormigonera de Humboldt a ~1,2 km del corralón", () => {
+  it("misma obra: la hormigonera de Humboldt también va a Darwin (salga de donde salga)", () => {
     const s = sugerir(base, [comb("hormigonera", humboldt, darwin, { tipo: "TRASLADO_MAQUINARIA", descripcion: "Hormigonera 350 l", pesoKg: 400 })], { dia: hoy });
+    expect(s[0]).toMatchObject({ grupo: "mismaObra", lugar: "Darwin", titulo: "Hormigonera 350 l", detalle: "retirar en Terreno Humboldt 2417", gris: null });
+  });
+
+  it("cerca de tu camino: algo de Humboldt para otra obra, a ~1,2 km del corralón", () => {
+    const s = sugerir(base, [comb("andamio", humboldt, chubut, { tipo: "TRASLADO_HERRAMIENTAS", descripcion: "Andamio", pesoKg: 300 })], { dia: hoy });
     expect(s[0].grupo).toBe("cerca");
-    expect(s[0].texto).toMatch(/^A 1,\d km del corralón: retirar hormigonera 350 l en Terreno Humboldt 2417 para Darwin \(va a la misma obra\)$/);
+    expect(s[0].detalle).toMatch(/^retirar en Terreno Humboldt 2417 para Chubut · a 1,\d km del corralón$/);
+    expect(s[0].texto).toMatch(/^A 1,\d km del corralón: retirar andamio en Terreno Humboldt 2417 para Chubut$/);
+  });
+
+  it("los tres grupos en orden: misma obra, mismo lugar, cerca", () => {
+    const s = sugerir(base, [
+      comb("andamio", humboldt, chubut, { tipo: "TRASLADO_HERRAMIENTAS", descripcion: "Andamio" }),
+      comb("hierro", corralon, chubut, { descripcion: "Hierro del 12" }),
+      comb("hormigonera", humboldt, darwin, { descripcion: "Hormigonera" }),
+    ], { dia: hoy });
+    expect(s.map((x) => x.grupo)).toEqual(["mismaObra", "mismoLugar", "cerca"]);
+    expect(s[1]).toMatchObject({ lugar: "Corralón San Martín", detalle: "para Chubut" });
   });
 
   it("lejos (Pinares, desde otro lugar) no se sugiere", () => {

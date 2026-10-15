@@ -8,12 +8,11 @@ import { Campo, Entrada, MensajeError, Selector } from "@/components/ui/campos";
 import { useAviso } from "@/components/ui/avisos";
 import { registrarCarga } from "@/lib/viajes/acciones";
 import { enviarOGuardar } from "@/lib/offline/cola";
-import { km as fmtKm } from "@/lib/formato";
 import { CampoFoto } from "./campo-foto";
 
 type Vehiculo = { id: string; nombre: string; detalle: string; kmActual: number };
 
-/** Cuatro campos: vehículo, litros, monto y foto del ticket. Km opcional. */
+/** Cuatro campos: vehículo, litros, monto y foto del ticket. Sin km: los lleva la app con el GPS de los viajes. */
 export function FormularioCombustible({ vehiculos, preseleccion, vehiculoEnViaje, obraEnViaje }: {
   vehiculos: Vehiculo[]; preseleccion: string | null; vehiculoEnViaje: string | null; obraEnViaje: string | null;
 }) {
@@ -21,7 +20,6 @@ export function FormularioCombustible({ vehiculos, preseleccion, vehiculoEnViaje
   const [litros, setLitros] = useState("");
   const [monto, setMonto] = useState("");
   const [foto, setFoto] = useState<string | null>(null);
-  const [kmTablero, setKm] = useState("");
   const [error, setError] = useState<string>();
   const [enviando, setEnviando] = useState(false);
   const aviso = useAviso();
@@ -33,7 +31,7 @@ export function FormularioCombustible({ vehiculos, preseleccion, vehiculoEnViaje
     if (!v) return setError("Elegí el vehículo.");
     setError(undefined);
     setEnviando(true);
-    const datos = { clientId: crypto.randomUUID(), vehiculoId, litros: num(litros), monto: num(monto), km: kmTablero, foto: foto ?? undefined, ocurridoEn: new Date().toISOString() };
+    const datos = { clientId: crypto.randomUUID(), vehiculoId, litros: num(litros), monto: num(monto), foto: foto ?? undefined, ocurridoEn: new Date().toISOString() };
     const r = await enviarOGuardar({ id: datos.clientId, tipo: "combustible.cargar", descripcion: `Combustible ${v.nombre}: ${litros} l`, datos }, () => registrarCarga(datos));
     setEnviando(false);
     if (r.estado === "error") return setError(r.error);
@@ -46,7 +44,6 @@ export function FormularioCombustible({ vehiculos, preseleccion, vehiculoEnViaje
     setLitros("");
     setMonto("");
     setFoto(null);
-    setKm("");
     router.refresh();
   }
 
@@ -72,9 +69,6 @@ export function FormularioCombustible({ vehiculos, preseleccion, vehiculoEnViaje
         </Campo>
       </div>
       <CampoFoto etiqueta="Foto del ticket" valor={foto} onCambio={setFoto} />
-      <Campo etiqueta="Km del tablero (opcional)" htmlFor="km-carga" ayuda={v ? `Último registrado: ${fmtKm(v.kmActual)}` : undefined}>
-        <Entrada id="km-carga" inputMode="numeric" value={kmTablero} onChange={(e) => setKm(e.target.value.replace(/\D/g, ""))} />
-      </Campo>
       <MensajeError>{error}</MensajeError>
       <Boton ancho tamano="grande" disabled={!vehiculoId || !litros || !monto} cargando={enviando} onClick={guardar} icono={<Fuel />}>
         Registrar carga
