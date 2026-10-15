@@ -33,7 +33,7 @@ export default async function PaginaRastreo() {
 
   return (
     <div>
-      <Titulo siempre detalle="Cusat View (Suartec). La posición de cada vehículo sale de acá; si Cusat no responde, del teléfono del chofer.">Rastreo</Titulo>
+      <Titulo siempre>Rastreo</Titulo>
 
       {vapidFaltantes().length > 0 && (
         <p role="alert" className="mb-4 flex gap-2 rounded-[var(--radius-caja)] border border-critico/15 bg-critico-fondo p-3 font-semibold text-critico">

@@ -2,24 +2,25 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { PackageCheck } from "lucide-react";
 import { exigirPermiso } from "@/lib/auth/sesion";
-import { movimientosDeHoy, paraEntregar } from "@/lib/herramientas/consultas";
+import { enObras, movimientosDeHoy, paraEntregar } from "@/lib/herramientas/consultas";
 import { MOVIMIENTO } from "@/lib/herramientas/presentacion";
 import { textoEstado, textoParaCuando } from "@/lib/pedidos/presentacion";
 import { FilaLista, Insignia, Lista, Subtitulo, Titulo, Vacio } from "@/components/ui/basicos";
-import { hora } from "@/lib/formato";
+import { hora, vencimiento } from "@/lib/formato";
 import { limiteDe } from "@/lib/pagina";
 import { CargarMas } from "@/components/ui/cargar-mas";
+import { claseBoton } from "@/components/ui/boton";
 
 export const metadata: Metadata = { title: "Entregas" };
 
 export default async function PaginaEntregas({ searchParams }: { searchParams: Promise<{ n?: string }> }) {
   await exigirPermiso("herramientas.mover");
   const { limite, siguiente } = await limiteDe((await searchParams).n);
-  const [todos, hoy] = await Promise.all([paraEntregar(limite), movimientosDeHoy()]);
+  const [todos, afuera, hoy] = await Promise.all([paraEntregar(limite), enObras(), movimientosDeHoy()]);
   const pendientes = todos.slice(0, limite);
   return (
     <div>
-      <Titulo siempre detalle="Lo que pidieron las obras y lo que se movió hoy.">Entregas</Titulo>
+      <Titulo siempre>Entregas</Titulo>
       <Subtitulo>Para entregar</Subtitulo>
       {pendientes.length === 0 ? (
         <Vacio icono={<PackageCheck className="size-8" />} titulo="Nada pedido por ahora">Cuando una obra pida una máquina o herramienta, aparece acá.</Vacio>
@@ -40,6 +41,26 @@ export default async function PaginaEntregas({ searchParams }: { searchParams: P
         </Lista>
       )}
       {todos.length > limite && <CargarMas href={`/entregas?n=${siguiente}`} />}
+      <Subtitulo>En obras</Subtitulo>
+      {afuera.length === 0 ? (
+        <Vacio titulo="Todo está en el depósito" />
+      ) : (
+        <Lista>
+          {afuera.map((h) => {
+            const v = h.devolucionPrevista ? vencimiento(h.devolucionPrevista) : null;
+            return (
+              <li key={h.clave} className="flex min-h-14 items-center gap-3 px-4 py-2 lg:min-h-11">
+                <Link href={`/herramientas/${h.id}`} className="min-w-0 flex-1">
+                  <span className="block truncate font-semibold">{h.nombre}{h.cantidad > 1 ? ` × ${h.cantidad}` : ""}</span>
+                  <span className="block truncate text-sm text-suave">Obra {h.obra} · {h.codigo}{h.responsable ? ` · ${h.responsable}` : ""}</span>
+                </Link>
+                {v && v.dias < 0 && <Insignia tono="critico">Vencida</Insignia>}
+                <Link href={`/herramientas/${h.id}?accion=devolver`} className={claseBoton("secundario")}>Volvió</Link>
+              </li>
+            );
+          })}
+        </Lista>
+      )}
       <Subtitulo>Movimientos de hoy</Subtitulo>
       {hoy.length === 0 ? (
         <Vacio titulo="Todavía no se movió nada hoy" />

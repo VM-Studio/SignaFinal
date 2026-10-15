@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { datosFormulario } from "@/lib/pedidos/consultas";
+import { datosFormulario, ultimaObraPedida } from "@/lib/pedidos/consultas";
 import { ViajeConHistorial } from "@/components/historial/con-historial";
 import { favoritos, historialViajes } from "@/lib/historial/consultas";
 import { Vacio } from "@/components/ui/basicos";
@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Pedir un viaje" };
 
 export default async function PaginaPedir({ searchParams }: { searchParams: Promise<{ obra?: string }> }) {
   const { obra } = await searchParams;
-  const [datos, u, items, favs] = await Promise.all([datosFormulario(), exigirSesion(), historialViajes(), favoritos("VIAJE")]); // verifica pedidos.crear
+  const [datos, u, items, favs, ultima] = await Promise.all([datosFormulario(), exigirSesion(), historialViajes(), favoritos("VIAJE"), ultimaObraPedida()]); // verifica pedidos.crear
   return (
     <div>
       <h1 className="sr-only">Pedir un viaje</h1>
@@ -19,7 +19,7 @@ export default async function PaginaPedir({ searchParams }: { searchParams: Prom
       {datos.obras.length === 0 ? (
         <Vacio titulo="No tenés obras a cargo">Pedile a la oficina que te asigne tus obras para poder pedir viajes.</Vacio>
       ) : (
-        <ViajeConHistorial historial={{ items, favoritos: favs }} datos={datos} obraInicial={obra} />
+        <ViajeConHistorial historial={{ items, favoritos: favs }} datos={datos} obraInicial={obra ?? ultima} />
       )}
     </div>
   );

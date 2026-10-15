@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { VolverA } from "@/components/ui/volver";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { AlertTriangle, ArrowLeft, FileImage, FilePlus, Pencil, Wrench } from "lucide-react";
+import { AlertTriangle, FileImage, FilePlus, Pencil, Wrench } from "lucide-react";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { enlacePedido, puede } from "@/lib/permisos";
 import type { Rol } from "@prisma/client";
@@ -54,7 +55,7 @@ export default async function FichaVehiculo({ params, searchParams }: { params: 
       }))}
     >
     <div>
-      <Link href="/flota" className="mb-2 hidden min-h-8 items-center gap-1 text-sm font-medium text-suave hover:text-tinta lg:inline-flex"><ArrowLeft className="size-4" /> Flota</Link>
+      <VolverA clave="/flota" href="/flota" etiqueta="Volver a Flota" className="mb-2" />
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="etiqueta">{TIPO[v.tipo]} · {v.patente}</p>

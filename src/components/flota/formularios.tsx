@@ -95,7 +95,6 @@ export function FormularioVehiculo({ inicial, personas, bases }: { inicial: Vehi
         <label className="flex min-h-12 lg:min-h-10 cursor-pointer items-center justify-between gap-4 rounded-[var(--radius-caja)] border border-linea bg-papel px-4">
           <span>
             <span className="block font-semibold">Entra en la cola de pedidos</span>
-            <span className="block text-sm text-suave">Apagado para camionetas personales o del interior.</span>
           </span>
           <input type="checkbox" checked={v.entraEnCola} onChange={(e) => setV({ ...v, entraEnCola: e.target.checked })} className="size-6 shrink-0 accent-negro" />
         </label>
@@ -183,7 +182,7 @@ export function FormularioMantenimiento({ vehiculoId, kmActual }: { vehiculoId: 
         <Campo etiqueta="Taller" htmlFor="m-taller"><Entrada {...campo("taller")} maxLength={80} /></Campo>
       </>
       <>
-        <p className="text-suave">Si cargás el próximo, la app avisa cuando se acerque. Hoy tiene {fmtKm(kmActual)}.</p>
+        <p className="text-suave">Hoy tiene {fmtKm(kmActual)}.</p>
         <Campo etiqueta="Próximo a los km" htmlFor="m-proximoKm"><Entrada {...campo("proximoKm")} inputMode="numeric" placeholder={String(kmActual + 10000)} /></Campo>
         <Campo etiqueta="O en la fecha" htmlFor="m-proximaFecha"><Fecha {...campo("proximaFecha")} min={diaISO()} /></Campo>
       </>

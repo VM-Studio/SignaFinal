@@ -15,7 +15,8 @@ import { diaISO, peso, sumarDias } from "@/lib/formato";
 
 /**
  * Pedir el viaje de retiro: 1 obra · 2 qué retirar (lo que habilitó Compras, se marcan varios) · 3 para cuándo.
- * Un viaje por proveedor.
+ * Un viaje por proveedor. Desde la tarjeta verde (con el material) va directo al paso 3 con "mañana a la
+ * mañana" puesto: un toque más y está pedido.
  */
 export function RetiroMateriales({ obras, listos, obraInicial, materialInicial, coordinar }: {
   obras: { id: string; nombre: string }[]; listos: Record<string, ListoParaRetirar[]>; obraInicial?: string; materialInicial?: string;
@@ -26,10 +27,11 @@ export function RetiroMateriales({ obras, listos, obraInicial, materialInicial, 
   const aviso = useAviso();
   const unaObra = obraInicial && obras.some((o) => o.id === obraInicial) ? obraInicial : obras.length === 1 ? obras[0].id : "";
   const [obraId, setObraId] = useState(unaObra);
-  const [paso, setPaso] = useState<1 | 2 | 3>(unaObra ? 2 : 1);
-  const [marcados, setMarcados] = useState<string[]>(materialInicial && (listos[unaObra] ?? []).some((m) => m.id === materialInicial) ? [materialInicial] : []);
+  const conMaterial = !!materialInicial && (listos[unaObra] ?? []).some((m) => m.id === materialInicial);
+  const [paso, setPaso] = useState<1 | 2 | 3>(conMaterial ? 3 : unaObra ? 2 : 1);
+  const [marcados, setMarcados] = useState<string[]>(conMaterial ? [materialInicial!] : []);
   const hoy = diaISO();
-  const [dia, setDia] = useState<"hoy" | "manana" | "fecha">("hoy");
+  const [dia, setDia] = useState<"hoy" | "manana" | "fecha">(conMaterial ? "manana" : "hoy");
   const [fecha, setFecha] = useState(sumarDias(hoy, 2));
   const [franja, setFranja] = useState<"MANANA" | "TARDE" | "HORA_EXACTA">("MANANA");
   const [hora, setHora] = useState("09:00");
@@ -135,6 +137,9 @@ export function RetiroMateriales({ obras, listos, obraInicial, materialInicial, 
 
       {paso === 3 && (
         <section className="flex flex-col gap-5">
+          <ul className="flex flex-col gap-1 rounded-md border border-linea bg-papel px-3 py-2.5 text-sm">
+            {elegidos.map((m) => <li key={m.id}><b className="font-semibold">{m.descripcion}</b> <span className="text-suave">· {m.proveedor}{obra ? ` → Obra ${obra.nombre}` : ""}</span></li>)}
+          </ul>
           <h2 className="text-2xl font-semibold">¿Para cuándo?</h2>
           <div className="flex flex-col gap-2">
             <Opciones nombre="Día" columnas={3} valor={dia} onElegir={(v) => setDia(v as typeof dia)} opciones={[{ valor: "hoy", titulo: "Hoy" }, { valor: "manana", titulo: "Mañana" }, { valor: "fecha", titulo: "Elegir fecha" }]} />
@@ -148,7 +153,6 @@ export function RetiroMateriales({ obras, listos, obraInicial, materialInicial, 
           <div className="flex flex-col gap-2">
             <p className="text-sm font-semibold">Prioridad</p>
             <Opciones nombre="Prioridad" columnas={2} valor={prioridad} onElegir={(v) => setPrioridad(v as typeof prioridad)} opciones={[{ valor: "NORMAL", titulo: "Normal" }, { valor: "URGENTE", titulo: "Urgente" }]} />
-            <p className="text-sm text-suave">Urgente solo si la obra se para sin esto.</p>
           </div>
           <MensajeError>{error}</MensajeError>
           <Boton ancho cargando={enviando} onClick={enviar} icono={<Send />}>

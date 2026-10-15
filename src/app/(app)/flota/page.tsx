@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { CalendarClock, Plus, Truck } from "lucide-react";
+import { CalendarClock, Plus, Truck, Wrench } from "lucide-react";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { puede } from "@/lib/permisos";
 import { ESTADO_VEHICULO, listarFlota, opcionesVehiculo } from "@/lib/flota/consultas";
@@ -38,6 +38,7 @@ export default async function PaginaFlota() {
         accion={
           <div className="flex gap-2">
             {puede(u.rol, "flota.agenda") && <BotonLink href="/flota/agenda" variante="secundario" icono={<CalendarClock />}>Agenda</BotonLink>}
+            {puede(u.rol, "mantenimiento.ver") && <BotonLink href="/flota/mantenimiento" variante="secundario" icono={<Wrench />}>Mantenimiento</BotonLink>}
             {editar && (
               <ConHoja titulo="Agregar vehículo" etiqueta="Agregar" icono={<Plus />}>
                 <FormularioVehiculo inicial={VEHICULO_NUEVO} {...await opcionesVehiculo()} />

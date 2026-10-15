@@ -51,7 +51,7 @@ async function VistaDireccion({ searchParams }: { searchParams: Promise<Record<s
   const u = await exigirPermiso("pedidos.ver");
   return (
     <div>
-      <Titulo siempre detalle="Pendientes, aceptadas, en curso y lo entregado hoy. Filtrá por obra, lugar, quién pidió o chofer."
+      <Titulo siempre
         accion={puede(u.rol, "pedidos.crear") ? <BotonLink href="/pedir" icono={<PlusCircle />}>Pedir un viaje</BotonLink> : undefined}>
         Solicitudes
       </Titulo>

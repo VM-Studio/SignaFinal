@@ -27,7 +27,7 @@ async function TodosLosViajes({ vista, pagina }: { vista: "activos" | "terminado
   const href = (p: number) => `/viajes?vista=${vista}${p > 1 ? `&pagina=${p}` : ""}`;
   return (
     <div>
-      <Titulo detalle="Todos los viajes de todos los choferes.">Viajes</Titulo>
+      <Titulo>Viajes</Titulo>
       <Pestanas items={[{ href: "/viajes", etiqueta: "En curso y aceptados", activa: vista === "activos" }, { href: "/viajes?vista=terminados", etiqueta: "Terminados", activa: vista === "terminados" }]} />
       {viajes.length === 0 ? (
         <Vacio icono={<Route className="size-10" />} titulo={vista === "activos" ? "No hay viajes en curso ni aceptados" : "Todavía no hay viajes terminados"} />

@@ -1,7 +1,7 @@
-import Link from "next/link";
+import { VolverA } from "@/components/ui/volver";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { ArrowLeft, Navigation, Phone, PlusCircle } from "lucide-react";
+import { Navigation, Phone, PlusCircle } from "lucide-react";
 import { exigirSesion } from "@/lib/auth/sesion";
 import { puede, rutaPermitida } from "@/lib/permisos";
 import { fichaObra } from "@/lib/obras/consultas";
@@ -35,9 +35,7 @@ export default async function PaginaObra({ params, searchParams }: { params: Pro
 
   return (
     <div>
-      <Link href="/obras" className="mb-2 hidden min-h-11 items-center gap-1 font-semibold text-suave lg:inline-flex">
-        <ArrowLeft className="size-5" /> Obras
-      </Link>
+      <VolverA clave="/obras" href="/obras" etiqueta="Volver a Obras" className="mb-2" />
       <header className="mb-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
@@ -101,7 +99,7 @@ export default async function PaginaObra({ params, searchParams }: { params: Pro
                 {carga && <BotonSede obraId={o.id} />}
               </div>
               {o.sedes.length === 0 ? (
-                <p className="mt-2 text-sm text-suave">Sin sedes. Si la obra tiene más de un frente, agregalos: al pedir se elige a cuál va.</p>
+                <p className="mt-2 text-sm text-suave">Sin sedes.</p>
               ) : (
                 <ul className="mt-2 flex flex-col divide-y divide-linea">
                   {o.sedes.map((s) => (

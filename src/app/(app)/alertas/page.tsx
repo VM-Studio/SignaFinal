@@ -44,7 +44,7 @@ export default async function PaginaAlertas({ searchParams }: { searchParams: Pr
 
   return (
     <div>
-      <Titulo siempre detalle="Se resuelven solas cuando se arregla el problema." accion={puede(u.rol, "costos.ver") ? <BotonRevisar /> : undefined}>Alertas</Titulo>
+      <Titulo siempre accion={puede(u.rol, "costos.ver") ? <BotonRevisar /> : undefined}>Alertas</Titulo>
       {abiertas.length === 0 && <Vacio icono={<CheckCircle2 className="size-10 text-ok" />} titulo="Todo en orden">No hay nada que necesite atención.</Vacio>}
       {[["Críticas", criticas], ["Avisos", avisos]].map(([titulo, lista]) =>
         (lista as typeof abiertas).length ? (

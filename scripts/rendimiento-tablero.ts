@@ -47,7 +47,7 @@ async function medir() {
   await p.fill("#email", "compras@signa.demo");
   await p.fill("#password", "signa2026");
   await p.click('button[type="submit"]');
-  await p.waitForURL("**/inicio", { timeout: 60_000 });
+  await p.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 60_000 });
   const obra = (await db.obra.findFirstOrThrow({ select: { id: true } })).id;
   const casos: [string, string][] = [
     ["por defecto (caducidad)", "/compras/tablero"],

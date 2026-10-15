@@ -23,7 +23,7 @@ const ROLES = ["direccion", "compras", "daniela", "lolo", "claudio", "deposito",
       await p.fill("#email", `${quien}@signa.demo`);
       await p.fill("#password", "signa2026");
       await p.click('button[type="submit"]');
-      await p.waitForURL("**/inicio", { timeout: 60_000 });
+      await p.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 60_000 });
       // El splash de ingreso dura 2,5 s.
       await p.waitForTimeout(3500);
       await p.screenshot({ path: `${DIR}/${ancho}-${quien}-inicio.png` });

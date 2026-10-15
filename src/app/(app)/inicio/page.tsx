@@ -3,37 +3,31 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
 import { EsqueletoLista } from "@/components/ui/esqueletos";
-import { Download, ListOrdered, PlusCircle, Warehouse } from "lucide-react";
+import { Download, PlusCircle, } from "lucide-react";
 import { exigirSesion } from "@/lib/auth/sesion";
-import { puede } from "@/lib/permisos";
+import { inicioDe, puede } from "@/lib/permisos";
 import { CotizacionDolar } from "@/components/compras/cotizacion-dolar";
-import { devolucionesVencidas, pedidosPendientes, resumenDireccion, vencimientosProximos } from "@/lib/datos/inicio";
+import { resumenDireccion, vencimientosProximos } from "@/lib/datos/inicio";
 import { viajesAMisObrasHoy, viajesDeHoy } from "@/lib/pedidos/listas";
 import { alertasAbiertas } from "@/lib/alertas/consultas";
-import { viajesDelChofer } from "@/lib/viajes/chofer";
-import { ETAPAS_EN_CURSO } from "@/lib/viajes/etapas";
-import { paraEntregar } from "@/lib/herramientas/consultas";
 import { accionesDeHoy } from "@/lib/actividad/consultas";
 import { costosPorObra, costosPorVehiculo, periodo } from "@/lib/costos/consultas";
 import { datosMapa } from "@/lib/mapa/consultas";
-import { TarjetaChofer } from "@/components/viajes/tarjeta-chofer";
-import { BotonEtapa } from "@/components/viajes/acciones-viaje";
 import { ListaViajes } from "@/components/pedidos/lista-pedidos";
-import { BotonLink } from "@/components/ui/boton";
 import { AccionPrincipal, Cifra, Esqueleto, FilaLista, Insignia, Lista, Llamado, Subtitulo, Titulo, Vacio } from "@/components/ui/basicos";
 import { DOCUMENTO } from "@/lib/etiquetas";
-import { cuando, fecha, finDelDia, plata, vencimiento } from "@/lib/formato";
+import { fecha, plata, vencimiento } from "@/lib/formato";
 import { cuantasParaAprobar, esperandoACompras, listosEnMisObrasDetalle } from "@/lib/materiales/consultas";
 import { MisDocumentos, TarjetasListos } from "@/components/materiales/lista-materiales";
-import { Map as MapIcon, ShoppingCart, Stamp } from "lucide-react";
+import { Map as MapIcon, Stamp } from "lucide-react";
 
 export const metadata: Metadata = { title: "Inicio" };
 
 /** Un inicio por rol, cada uno con UNA acción principal grande. */
 export default async function Inicio() {
   const u = await exigirSesion();
-  // Compras no tiene inicio: entra al Tablero (también si llega por un redirect interno).
-  if (u.rol === "COMPRAS") redirect("/compras/tablero");
+  // Compras, el chofer y Depósito no tienen inicio: entran al Tablero, a Hoy y a Herramientas.
+  if (inicioDe(u.rol) !== "/inicio") redirect(inicioDe(u.rol));
   return (
     <div>
       <Titulo siempre>Hola, {u.nombre}</Titulo>
@@ -41,9 +35,7 @@ export default async function Inicio() {
       {puede(u.rol, "dolar.ver") && <div className="mb-3 lg:hidden"><CotizacionDolar variante="tarjeta" /></div>}
       {/* El saludo sale al instante; cada bloque llega cuando está listo. */}
       <Suspense fallback={<EsqueletoLista filas={4} />}>
-        {u.rol === "CHOFER" && <InicioChofer />}
         {(u.rol === "RESPONSABLE_OBRA" || u.rol === "CAPATAZ") && <InicioObra />}
-        {u.rol === "DEPOSITO" && <InicioDeposito />}
         {u.rol === "ADMINISTRACION" && <InicioAdministracion />}
       </Suspense>
       {u.rol === "DIRECCION" && <InicioDireccion />}
@@ -60,12 +52,12 @@ async function InicioObra() {
       <section>
         {/* Una acción principal: Pedir (materiales o viaje). */}
         <AccionPrincipal href="/pedir" icono={<PlusCircle />} titulo="Pedir" detalle="Materiales a Compras o un viaje a tu obra." boton="Pedir" />
-        <BotonLink href="/pedir-materiales" variante="secundario" ancho icono={<ShoppingCart />} className="mt-2">Pedir materiales a Compras</BotonLink>
-        <Subtitulo accion={listos.length ? <Link href="/pedir/retiro" className="text-sm font-medium underline">Pedir el viaje</Link> : undefined}>Listo para retirar</Subtitulo>
-        {listos.length === 0 ? (
-          <Vacio titulo="Nada listo para retirar">Cuando Compras habilite un material, aparece acá para pedir el viaje.</Vacio>
-        ) : (
-          <TarjetasListos listos={listos} />
+        {/* Cada tarjeta verde tiene su "Pedir el viaje" con el material ya marcado. */}
+        {listos.length > 0 && (
+          <>
+            <Subtitulo>Listo para retirar</Subtitulo>
+            <TarjetasListos listos={listos} />
+          </>
         )}
       </section>
       <section>
@@ -73,86 +65,6 @@ async function InicioObra() {
         {enMisObras.length === 0 ? <Vacio titulo="Ningún viaje hacia tus obras hoy" /> : <ListaViajes filas={enMisObras} base="/viajes-en-curso" />}
         <Subtitulo accion={<Link href="/mis-pedidos?tab=materiales" className="text-sm font-medium underline">Ver todos</Link>}>Esperando a Compras</Subtitulo>
         {esperando.length === 0 ? <Vacio titulo="Nada esperando a Compras" /> : <MisDocumentos filas={esperando} desde="mis-pedidos" />}
-      </section>
-    </div>
-  );
-}
-
-// ───────────────────────────── Chofer ─────────────────────────────
-
-async function InicioChofer() {
-  const [pendientes, { tarjetas }] = await Promise.all([pedidosPendientes(), viajesDelChofer("hoy")]);
-  const enCurso = tarjetas.find((t) => t.etapa && ETAPAS_EN_CURSO.includes(t.etapa));
-  const aceptados = tarjetas.filter((t) => t !== enCurso);
-  return (
-    <div className="grid gap-x-6 lg:grid-cols-2 [&>*]:min-w-0">
-      <section>
-      {enCurso ? (
-        <>
-          <Subtitulo>Mi viaje en curso</Subtitulo>
-          <ul>
-            <TarjetaChofer t={enCurso} href={`/viaje/${enCurso.pedidoId}`} destacada accion={
-              <BotonEtapa etapa={enCurso.etapa!} pedidoId={enCurso.pedidoId} numero={enCurso.numero} vehiculo={enCurso.vehiculo ?? ""} kmActual={enCurso.kmActual} kmSalida={enCurso.kmSalida} obra={enCurso.entregar.nombre} paraCuando={enCurso.fecha} irAlViaje />
-            } />
-          </ul>
-          <BotonLink href="/solicitudes" variante="secundario" ancho className="mt-3">Solicitudes pendientes: {pendientes}</BotonLink>
-        </>
-      ) : (
-        <AccionPrincipal href="/solicitudes" icono={<ListOrdered />} titulo={pendientes === 1 ? "1 solicitud pendiente" : `${pendientes} solicitudes pendientes`} detalle="Aceptá un viaje para empezar." boton="Ver solicitudes" />
-      )}
-      </section>
-      <section>
-      <Subtitulo accion={aceptados.length > 2 ? <Link href="/hoy" className="text-sm font-medium underline">Ver todos</Link> : undefined}>Aceptados para hoy</Subtitulo>
-      {aceptados.length === 0 ? (
-        <Vacio titulo="No tenés viajes aceptados para hoy">Aceptá una solicitud para empezar.</Vacio>
-      ) : (
-        <ul className="flex flex-col gap-3">
-          {aceptados.slice(0, 2).map((t) => <TarjetaChofer key={t.pedidoId} t={t} href={`/viaje/${t.pedidoId}`} />)}
-        </ul>
-      )}
-      </section>
-    </div>
-  );
-}
-
-// ───────────────────────────── Depósito ─────────────────────────────
-
-async function InicioDeposito() {
-  const [pedidas, vencidas] = await Promise.all([paraEntregar(), devolucionesVencidas()]);
-  const fin = finDelDia().getTime();
-  const paraPreparar = pedidas.filter((p) => p.estado === "TOMADO" && p.paraCuando.getTime() <= fin);
-  return (
-    <div className="grid gap-x-6 lg:grid-cols-2 [&>section]:min-w-0">
-      <section>
-        <AccionPrincipal href="/herramientas" icono={<Warehouse />} titulo="Depósito" detalle="Maquinaria y herramientas: dónde está cada una, entregar y devolver." boton="Abrir el depósito" />
-        <Subtitulo accion={<Link href="/entregas" className="text-sm font-medium underline">Ver todo</Link>}>Para preparar hoy</Subtitulo>
-        {paraPreparar.length === 0 ? (
-          <Vacio titulo="Nada aceptado para hoy">Cuando un chofer acepte un traslado de herramientas, aparece acá para prepararlo.</Vacio>
-        ) : (
-          <Lista>
-            {paraPreparar.map((p) => (
-              <FilaLista
-                key={p.id}
-                href={`/herramientas/${p.herramienta!.id}?accion=entregar`}
-                titulo={`${p.herramienta!.nombre} → Obra ${p.obra.nombre}`}
-                detalle={`para ${cuando(p.paraCuando)} · la lleva ${p.tomadoPor?.nombre ?? "un chofer"}`}
-                derecha={p.prioridad === "URGENTE" ? <Insignia tono="critico">Urgente</Insignia> : undefined}
-              />
-            ))}
-          </Lista>
-        )}
-      </section>
-      <section>
-        <Subtitulo>Devoluciones vencidas</Subtitulo>
-        {vencidas.length === 0 ? (
-          <Vacio titulo="Ninguna vencida">Todo lo que está en obra está dentro de la fecha de devolución.</Vacio>
-        ) : (
-          <Lista>
-            {vencidas.map((h) => (
-              <FilaLista key={h.id} href={`/herramientas/${h.id}`} titulo={h.nombre} detalle={`Obra ${h.obra?.nombre}${h.responsable ? ` · la tiene ${h.responsable.nombre}` : ""}`} derecha={<Insignia tono="critico">{vencimiento(h.devolucionPrevista!).texto.replace("Vencido", "Debía volver")}</Insignia>} />
-            ))}
-          </Lista>
-        )}
       </section>
     </div>
   );

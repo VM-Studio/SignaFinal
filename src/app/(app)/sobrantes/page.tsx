@@ -17,7 +17,7 @@ export default async function PaginaSobrantes({ searchParams }: { searchParams: 
   const [todos, ops] = await Promise.all([sobrantes(limite), editar ? opciones() : Promise.resolve(null)]);
   return (
     <div>
-      <Titulo siempre detalle="Materiales de construcción que sobraron de las obras y quedaron en el depósito." accion={ops ? <AgregarSobrante obras={ops.obras} /> : undefined}>
+      <Titulo siempre accion={ops ? <AgregarSobrante obras={ops.obras} /> : undefined}>
         Sobrantes
       </Titulo>
       <Sobrantes lista={todos.slice(0, limite)} editar={editar} />

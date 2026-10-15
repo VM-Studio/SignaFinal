@@ -28,7 +28,7 @@ export default async function PaginaMantenimiento() {
     .sort((a, b) => Number(b.vencido) - Number(a.vencido) || Number(b.cerca) - Number(a.cerca) || (a.faltan ?? 1e9) - (b.faltan ?? 1e9));
   return (
     <div>
-      <Titulo detalle="Lo que viene y lo último que se hizo. Para registrar, entrá a la ficha del vehículo.">Mantenimiento</Titulo>
+      <Titulo>Mantenimiento</Titulo>
       <Subtitulo>Próximos</Subtitulo>
       {proximos.length === 0 ? (
         <Vacio titulo="No hay mantenimientos programados" />

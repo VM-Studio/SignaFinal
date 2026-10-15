@@ -54,7 +54,7 @@ async function entrar(p: Page, quien: string) {
   await p.fill("#email", `${quien}@signa.demo`);
   await p.fill("#password", CLAVE);
   await p.click('button[type="submit"]');
-  await p.waitForURL("**/inicio", { timeout: 20_000 });
+  await p.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 20_000 });
 }
 
 async function resolver(p: Page, ruta: string) {

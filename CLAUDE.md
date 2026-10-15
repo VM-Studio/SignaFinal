@@ -80,12 +80,12 @@ Reglas de visibilidad (se verifican en el servidor, en cada query y cada action)
 
 | Rol | Barra inferior (4 ítems) | En "Más" |
 |---|---|---|
-| DIRECCION | Aprobaciones · Pedidos · Avisos · Más | Mapa, Viajes en curso, Solicitudes, Flota, Costos, Actividad, Herramientas, Rastreo, Obras, Proveedores, Configuración |
+| DIRECCION | Aprobaciones · Pedidos · Avisos · Más | Mapa, Viajes en curso, Solicitudes, Pedir, Mis pedidos, Tablero, Habilitados, Facturación, Flota, Costos, Combustible, Herramientas, Sobrantes, Entregas, Actividad, Alertas, Obras, Proveedores, Configuración |
 | COMPRAS | Tablero · Pedidos · Viajes · Más | Habilitados, Proveedores, Mis avisos, Cuenta |
-| RESPONSABLE_OBRA / CAPATAZ | Pedir · Mis pedidos · Viajes · Más | Herramientas, Obras, Avisos, Cuenta |
-| CHOFER | Hoy · Solicitudes · Avisos · Más | Combustible, Cuenta |
-| DEPOSITO | Escanear · Herramientas · Entregas · Más | Avisos, Cuenta |
-| ADMINISTRACION | Flota · Costos · Alertas · Más | Obras, Proveedores, Razones sociales, Tablero, Facturación, Avisos, Cuenta |
+| RESPONSABLE_OBRA / CAPATAZ | Pedir · Mis pedidos · Viajes · Más | Herramientas, Obras, Avisos |
+| CHOFER | Hoy · Solicitudes · Avisos · Más | Combustible |
+| DEPOSITO | Herramientas · Entregas · Sobrantes · Más | Alta masiva, Avisos |
+| ADMINISTRACION | Flota · Costos · Facturación · Más | Alertas, Tablero, Obras, Proveedores, Razones sociales, Depósitos y base, Usuarios, Avisos |
 
 - Todo en src/lib/navegacion.ts (NAV). COMPRAS no tiene /inicio: entra directo al **Tablero** (/compras/tablero;
   inicioDe(rol) en permisos.ts, también al ingresar). "Pedidos" (Pedidos de material) es la bandeja de documentos
@@ -93,8 +93,17 @@ Reglas de visibilidad (se verifican en el servidor, en cada query y cada action)
   franja negra "N pedidos nuevos esperan que los tomes → Ver pedidos" (/compras?filtro=nuevos). Importar Excel y
   "Numeración y solicitantes" están en Más del dueño (Compras · Configuración).
   "Pedidos" del dueño es la vista global de pedidos de materiales (/compras).
-- DEPOSITO: "Escanear" se muestra como **Buscar** (abre el depósito con el buscador enfocado): no hay escaneo
-  ni etiquetas QR, las herramientas se buscan por nombre.
+- Dónde cae cada uno (inicioDe en permisos.ts; /inicio los redirige): COMPRAS en el Tablero, CHOFER en Hoy,
+  DEPOSITO en Herramientas (buscador arriba: no hay escaneo ni QR); los demás en su inicio. Inicio no va en
+  "Más": es el logo.
+- Lo que se abre desde un botón de otra pantalla no tiene lugar propio (ENLAZADAS_DESDE en navegacion.ts):
+  Pedir materiales desde Pedir, el historial de recorridos desde el Mapa; Agenda y Mantenimiento son
+  subpantallas de Flota. Dirección no tiene Hoy del chofer ni la lista de viajes de la obra.
+- **Volver** (components/ui/volver.tsx): todo detalle usa <VolverA clave="/lista" href etiqueta>, visible
+  también en el celular. <RecordarListas /> (layout) guarda la lista (URL + scroll) al tocar un enlace y la
+  repone al volver; si se llegó tocando un enlace de la app, Volver hace history.back().
+- Meta de uso: las 5 tareas más frecuentes de cada rol en 3 toques o menos (scripts/medir-toques.ts;
+  docs/auditoria-ux.md; guía por rol en docs/roles.md). Sin frases de ayuda bajo títulos ni campos.
 - Contadores (punto rojo con número; src/lib/contadores.ts, en vivo con el tiempo real): Aprobaciones
   (órdenes esperando al dueño), Pedidos (nuevos sin tomar, Compras), Solicitudes (pendientes, choferes),
   Avisos (sin leer) y Mis pedidos (materiales listos para retirar, obra).
@@ -109,7 +118,12 @@ Reglas de visibilidad (se verifican en el servidor, en cada query y cada action)
 - Ninguna ruta de la matriz queda sin enlace: scripts/verificar-navegacion.ts (y su test).
 - Inicios: DIRECCION, órdenes que esperan aprobación, viajes de hoy, alertas críticas y el mapa como
   tarjeta chica. Obra, "Pedir", listos para retirar (tarjetas verdes con Pedir el viaje), en camino hoy y
-  esperando a Compras. COMPRAS no tiene inicio (va al Tablero).
+  esperando a Compras. ADMINISTRACION, vencimientos y costo del mes. COMPRAS, CHOFER y DEPOSITO no tienen
+  inicio.
+- Pedir un viaje: paso 1 el tipo, paso 2 detalles y ¿para cuándo? en la misma pantalla, con todo puesto
+  (desde el Depósito Florida, la obra única o la del último pedido, hoy a la mañana). La tarjeta verde de un
+  material listo abre /pedir/retiro en el último paso con "mañana a la mañana". Entregas (Depósito) tiene "En
+  obras" con **Volvió** (abre la devolución).
 
 ## Ciclo de un viaje (la lógica más importante de la app)
 

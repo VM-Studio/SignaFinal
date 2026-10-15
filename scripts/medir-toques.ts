@@ -45,11 +45,11 @@ const TAREAS: Record<string, { usuario: string; tareas: Tarea[] }> = {
     tareas: [
       {
         nombre: "Pedir un viaje (llevar algo de la base a la obra)",
-        pasos: [T("Pedir", "link"), T("Llevar algo a la obra"), { escribir: "20 bolsas de cemento", en: "#que" }, { elegir: "Desde dónde", opcion: /Dep[oó]sito|Galp/ }, { elegir: "Obra destino", opcion: /^Obra / }, T("Siguiente", "button"), T("Hoy", "radio", { dentro: "Día" }), T("Mañana", "radio", { dentro: "Hora" }), T("Pedir el viaje", "button")],
+        pasos: [T("Pedir", "link"), T("Llevar algo a la obra"), { escribir: "20 bolsas de cemento", en: "#que" }, T("Pedir el viaje", "button")],
       },
       { nombre: "Pedir materiales a Compras", pasos: [T("Pedir", "link"), T("Pedir materiales")] },
       { nombre: "Ver cómo viene mi viaje", pasos: [T("Mis pedidos", "link"), { css: "main a[href^='/mis-pedidos/']", nombre: "fila" }] },
-      { nombre: "Pedir el viaje de un material listo", pasos: [{ css: "main a[href^='/pedir/retiro?']", nombre: "Pedir el viaje (tarjeta verde)" }, T("Siguiente", "button"), T("Mañana", "radio", { dentro: "Día" }), T("Mañana", "radio", { dentro: "Hora" }), T("Pedir el viaje", "button")] },
+      { nombre: "Pedir el viaje de un material listo", pasos: [{ css: "main a[href^='/pedir/retiro?']", nombre: "Pedir el viaje (tarjeta verde)" }, T("Pedir el viaje", "button")] },
       { nombre: "Buscar dónde está una herramienta", pasos: [T("Más"), T("Herramientas", "link"), { escribir: "amoladora", en: "input[type=search], input[placeholder*='Buscar']" }] },
     ],
   },
@@ -57,20 +57,20 @@ const TAREAS: Record<string, { usuario: string; tareas: Tarea[] }> = {
     usuario: "claudio",
     tareas: [
       { nombre: "Aceptar una solicitud", pasos: [T("Solicitudes", "link"), { css: "main a[href^='/solicitudes/']", nombre: "solicitud" }, T("Aceptar", "button")] },
-      { nombre: "Iniciar el viaje de hoy", pasos: [T("Hoy", "link", { barra: true }), T("Iniciar viaje", "button")] },
-      { nombre: "Ver los viajes de mañana", pasos: [T("Hoy", "link", { barra: true }), T("Próximos")] },
+      { nombre: "Iniciar el viaje de hoy", pasos: [T("Iniciar viaje", "button")] },
+      { nombre: "Ver los viajes de mañana", pasos: [T("Próximos")] },
       { nombre: "Cargar combustible", pasos: [T("Más"), T("Combustible", "link")] },
-      { nombre: "Ver las paradas de un viaje", pasos: [T("Hoy", "link", { barra: true }), { css: "main a[href^='/viaje/']", nombre: "viaje" }] },
+      { nombre: "Ver las paradas de un viaje", pasos: [{ css: "main a[href^='/viaje/']", nombre: "viaje" }] },
     ],
   },
   DEPOSITO: {
     usuario: "deposito",
     tareas: [
-      { nombre: "Buscar una herramienta", pasos: [T("Buscar", "link"), { escribir: "amoladora", en: "input[type=search], input[placeholder*='Buscar']" }] },
-      { nombre: "Entregar una herramienta a una obra", pasos: [T("Herramientas", "link"), { css: "main a[href^='/herramientas/']", nombre: "herramienta" }, T("Entregar", "button")] },
-      { nombre: "Registrar una devolución", pasos: [T("Herramientas", "link"), { elegir: "Ubicación", opcion: /^Obra Darwin/ }, { css: "main a[href^='/herramientas/']", nombre: "herramienta" }, T("Registrar devolución")] },
-      { nombre: "Cargar un sobrante", pasos: [T("Más"), T("Sobrantes", "link"), T("Agregar")] },
-      { nombre: "Ver qué hay en una obra", pasos: [T("Herramientas", "link"), { elegir: "Ubicación", opcion: /^Obra Darwin/ }] },
+      { nombre: "Buscar una herramienta", pasos: [{ escribir: "amoladora", en: "input[type=search], input[placeholder*='Buscar']" }] },
+      { nombre: "Entregar una herramienta a una obra", pasos: [{ css: "main a[href^='/herramientas/']", nombre: "herramienta" }, T("Entregar", "button")] },
+      { nombre: "Registrar una devolución", pasos: [T("Entregas", "link", { barra: true }), T("Volvió", "link"), T("Registrar devolución", "button", { n: 0 })] },
+      { nombre: "Cargar un sobrante", pasos: [T("Sobrantes", "link", { barra: true }), T("Agregar")] },
+      { nombre: "Ver qué hay en una obra", pasos: [{ elegir: "Ubicación", opcion: /^Obra Darwin/ }] },
     ],
   },
   COMPRAS: {
@@ -86,7 +86,7 @@ const TAREAS: Record<string, { usuario: string; tareas: Tarea[] }> = {
   ADMINISTRACION: {
     usuario: "administracion",
     tareas: [
-      { nombre: "Cargar la factura de una orden", pasos: [T("Más"), T("Facturación", "link"), { css: "main a[href*='/compras/oc/']:not([href^='/compras/oc/nueva'])", nombre: "orden" }] },
+      { nombre: "Cargar la factura de una orden", pasos: [T("Facturación", "link", { barra: true }), { css: "main a[href*='/compras/oc/']:not([href^='/compras/oc/nueva'])", nombre: "orden" }] },
       { nombre: "Ver vencimientos de seguro y VTV", pasos: [T("Flota", "link")] },
       { nombre: "Ver costos por obra", pasos: [T("Costos", "link")] },
       { nombre: "Dar de alta un usuario", pasos: [T("Más"), T("Usuarios", "link"), T("Agregar persona")] },

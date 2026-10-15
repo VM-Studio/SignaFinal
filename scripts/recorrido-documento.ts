@@ -144,12 +144,10 @@ const elegir = async (p: Page, c: string, texto: string | RegExp) => {
   await daniela.waitForURL(/\/pedir\/retiro/);
   await daniela.waitForTimeout(1500);
   await foto(daniela, "pedir-el-viaje");
-await daniela.getByRole("button", { name: "Siguiente" }).click();
-  await daniela.getByRole("radiogroup", { name: "Día" }).getByRole("radio", { name: "Mañana" }).click();
-  await daniela.getByRole("radiogroup", { name: "Hora" }).getByRole("radio", { name: "Mañana" }).click();
+  // La tarjeta verde abre el último paso con el material marcado y "mañana a la mañana": un toque.
   await daniela.getByRole("button", { name: /Pedir (el|los)/ }).click();
   await daniela.waitForURL((u) => !u.pathname.startsWith("/pedir/retiro"), { timeout: 15000 });
-  ok((await db.materialListo.count({ where: { ordenCompraId: id!, pedidoViajeId: { not: null } } })) > 0, "Daniela pide el viaje con ese material ya marcado");
+  ok((await db.materialListo.count({ where: { ordenCompraId: id!, pedidoViajeId: { not: null } } })) > 0, "Daniela pide el viaje con ese material ya marcado (2 toques)");
 
   // ── 4. Camila: facturación, factura y pago ──
   await camila.goto(`${BASE}/compras/facturacion`);

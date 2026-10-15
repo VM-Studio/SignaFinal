@@ -37,7 +37,7 @@ async function entrar(nav: Browser, quien: string, ancho: number) {
   await p.fill("#email", `${quien}@signa.demo`);
   await p.fill("#password", "signa2026");
   await p.click('button[type="submit"]');
-  await p.waitForURL("**/inicio", { timeout: 30_000 });
+  await p.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30_000 });
   return p;
 }
 

@@ -170,6 +170,30 @@ export async function movimientosDeHoy() {
   });
 }
 
+/**
+ * Entregas → "En obras": lo que está afuera (unitarias en una obra y existencias por cantidad en obras), con la
+ * devolución vencida primero. Cada fila tiene "Volvió" (abre la devolución de esa herramienta).
+ */
+export async function enObras() {
+  await exigirPermiso("herramientas.mover");
+  const [unitarias, porCantidad] = await Promise.all([
+    db.herramienta.findMany({
+      where: { activo: true, estado: "EN_OBRA", obraId: { not: null } },
+      orderBy: [{ devolucionPrevista: { sort: "asc", nulls: "last" } }, { nombre: "asc" }],
+      select: { id: true, codigo: true, nombre: true, devolucionPrevista: true, obra: { select: { nombre: true } }, responsable: { select: { nombre: true } } },
+    }),
+    db.existenciaHerramienta.findMany({
+      where: { obraId: { not: null }, cantidad: { gt: 0 }, herramienta: { activo: true } },
+      orderBy: { herramienta: { nombre: "asc" } },
+      select: { id: true, cantidad: true, obra: { select: { nombre: true } }, herramienta: { select: { id: true, codigo: true, nombre: true } } },
+    }),
+  ]);
+  return [
+    ...unitarias.map((h) => ({ clave: h.id, id: h.id, codigo: h.codigo, nombre: h.nombre, obra: h.obra!.nombre, cantidad: 1, devolucionPrevista: h.devolucionPrevista, responsable: h.responsable?.nombre ?? null })),
+    ...porCantidad.map((e) => ({ clave: e.id, id: e.herramienta.id, codigo: e.herramienta.codigo, nombre: e.herramienta.nombre, obra: e.obra!.nombre, cantidad: e.cantidad, devolucionPrevista: null, responsable: null })),
+  ];
+}
+
 export async function enReparacion() {
   await exigirPermiso("herramientas.ver");
   return db.herramienta.findMany({ where: { activo: true, estado: "EN_REPARACION" }, select: { id: true, nombre: true, codigo: true, actualizadoEn: true } });

@@ -90,7 +90,7 @@ export function ImportarTablero() {
         {resumen.proveedoresNuevos.length > 0 && <p className="text-sm text-suave"><b className="font-medium text-tinta">Proveedores nuevos ({resumen.proveedoresNuevos.length}):</b> {resumen.proveedoresNuevos.join(", ")}. Quedaron sin sucursal: completá la dirección en Proveedores.</p>}
         {resumen.solicitantesNuevos.length > 0 && <p className="text-sm text-suave"><b className="font-medium text-tinta">Agregados a “Solicitado por” sin usuario:</b> {resumen.solicitantesNuevos.join(", ")}.</p>}
         {resumen.obrasSinEmparejar.length > 0 && <p className="text-sm text-suave"><b className="font-medium text-tinta">Obras que quedaron como texto:</b> {resumen.obrasSinEmparejar.join(", ")}.</p>}
-        <div className="flex flex-wrap gap-2"><BotonLink href="/compras/ordenes">Ver el tablero</BotonLink><Boton variante="secundario" onClick={() => setResumen(null)}>Importar otro archivo</Boton></div>
+        <div className="flex flex-wrap gap-2"><BotonLink href="/compras/tablero">Ver el tablero</BotonLink><Boton variante="secundario" onClick={() => setResumen(null)}>Importar otro archivo</Boton></div>
       </div>
     );
   }
@@ -101,7 +101,6 @@ export function ImportarTablero() {
         <label className={`flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-[var(--radius-caja)] border border-dashed border-linea-fuerte bg-papel p-6 text-center hover:bg-hover ${subiendo ? "opacity-60" : ""}`}>
           <FileSpreadsheet className="size-8 text-suave" strokeWidth={1.5} />
           <span className="font-medium">{subiendo ? "Leyendo el archivo…" : "Elegí tu Excel (.xlsx)"}</span>
-          <span className="text-sm text-suave">Buscamos la hoja del tablero y la fila con “N° OC / PE” y “SOLICITADO POR”. No se guarda nada hasta que confirmes.</span>
           <input type="file" accept=".xlsx" className="hidden" disabled={subiendo} onChange={(e) => { const f = e.target.files?.[0]; if (f) void subir(f); e.target.value = ""; }} />
         </label>
         <MensajeError>{error}</MensajeError>
@@ -206,7 +205,7 @@ export function ImportarTablero() {
         <p className="text-sm text-suave">{conError.length ? `${conError.length} filas con error no se importan (corregilas o excluilas).` : "Todas las filas se pueden importar."}</p>
         <Boton icono={<Upload />} cargando={importando} disabled={!validas.length || mapeo.tipo == null || mapeo.numero == null} onClick={importar} className="sm:ml-auto">Importar {validas.length} filas válidas</Boton>
       </div>
-      <p className="text-[12px] text-suave">Las órdenes importadas quedan en el tablero con fuente “importada del Excel”, sin PDF ni pedido de material. <Link href="/compras/ordenes" className="underline">Volver al tablero</Link></p>
+      <Link href="/compras/tablero" className="text-[13px] text-suave underline">Volver al tablero</Link>
     </div>
   );
 }

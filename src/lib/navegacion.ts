@@ -19,7 +19,6 @@ export const SECCIONES = {
   pedir: { href: "/pedir", titulo: "Pedir un viaje", corto: "Pedir", icono: "pedir" },
   misPedidos: { href: "/mis-pedidos", titulo: "Mis pedidos", icono: "pedidos", contador: "listosRetirar" },
   viajesObra: { href: "/viajes-en-curso", titulo: "Viajes", icono: "viajes" },
-  pedirMateriales: { href: "/pedir-materiales", titulo: "Pedir materiales", icono: "compras" },
   // Compras
   compras: { href: "/compras", titulo: "Pedidos de material", corto: "Pedidos", icono: "compras", contador: "pedidosNuevos" },
   pedidosMaterial: { href: "/compras", titulo: "Pedidos de material", corto: "Pedidos", icono: "compras" },
@@ -31,12 +30,10 @@ export const SECCIONES = {
   aprobaciones: { href: "/aprobaciones", titulo: "Aprobaciones", icono: "aprobaciones", contador: "aprobaciones" },
   // Chofer
   hoy: { href: "/hoy", titulo: "Hoy", icono: "hoy" },
-  hoyChoferes: { href: "/hoy", titulo: "Vista del chofer", icono: "hoy" },
   solicitudes: { href: "/solicitudes", titulo: "Solicitudes", icono: "pedidos", contador: "solicitudesNuevas" },
   solicitudesDireccion: { href: "/solicitudes", titulo: "Solicitudes", icono: "pedidos" },
   combustible: { href: "/combustible", titulo: "Combustible", icono: "combustible" },
   // Depósito ("Buscar": no hay escaneo ni etiquetas QR, las herramientas se buscan por nombre)
-  buscar: { href: "/herramientas?buscar=1", titulo: "Buscar", icono: "buscar" },
   deposito: { href: "/herramientas", titulo: "Depósito", icono: "deposito" },
   herramientasDeposito: { href: "/herramientas", titulo: "Herramientas", icono: "herramientas" },
   herramientas: { href: "/herramientas", titulo: "Herramientas", icono: "herramientas" },
@@ -52,8 +49,6 @@ export const SECCIONES = {
   // Dirección
   mapa: { href: "/mapa", titulo: "Mapa", icono: "mapa" },
   viajes: { href: "/viajes", titulo: "Viajes en curso", icono: "viajes" },
-  viajesAObras: { href: "/viajes-en-curso", titulo: "Viajes hacia obras", icono: "viajes" },
-  historial: { href: "/mapa/historial", titulo: "Recorridos del día", icono: "mapa" },
   rastreo: { href: "/configuracion/rastreo", titulo: "Rastreo (Cusat)", icono: "rastreo" },
   ubicaciones: { href: "/configuracion/ubicaciones", titulo: "Depósitos y base", icono: "deposito" },
   razonesSociales: { href: "/configuracion/razones-sociales", titulo: "Razones sociales", icono: "configuracion" },
@@ -84,23 +79,25 @@ const NAV: Record<Rol, NavRol> = {
   DIRECCION: {
     barra: ["aprobaciones", "pedidosMaterial", "avisos"],
     mas: [
-      { titulo: "Viajes", claves: ["mapa", "viajes", "solicitudesDireccion", "historial", "pedir", "misPedidos", "viajesAObras", "hoyChoferes"] },
-      { titulo: "Compras", claves: ["tablero", "habilitados", "facturacion", "importarExcel", "pedirMateriales"] },
-      { titulo: "Flota", claves: ["flota", "costos", "agenda", "mantenimiento", "combustible"] },
+      { titulo: "Viajes", claves: ["mapa", "viajes", "solicitudesDireccion", "pedir", "misPedidos"] },
+      { titulo: "Compras", claves: ["tablero", "habilitados", "facturacion", "importarExcel"] },
+      { titulo: "Flota", claves: ["flota", "costos", "combustible"] },
       { titulo: "Depósito", claves: ["herramientasDeposito", "sobrantes", "entregas"] },
       { titulo: "Seguimiento", claves: ["actividad", "alertas"] },
       { titulo: "Obras y proveedores", claves: ["obras", "proveedores"] },
       { titulo: "Configuración", claves: ["rastreo", "razonesSociales", "configCompras", "ubicaciones", "usuarios", "importar"] },
-      { titulo: null, claves: ["inicio"] },
     ],
   },
   // Sin inicio: entra al Tablero. "Pedir materiales" es "Nueva" en el Tablero y en Pedidos de material.
   COMPRAS: { barra: ["tablero", "compras", "viajesCompras"], mas: [{ titulo: null, claves: ["habilitados", "proveedores", "misAvisos", "cuentaCorta"] }] },
-  RESPONSABLE_OBRA: { barra: ["pedir", "misPedidos", "viajesObra"], mas: [{ titulo: null, claves: ["herramientas", "obras", "pedirMateriales", "misAvisos", "inicio"] }] },
-  CAPATAZ: { barra: ["pedir", "misPedidos", "viajesObra"], mas: [{ titulo: null, claves: ["herramientas", "obras", "pedirMateriales", "misAvisos", "inicio"] }] },
-  CHOFER: { barra: ["hoy", "solicitudes", "avisos"], mas: [{ titulo: null, claves: ["combustible", "inicio"] }] },
-  DEPOSITO: { barra: ["buscar", "herramientasDeposito", "entregas"], mas: [{ titulo: null, claves: ["sobrantes", "importar", "misAvisos", "inicio"] }] },
-  ADMINISTRACION: { barra: ["flota", "costos", "alertas"], mas: [{ titulo: null, claves: ["obras", "proveedores", "razonesSociales", "agenda", "mantenimiento", "tablero", "facturacion", "ubicaciones", "usuarios", "misAvisos", "inicio"] }] },
+  // "Pedir" es la única entrada para pedir (viajes, materiales, OC y PE). Inicio queda en el logo.
+  RESPONSABLE_OBRA: { barra: ["pedir", "misPedidos", "viajesObra"], mas: [{ titulo: null, claves: ["herramientas", "obras", "misAvisos"] }] },
+  CAPATAZ: { barra: ["pedir", "misPedidos", "viajesObra"], mas: [{ titulo: null, claves: ["herramientas", "obras", "misAvisos"] }] },
+  // Sin inicio: entra a Hoy.
+  CHOFER: { barra: ["hoy", "solicitudes", "avisos"], mas: [{ titulo: null, claves: ["combustible"] }] },
+  // Sin inicio: entra a Herramientas (con el buscador arriba). Las devoluciones, en Entregas.
+  DEPOSITO: { barra: ["herramientasDeposito", "entregas", "sobrantes"], mas: [{ titulo: null, claves: ["importar", "misAvisos"] }] },
+  ADMINISTRACION: { barra: ["flota", "costos", "facturacion"], mas: [{ titulo: null, claves: ["alertas", "tablero", "obras", "proveedores", "razonesSociales", "ubicaciones", "usuarios", "misAvisos"] }] },
 };
 
 // Nunca se muestra un enlace a una ruta que el rol no tiene (la matriz manda).
@@ -162,11 +159,17 @@ export function tituloDeRuta(pathname: string, propias: Seccion[] = []): string 
  */
 /** Rutas que no van en la barra: se abren desde una lista o un botón (el documento de compra y "Nueva"). */
 const SOLO_DESDE_LISTAS = ["/compras/oc"];
+/**
+ * Rutas que se abren desde un botón de otra pantalla del rol (no tienen lugar propio en la navegación):
+ * ruta → la pantalla que la enlaza. "Pedir materiales" desde Pedir; el historial de recorridos desde el Mapa.
+ */
+export const ENLAZADAS_DESDE: Record<string, string> = { "/pedir-materiales": "/pedir", "/mapa/historial": "/mapa" };
 
 export function rutasSinEnlace(rol: Rol, rutas: readonly string[]): string[] {
   const enlaces = enlacesDelRol(rol);
   return rutas
     .map((r) => (r.endsWith("/**") ? r.slice(0, -3) : r))
     .filter((r) => !r.includes("[") && !SOLO_DESDE_LISTAS.includes(r))
+    .filter((r) => !(ENLAZADAS_DESDE[r] && enlaces.includes(ENLAZADAS_DESDE[r])))
     .filter((r) => !enlaces.some((e) => r === e || r.startsWith(`${e}/`)));
 }

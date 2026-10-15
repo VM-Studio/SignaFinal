@@ -179,6 +179,13 @@ export async function tengoViajeEnCurso() {
 
 // ─────────────────────────── Formulario ───────────────────────────
 
+/** Pedir: con varias obras, va puesta la del último pedido de esa persona. */
+export async function ultimaObraPedida() {
+  const u = await exigirSesion();
+  const p = await db.pedidoViaje.findFirst({ where: { solicitanteId: u.id }, orderBy: { creadoEn: "desc" }, select: { obraId: true } });
+  return p?.obraId ?? undefined;
+}
+
 export async function datosFormulario() {
   const u = await exigirSesion();
   if (!puede(u.rol, "pedidos.crear") && !puede(u.rol, "pedidos.coordinar")) throw new Error("Sin permiso");

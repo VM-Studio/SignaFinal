@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { VolverA } from "@/components/ui/volver";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Clock, Navigation, Phone, User, X } from "lucide-react";
+import { Clock, Navigation, Phone, User, X } from "lucide-react";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { db } from "@/lib/db";
 import { puede } from "@/lib/permisos";
@@ -40,7 +41,7 @@ export async function FichaProveedor({ id, cerrar }: { id: string; cerrar?: stri
       {cerrar ? (
         <div className="mb-2 flex justify-end"><Link href={cerrar} scroll={false} className="inline-flex items-center gap-1 text-[12px] font-medium text-suave hover:text-tinta"><X className="size-3.5" /> Cerrar</Link></div>
       ) : (
-        <Link href="/proveedores" className="mb-2 hidden min-h-8 items-center gap-1 text-sm font-medium text-suave hover:text-tinta lg:inline-flex"><ArrowLeft className="size-4" /> Proveedores</Link>
+        <VolverA clave="/proveedores" href="/proveedores" etiqueta="Volver a Proveedores" className="mb-2" />
       )}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">

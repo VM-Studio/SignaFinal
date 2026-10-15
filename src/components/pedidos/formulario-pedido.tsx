@@ -23,7 +23,10 @@ type Lugar = { tipo: OrigenTipo; id: string };
 const clave = (l?: Lugar) => (l ? `${l.tipo}:${l.id}` : "");
 const deClave = (k: string): Lugar | undefined => (k ? { tipo: k.split(":")[0] as OrigenTipo, id: k.split(":")[1] } : undefined);
 
-/** "Paso 1 ¿Qué hay que hacer? → Paso 2 Detalles → Paso 3 ¿Para cuándo?" */
+/**
+ * "Paso 1 ¿Qué hay que hacer? → Paso 2 Detalles y ¿para cuándo?". Todo viene puesto: desde el Depósito Florida,
+ * a la obra (la única o la del último pedido), hoy a la mañana. Lo común son tres toques: Pedir → el tipo → Pedir el viaje.
+ */
 export function FormularioPedido({ datos, obraInicial, precarga = null, coordinar }: {
   datos: DatosFormulario; obraInicial?: string; precarga?: PrecargaViaje | null;
   /** Compras coordina el viaje para alguien de obra: el pedido sale a su nombre; el retiro va por onRetiro. */
@@ -35,8 +38,8 @@ export function FormularioPedido({ datos, obraInicial, precarga = null, coordina
   const obraRepetida = precarga && datos.obras.some((o) => o.id === precarga.obraId) ? precarga.obraId : "";
   const unaObra = obraRepetida || (obraInicial && datos.obras.some((o) => o.id === obraInicial) ? obraInicial : datos.obras.length === 1 ? datos.obras[0].id : "");
 
-  // Repitiendo, va directo a "¿Para cuándo?" (todo lo demás ya está); si la obra no sirve, a los detalles.
-  const [paso, setPaso] = useState<1 | 2 | 3>(precarga ? (obraRepetida ? 3 : 2) : 1);
+  // Repitiendo, va directo a los detalles (todo ya está; la fecha se elige de nuevo).
+  const [paso, setPaso] = useState<1 | 2>(precarga ? 2 : 1);
   const [verResumen, setVerResumen] = useState(false);
   const [tipo, setTipo] = useState<TipoPedido | undefined>(precarga?.tipo);
   // Detalles
@@ -70,6 +73,8 @@ export function FormularioPedido({ datos, obraInicial, precarga = null, coordina
     ],
     [datos],
   );
+  const deposito = datos.ubicaciones.find((x) => x.tipo === "DEPOSITO" && /florida/i.test(x.nombre)) ?? datos.ubicaciones.find((x) => x.tipo === "DEPOSITO");
+  const depositoPorDefecto: Lugar | undefined = deposito ? { tipo: deposito.tipo, id: deposito.id } : undefined;
   const esTraslado = tipo === "TRASLADO_MAQUINARIA" || tipo === "TRASLADO_HERRAMIENTAS";
   const herramientas = useMemo(() => {
     if (!esTraslado) return [];
@@ -85,7 +90,8 @@ export function FormularioPedido({ datos, obraInicial, precarga = null, coordina
     if (t === "RETIRO_PROVEEDOR") return coordinar ? coordinar.onRetiro() : router.push(`/pedir/retiro${obraId ? `?obra=${obraId}` : ""}`);
     setTipo(t);
     setError(undefined);
-    setDesde(undefined);
+    // Lo de todos los días sale del galpón: el Depósito Florida ya elegido (se cambia si no).
+    setDesde(t === "LLEVAR_A_OBRA" || t === "TRASLADO_PERSONAS" ? depositoPorDefecto : undefined);
     setHerramientaId("");
     setQue("");
     setPaso(2);
@@ -102,7 +108,7 @@ export function FormularioPedido({ datos, obraInicial, precarga = null, coordina
   /** Arma lo que va al servidor según el tipo. */
   function armar(): DatosPedido | string {
     if (!tipo) return "Elegí qué hay que hacer.";
-    if (!diaElegido && paso === 3) return "Elegí para cuándo.";
+    if (!diaElegido) return "Elegí para cuándo.";
     if (!obraId) return "Elegí la obra.";
     if (sedes.length > 1 && !sedeId) return "Elegí a qué sede de la obra va.";
     const destinoSedeId = sedes.length > 1 ? sedeId : sedes.length === 1 ? sedes[0].id : undefined;
@@ -126,16 +132,6 @@ export function FormularioPedido({ datos, obraInicial, precarga = null, coordina
       default:
         return "Elegí qué hay que hacer.";
     }
-  }
-
-  function pasoDosCompleto() {
-    const r = armar();
-    if (typeof r === "string") {
-      setError(r);
-      return;
-    }
-    setError(undefined);
-    setPaso(3);
   }
 
   async function enviar(forzar = false) {
@@ -207,14 +203,14 @@ export function FormularioPedido({ datos, obraInicial, precarga = null, coordina
       {/* Progreso */}
       <div className="flex items-center gap-2">
         {paso > 1 && (
-          <button type="button" onClick={() => setPaso((paso - 1) as 1 | 2)} aria-label="Volver" className="-ml-2 grid size-11 place-items-center rounded-md hover:bg-black/5">
+          <button type="button" onClick={() => setPaso(1)} aria-label="Volver" className="-ml-2 grid size-11 place-items-center rounded-md hover:bg-black/5">
             <ArrowLeft className="size-6" />
           </button>
         )}
         <div className="flex-1">
-          <p className="text-sm font-semibold text-suave">Paso {paso} de 3</p>
+          <p className="text-sm font-semibold text-suave">Paso {paso} de 2</p>
           <div className="mt-1.5 flex gap-1">
-            {[1, 2, 3].map((n) => (
+            {[1, 2].map((n) => (
               <span key={n} className={`h-1 flex-1 rounded-full ${n <= paso ? "bg-tinta" : "bg-linea"}`} />
             ))}
           </div>
@@ -328,14 +324,12 @@ export function FormularioPedido({ datos, obraInicial, precarga = null, coordina
             </>
           )}
 
-          <MensajeError>{error}</MensajeError>
-          <Boton ancho onClick={pasoDosCompleto}>Siguiente</Boton>
         </section>
       )}
 
-      {paso === 3 && (
+      {paso === 2 && tipo && (
         <section className="flex flex-col gap-5">
-          <h2 className="text-2xl font-semibold">¿Para cuándo?</h2>
+          <h2 className="text-lg font-semibold">¿Para cuándo?</h2>
           <div className="flex flex-col gap-2">
             <Opciones
               nombre="Día"
@@ -377,7 +371,6 @@ export function FormularioPedido({ datos, obraInicial, precarga = null, coordina
                 { valor: "URGENTE", titulo: "Urgente" },
               ]}
             />
-            <p className="text-sm text-suave">Urgente solo si la obra se para sin esto.</p>
           </div>
           {precarga && (
             <p className="rounded-md border border-linea bg-fondo px-3 py-2.5 text-sm font-medium">

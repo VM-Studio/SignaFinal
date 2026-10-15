@@ -37,7 +37,7 @@ export default async function PaginaActividad({ searchParams }: { searchParams: 
   const [{ filas, total, pagina, paginas }, ops] = await Promise.all([actividad(f), opcionesFiltro()]);
   return (
     <div>
-      <Titulo detalle="Cada acción de cada usuario, lo último primero." accion={<a href={`/api/actividad/exportar${query(f)}`} className={claseBoton("secundario")}><Download /> Exportar CSV</a>}>
+      <Titulo accion={<a href={`/api/actividad/exportar${query(f)}`} className={claseBoton("secundario")}><Download /> Exportar CSV</a>}>
         Actividad
       </Titulo>
       <form action="/actividad" className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-6">

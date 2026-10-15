@@ -21,7 +21,7 @@ export default async function PaginaRazonesSociales() {
   return (
     <div className="grid min-w-0 gap-6 lg:grid-cols-12">
       <section className="min-w-0 lg:col-span-7">
-        <Titulo siempre detalle="Las empresas que compran y facturan. Se eligen en cada orden de compra y en Facturación." accion={<BotonRazonSocial />}>Razones sociales</Titulo>
+        <Titulo siempre accion={<BotonRazonSocial />}>Razones sociales</Titulo>
         {razones.length === 0 ? <Vacio icono={<Building2 />} titulo="Sin razones sociales" /> : (
           <div className="overflow-x-auto rounded-[var(--radius-caja)] border border-linea bg-papel">
             <table className="tabla">

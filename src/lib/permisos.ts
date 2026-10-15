@@ -108,7 +108,8 @@ const COMPRAS: Entrada = {
 const DIRECCION: Entrada = {
   rutas: [
     ...new Set([
-      ...OBRA.rutas, ...CHOFER.rutas, ...DEPOSITO.rutas, ...ADMINISTRACION.rutas, ...COMPRAS.rutas,
+      // Sin la pantalla Hoy del chofer ni la lista de viajes de la obra: el dueño los ve en Viajes en curso.
+      ...OBRA.rutas.filter((r) => !r.startsWith("/viajes-en-curso")), ...CHOFER.rutas.filter((r) => r !== "/hoy"), ...DEPOSITO.rutas, ...ADMINISTRACION.rutas, ...COMPRAS.rutas,
       "/aprobaciones", "/configuracion/rastreo", "/configuracion/ubicaciones", "/configuracion/razones-sociales", "/configuracion/compras", "/mapa/**", "/actividad", "/actividad/[id]", "/solicitudes/**", "/viajes", "/proveedores", "/usuarios", "/sobrantes",
     ]),
   ],
@@ -154,7 +155,9 @@ export function rutaPermitida(rol: Rol, ruta: string): boolean {
 }
 
 /** Adónde entra cada rol (Compras no tiene inicio: entra al Tablero). */
-export const inicioDe = (rol: Rol) => (rol === "COMPRAS" ? "/compras/tablero" : "/inicio");
+/** Dónde cae cada rol al entrar: Compras en el Tablero, el chofer en Hoy, Depósito en Herramientas; el resto en su inicio. */
+const INICIOS: Partial<Record<Rol, string>> = { COMPRAS: "/compras/tablero", CHOFER: "/hoy", DEPOSITO: "/herramientas" };
+export const inicioDe = (rol: Rol) => INICIOS[rol] ?? "/inicio";
 
 /** Roles que ven todas las obras. Responsable de obra: solo las suyas. */
 export function veTodasLasObras(rol: Rol) {
@@ -179,7 +182,7 @@ export function rutaNueva(rol: Rol, ruta: string): string | null {
   if (["/escanear", "/herramientas/escanear", "/herramientas/etiquetas"].includes(ruta) || ruta.startsWith("/h/") || ruta.startsWith("/imprimir/")) return "/herramientas";
   if (ruta === "/alertas" && !rutaPermitida(rol, "/alertas")) return "/avisos";
   // Compras no tiene inicio: entra directo al tablero.
-  if (ruta === "/inicio" && rol === "COMPRAS") return inicioDe(rol);
+  if (ruta === "/inicio" && inicioDe(rol) !== "/inicio") return inicioDe(rol);
   // El pedido de material ahora es el documento de compra: los enlaces viejos van a su plantilla.
   const viejo = ruta.match(/^\/(?:materiales|mis-pedidos\/material|compras\/ordenes)\/([^/]+)$/) ?? ruta.match(/^\/compras\/([^/]+)(?:\/oc)?$/);
   if (viejo && !["tablero", "ordenes", "viajes", "importar", "nuevo", "facturacion", "oc"].includes(viejo[1]) && viejo[1] !== "nueva") return `/compras/oc/${viejo[1]}`;

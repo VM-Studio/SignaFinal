@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 /**
@@ -10,9 +10,13 @@ import { ArrowLeft } from "lucide-react";
  * el scroll de la planilla). Implementado una sola vez:
  *  - La lista llama a guardarEstadoLista(clave) al abrir un detalle (URL completa + scroll), en sessionStorage
  *    y por usuario.
- *  - El detalle muestra <VolverA clave href etiqueta>: si se vino de esa lista, history.back(); si no (link
- *    directo, recarga), navega a la URL guardada o al href por defecto.
+ *  - El detalle muestra <VolverA clave href etiqueta>: si se llegó tocando un enlace de la app, history.back()
+ *    (a la lista o a la pantalla de donde vino); si no (link directo, recarga, aviso), navega a la URL guardada
+ *    de la lista o al href por defecto.
  *  - La lista monta <RestaurarLista clave>: al volver, repone el scroll.
+ * Para todas las demás listas lo hace solo <RecordarListas /> (en el layout): al tocar un enlace guarda la
+ * pantalla actual con su ruta como clave, y al volver repone el scroll. Así cada detalle usa
+ * <VolverA clave="/herramientas" href="/herramientas" etiqueta="Depósito" /> sin tocar la lista.
  */
 type Estado = { url: string; y: number; planilla?: { x: number; y: number }; t: number };
 const usuario = () => (typeof document === "undefined" ? "" : document.querySelector<HTMLElement>("[data-usuario]")?.dataset.usuario ?? "");
@@ -45,7 +49,8 @@ export function VolverA({ clave: c, href, etiqueta, className = "" }: { clave: s
   const [vino, setVino] = useState(false);
   useEffect(() => {
     try {
-      setVino(sessionStorage.getItem(VINO) === c);
+      // Si llegó tocando un enlace de la app (de esta lista o de otra pantalla, como la obra), vuelve atrás.
+      setVino(!!sessionStorage.getItem(VINO));
     } catch {}
   }, [c]);
   const destino = () => leer(c)?.url ?? href;
@@ -71,6 +76,29 @@ export function VolverA({ clave: c, href, etiqueta, className = "" }: { clave: s
 
 /** En la lista: al volver de un detalle, repone el scroll de la página (y el de la planilla). */
 export function RestaurarLista({ clave: c }: { clave: string }) {
+  useRestaurar(c);
+  return null;
+}
+
+/** Todas las listas: guarda la pantalla al tocar un enlace interno y la repone al volver con VolverA. */
+export function RecordarListas() {
+  const ruta = usePathname();
+  useEffect(() => {
+    const alTocar = (e: MouseEvent) => {
+      const a = (e.target as HTMLElement | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!a || a.target === "_blank" || e.metaKey || e.ctrlKey) return;
+      const url = new URL(a.href, location.href);
+      if (url.origin !== location.origin || url.pathname === location.pathname) return;
+      guardarEstadoLista(location.pathname);
+    };
+    document.addEventListener("click", alTocar, true);
+    return () => document.removeEventListener("click", alTocar, true);
+  }, []);
+  useRestaurar(ruta);
+  return null;
+}
+
+function useRestaurar(c: string) {
   useLayoutEffect(() => {
     let volviendo = false;
     try {
@@ -92,5 +120,4 @@ export function RestaurarLista({ clave: c }: { clave: string }) {
     const t = window.setTimeout(reponer, 120);
     return () => window.clearTimeout(t);
   }, [c]);
-  return null;
 }

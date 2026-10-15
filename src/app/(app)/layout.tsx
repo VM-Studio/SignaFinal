@@ -16,6 +16,7 @@ import { ProveedorAvisos } from "@/components/ui/avisos";
 import { IndicadorConexion } from "@/components/layout/conexion";
 import { AvisosEnVivo } from "@/components/layout/avisos-en-vivo";
 import { TiempoReal } from "@/components/layout/tiempo-real";
+import { RecordarListas } from "@/components/ui/volver";
 import { RefrescoPorRuta, TirarParaActualizar } from "@/components/layout/actualizar";
 import { SincronizarPush } from "@/components/layout/sincronizar-push";
 import { AjusteTeclado } from "@/components/layout/ajuste-teclado";
@@ -46,6 +47,7 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
   return (
     <ProveedorAvisos>
       <TiempoReal>
+      <RecordarListas />
       <AvisosEnVivo inicial={avisos}>
       <ContadoresEnVivo inicial={contadores}>
       <RefrescoPorRuta />

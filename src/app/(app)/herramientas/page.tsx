@@ -38,7 +38,6 @@ export default async function PaginaHerramientas({ searchParams }: { searchParam
   return (
     <div>
       <Titulo
-        detalle="Maquinaria y herramientas: en el depósito o en una obra, nunca en otro lado."
         accion={
           <div className="flex flex-wrap gap-2">
             {puede(u.rol, "herramientas.editar") && (

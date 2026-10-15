@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { VolverA } from "@/components/ui/volver";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { ArrowLeft, Pencil, Wrench } from "lucide-react";
+import { Pencil, Wrench } from "lucide-react";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { enlacePedido, puede } from "@/lib/permisos";
 import { db } from "@/lib/db";
@@ -47,7 +48,7 @@ export default async function FichaHerramienta({ params, searchParams }: { param
     >
     <div className="grid gap-x-6 gap-y-4 @2xl:grid-cols-12">
       <header className="min-w-0 @2xl:col-span-8 @2xl:col-start-1">
-        <Link href="/herramientas" className="mb-2 hidden min-h-8 items-center gap-1 text-sm font-medium text-suave hover:text-tinta lg:inline-flex"><ArrowLeft className="size-4" /> {u.rol === "RESPONSABLE_OBRA" || u.rol === "CAPATAZ" ? "Herramientas" : "Depósito"}</Link>
+        <VolverA clave="/herramientas" href="/herramientas" etiqueta={u.rol === "RESPONSABLE_OBRA" || u.rol === "CAPATAZ" ? "Volver a Herramientas" : "Volver al depósito"} className="mb-2" />
         <div className="flex gap-4">
           {h.fotoUrl && (
             // eslint-disable-next-line @next/next/no-img-element

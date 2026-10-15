@@ -143,7 +143,7 @@ export function FormularioMateriales({ obras: iniciales, obraInicial, compras = 
         )}
 
         <fieldset className="flex flex-col gap-2">
-          <legend className="mb-1 text-[12px] font-medium text-suave">Materiales (escribilos o adjuntá la lista: con uno alcanza)</legend>
+          <legend className="mb-1 text-[12px] font-medium text-suave">Materiales</legend>
           {renglones.map((r, i) => (
             <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[minmax(0,1fr)_5.5rem_6.5rem_auto]">
               <Entrada aria-label={`Material ${i + 1}`} value={r.descripcion} maxLength={200} autoFocus={i > 0} onChange={(e) => cambiar(i, { descripcion: e.target.value })} placeholder={i === 0 ? "Ej.: cemento portland" : "Otro material"} className="sm:col-span-1" />
@@ -175,7 +175,6 @@ export function FormularioMateriales({ obras: iniciales, obraInicial, compras = 
             </ul>
           )}
           <SubirAdjuntos entidadTipo="ORDEN_COMPRA" etiqueta="Adjuntar lista de materiales" onCambio={(ids, s) => { setAdjuntos(ids); setSubiendo(s); }} />
-          <p className="text-[12px] text-suave">PDF, Excel, Word, CSV o fotos (hasta 20 MB cada uno). Se pueden adjuntar varios.</p>
         </fieldset>
       </div>
 
@@ -196,7 +195,6 @@ export function FormularioMateriales({ obras: iniciales, obraInicial, compras = 
         <div className="flex flex-col gap-1.5">
           <p className="text-[12px] font-medium text-suave">Prioridad</p>
           <Opciones nombre="Prioridad" columnas={2} valor={prioridad} onElegir={(v) => setPrioridad(v as typeof prioridad)} opciones={[{ valor: "NORMAL", titulo: "Normal" }, { valor: "URGENTE", titulo: "Urgente" }]} />
-          <p className="text-[12px] text-suave">Urgente solo si la obra se para sin esto.</p>
         </div>
       </div>
 

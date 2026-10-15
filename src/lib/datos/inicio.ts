@@ -6,21 +6,6 @@ import { conAlcance, viajesVisibles } from "@/lib/alcance";
 
 /** Cada query verifica su permiso: no alcanza con esconder el botón. */
 
-
-export async function pedidosPendientes() {
-  const u = await exigirPermiso("pedidos.ver");
-  return db.pedidoViaje.count({ where: conAlcance(u, { estado: "PENDIENTE" }) });
-}
-
-export async function devolucionesVencidas() {
-  await exigirPermiso("herramientas.mover");
-  return db.herramienta.findMany({
-    where: { activo: true, obraId: { not: null }, devolucionPrevista: { lt: new Date() } },
-    orderBy: { devolucionPrevista: "asc" },
-    select: { id: true, codigo: true, nombre: true, devolucionPrevista: true, obra: { select: { nombre: true } }, responsable: { select: { nombre: true } } },
-  });
-}
-
 export async function resumenDireccion() {
   const u = await exigirPermiso("mapa.ver");
   const [pendientes, enViaje, criticas] = await Promise.all([

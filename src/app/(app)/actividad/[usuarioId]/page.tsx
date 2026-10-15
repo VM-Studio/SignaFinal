@@ -1,7 +1,6 @@
-import Link from "next/link";
+import { VolverA } from "@/components/ui/volver";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { ArrowLeft } from "lucide-react";
 import { actividad, resumenPersona } from "@/lib/actividad/consultas";
 import { ROL } from "@/lib/etiquetas";
 import { km } from "@/lib/formato";
@@ -19,7 +18,7 @@ export default async function PaginaPersona({ params, searchParams }: { params: 
   const chofer = r.usuario.rol === "CHOFER";
   return (
     <div>
-      <Link href="/actividad" className="mb-2 inline-flex min-h-11 items-center gap-1 font-semibold text-suave"><ArrowLeft className="size-5" /> Actividad</Link>
+      <VolverA clave="/actividad" href="/actividad" etiqueta="Volver a Actividad" className="mb-2" />
       <h1 className="text-2xl font-semibold lg:text-3xl">{r.usuario.nombre}</h1>
       <p className="text-suave">{ROL[r.usuario.rol]}{r.usuario.telefono ? ` · ${r.usuario.telefono}` : ""}{r.usuario.activo ? "" : " · desactivado"}</p>
       <Subtitulo>Este mes</Subtitulo>

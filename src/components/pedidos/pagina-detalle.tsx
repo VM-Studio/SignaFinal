@@ -1,7 +1,7 @@
-import Link from "next/link";
+import { VolverA } from "@/components/ui/volver";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { ArrowDown, ArrowLeft, MapPin, Navigation, Phone } from "lucide-react";
+import { ArrowDown, MapPin, Navigation, Phone } from "lucide-react";
 import { exigirPermiso } from "@/lib/auth/sesion";
 import { puede } from "@/lib/permisos";
 import { db } from "@/lib/db";
@@ -87,9 +87,7 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
 
   const cabecera = (
     <header className="min-w-0">
-      <Link href={volver.href} className="mb-2 hidden min-h-8 items-center gap-1 text-sm font-medium text-suave hover:text-tinta @2xl:inline-flex">
-        <ArrowLeft className="size-4" /> {volver.titulo}
-      </Link>
+      <VolverA clave={volver.href.split("?")[0]} href={volver.href} etiqueta={`Volver a ${volver.titulo}`} className="mb-2" />
       <p className="flex items-center gap-1.5 etiqueta [&_svg]:size-3.5">
         <IconoTipo tipo={p.tipo} /> {TIPO[p.tipo].titulo} · Pedido {p.numero}
       </p>

@@ -25,7 +25,7 @@ async function entrar(nav: Browser, quien: string, ancho = 1440) {
   await p.fill("#email", `${quien}@signa.demo`);
   await p.fill("#password", "signa2026");
   await p.click('button[type="submit"]');
-  await p.waitForURL("**/inicio", { timeout: 60_000 });
+  await p.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 60_000 });
   return p;
 }
 const foto = (p: Page, n: string, completa = false) => p.screenshot({ path: `${DIR}/${n}.png`, fullPage: completa });

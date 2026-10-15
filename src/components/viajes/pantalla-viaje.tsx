@@ -1,10 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Link from "next/link";
+import { VolverA } from "@/components/ui/volver";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Camera, CheckCircle2, Flag, Gauge, Map as MapIcon, Navigation, PackageCheck, Satellite, Smartphone, Truck, WifiOff } from "lucide-react";
+import { Camera, CheckCircle2, Flag, Gauge, Map as MapIcon, Navigation, PackageCheck, Satellite, Smartphone, Truck, WifiOff } from "lucide-react";
 import { BotonLink, Boton } from "@/components/ui/boton";
 import { Hoja } from "@/components/ui/hoja";
 import { MensajeError } from "@/components/ui/campos";
@@ -106,7 +106,7 @@ export function PantallaViaje({ d }: { d: Datos }) {
 
   const columna = (
     <div className="flex flex-col gap-3 lg:gap-4">
-      <Link href="/hoy" className="inline-flex min-h-10 items-center gap-1 self-start text-sm font-medium text-suave hover:text-tinta lg:min-h-8"><ArrowLeft className="size-4" /> Hoy</Link>
+      <VolverA clave="/hoy" href="/hoy" etiqueta="Volver a Hoy" className="self-start" />
 
       {/* Primero, la fecha del viaje: la del pedido, grande y en palabras. */}
       {d.estado !== "FINALIZADO" && <FechaGrande fecha={d.paraCuando} franja={d.franja} iniciado={enCurso} className="text-[22px] leading-7" />}

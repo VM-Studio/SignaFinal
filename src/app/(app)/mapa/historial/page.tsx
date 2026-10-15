@@ -19,7 +19,7 @@ export default async function PaginaHistorial({ searchParams }: { searchParams: 
     <>
       <div>
         <VolverAlMapa />
-        <Titulo detalle="Recorrido real de Cusat: paradas, km del día y los viajes del sistema. Se puede reproducir.">Historial</Titulo>
+        <Titulo>Historial</Titulo>
       </div>
       <form className="grid grid-cols-[minmax(0,1fr)_auto] gap-2" action="/mapa/historial">
         <div className="col-span-2">

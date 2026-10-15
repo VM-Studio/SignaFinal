@@ -1,7 +1,7 @@
-# Auditoría de usabilidad · Etapa 1 (solo lectura)
+# Auditoría de usabilidad
 
-15/10/2026. Nada de esto cambió la app: es el mapa de cómo se navega hoy, cuántos toques cuestan las tareas
-de todos los días y la propuesta para la etapa 2, que espera el ok.
+15/10/2026. **Etapa 1** (más abajo): el mapa de cómo se navegaba, los toques de cada tarea y la propuesta.
+**Etapa 2** (al final): lo que se cambió y la medición de nuevo: **30 de 30 tareas en 3 toques o menos**.
 
 - Toques medidos con `scripts/medir-toques.ts` (celular 390 px, base de desarrollo; resultado en
   tmp/toques.json). Cuenta cada toque (botón, enlace, opción de una lista, pestaña; una lista nativa son 2:
@@ -158,8 +158,37 @@ obras (formulario), depósitos y base, adjuntos, configuración de Compras, rein
 - **Facturación en la barra** (Flota · Costos · Facturación · Más; Alertas pasa a Más junto a Avisos): su
   tarea nueva de todos los días queda a un toque. Cargar una factura: de 3 a 2.
 
-## Preguntas para el ok
+## Preguntas de la etapa 1 (se resolvieron con estos valores; se pueden cambiar)
 
-1. ¿Camila (Administración) cae en Facturación o sigue cayendo en su inicio con los vencimientos?
-2. ¿El dueño quiere seguir viendo "Vista del chofer" (ver lo que ve Claudio) o se va?
-3. Para la obra, ¿"desde el Depósito Florida" es el origen por defecto correcto de "Llevar algo a la obra"?
+1. Camila sigue cayendo en su inicio (vencimientos y costos) y tiene **Facturación en la barra**.
+2. "Vista del chofer" sale del dueño (también la lista de viajes de la obra): ve todo en Viajes en curso.
+3. "Llevar algo a la obra" sale por defecto del **Depósito Florida**.
+
+## Etapa 2 · Lo que se hizo
+
+| Tarea | Antes | Ahora | Cómo |
+|---|---|---|---|
+| Pedir un viaje (obra) | 10 | **3** | Detalles y "¿para cuándo?" en la misma pantalla, sin "Siguiente"; desde el Depósito Florida, la obra única o la del último pedido, hoy a la mañana |
+| Pedir el viaje de un material listo | 5 | **2** | La tarjeta verde abre el último paso con el material marcado y "mañana a la mañana" |
+| Registrar una devolución (depósito) | 5 | **3** | Entregas → "En obras" con **Volvió** (abre la devolución) |
+| Tareas del chofer | 2 | **1** | Entra directo a Hoy |
+| Tareas del depósito | 1-3 | **0-2** | Entra a Herramientas con el buscador; barra Herramientas · Entregas · Sobrantes |
+| Cargar una factura (Camila) | 3 | **2** | Facturación en la barra (Alertas pasa a Más) |
+
+Además:
+- **Volver en todos los detalles**, también en el celular, que vuelve a la lista con filtros, pestaña, orden y
+  scroll (RecordarListas en el layout + VolverA). Si se llegó desde otra pantalla (una herramienta abierta
+  desde la obra), vuelve a esa pantalla.
+- **Profundidad**: ninguna pantalla propia de un rol a más de 2 niveles. Los enlaces cruzados (la herramienta
+  desde la obra, desde la persona en Actividad) abren el detalle de su propia sección, con Volver.
+- **Más del dueño**: de 32 a 25 (sin Vista del chofer, Viajes hacia obras, Recorridos del día —es "Historial"
+  en el Mapa—, Pedir materiales —está en Pedir—, Agenda y Mantenimiento —botones en Flota—).
+  "Pedidos" (bandeja de pedidos que esperan a Compras) y "Tablero" (órdenes numeradas) se quedan: muestran
+  cosas distintas. Habilitados también (es el seguimiento de los retiros).
+- **Inicio fuera de Más** en todos los roles (es el logo). **Pedir materiales** solo desde Pedir (salió de Más
+  y del inicio de la obra; el "Pedir el viaje" del inicio sin material también).
+- **Sin textos de ayuda**: "Cómo funciona" de /pedir/retiro, las frases bajo los títulos (Solicitudes,
+  Usuarios, Actividad, Alertas, Sobrantes, Viajes, Rastreo, Ubicaciones, Razones sociales, Numeración,
+  Mantenimiento, Historial, Importar), las descripciones de Nueva y las pistas de los formularios ("Urgente
+  solo si…", tipos de archivo, etc.). Quedan los estados vacíos y los datos.
+- **docs/roles.md** es la guía de uso por rol, con los toques de cada tarea.

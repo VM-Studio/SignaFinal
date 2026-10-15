@@ -22,16 +22,14 @@ export default async function PaginaConfiguracionCompras() {
   return (
     <div className="grid min-w-0 gap-6 lg:grid-cols-12">
       <section className="min-w-0 lg:col-span-7">
-        <Titulo siempre detalle="Cada tipo de orden tiene su numeración, sin año. El número se asigna al enviar a aprobación; los borradores no gastan número.">Numeración de órdenes</Titulo>
+        <Titulo siempre>Numeración de órdenes</Titulo>
         <div className="grid gap-3 sm:grid-cols-2">
           <Tarjeta className="p-4"><ProximoNumero tipo="OC" ultimo={ultimo("OC")} puedeEditar={editar} /></Tarjeta>
           <Tarjeta className="p-4"><ProximoNumero tipo="PE" ultimo={ultimo("PE")} puedeEditar={editar} /></Tarjeta>
         </div>
-        <p className="mt-2 text-[12px] text-suave">Al importar el tablero desde Excel, la numeración sigue sola después del número más alto importado.</p>
       </section>
       <section className="min-w-0 lg:col-span-5">
         <Subtitulo>Solicitado por (sin usuario)</Subtitulo>
-        <p className="mb-3 text-sm text-suave">Personas que piden material y no usan el sistema. Aparecen junto a los usuarios en “Solicitado por”.</p>
         <SolicitantesExternos lista={externos.map((e) => ({ id: e.id, nombre: e.nombre, activo: e.activo, ordenes: e._count.ordenes }))} />
       </section>
     </div>

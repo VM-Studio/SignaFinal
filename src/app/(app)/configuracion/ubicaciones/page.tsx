@@ -18,7 +18,7 @@ export default async function PaginaUbicaciones() {
   });
   return (
     <div>
-      <Titulo siempre detalle="Donde se guardan las herramientas y los camiones. Aparecen como origen al pedir un viaje." accion={<BotonUbicacion />}>Depósitos y base</Titulo>
+      <Titulo siempre accion={<BotonUbicacion />}>Depósitos y base</Titulo>
       {lugares.length === 0 ? <Vacio icono={<Warehouse />} titulo="Sin depósitos cargados" /> : (
         <ul className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
           {lugares.map((u) => {

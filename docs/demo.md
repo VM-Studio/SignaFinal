@@ -25,12 +25,12 @@ base** (con `MODO_DEMO=true`; borra todo lo cargado y no se puede deshacer).
 
 | Rol | Barra (celular) | En "Más" |
 |---|---|---|
-| Dirección | Aprobaciones · Pedidos · Avisos · Más | Mapa, Viajes en curso, Solicitudes, Flota, Costos, Actividad, Herramientas, Rastreo, Obras, Proveedores, Configuración |
+| Dirección | Aprobaciones · Pedidos · Avisos · Más | Viajes (Mapa, Viajes en curso, Solicitudes, Pedir, Mis pedidos), Compras, Flota, Depósito, Actividad, Alertas, Obras, Proveedores, Configuración |
 | Compras | Tablero · Pedidos · Viajes · Más | Habilitados, Proveedores, Mis avisos, Cuenta (sin inicio: entra al Tablero) |
-| Responsable / Capataz | Pedir · Mis pedidos · Viajes · Más | Herramientas, Obras, Pedir materiales, Avisos |
-| Chofer | Hoy · Solicitudes · Avisos · Más | Combustible |
-| Depósito | Buscar · Herramientas · Entregas · Más | Sobrantes, Alta masiva, Avisos |
-| Administración | Flota · Costos · Alertas · Más | Obras, Proveedores, Razones sociales, Agenda, Mantenimiento, Tablero, Facturación, Usuarios |
+| Responsable / Capataz | Pedir · Mis pedidos · Viajes · Más | Herramientas, Obras, Avisos |
+| Chofer (entra a Hoy) | Hoy · Solicitudes · Avisos · Más | Combustible |
+| Depósito (entra a Herramientas) | Herramientas · Entregas · Sobrantes · Más | Alta masiva, Avisos |
+| Administración | Flota · Costos · Facturación · Más | Alertas, Tablero, Obras, Proveedores, Razones sociales, Usuarios |
 
 En escritorio, la barra lateral tiene los mismos tres arriba y el resto en "Más" (plegado). Mi cuenta y
 Cerrar sesión, en el avatar y al pie de "Más".
@@ -70,7 +70,7 @@ datos reales cargados:
    (Para probar el rechazo: **Rechazar** con motivo → vuelve a Compras con el motivo arriba.)
 4. **Compras** → **Marcar como encargada** → **Habilitar para retirar** (sucursal, horario): la barra se pone
    verde. **Daniela** ve la tarjeta verde en *Mis pedidos* con **Pedir el viaje**.
-5. **Daniela** → **Pedir el viaje** (llega con el material ya marcado) → día y hora → pide el viaje.
+5. **Daniela** → **Pedir el viaje** en la tarjeta verde (llega con el material marcado y "mañana a la mañana") → **Pedir el viaje**.
    (O **Compras** → *Viajes* → **Coordinar viaje**: para Daniela, obra Darwin → el pedido sale a nombre de
    Daniela y Claudio ve "Pidió Daniela · coordinó …".)
 6. **Claudio** → *Solicitudes* → **Aceptar** el cemento para Darwin: **Aprovechá el viaje** le ofrece el

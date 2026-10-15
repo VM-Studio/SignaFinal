@@ -30,16 +30,16 @@ export function OpcionesNueva({ rapida = "/pedir-materiales", obraId }: { rapida
       {rapida && (
         <Link href={rapida} className={clase}>
           <ShoppingCart className="mt-0.5 size-5 shrink-0" />
-          <span><span className="block text-[15px] font-semibold">Pedir materiales</span><span className="text-sm text-suave">Obra, qué (texto o archivo), para cuándo. Le llega a Compras en el acto.</span></span>
+          <span><span className="block text-[15px] font-semibold">Pedir materiales</span></span>
         </Link>
       )}
       <button type="button" disabled={!!creando} onClick={() => armar("OC")} className={clase}>
         <FileText className="mt-0.5 size-5 shrink-0" />
-        <span><span className="block text-[15px] font-semibold">{creando === "OC" ? "Abriendo…" : "Armar orden de compra"}</span><span className="text-sm text-suave">La plantilla de la OC para completar.</span></span>
+        <span><span className="block text-[15px] font-semibold">{creando === "OC" ? "Abriendo…" : "Armar orden de compra"}</span></span>
       </button>
       <button type="button" disabled={!!creando} onClick={() => armar("PE")} className={clase}>
         <ClipboardList className="mt-0.5 size-5 shrink-0" />
-        <span><span className="block text-[15px] font-semibold">{creando === "PE" ? "Abriendo…" : "Armar pedido especial"}</span><span className="text-sm text-suave">La plantilla verde del PE.</span></span>
+        <span><span className="block text-[15px] font-semibold">{creando === "PE" ? "Abriendo…" : "Armar pedido especial"}</span></span>
       </button>
     </div>
   );
