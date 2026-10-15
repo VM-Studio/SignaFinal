@@ -118,7 +118,7 @@ export function BarraFiltros({ pantalla, filtros, buscador, orden, vistas = [], 
   const panel = (f: Filtro) => {
     if (f.tipo === "si") {
       return (
-        <button type="button" onClick={() => ir({ [f.clave]: sp.get(f.clave) ? null : "1" })} className="flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-left text-sm hover:bg-hover lg:min-h-9">
+        <button type="button" onClick={() => ir({ [f.clave]: sp.get(f.clave) ? null : "1" })} className="flex min-h-12 w-full items-center gap-2 rounded-md px-3 text-left text-sm hover:bg-hover lg:min-h-9">
           <span className={`grid size-4 place-items-center rounded border ${sp.get(f.clave) ? "border-tinta bg-tinta text-white" : "border-linea-fuerte"}`}>{sp.get(f.clave) && <Check className="size-3" />}</span>
           {f.etiqueta}
         </button>
@@ -144,7 +144,7 @@ export function BarraFiltros({ pantalla, filtros, buscador, orden, vistas = [], 
           const si = elegidos.includes(o.valor);
           return (
             <li key={o.valor}>
-              <button type="button" onClick={() => alternar(o.valor)} aria-pressed={si} className="flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-left text-sm hover:bg-hover lg:min-h-8">
+              <button type="button" onClick={() => alternar(o.valor)} aria-pressed={si} className="flex min-h-12 w-full items-center gap-2 rounded-md px-3 text-left text-sm hover:bg-hover lg:min-h-8">
                 <span className={`grid size-4 shrink-0 place-items-center rounded border ${si ? "border-tinta bg-tinta text-white" : "border-linea-fuerte"}`}>{si && <Check className="size-3" />}</span>
                 <span className="min-w-0 flex-1 truncate">{o.etiqueta}</span>
                 {o.cantidad != null && <span className="text-[12px] text-suave tabular-nums">{o.cantidad}</span>}
@@ -168,7 +168,7 @@ export function BarraFiltros({ pantalla, filtros, buscador, orden, vistas = [], 
           </form>
         )}
         {/* Celular: un botón con el contador. */}
-        {(filtros.length > 0 || orden) && <button type="button" onClick={() => setHoja(true)} className="inline-flex h-11 items-center gap-2 rounded-md border border-linea bg-papel px-3 text-sm font-medium lg:hidden">
+        {(filtros.length > 0 || orden) && <button type="button" onClick={() => setHoja(true)} className="inline-flex h-12 lg:h-9 items-center gap-2 rounded-md border border-linea bg-papel px-3 text-sm font-medium lg:hidden">
           <SlidersHorizontal className="size-4" /> Filtros{activos ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-tinta px-1 text-[11px] text-white">{activos}</span> : null}
         </button>}
         {/* Escritorio: los chips que entran en la fila; los demás, en "Filtros (N)". */}
@@ -251,7 +251,7 @@ export function BarraFiltros({ pantalla, filtros, buscador, orden, vistas = [], 
           {orden && (
             <section>
               <p className="etiqueta mb-1">Orden</p>
-              <select className="h-11 w-full rounded-md border border-linea bg-papel px-3 text-base" value={sp.get("orden") ?? orden.porDefecto} onChange={(e) => ir({ orden: e.target.value === orden.porDefecto ? null : e.target.value })}>
+              <select className="h-12 w-full rounded-md border border-linea bg-papel px-3 text-[16px]" value={sp.get("orden") ?? orden.porDefecto} onChange={(e) => ir({ orden: e.target.value === orden.porDefecto ? null : e.target.value })}>
                 {orden.opciones.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
               </select>
             </section>
@@ -313,7 +313,7 @@ function Vistas({ pantalla, vistas, activos, claves, onAplicar }: { pantalla: Pr
   const activa = vistas.find(coincide);
   return (
     <>
-      <button type="button" onClick={() => setAbierta(true)} className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-md border border-linea bg-papel px-3 text-sm font-medium lg:h-8 lg:rounded-full lg:text-[13px]">
+      <button type="button" onClick={() => setAbierta(true)} className="inline-flex h-12 lg:h-9 shrink-0 items-center gap-1.5 rounded-md border border-linea bg-papel px-3 text-sm font-medium lg:h-8 lg:rounded-full lg:text-[13px]">
         <Bookmark className="size-4 lg:size-3.5" /> <span className={activa ? "max-w-28 truncate" : "sr-only lg:not-sr-only"}>{activa ? activa.nombre : "Vistas"}</span>
       </button>
       <Hoja abierta={abierta} onCerrar={() => { setAbierta(false); setGuardar(false); }} titulo="Vistas guardadas">

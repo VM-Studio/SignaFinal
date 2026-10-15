@@ -39,6 +39,9 @@ export async function listarFlota() {
       asignadoA: v.asignadoA?.nombre ?? null,
       enViaje: v.viajes[0] ? { chofer: v.viajes[0].chofer.nombre, obra: v.viajes[0].pedido.obra.nombre } : null,
       proximo: prox ? { tipo: prox.tipo, vencimiento: prox.vencimiento! } : null,
+      sinDocumentacion: v.documentos.length === 0,
+      sinSeguro: !documentosVigentes(v.documentos).some((d) => d.tipo === "SEGURO"),
+      tipoAConfirmar: v.tipoAConfirmar,
       docVencida: vencidos.length > 0,
     };
   });

@@ -25,12 +25,12 @@ base** (con `MODO_DEMO=true`; borra todo lo cargado y no se puede deshacer).
 
 | Rol | Barra (celular) | En "Más" |
 |---|---|---|
-| Dirección | Aprobaciones · Pedidos · Avisos · Más | Viajes (Mapa, Viajes en curso, Solicitudes, Pedir, Mis pedidos), Compras, Flota, Depósito, Actividad, Alertas, Obras, Proveedores, Configuración |
+| Dirección | Aprobaciones · Pedidos · Pedir un viaje · Más | Viajes (Mapa, Viajes en curso, Solicitudes, Pedir, Mis pedidos), Compras, Flota, Depósito, Actividad, Alertas, Obras, Proveedores, Configuración |
 | Compras | Tablero · Pedidos · Viajes · Más | Habilitados, Proveedores, Mis avisos, Cuenta (sin inicio: entra al Tablero) |
 | Responsable / Capataz | Pedir · Mis pedidos · Viajes · Más | Herramientas, Obras, Avisos |
 | Chofer (entra a Hoy) | Hoy · Solicitudes · Avisos · Más | Combustible |
 | Depósito (entra a Herramientas) | Herramientas · Entregas · Sobrantes · Más | Alta masiva, Avisos |
-| Administración | Flota · Costos · Facturación · Más | Alertas, Tablero, Obras, Proveedores, Razones sociales, Usuarios |
+| Administración | Facturación · Costos · Tablero · Más | Flota, Alertas, Obras, Proveedores, Razones sociales, Usuarios |
 
 En escritorio, la barra lateral tiene los mismos tres arriba y el resto en "Más" (plegado). Mi cuenta y
 Cerrar sesión, en el avatar y al pie de "Más".
@@ -41,8 +41,11 @@ Cerrar sesión, en el avatar y al pie de "Más".
    sedes si tiene varios frentes). **Nueva obra** para las que falten.
 2. **Dirección o Compras** → *Proveedores* → **Nuevo proveedor** (corralones, ferreterías), con su
    primera sucursal; **Agregar sucursal** para las demás (cada una con horario y contacto de retiro).
-3. **Administración** → *Flota* → cada vehículo → **seguro y VTV** con su vencimiento. Sin seguro y VTV
-   cargados un vehículo no se puede usar en un viaje. También el **costo por km** y los km del tablero.
+3. **Administración** → *Más → Flota* → cada vehículo → *Documentación* → **Cargar documento**: tipo, compañía,
+   número, vencimiento y la **foto o el PDF** del papel (obligatorio). Sin seguro y VTV cargados un vehículo no
+   se puede usar en un viaje ("Sin documentación" en rojo y la alerta "Vehículo sin seguro cargado"). Todos de
+   una vez: `npx tsx scripts/cargar-documentacion.ts` con docs/flota/documentacion.json. También el **costo por
+   km** (los km los suma la app con el GPS de cada viaje).
 4. **Administración** → *Usuarios*: teléfonos, licencia de cada chofer (categoría y vencimiento: sin
    licencia vigente no puede aceptar viajes) y las obras de cada responsable.
 5. Cada persona en su celular: *Mi cuenta* → **Avisos en este dispositivo** → **Activar avisos** →
@@ -73,14 +76,15 @@ datos reales cargados:
 5. **Daniela** → **Pedir el viaje** en la tarjeta verde (llega con el material marcado y "mañana a la mañana") → **Pedir el viaje**.
    (O **Compras** → *Viajes* → **Coordinar viaje**: para Daniela, obra Darwin → el pedido sale a nombre de
    Daniela y Claudio ve "Pidió Daniela · coordinó …".)
-6. **Claudio** → *Solicitudes* → **Aceptar** el cemento para Darwin: **Aprovechá el viaje** le ofrece el
-   hierro para Chubut en el mismo corralón y la hormigonera de Humboldt a 1,2 km. Prueba: con Pinares
-   (4.000 kg) y el Kia (3.000) no deja confirmar. Combina los tres con el Mercedes: un viaje de 4 paradas
-   ordenado (corralón → Humboldt → Darwin → Chubut).
-7. **Claudio** → **Iniciar viaje** → en el corralón tilda la carga por obra (si falta algo: **Faltó**,
-   "30 de 40") → **Cargué todo, salgo** → Humboldt → Darwin (**Entregado acá**) → Chubut → **Viaje
-   terminado** con km y peajes. Daniela y César reciben cada uno los avisos de **su** parada; en
-   *Costos* el viaje aparece repartido por obra.
+6. **Claudio** → *Solicitudes* → **Aceptar** el cemento para Darwin: **¿Llevás algo más?** le muestra "Para la
+   misma obra (Darwin) también pidieron: Hormigonera · retirar en Terreno Humboldt" y "En el mismo lugar
+   (Corralón San Martín) hay para retirar: Hierro del 12 para Chubut", cada uno con **Sí, lo llevo** / **No**.
+   Pinares (4 tn) dice "No entra en el Camión Mercedes 710 (5.000 kg)" con lo que ya lleva y no tiene Sí.
+7. **Claudio** → **Iniciar viaje** → el modo conducción, un paso por pantalla, sin escribir ningún número:
+   Iniciar viaje → Llegué al Corralón (tilda la carga; si falta algo, **Faltó**) → En camino a Terreno Humboldt
+   → Llegué a Terreno Humboldt → En camino a Obra Darwin → Terminar viaje (peajes $0). Los km salen del GPS;
+   en *Costos* el viaje aparece repartido por obra. Si mientras tanto Daniela pide algo más para Darwin,
+   Claudio recibe "Pidieron algo más para Darwin" con **Sí, lo llevo** / **No**.
 8. **Fechas**: el viaje aceptado para pasado mañana aparece en *Hoy → Próximos* con la fecha grande y el
    botón **Iniciar** deshabilitado; **Pedir que lo adelanten** → el dueño lo **Reprograma** para hoy →
    Claudio recibe el aviso y los recordatorios.

@@ -18,7 +18,7 @@ const ETIQUETA = process.argv[2] ?? "auditoria";
 const BASE = process.argv[3] ?? "http://localhost:3100";
 const SOLO = process.argv[4];
 const SOLO_ANCHOS = process.env.ANCHOS?.split(",").map(Number);
-const CELULAR = [360, 390, 430].filter((a) => !SOLO_ANCHOS || SOLO_ANCHOS.includes(a));
+const CELULAR = [360, 390, 430, 768].filter((a) => !SOLO_ANCHOS || SOLO_ANCHOS.includes(a));
 const ESCRITORIO = [1440, 1920].filter((a) => !SOLO_ANCHOS || SOLO_ANCHOS.includes(a));
 const MAX_BOTONES = 14;
 const VERBOSO = process.env.VERBOSO === "1";
@@ -54,6 +54,8 @@ const DETALLE: Record<string, { lista: string; prefijo: string }> = {
   viaje: { lista: "/hoy?vista=proximos", prefijo: "/viaje/" },
 };
 
+/** Lo que no es un desborde pero se revisa en el celular: campos chicos, botones bajos, deslizadores cortados, tablas sin columna fija. */
+type Detalle = { rol: string; ruta: string; ancho: number; donde: string; tipo: "campo <16px" | "botón <48px" | "deslizador cortado" | "tabla sin columna fija"; selector: string; valor: string };
 type Caso = { rol: string; ruta: string; ancho: number; donde: string; selector: string; izquierda: number; derecha: number; ancho_el: number; texto: string };
 type Ancho = { rol: string; ruta: string; ancho: number; contenido: number; disponible: number; pct: number; selector: string };
 
@@ -128,6 +130,44 @@ export function medirDesbordes() {
   };
 }
 
+/** Celular: campos con letra de menos de 16 px (iPhone hace zoom), botones de menos de 48 px de alto, texto cortado en
+ *  los deslizadores y tablas anchas sin la primera columna fija. */
+export function medirDetalles() {
+  const visible = (el: Element) => {
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    return r.width > 1 && r.height > 1 && cs.visibility !== "hidden" && cs.display !== "none" && cs.opacity !== "0";
+  };
+  const sel = (el: Element) => `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""}${el.getAttribute("aria-label") ? `[aria-label="${el.getAttribute("aria-label")!.slice(0, 30)}"]` : ""}`;
+  const out: { tipo: string; selector: string; valor: string }[] = [];
+  for (const el of document.querySelectorAll("input, select, textarea")) {
+    const t = (el as HTMLInputElement).type;
+    if (["hidden", "checkbox", "radio", "file", "range"].includes(t) || !visible(el)) continue;
+    const f = parseFloat(getComputedStyle(el).fontSize);
+    if (f < 16) out.push({ tipo: "campo <16px", selector: sel(el), valor: `${f}px` });
+  }
+  for (const el of document.querySelectorAll("main button, [role=dialog] button, main a[class*='min-h-12'], main a[class*='rounded-md'][class*='bg-negro']")) {
+    if (!visible(el) || el.closest(".planilla, .hoja, nav, header, [role=slider]")) continue;
+    const texto = (el.textContent ?? "").trim();
+    if (!texto) continue; // íconos solos (cerrar, quitar): van aparte
+    const h = el.getBoundingClientRect().height;
+    if (h < 47.5) out.push({ tipo: "botón <48px", selector: sel(el), valor: `${Math.round(h)}px · ${texto.slice(0, 30)}` });
+  }
+  for (const el of document.querySelectorAll("[role=slider] p")) {
+    const p = el as HTMLElement;
+    if (p.scrollWidth > p.clientWidth + 1 || p.scrollHeight > p.clientHeight + 1) out.push({ tipo: "deslizador cortado", selector: "slider", valor: (p.textContent ?? "").slice(0, 40) });
+  }
+  for (const t of document.querySelectorAll("table")) {
+    if (!visible(t)) continue;
+    let caja: Element | null = t.parentElement;
+    while (caja && !/(auto|scroll)/.test(getComputedStyle(caja).overflowX)) caja = caja.parentElement;
+    if (!caja || t.scrollWidth <= caja.clientWidth + 1) continue;
+    const primera = t.querySelector("tbody tr > *");
+    if (primera && getComputedStyle(primera).position !== "sticky") out.push({ tipo: "tabla sin columna fija", selector: sel(t), valor: (t.querySelector("th")?.textContent ?? "").slice(0, 30) });
+  }
+  return out;
+}
+
 /** Escritorio: el elemento más ancho del main sobre el ancho disponible. */
 function medirAncho() {
   const main = document.querySelector("main");
@@ -152,8 +192,11 @@ function medirAncho() {
   return { contenido: Math.round(mejor.w), disponible: Math.round(disponible), selector: mejor.sel };
 }
 
-async function auditarCelular(p: Page, rol: string, ruta: string, ancho: number, dir: string, casos: Caso[]) {
+const detalles: Detalle[] = [];
+
+async function auditarCelular(p: Page, rol: string, ruta: string, ancho: number, dir: string, casos: Caso[], soloLaPantalla = false) {
   const registrar = async (donde: string) => {
+    for (const x of await p.evaluate(medirDetalles)) detalles.push({ rol, ruta, ancho, donde, ...x, tipo: x.tipo as Detalle["tipo"] });
     const m = await p.evaluate(medirDesbordes);
     const nuevos: Caso[] = m.casos.map((c) => ({ rol, ruta, ancho, donde, ...c }));
     if (m.scroll) nuevos.unshift({ rol, ruta, ancho, donde, selector: "document (scroll horizontal)", izquierda: 0, derecha: m.scroll, ancho_el: m.scroll, texto: "" });
@@ -164,6 +207,7 @@ async function auditarCelular(p: Page, rol: string, ruta: string, ancho: number,
     }
   };
   await registrar("pantalla");
+  if (soloLaPantalla) return registrar;
   // Cada hoja inferior: tocar los botones de la pantalla (sin cambiar datos) y medir si se abre una.
   const botones = await p.locator("main button:visible").all();
   let tocados = 0;
@@ -186,7 +230,40 @@ async function auditarCelular(p: Page, rol: string, ruta: string, ancho: number,
       await p.waitForLoadState("load", { timeout: 10_000 }).catch(() => {}); await p.waitForTimeout(600); // networkidle no llega nunca: el stream de tiempo real queda abierto
     }
   }
+  return registrar;
 }
+
+/**
+ * Hojas y formularios abiertos a propósito (lo que tocar botones al azar no alcanza): aceptar con el vehículo,
+ * los selectores de proveedor y obra de la plantilla de OC y el tablero con scroll interno. La hoja de
+ * "Terminar viaje" la mide scripts/recorrido-chofer.ts (necesita un viaje en curso de verdad).
+ */
+const ESCENARIOS: Record<string, { ruta: string; nombre: string; hacer: (p: Page) => Promise<void> }[]> = {
+  claudio: [
+    { ruta: "/solicitudes/{solicitud}", nombre: "aceptar con vehículo", hacer: async (p) => {
+      await p.getByRole("button", { name: "Aceptar" }).first().click();
+      await p.getByRole("dialog").waitFor({ timeout: 8_000 });
+      await p.waitForTimeout(1500);
+      const solo = p.getByRole("dialog").getByRole("button", { name: /Seguir con este solo|Llevo/ });
+      if (await solo.count()) await solo.first().click();
+      await p.waitForTimeout(500);
+    } },
+  ],
+  compras: [
+    { ruta: "/compras/oc/{material}", nombre: "selector de proveedor", hacer: async (p) => {
+      await p.locator('[data-celda="proveedorFinal"]').first().click();
+      await p.waitForTimeout(600);
+    } },
+    { ruta: "/compras/oc/{material}", nombre: "selector de obra", hacer: async (p) => {
+      await p.locator('[data-celda="obra"]').first().click();
+      await p.waitForTimeout(600);
+    } },
+    { ruta: "/compras/tablero", nombre: "tablero con scroll interno", hacer: async (p) => {
+      await p.evaluate(() => { const t = document.querySelector<HTMLElement>(".planilla"); if (t) t.scrollLeft = 400; window.scrollTo(0, 300); });
+      await p.waitForTimeout(400);
+    } },
+  ],
+};
 
 async function main() {
   const dir = `tmp/capturas/responsive/${ETIQUETA}`;
@@ -220,6 +297,18 @@ async function main() {
         paginas++;
         if (!ok) console.log(`  (se colgó: ${rol} ${ancho} ${ruta})`);
       }
+      if (ancho < 1024) {
+        for (const e of ESCENARIOS[rol] ?? []) {
+          const ruta = await resolver(p, e.ruta);
+          if (!ruta) continue;
+          await p.goto(`${BASE}${ruta}`, { timeout: 30_000 }).catch(() => {});
+          await p.waitForLoadState("load", { timeout: 10_000 }).catch(() => {});
+          await p.waitForTimeout(1000);
+          await e.hacer(p).catch((x) => console.log(`  (escenario ${e.nombre} ${ancho}: ${String(x).slice(0, 80)})`));
+          await auditarCelular(p, rol, `${ruta} · ${e.nombre}`, ancho, dir, casos, true);
+          await p.screenshot({ path: `${dir}/escenario-${rol}-${e.nombre.replace(/\s+/g, "-")}-${ancho}.png` }).catch(() => {});
+        }
+      }
       await p.context().close();
     }
     process.stdout.write(`${rol} listo · `);
@@ -233,9 +322,15 @@ async function main() {
     "",
     `${paginas} pantallas recorridas (${Object.keys(RUTAS).filter((r) => !SOLO || r === SOLO).join(", ")}).`,
     "",
-    `## Celular (360, 390, 430 px): ${casos.length} desbordes en ${rutasConDesborde.size} pantallas`,
+    `## Celular (360, 390, 430, 768 px): ${casos.length} desbordes en ${rutasConDesborde.size} pantallas`,
     "",
     ...(casos.length ? ["| Rol | Ruta | Ancho | Dónde | Elemento | Izq. | Der. | Ancho | Texto |", "|---|---|---|---|---|---|---|---|---|", ...casos.map((c) => `| ${c.rol} | ${c.ruta} | ${c.ancho} | ${c.donde} | \`${c.selector}\` | ${c.izquierda} | ${c.derecha} | ${c.ancho_el} | ${c.texto.replace(/\|/g, "/")} |`)] : ["Ninguno."]),
+    "",
+    `## Celular: detalles (${detalles.length})`,
+    "",
+    ...(["campo <16px", "botón <48px", "deslizador cortado", "tabla sin columna fija"] as const).map((t) => `- ${t}: ${detalles.filter((d) => d.tipo === t).length}`),
+    "",
+    ...(detalles.length ? ["| Tipo | Rol | Ruta | Ancho | Dónde | Elemento | Valor |", "|---|---|---|---|---|---|---|", ...[...new Map(detalles.map((d) => [`${d.tipo}|${d.rol}|${d.ruta}|${d.selector}|${d.valor}`, d])).values()].filter((d) => d.ancho === 390 || d.ancho === 768).map((d) => `| ${d.tipo} | ${d.rol} | ${d.ruta} | ${d.ancho} | ${d.donde} | \`${d.selector}\` | ${d.valor.replace(/\|/g, "/")} |`)] : []),
     "",
     `## Escritorio (1440, 1920 px): ${angostas.length} pantallas usan menos del 90 % del ancho`,
     "",
@@ -244,10 +339,9 @@ async function main() {
     ...[...anchos].sort((a, b) => a.pct - b.pct).map((a) => `| ${a.rol} | ${a.ruta} | ${a.ancho} | ${a.contenido} | ${a.disponible} | ${a.pct < 90 ? `**${a.pct}**` : a.pct} | \`${a.selector}\` |`),
   ].join("\n");
   // Para correr en paralelo (por rol y ancho) y unir después con scripts/unir-responsive.ts.
-  writeFileSync(`tmp/responsive-${ETIQUETA}.json`, JSON.stringify({ paginas, casos, anchos }));
-  writeFileSync("tmp/responsive.md", md);
+  writeFileSync(`tmp/responsive-${ETIQUETA}.json`, JSON.stringify({ paginas, casos, anchos, detalles }));
   writeFileSync(`tmp/responsive-${ETIQUETA}.md`, md);
-  console.log(`\n${paginas} pantallas · celular: ${casos.length} desbordes en ${rutasConDesborde.size} pantallas · escritorio: ${angostas.length} por debajo del 90 %`);
+  console.log(`\n${paginas} pantallas · celular: ${casos.length} desbordes en ${rutasConDesborde.size} pantallas · detalles: ${detalles.length} · escritorio: ${angostas.length} por debajo del 90 %`);
 }
 
 if (process.argv[1]?.includes("auditar-responsive")) main().catch((e) => {

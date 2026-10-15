@@ -13,6 +13,8 @@ import { TarjetaChofer } from "@/components/viajes/tarjeta-chofer";
 import { BotonEtapa } from "@/components/viajes/acciones-viaje";
 import { diaISO } from "@/lib/formato";
 import { ddmm, diaSemana, diasEntre } from "@/lib/viajes/fecha";
+import { ofertasDelChofer } from "@/lib/viajes/ofrecer";
+import { OfertasHoy } from "@/components/viajes/ofertas";
 
 export const metadata: Metadata = { title: "Hoy" };
 
@@ -25,7 +27,7 @@ export default async function PaginaHoy({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const vista: Vista = sp.vista === "proximos" || sp.vista === "todos" ? sp.vista : "hoy";
   const pagina = Math.max(1, Number(sp.pagina) || 1);
-  const { tarjetas, total, paginas } = await viajesDelChofer(vista, { q: sp.q, pagina });
+  const [{ tarjetas, total, paginas }, ofertas] = await Promise.all([viajesDelChofer(vista, { q: sp.q, pagina }), vista === "hoy" ? ofertasDelChofer(u.id) : Promise.resolve([])]);
 
   return (
     <div>
@@ -34,6 +36,7 @@ export default async function PaginaHoy({ searchParams }: { searchParams: Promis
         { href: "/hoy?vista=proximos", etiqueta: "Próximos", activa: vista === "proximos" },
         { href: "/hoy?vista=todos", etiqueta: "Todos", activa: vista === "todos" },
       ]} />
+      {vista === "hoy" && <OfertasHoy ofertas={ofertas} />}
       {vista === "hoy" && <Hoy tarjetas={tarjetas} />}
       {vista === "proximos" && <Proximos tarjetas={tarjetas} />}
       {vista === "todos" && (

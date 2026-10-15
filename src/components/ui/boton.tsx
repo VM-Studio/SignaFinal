@@ -17,7 +17,8 @@ const variantes: Record<Variante, string> = {
 };
 
 const tamanos: Record<Tamano, string> = {
-  chico: "min-h-9 px-3 text-sm lg:min-h-8",
+  // 48 px en el celular (se toca con el dedo); 32 px en escritorio.
+  chico: "min-h-12 px-3 text-sm lg:min-h-8",
   normal: "min-h-12 px-4 text-[15px] lg:min-h-9 lg:px-3 lg:text-[13px]",
   grande: "min-h-[52px] px-5 text-[15px] font-semibold",
 };

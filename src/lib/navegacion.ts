@@ -17,6 +17,7 @@ export const SECCIONES = {
   // Obra
   obras: { href: "/obras", titulo: "Obras", icono: "obras" },
   pedir: { href: "/pedir", titulo: "Pedir un viaje", corto: "Pedir", icono: "pedir" },
+  pedirViaje: { href: "/pedir", titulo: "Pedir un viaje", icono: "pedir" },
   misPedidos: { href: "/mis-pedidos", titulo: "Mis pedidos", icono: "pedidos", contador: "listosRetirar" },
   viajesObra: { href: "/viajes-en-curso", titulo: "Viajes", icono: "viajes" },
   // Compras
@@ -77,15 +78,17 @@ type NavRol = { barra: Clave[]; lateral?: Clave[]; mas: GrupoClaves[] };
  */
 const NAV: Record<Rol, NavRol> = {
   DIRECCION: {
-    barra: ["aprobaciones", "pedidosMaterial", "avisos"],
+    // "Pedir un viaje" abre el formulario de viaje (con todas las obras). Avisos, en Más (y en la campana).
+    barra: ["aprobaciones", "pedidosMaterial", "pedirViaje"],
     mas: [
-      { titulo: "Viajes", claves: ["mapa", "viajes", "solicitudesDireccion", "pedir", "misPedidos"] },
+      { titulo: "Viajes", claves: ["mapa", "viajes", "solicitudesDireccion", "misPedidos"] },
       { titulo: "Compras", claves: ["tablero", "habilitados", "facturacion", "importarExcel"] },
       { titulo: "Flota", claves: ["flota", "costos", "combustible"] },
       { titulo: "Depósito", claves: ["herramientasDeposito", "sobrantes", "entregas"] },
       { titulo: "Seguimiento", claves: ["actividad", "alertas"] },
       { titulo: "Obras y proveedores", claves: ["obras", "proveedores"] },
       { titulo: "Configuración", claves: ["rastreo", "razonesSociales", "configCompras", "ubicaciones", "usuarios", "importar"] },
+      { titulo: null, claves: ["misAvisos"] },
     ],
   },
   // Sin inicio: entra al Tablero. "Pedir materiales" es "Nueva" en el Tablero y en Pedidos de material.
@@ -97,7 +100,7 @@ const NAV: Record<Rol, NavRol> = {
   CHOFER: { barra: ["hoy", "solicitudes", "avisos"], mas: [{ titulo: null, claves: ["combustible"] }] },
   // Sin inicio: entra a Herramientas (con el buscador arriba). Las devoluciones, en Entregas.
   DEPOSITO: { barra: ["herramientasDeposito", "entregas", "sobrantes"], mas: [{ titulo: null, claves: ["importar", "misAvisos"] }] },
-  ADMINISTRACION: { barra: ["flota", "costos", "facturacion"], mas: [{ titulo: null, claves: ["alertas", "tablero", "obras", "proveedores", "razonesSociales", "ubicaciones", "usuarios", "misAvisos"] }] },
+  ADMINISTRACION: { barra: ["facturacion", "costos", "tablero"], mas: [{ titulo: null, claves: ["flota", "alertas", "obras", "proveedores", "razonesSociales", "ubicaciones", "usuarios", "misAvisos", "cuentaCorta"] }] },
 };
 
 // Nunca se muestra un enlace a una ruta que el rol no tiene (la matriz manda).

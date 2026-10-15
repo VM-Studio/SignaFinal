@@ -6,17 +6,29 @@ import type { AlertaCalculada, Regla } from "../tipos";
 
 const venceTexto = (n: number) => (n < 0 ? `venció hace ${-n} día${n === -1 ? "" : "s"}` : n === 0 ? "vence hoy" : `vence en ${n} día${n === 1 ? "" : "s"}`);
 
-/** Documento de vehículo: vence en 15 días (aviso) o venció (crítica). */
+/**
+ * Documento de vehículo: vence en 30 o 15 días (aviso) o venció (crítica). Y "Vehículo sin seguro cargado"
+ * (crítica) para cada vehículo activo sin seguro: así no puede salir de viaje.
+ */
 async function documentos(): Promise<AlertaCalculada[]> {
   const vehiculos = await db.vehiculo.findMany({ where: { activo: true }, select: { id: true, nombre: true, asignadoAId: true, documentos: { select: { id: true, tipo: true, vencimiento: true, archivoUrl: true, notas: true, creadoEn: true } } } });
   const out: AlertaCalculada[] = [];
   for (const v of vehiculos) {
+    if (!documentosVigentes(v.documentos).some((d) => d.tipo === "SEGURO")) {
+      out.push({
+        claveUnica: `SIN_SEGURO:${v.id}`, regla: "DOCUMENTO", severidad: "CRITICA",
+        titulo: `${v.nombre}: vehículo sin seguro cargado`,
+        detalle: "Sin seguro no puede salir de viaje. Cargá la póliza en la ficha (Documentación).",
+        entidadTipo: "Vehiculo", entidadId: v.id, enlace: `/flota/${v.id}?tab=documentacion`, usuarios: [],
+      });
+    }
     for (const d of documentosVigentes(v.documentos)) {
       if (!d.vencimiento) continue;
       const n = diasHasta(d.vencimiento);
-      if (n > 15) continue;
+      if (n > 30) continue;
       out.push({
-        claveUnica: `DOCUMENTO:${v.id}:${d.tipo}`, regla: "DOCUMENTO", severidad: n < 0 ? "CRITICA" : "AVISO",
+        // Una alerta por tramo (30 días, 15 días, vencido): cada tramo nuevo vuelve a avisar y el anterior se resuelve solo.
+        claveUnica: `DOCUMENTO:${v.id}:${d.tipo}:${n < 0 ? "vencido" : n <= 15 ? "15" : "30"}`, regla: "DOCUMENTO", severidad: n < 0 ? "CRITICA" : "AVISO",
         titulo: `${v.nombre}: ${DOCUMENTO[d.tipo]} ${venceTexto(n)}`,
         detalle: n < 0 ? `Venció el ${fecha(d.vencimiento)}. No se puede usar para viajes hasta renovarla.` : `Vence el ${fecha(d.vencimiento)}. Sacar turno o renovar.`,
         entidadTipo: "Vehiculo", entidadId: v.id, enlace: `/flota/${v.id}?tab=documentacion`, usuarios: v.asignadoAId ? [v.asignadoAId] : [],

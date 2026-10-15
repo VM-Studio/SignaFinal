@@ -50,8 +50,9 @@ export const ESTADO_HERRAMIENTA: Record<EstadoHerramienta, { texto: string; tono
 export const DOCUMENTO: Record<TipoDocumentoVehiculo, string> = {
   SEGURO: "Seguro",
   VTV: "VTV",
-  PATENTE: "Patente",
-  CEDULA: "Cédula",
+  CEDULA: "Cédula verde/azul",
+  PATENTE: "Patente/impuesto",
+  HABILITACION_PESADO: "Habilitación de tránsito pesado",
   RUTA: "RUTA",
-  OTRO: "Documento",
+  OTRO: "Otro",
 };

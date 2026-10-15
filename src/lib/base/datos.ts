@@ -92,24 +92,18 @@ async function limpiar(db: PrismaClient) {
 }
 
 /** Aviso que llevan el seguro y la VTV de mentira, para encontrarlos y reemplazarlos. */
-export const NOTA_PROVISORIA = "PROVISORIO: reemplazar por el real";
+/** Documentación de ejemplo: solo con MODO_DEMO (para mostrar viajes); en producción, la real de cada vehículo. */
+export const NOTA_DEMO = "DEMO: documentación de ejemplo";
 
-/**
- * Seguro y VTV vigentes PROVISORIOS (un año) para cada vehículo que no tenga, así se pueden usar
- * mientras se carga la documentación real en Flota. No toca los documentos ya cargados.
- */
-export async function documentosProvisorios(db: PrismaClient) {
+export async function documentosDemo(db: PrismaClient) {
   const vence = new Date(Date.now() + 365 * 86_400_000);
-  const vehiculos = await db.vehiculo.findMany({ where: { activo: true }, select: { id: true, nombre: true, documentos: { select: { tipo: true } } } });
-  const creados: string[] = [];
+  const vehiculos = await db.vehiculo.findMany({ where: { activo: true }, select: { id: true, documentos: { select: { tipo: true } } } });
   for (const v of vehiculos) {
     for (const tipo of ["SEGURO", "VTV"] as const) {
       if (v.documentos.some((d) => d.tipo === tipo)) continue;
-      await db.documentoVehiculo.create({ data: { vehiculoId: v.id, tipo, vencimiento: vence, notas: NOTA_PROVISORIA } });
-      creados.push(`${v.nombre}: ${tipo}`);
+      await db.documentoVehiculo.create({ data: { vehiculoId: v.id, tipo, emisor: "Demo", numero: "DEMO", vencimiento: vence, notas: NOTA_DEMO } });
     }
   }
-  return creados;
 }
 
 export async function cargarDatosBase(db: PrismaClient) {
@@ -162,18 +156,18 @@ export async function cargarDatosBase(db: PrismaClient) {
 
   // ─────────────────────────── Flota real ───────────────────────────
   // Tal cual aparece en Cusat. idCusat se completa solo al sincronizar (empareja por patente).
-  // Km en 0: la primera salida con el km del tablero los deja al día. Seguro y VTV se cargan en Flota.
+  // Km en 0: se suman los km de cada viaje (GPS). Seguro, VTV y el resto de los papeles se cargan en Flota (o scripts/cargar-documentacion.ts).
   type V = Prisma.VehiculoUncheckedCreateInput;
   const flota: V[] = [
     { nombre: "Camión Mercedes 710", patente: "HFD336", tipo: "CAMION", marca: "Mercedes-Benz", modelo: "710", anio: 2008, capacidadCargaKg: 5000, kmActual: 0, costoKm: D(980), baseId: base.id, cusatNombre: "MERCEDES 710", entraEnCola: true },
     { nombre: "Camión Kia", patente: "AH282PU", tipo: "CAMION", marca: "Kia", modelo: "K2500", anio: 2025, capacidadCargaKg: 3000, kmActual: 0, costoKm: D(760), baseId: base.id, cusatNombre: "KIA", entraEnCola: true },
-    { nombre: "Zanella", patente: "AG149BJ", tipo: "AUTO", marca: "Zanella", modelo: "A confirmar", anio: 2023, capacidadCargaKg: 0, kmActual: 0, costoKm: D(120), baseId: base.id, cusatNombre: "ZANELLA", entraEnCola: false },
+    { nombre: "Zanella", patente: "AG149BJ", tipo: "AUTO", marca: "Zanella", modelo: "A confirmar", anio: 2023, capacidadCargaKg: 0, kmActual: 0, costoKm: D(120), baseId: base.id, cusatNombre: "ZANELLA", entraEnCola: false, tipoAConfirmar: true },
     { nombre: "Oroch", patente: "AC689NR", tipo: "CAMIONETA", marca: "Renault", modelo: "Oroch", anio: 2018, capacidadCargaKg: 650, kmActual: 0, costoKm: D(430), baseId: base.id, cusatNombre: "OROCH", entraEnCola: false },
     { nombre: "Kangoo", patente: "AF399OO", tipo: "CAMIONETA", marca: "Renault", modelo: "Kangoo", anio: 2023, capacidadCargaKg: 650, kmActual: 0, costoKm: D(380), cusatNombre: "KANGOO", entraEnCola: false },
     { nombre: "Kangoo LL", patente: "AF399OP", tipo: "CAMIONETA", marca: "Renault", modelo: "Kangoo (larga)", anio: 2023, capacidadCargaKg: 800, kmActual: 0, costoKm: D(390), baseId: base.id, cusatNombre: "KANGOO LL", entraEnCola: false },
   ];
   for (const v of flota) await db.vehiculo.create({ data: v });
-  await documentosProvisorios(db);
+  if (process.env.MODO_DEMO === "true") await documentosDemo(db);
 
   // ─────────────────── Herramientas: todo en el depósito ───────────────────
   const categorias = new Map<string, string>();
@@ -205,7 +199,7 @@ export async function cargarDatosBase(db: PrismaClient) {
     Usuario: await db.usuario.count(),
     Ubicacion: await db.ubicacion.count(),
     Vehiculo: await db.vehiculo.count(),
-    "Seguro y VTV provisorios": await db.documentoVehiculo.count({ where: { notas: NOTA_PROVISORIA } }),
+    "Documentación de ejemplo (demo)": await db.documentoVehiculo.count({ where: { notas: NOTA_DEMO } }),
     CategoriaHerramienta: await db.categoriaHerramienta.count(),
     Herramienta: await db.herramienta.count(),
     "Unidades en depósito": INVENTARIO_HERRAMIENTAS.reduce((s, h) => s + h.cantidad, 0),

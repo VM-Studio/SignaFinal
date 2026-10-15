@@ -7,5 +7,6 @@ export default defineConfig({
   esbuild: { jsx: "automatic" },
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   // .env (DATABASE_URL) para las pruebas que usan la base, como la numeración de OC en paralelo.
-  test: { include: ["src/**/*.test.ts"], environment: "node", env: loadEnv("test", process.cwd(), "") },
+  // Un archivo por vez: varias pruebas con base usan los mismos vehículos (un viaje en curso por vehículo).
+  test: { include: ["src/**/*.test.ts"], environment: "node", env: loadEnv("test", process.cwd(), ""), fileParallelism: false },
 });

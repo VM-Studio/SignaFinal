@@ -17,7 +17,9 @@ import { ListaViajes } from "@/components/pedidos/lista-pedidos";
 import { AccionPrincipal, Cifra, Esqueleto, FilaLista, Insignia, Lista, Llamado, Subtitulo, Titulo, Vacio } from "@/components/ui/basicos";
 import { DOCUMENTO } from "@/lib/etiquetas";
 import { fecha, plata, vencimiento } from "@/lib/formato";
-import { cuantasParaAprobar, esperandoACompras, listosEnMisObrasDetalle } from "@/lib/materiales/consultas";
+import { cuantasParaAprobar, esperandoACompras, listosEnMisObrasDetalle, pagosEsperandoAutorizacion, paraFacturar } from "@/lib/materiales/consultas";
+import { textosDe } from "@/lib/compras/celdas";
+import { nombreDoc } from "@/lib/compras/documento";
 import { MisDocumentos, TarjetasListos } from "@/components/materiales/lista-materiales";
 import { Map as MapIcon, Stamp } from "lucide-react";
 
@@ -171,16 +173,26 @@ async function CifrasDireccion() {
 
 async function InicioAdministracion() {
   const p = periodo();
-  const [docs, obras, vehiculos] = await Promise.all([vencimientosProximos(), costosPorObra(p), costosPorVehiculo(p)]);
+  // Primero lo de Camila de todos los días: facturas que faltan cargar y pagos esperando al dueño; después la flota.
+  const [facturar, pagos, docs, obras, vehiculos] = await Promise.all([paraFacturar({ obra: [], pendiente: "factura" }, 8), pagosEsperandoAutorizacion(), vencimientosProximos(), costosPorObra(p), costosPorVehiculo(p)]);
   const total = obras.reduce((a, c) => a + c.total, 0);
   const comb = vehiculos.reduce((a, v) => a + v.combustible, 0);
   const mant = vehiculos.reduce((a, v) => a + v.mantenimiento + v.incidentes, 0);
+  const filaDoc = (o: (typeof pagos)[number], detalle: string) => {
+    const t = textosDe(o);
+    return <FilaLista key={o.id} href={`/compras/oc/${o.id}?desde=facturacion`} titulo={`${nombreDoc(o)} · ${t.proveedorFinal || t.obra}`} detalle={detalle} derecha={<span className="font-medium tabular-nums">{t.importe}</span>} />;
+  };
   return (
     <div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:gap-3">
-        <Cifra etiqueta="Gasto en obras (mes)" valor={plata(total)} detalle={`${obras.reduce((a, o) => a + o.viajes, 0)} viajes`} />
-        <Cifra etiqueta="Combustible (mes)" valor={plata(comb)} />
-        <Cifra etiqueta="Mantenimiento (mes)" valor={plata(mant)} />
+      <div className="grid gap-x-6 lg:grid-cols-2 [&>section]:min-w-0">
+        <section>
+          <Subtitulo accion={facturar.total > facturar.filas.length ? <Link href="/compras/facturacion?p=factura" className="text-sm font-medium underline">Ver las {facturar.total}</Link> : undefined}>OC con facturación pendiente</Subtitulo>
+          {facturar.filas.length === 0 ? <Vacio titulo="Ninguna orden espera la factura" /> : <Lista>{facturar.filas.map((o) => filaDoc(o, `Obra ${textosDe(o).obra}`))}</Lista>}
+        </section>
+        <section>
+          <Subtitulo>Pagos a autorizar</Subtitulo>
+          {pagos.length === 0 ? <Vacio titulo="Ningún pago espera al dueño" /> : <Lista>{pagos.map((o) => filaDoc(o, `Pedido el ${fecha(o.pagoSolicitadoEn!)}`))}</Lista>}
+        </section>
       </div>
       <div className="grid gap-x-6 lg:grid-cols-2 [&>section]:min-w-0">
         <section>
@@ -217,6 +229,11 @@ async function InicioAdministracion() {
             </Lista>
           )}
         </section>
+      </div>
+      <div className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-3 lg:gap-3">
+        <Cifra etiqueta="Gasto en obras (mes)" valor={plata(total)} detalle={`${obras.reduce((a, o) => a + o.viajes, 0)} viajes`} />
+        <Cifra etiqueta="Combustible (mes)" valor={plata(comb)} />
+        <Cifra etiqueta="Mantenimiento (mes)" valor={plata(mant)} />
       </div>
     </div>
   );

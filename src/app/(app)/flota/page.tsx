@@ -20,7 +20,10 @@ export default async function PaginaFlota() {
   const { vehiculos, resumen } = await listarFlota();
   const editar = puede(u.rol, "flota.editar");
 
-  const proximo = (p: (typeof vehiculos)[number]["proximo"]) => {
+  const proximo = (x: (typeof vehiculos)[number]) => {
+    const p = x.proximo;
+    if (x.sinDocumentacion) return <span className="font-semibold text-critico">Sin documentación</span>;
+    if (x.sinSeguro) return <span className="font-semibold text-critico">Sin seguro cargado</span>;
     if (!p) return <span className="text-suave">Sin vencimientos cargados</span>;
     const v = vencimiento(p.vencimiento);
     return v.dias <= 30 ? (
@@ -72,7 +75,7 @@ export default async function PaginaFlota() {
                     </div>
                     <Insignia tono={ESTADO_VEHICULO[v.estado].tono}>{ESTADO_VEHICULO[v.estado].texto}</Insignia>
                   </div>
-                  <div className="mt-1.5 text-sm">{proximo(v.proximo)}</div>
+                  <div className="mt-1.5 text-sm">{proximo(v)}</div>
                 </Link>
               </li>
             ))}
@@ -86,11 +89,11 @@ export default async function PaginaFlota() {
                 {vehiculos.map((v) => (
                   <tr key={v.id} >
                     <td className="font-medium"><Link href={`/flota/${v.id}`} className="hover:underline">{v.nombre}</Link></td>
-                    <td>{TIPO[v.tipo]}</td>
+                    <td>{v.tipoAConfirmar ? "Tipo a confirmar" : TIPO[v.tipo]}</td>
                     <td className="tabular-nums">{v.patente}</td>
                     <td><Insignia tono={ESTADO_VEHICULO[v.estado].tono}>{ESTADO_VEHICULO[v.estado].texto}</Insignia></td>
                     <td>{quien(v)}</td>
-                    <td>{proximo(v.proximo)}</td>
+                    <td>{proximo(v)}</td>
                   </tr>
                 ))}
               </tbody>

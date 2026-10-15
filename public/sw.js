@@ -87,7 +87,7 @@ self.addEventListener("push", (e) => {
   e.waitUntil(Promise.all([mostrar, confirmar]));
 });
 
-const SIN_ABRIR = ["si_llegue", "todavia_no", "si_sali", "sigo_aca"];
+const SIN_ABRIR = ["si_llegue", "todavia_no", "si_sali", "sigo_aca", "si_lo_llevo", "no_lo_llevo"];
 
 /** Responder desde la notificación sin abrir la app: POST con el token y una notificación de confirmación. */
 async function responder(accion, datos) {

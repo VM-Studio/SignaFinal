@@ -21,11 +21,12 @@ Reglas para todos:
 ## Dirección (el dueño)
 
 **Cae en** su inicio: órdenes que esperan su autorización, viajes de hoy, alertas críticas y el mapa chico.
-**Barra**: Aprobaciones · Pedidos · Avisos · Más.
-**Más**: Viajes (Mapa, Viajes en curso, Solicitudes, Pedir un viaje, Mis pedidos) · Compras (Tablero,
+**Barra**: Aprobaciones · Pedidos · Pedir un viaje · Más (Pedir un viaje abre el formulario con todas las obras).
+**Más**: Viajes (Mapa, Viajes en curso, Solicitudes, Mis pedidos) · Compras (Tablero,
 Habilitados, Facturación, Importar Excel) · Flota (Flota, Costos, Combustible) · Depósito (Herramientas,
 Sobrantes, Entregas) · Seguimiento (Actividad, Alertas) · Obras, Proveedores · Configuración (Rastreo,
-Razones sociales, Numeración y solicitantes, Depósitos y base, Usuarios, Alta masiva). Agenda y
+Razones sociales, Numeración y solicitantes, Depósitos y base, Usuarios, Alta masiva) · Mis avisos (también en
+la campana). Agenda y
 Mantenimiento están como botones dentro de Flota; los recorridos del día, como "Historial" en el Mapa.
 
 | Para… | Toques |
@@ -35,6 +36,7 @@ Mantenimiento están como botones dentro de Flota; los recorridos del día, como
 | Ver dónde está cada camión | 2 · Más → Mapa |
 | Ver en qué quedó un pedido de material | 2 · Pedidos → la fila |
 | Ver los costos del mes por obra | 2 · Más → Costos |
+| Pedir un viaje | 1 · Pedir un viaje (el formulario, con todas las obras) |
 
 También: asignar una solicitud a un chofer, reprogramar un viaje (detalle del pedido), la Actividad de cada
 persona con filtros y CSV, alta de usuarios, obras y proveedores, y la configuración de Cusat. En modo demo,
@@ -81,15 +83,20 @@ de su pedido de material (Compras lo tomó, autorizado, listo para retirar, entr
 
 | Para… | Toques |
 |---|---|
-| Iniciar el viaje de hoy | 1 · Iniciar viaje (abre el modo conducción) |
+| Iniciar el viaje de hoy | 2 · Iniciar viaje → deslizar "Iniciar viaje" |
 | Ver los viajes de mañana | 1 · Próximos |
 | Ver las paradas de un viaje | 1 · el viaje |
-| Aceptar una solicitud | 3 · Solicitudes → la solicitud → Aceptar ("Aprovechá el viaje" sugiere lo que está en el mismo lugar o en el camino) |
+| Aceptar una solicitud | 3 · Solicitudes → la solicitud → Aceptar ("¿Llevás algo más?": tarjetas con "Sí, lo llevo" / "No") |
 | Cargar combustible | 2 · Más → Combustible |
 
-- En el **modo conducción**, un deslizador para llegar / salir / terminar (un toque no hace nada) y "Abrir
-  en Google Maps" con las paradas que faltan. El GPS detecta llegadas y salidas; sin GPS, el botón manual
-  ("Llegué al proveedor / a la obra…").
+- **El chofer nunca escribe un número**: los km los calcula la app con el GPS del viaje (o la ruta).
+- En el **modo conducción**, el viaje es una secuencia de deslizadores, uno por pantalla ("Paso 2 de 4"): Iniciar
+  viaje → Llegué a [lugar] (con lo que carga, horario, contacto y OC) → En camino a [siguiente] → … → Terminar
+  viaje (peajes $0 o escribir, foto del remito y observaciones, todo opcional). Si el GPS detecta la llegada,
+  el deslizador se pone verde y vibra; se puede deslizar igual sin esperar. Sin señal funciona igual.
+- **¿Llevás algo más?**: al aceptar, los pedidos para la misma obra, del mismo lugar de retiro o cerca del
+  camino, cada uno con "Sí, lo llevo" / "No". Si después de aceptar piden algo más para una obra del viaje (o
+  del mismo lugar de retiro), llega una push con esos dos botones y una tarjeta arriba de Hoy.
 - Un viaje de otro día no se puede iniciar: "Este viaje es para el lunes 13/10" y **Pedir que lo adelanten**.
 - Sin señal, cada botón se guarda en el teléfono y se manda solo al volver.
 
@@ -138,14 +145,16 @@ Todo el detalle en **docs/compras.md**. No acepta ni inicia viajes; no ve flota,
 
 ## Administración (Camila)
 
-**Cae en** su inicio: vencimientos de documentación de los próximos 30 días y el costo del mes por obra.
-**Barra**: Flota · Costos · Facturación · Más. **Más**: Alertas, Tablero, Obras, Proveedores, Razones
-sociales, Depósitos y base, Usuarios, Mis avisos. Agenda y Mantenimiento, dentro de Flota.
+**Cae en** su inicio: primero las **OC con facturación pendiente**, después los **pagos a autorizar** y los
+vencimientos de la flota; al final el costo del mes.
+**Barra**: Facturación · Costos · Tablero · Más. **Más**: Flota, Alertas, Obras, Proveedores, Razones sociales,
+Depósitos y base, Usuarios, Mis avisos, Cuenta. Agenda y Mantenimiento, dentro de Flota.
 
 | Para… | Toques |
 |---|---|
-| Cargar la factura de una orden | 2 · Facturación → la orden (completa la sección 3 y adjunta la factura) |
-| Ver vencimientos de seguro y VTV | 1 · Flota |
+| Cargar la factura de una orden | 1 · la orden en su inicio (o Facturación → la orden) |
+| Ver vencimientos de seguro y VTV | 2 · Más → Flota (los próximos 30 días, también en su inicio) |
+| Cargar un papel de un vehículo | 4 · Más → Flota → el vehículo → Cargar documento (Sacar foto) |
 | Ver costos por obra | 1 · Costos |
 | Exportar costos para Lebane | 2 · Costos → CSV por obra |
 | Dar de alta un usuario | 3 · Más → Usuarios → Agregar persona |

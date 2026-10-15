@@ -166,6 +166,13 @@ export async function paraFacturar(f: { q?: string; obra: string[]; pendiente: "
   return { filas: filas.slice(0, limite), hayMas: filas.length > limite, total, obras: obras.map((o) => ({ valor: o.id, etiqueta: `Obra ${o.nombre}` })) };
 }
 
+/** Inicio de Administración: pagos que pidió y esperan la autorización del dueño. */
+export async function pagosEsperandoAutorizacion(limite = 8) {
+  const u = await exigirSesion();
+  if (u.rol !== "ADMINISTRACION" && u.rol !== "DIRECCION") throw new Error("Sin permiso");
+  return db.ordenCompra.findMany({ where: { pagoSolicitadoEn: { not: null }, ordenPagoAutorizadaEn: null, estado: { not: "ANULADA" } }, orderBy: { pagoSolicitadoEn: "asc" }, take: limite, include: incluirDocumento });
+}
+
 // ═══════════════════════════ Habilitados ═══════════════════════════
 
 /** Proveedores (con sus sucursales) para la hoja "Habilitar para retirar". */

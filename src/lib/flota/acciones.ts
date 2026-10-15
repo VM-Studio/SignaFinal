@@ -113,10 +113,13 @@ export async function cambiarActivoVehiculo(id: string, activo: boolean): Promis
 
 const esquemaDoc = z.object({
   vehiculoId: z.string().min(1),
-  tipo: z.enum(["SEGURO", "VTV", "PATENTE", "CEDULA", "RUTA", "OTRO"], { error: "Elegí el documento." }),
+  tipo: z.enum(["SEGURO", "VTV", "PATENTE", "CEDULA", "RUTA", "HABILITACION_PESADO", "OTRO"], { error: "Elegí el documento." }),
+  emisor: z.preprocess(vacio, z.string().trim().max(120).optional()),
+  numero: z.preprocess(vacio, z.string().trim().max(80).optional()),
   vencimiento: fechaOpc,
   notas: z.preprocess(vacio, z.string().trim().max(200).optional()),
-  archivo: z.preprocess(vacio, z.string().optional()),
+  // La foto o el PDF del papel: obligatorio (data URL).
+  archivo: z.string({ error: "Sacá una foto del papel o adjuntá el PDF." }).min(1, "Sacá una foto del papel o adjuntá el PDF."),
 });
 export type DatosDocumento = z.input<typeof esquemaDoc>;
 
@@ -125,13 +128,13 @@ export async function guardarDocumento(entrada: DatosDocumento): Promise<Resulta
   return ejecutar(async () => {
     const yo = await exigirPermiso("flota.documentacion");
     const d = esquemaDoc.parse(entrada);
-    if ((d.tipo === "SEGURO" || d.tipo === "VTV" || d.tipo === "RUTA") && !d.vencimiento) throw new ErrorNegocio("Poné la fecha de vencimiento.");
+    if ((d.tipo === "SEGURO" || d.tipo === "VTV" || d.tipo === "RUTA" || d.tipo === "HABILITACION_PESADO") && !d.vencimiento) throw new ErrorNegocio("Poné la fecha de vencimiento.");
     await db.$transaction(async (tx) => {
-      const archivoUrl = d.archivo ? await guardarArchivo(tx, d.archivo, yo.id, `${d.tipo.toLowerCase()}-${d.vehiculoId}`) : null;
+      const archivoUrl = await guardarArchivo(tx, d.archivo, yo.id, `${d.tipo.toLowerCase()}-${d.vehiculoId}`);
       const doc = await tx.documentoVehiculo.create({
-        data: { vehiculoId: d.vehiculoId, tipo: d.tipo, vencimiento: d.vencimiento ? aFecha(d.vencimiento, "12:00") : null, archivoUrl, notas: d.notas ?? null },
+        data: { vehiculoId: d.vehiculoId, tipo: d.tipo, emisor: d.emisor ?? null, numero: d.numero ?? null, vencimiento: d.vencimiento ? aFecha(d.vencimiento, "12:00") : null, archivoUrl, notas: d.notas ?? null },
       });
-      await auditar(tx, yo.id, "vehiculo.documento", d.vehiculoId, (v) => `${yo.nombre} cargó ${DOCUMENTO[d.tipo]} de ${v}${d.vencimiento ? ` (vence ${d.vencimiento.split("-").reverse().join("/")})` : ""}`, undefined, { documentoId: doc.id, tipo: d.tipo, vencimiento: d.vencimiento ?? null });
+      await auditar(tx, yo.id, "vehiculo.documento", d.vehiculoId, (v) => `${yo.nombre} cargó ${DOCUMENTO[d.tipo]}${d.emisor ? ` (${d.emisor}${d.numero ? ` ${d.numero}` : ""})` : ""} de ${v}${d.vencimiento ? ` (vence ${d.vencimiento.split("-").reverse().join("/")})` : ""}`, undefined, { documentoId: doc.id, tipo: d.tipo, vencimiento: d.vencimiento ?? null });
     });
     refrescar();
     return null;

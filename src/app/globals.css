@@ -158,6 +158,16 @@
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
+  /* Celular: una tabla ancha se desplaza dentro de su caja y la primera columna queda fija (se sabe de qué fila es). */
+  @media (max-width: 1023px) {
+    .tabla :is(th, td):first-child {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      background: var(--color-papel);
+      box-shadow: 1px 0 0 var(--color-linea);
+    }
+  }
   /* Etiqueta de 11px en mayúsculas (lo único en mayúsculas). */
   .etiqueta {
     /* Etiquetas largas en cajas angostas ("PEDIR AUTORIZACIÓN"): cortan con guion, no a mitad de palabra. */

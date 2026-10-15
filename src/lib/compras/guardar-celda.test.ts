@@ -66,7 +66,8 @@ describe.skipIf(!hayBase).sequential("guardar una celda del documento (con base)
 
   it("con la versión al día, el que perdió puede volver a guardar (versión 2)", async () => {
     const { guardarCeldaComo } = await import("./guardar-celda");
-    const { resultado } = await guardarCeldaComo(f!.daniela, f!.ocId, "detalleDelPedido", "40 - bolsas de cemento\n20 - barras del 8", 1);
+    // Un valor nuevo (si ganó Daniela en el conflicto, el de antes ya está guardado y no cambiaría nada).
+    const { resultado } = await guardarCeldaComo(f!.daniela, f!.ocId, "detalleDelPedido", "40 - bolsas de cemento\n20 - barras del 8\n10 - kg de clavos", 1);
     expect(resultado.conflicto).toBe(false);
     expect(resultado.version).toBe(2);
   });

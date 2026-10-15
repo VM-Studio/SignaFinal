@@ -48,3 +48,7 @@ tmp/
 docs/plantilla-oc/*.xlsx
 docs/plantilla-oc/*.pdf
 docs/orden-de-compra.pdf
+
+# Papeles reales de la flota (fotos y datos): solo locales, el repo es público.
+docs/flota/*
+!docs/flota/documentacion.ejemplo.json

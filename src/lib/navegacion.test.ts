@@ -15,13 +15,13 @@ describe("navegación por rol", () => {
   });
   it("lo más usado adelante (tabla de CLAUDE.md)", () => {
     const barra = (r: Rol) => barraInferior(r).map((s) => s.titulo);
-    expect(barra("DIRECCION")).toEqual(["Aprobaciones", "Pedidos", "Avisos"]);
+    expect(barra("DIRECCION")).toEqual(["Aprobaciones", "Pedidos", "Pedir un viaje"]);
     expect(barra("COMPRAS")).toEqual(["Tablero", "Pedidos", "Viajes"]);
     expect(barra("RESPONSABLE_OBRA")).toEqual(["Pedir", "Mis pedidos", "Viajes"]);
     expect(barra("CAPATAZ")).toEqual(["Pedir", "Mis pedidos", "Viajes"]);
     expect(barra("CHOFER")).toEqual(["Hoy", "Solicitudes", "Avisos"]);
     expect(barra("DEPOSITO")).toEqual(["Herramientas", "Entregas", "Sobrantes"]);
-    expect(barra("ADMINISTRACION")).toEqual(["Flota", "Costos", "Facturación"]);
+    expect(barra("ADMINISTRACION")).toEqual(["Facturación", "Costos", "Tablero"]);
   });
   it.each(ROLES)("%s: Inicio no está en Más (es el logo)", (rol) => {
     expect(menuMas(rol).flatMap((g) => g.items.map((s) => s.href))).not.toContain("/inicio");

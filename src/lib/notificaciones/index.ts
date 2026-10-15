@@ -146,7 +146,7 @@ async function enviarPush(notificacionId: string) {
  * chofer): se guarda solo su hash (TokenAccion) y lo canjea /api/viajes/[id]/accion.
  */
 async function conAcciones(usuarioId: string, datos: unknown): Promise<{ acciones?: AccionPush[]; accion?: { pedidoId: string; token: string } }> {
-  const p = (datos as { push?: { acciones?: AccionPush[]; token?: { pedidoId: string; viajeId: string; paradaId: string; tipo: "LLEGADA" | "SALIDA" } } } | null)?.push;
+  const p = (datos as { push?: { acciones?: AccionPush[]; token?: { pedidoId: string; viajeId: string; paradaId: string; tipo: "LLEGADA" | "SALIDA" | "SUMAR" } } } | null)?.push;
   if (!p?.acciones?.length) return {};
   if (!p.token) return { acciones: p.acciones };
   const token = randomBytes(24).toString("base64url");

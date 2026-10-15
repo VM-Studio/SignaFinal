@@ -122,6 +122,8 @@ export function FormularioVehiculo({ inicial, personas, bases }: { inicial: Vehi
 
 export function FormularioDocumento({ vehiculoId, tipoInicial }: { vehiculoId: string; tipoInicial?: string }) {
   const [tipo, setTipo] = useState(tipoInicial ?? "");
+  const [emisor, setEmisor] = useState("");
+  const [numero, setNumero] = useState("");
   const [vence, setVence] = useState("");
   const [notas, setNotas] = useState("");
   const [archivo, setArchivo] = useState<string | null>(null);
@@ -130,14 +132,19 @@ export function FormularioDocumento({ vehiculoId, tipoInicial }: { vehiculoId: s
   const terminar = useAlTerminar("Documento cargado.");
   return (
     <div className="flex flex-col gap-4">
-      <Opciones nombre="Documento" columnas={3} valor={tipo} onElegir={setTipo} opciones={Object.entries(DOCUMENTO).map(([valor, titulo]) => ({ valor, titulo }))} />
+      <Opciones nombre="Documento" columnas={2} valor={tipo} onElegir={setTipo} opciones={Object.entries(DOCUMENTO).map(([valor, titulo]) => ({ valor, titulo }))} />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Campo etiqueta="Compañía o emisor" htmlFor="doc-emisor"><Entrada id="doc-emisor" value={emisor} onChange={(e) => setEmisor(e.target.value)} maxLength={120} placeholder="Federación Patronal" /></Campo>
+        <Campo etiqueta="N° de póliza o certificado" htmlFor="doc-numero"><Entrada id="doc-numero" value={numero} onChange={(e) => setNumero(e.target.value)} maxLength={80} /></Campo>
+      </div>
       <Campo etiqueta="Vence" htmlFor="doc-vence"><Fecha id="doc-vence" value={vence} onChange={(e) => setVence(e.target.value)} /></Campo>
-      <CampoFoto etiqueta="Archivo (foto o PDF)" valor={archivo} onCambio={setArchivo} />
-      <Campo etiqueta="Notas" htmlFor="doc-notas"><Entrada id="doc-notas" value={notas} onChange={(e) => setNotas(e.target.value)} maxLength={200} placeholder="Ej.: póliza 778812, Federación Patronal" /></Campo>
+      <CampoFoto etiqueta="Foto o PDF del papel" valor={archivo} onCambio={setArchivo} conArchivo />
+      <Campo etiqueta="Notas (opcional)" htmlFor="doc-notas"><Entrada id="doc-notas" value={notas} onChange={(e) => setNotas(e.target.value)} maxLength={200} /></Campo>
       <MensajeError>{error}</MensajeError>
-      <Boton ancho disabled={!tipo} cargando={enviando} onClick={async () => {
+      <Boton ancho tamano="grande" disabled={!tipo || !archivo} cargando={enviando} onClick={async () => {
+        if (!archivo) return setError("Sacá una foto del papel o adjuntá el PDF.");
         setEnviando(true);
-        const r = await guardarDocumento({ vehiculoId, tipo: tipo as DatosDocumento["tipo"], vencimiento: vence, notas, archivo: archivo ?? undefined });
+        const r = await guardarDocumento({ vehiculoId, tipo: tipo as DatosDocumento["tipo"], emisor, numero, vencimiento: vence, notas, archivo });
         setEnviando(false);
         if (!r.ok) return setError(r.error);
         terminar();

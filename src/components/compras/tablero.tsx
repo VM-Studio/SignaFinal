@@ -115,7 +115,7 @@ export function CeldaEditable({ id, campo, valor, editable, compacta = false }: 
   }
   return (
     <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setEditando(true); }} title="Escribir (Ctrl+Enter guarda, Esc cancela)"
-      className={`block w-full text-left leading-5 whitespace-pre-wrap ${guardando ? "opacity-60" : ""} ${compacta ? "" : "min-h-5"}`}>
+      className={`block w-full text-left leading-5 whitespace-pre-wrap ${guardando ? "opacity-60" : ""} ${compacta ? "min-h-12 py-3" : "min-h-5"}`}>
       {guardado || vacio}
       {tilde}
     </button>

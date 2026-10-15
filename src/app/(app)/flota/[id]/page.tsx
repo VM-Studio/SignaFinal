@@ -58,13 +58,15 @@ export default async function FichaVehiculo({ params, searchParams }: { params: 
       <VolverA clave="/flota" href="/flota" etiqueta="Volver a Flota" className="mb-2" />
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="etiqueta">{TIPO[v.tipo]} · {v.patente}</p>
+          <p className="etiqueta">{v.tipoAConfirmar ? "Tipo a confirmar" : TIPO[v.tipo]} · {v.patente}</p>
           <h1 className="mt-1 text-[22px] leading-7 font-semibold">{v.nombre}</h1>
           <div className="mt-2 flex flex-wrap gap-2">
             <Insignia tono={ESTADO_VEHICULO[v.estado].tono}>{ESTADO_VEHICULO[v.estado].texto}</Insignia>
             {v.asignadoA && <Insignia tono="neutro">Asignada a {v.asignadoA.nombre}</Insignia>}
             {!v.entraEnCola && <Insignia tono="neutro">No entra en la cola</Insignia>}
             {docVencida && <Insignia tono="critico">Documentación vencida</Insignia>}
+            {v.documentos.length === 0 && <Insignia tono="critico">Sin documentación</Insignia>}
+            {v.tipoAConfirmar && <Insignia tono="aviso">Tipo a confirmar (figura como {TIPO[v.tipo]})</Insignia>}
           </div>
         </div>
         {editar && (
@@ -141,13 +143,13 @@ function Documentacion({ v, cargar }: { v: Ficha; cargar: boolean }) {
     <div>
       {cargar && (
         <div className="mb-3">
-          <ConHoja titulo="Cargar documento" etiqueta="Cargar documento" variante="secundario" icono={<FilePlus />}>
+          <ConHoja titulo="Cargar documento" etiqueta="Cargar documento" variante={orden.length ? "secundario" : "primario"} icono={<FilePlus />}>
             <FormularioDocumento vehiculoId={v.id} />
           </ConHoja>
         </div>
       )}
       {orden.length === 0 ? (
-        <Vacio titulo="Sin documentación cargada" />
+        <Vacio titulo="Sin documentación cargada">Cargá el seguro y la VTV: sin eso el vehículo no puede salir de viaje.</Vacio>
       ) : (
         <ul className="divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
           {orden.map((d) => {
@@ -158,7 +160,7 @@ function Documentacion({ v, cargar }: { v: Ficha; cargar: boolean }) {
               <li key={d.id} className={`flex min-h-14 items-center gap-3 px-4 py-2 lg:min-h-11 ${destacar ? (ven!.tono === "critico" ? "bg-critico-fondo/60" : "bg-aviso-fondo/60") : ""} ${vigente ? "" : "opacity-55"}`}>
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">{DOCUMENTO[d.tipo]}{!vigente && " (anterior)"}</p>
-                  <p className="text-sm text-suave">{d.vencimiento ? `Vence ${fecha(d.vencimiento)}` : "Sin vencimiento"}{d.notas ? ` · ${d.notas}` : ""}</p>
+                  <p className="text-sm text-suave">{[d.emisor, d.numero ? `N° ${d.numero}` : null, d.vencimiento ? `vence ${fecha(d.vencimiento)}` : "sin vencimiento", d.notas].filter(Boolean).join(" · ")}</p>
                 </div>
                 {vigente && ven && <Insignia tono={destacar ? ven.tono : "ok"}>{destacar ? ven.texto : "Al día"}</Insignia>}
                 {d.archivoUrl && (

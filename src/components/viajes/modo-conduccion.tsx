@@ -42,7 +42,8 @@ export function ModoConduccion({ d }: { d: Datos }) {
   const [hechosLocal, setHechosLocal] = useState<string[]>([]);
   const [enviando, setEnviando] = useState(false);
 
-  const r = pasosDelViaje(d.paradas, { iniciado: d.estado !== "PROGRAMADO", terminado: d.estado === "FINALIZADO", porConfirmar: d.confirmar?.id ?? null });
+  // Títulos cortos: "Corralón San Martín" (sin " · Sucursal Villa Crespo"); la dirección va debajo.
+  const r = pasosDelViaje(d.paradas.map((x) => ({ ...x, nombre: x.nombre.split(" · ")[0] })), { iniciado: d.estado !== "PROGRAMADO", terminado: d.estado === "FINALIZADO", porConfirmar: d.confirmar?.id ?? null });
   const pasos = r.pasos.map((p) => (hechosLocal.includes(p.clave) ? { ...p, hecho: true } : p));
   const indice = pasos.findIndex((p) => !p.hecho);
   const paso: Paso | null = indice === -1 ? null : pasos[indice];
@@ -143,9 +144,9 @@ export function ModoConduccion({ d }: { d: Datos }) {
         <p className="min-w-0 flex-1 text-[15px] font-semibold tracking-[0.04em] text-white/70 uppercase">{paso ? `Paso ${indice + 1} de ${pasos.length}` : "Viaje terminado"}</p>
       </header>
 
-      {mapa && <div className="relative isolate h-[34dvh] min-h-0 shrink-0">{mapa}</div>}
+      {mapa && <div className="relative isolate h-[26dvh] min-h-0 shrink-0">{mapa}</div>}
 
-      <section className="pb-segura flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pt-4">
+      <section className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pt-4 pb-4">
         {paso?.tipo === "INICIAR" && (
           <>
             <p className="text-[32px] leading-9 font-semibold">Iniciar viaje</p>
@@ -193,8 +194,10 @@ export function ModoConduccion({ d }: { d: Datos }) {
         )}
 
         {!paso && <p className="text-[26px] font-semibold">Ya hiciste todos los pasos.</p>}
+      </section>
 
-        <div className="mt-auto flex flex-col gap-2 pt-2 pb-3">
+      {/* El deslizador, fijo abajo y siempre a la vista (lo de arriba se desplaza si es largo). */}
+      <div className="pb-segura flex shrink-0 flex-col gap-2 border-t border-white/10 px-4 pt-3">
           {paso && (
             <Deslizador
               key={paso.clave}
@@ -207,8 +210,8 @@ export function ModoConduccion({ d }: { d: Datos }) {
           {d.estado === "EN_CURSO" && d.sinGps && (
             <p className="flex items-center justify-center gap-1.5 text-[13px] text-white/50"><SatelliteDish className="size-4" /> Sin señal GPS</p>
           )}
-        </div>
-      </section>
+        <div className="h-3" />
+      </div>
 
       <HojaFinalizar pedidoId={d.pedidoId} numero={d.numero} obra={parada?.nombre ?? d.paradas[d.paradas.length - 1]?.nombre ?? ""} abierta={finalizar} onCerrar={() => setFinalizar(false)} canal="DESLIZADOR"
         onTerminado={() => { try { sessionStorage.removeItem(CLAVE_CONDUCIENDO); } catch {} }} />

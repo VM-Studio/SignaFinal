@@ -80,12 +80,12 @@ Reglas de visibilidad (se verifican en el servidor, en cada query y cada action)
 
 | Rol | Barra inferior (4 ítems) | En "Más" |
 |---|---|---|
-| DIRECCION | Aprobaciones · Pedidos · Avisos · Más | Mapa, Viajes en curso, Solicitudes, Pedir, Mis pedidos, Tablero, Habilitados, Facturación, Flota, Costos, Combustible, Herramientas, Sobrantes, Entregas, Actividad, Alertas, Obras, Proveedores, Configuración |
+| DIRECCION | Aprobaciones · Pedidos · Pedir un viaje · Más | Mapa, Viajes en curso, Solicitudes, Mis pedidos, Tablero, Habilitados, Facturación, Flota, Costos, Combustible, Herramientas, Sobrantes, Entregas, Actividad, Alertas, Obras, Proveedores, Configuración, Avisos (también en la campana) |
 | COMPRAS | Tablero · Pedidos · Viajes · Más | Habilitados, Proveedores, Mis avisos, Cuenta |
 | RESPONSABLE_OBRA / CAPATAZ | Pedir · Mis pedidos · Viajes · Más | Herramientas, Obras, Avisos |
 | CHOFER | Hoy · Solicitudes · Avisos · Más | Combustible |
 | DEPOSITO | Herramientas · Entregas · Sobrantes · Más | Alta masiva, Avisos |
-| ADMINISTRACION | Flota · Costos · Facturación · Más | Alertas, Tablero, Obras, Proveedores, Razones sociales, Depósitos y base, Usuarios, Avisos |
+| ADMINISTRACION | Facturación · Costos · Tablero · Más | Flota, Alertas, Obras, Proveedores, Razones sociales, Depósitos y base, Usuarios, Mis avisos, Cuenta |
 
 - Todo en src/lib/navegacion.ts (NAV). COMPRAS no tiene /inicio: entra directo al **Tablero** (/compras/tablero;
   inicioDe(rol) en permisos.ts, también al ingresar). "Pedidos" (Pedidos de material) es la bandeja de documentos
@@ -118,7 +118,9 @@ Reglas de visibilidad (se verifican en el servidor, en cada query y cada action)
 - Ninguna ruta de la matriz queda sin enlace: scripts/verificar-navegacion.ts (y su test).
 - Inicios: DIRECCION, órdenes que esperan aprobación, viajes de hoy, alertas críticas y el mapa como
   tarjeta chica. Obra, "Pedir", listos para retirar (tarjetas verdes con Pedir el viaje), en camino hoy y
-  esperando a Compras. ADMINISTRACION, vencimientos y costo del mes. COMPRAS, CHOFER y DEPOSITO no tienen
+  esperando a Compras. ADMINISTRACION, primero "OC con facturación pendiente", después "Pagos a autorizar",
+  después vencimientos de flota y el costo del mes. "Pedir un viaje" del dueño abre el formulario de viaje
+  (como lo ve un responsable de obra, con todas las obras). COMPRAS, CHOFER y DEPOSITO no tienen
   inicio.
 - Pedir un viaje: paso 1 el tipo, paso 2 detalles y ¿para cuándo? en la misma pantalla, con todo puesto
   (desde el Depósito Florida, la obra única o la del último pedido, hoy a la mañana). La tarjeta verde de un
@@ -133,15 +135,16 @@ o CANCELADO. El chofer que lo aceptó puede soltarlo (vuelve a PENDIENTE).
 Viaje (se crea al aceptar): una lista ordenada de PARADAS (RETIRO o ENTREGA). Etapa del viaje:
   PROGRAMADO → HACIA_RETIRO → EN_RETIRO → HACIA_DESTINO → EN_DESTINO → FINALIZADO,
 derivada de la PARADA ACTUAL (la primera que falta): retiro en camino / con llegada, entrega en
-camino / con llegada. El chofer toca "Iniciar viaje" y, cuando llegó a la última parada, "Viaje
-terminado" (km de llegada y peajes una sola vez, foto opcional; pedidos ENTREGADOS y costo repartido).
+camino / con llegada. El chofer hace el viaje en el modo conducción, UN paso por pantalla (ver "Modo
+conducción"): "Iniciar viaje" → "Llegué a X" / "En camino a Y" → "Terminar viaje" (peajes una sola vez, foto
+opcional; pedidos ENTREGADOS y costo repartido). **El chofer nunca escribe un número**: no hay km.
 Lo del medio lo hace el motor de viajes (src/lib/viajes/motor.ts, reglas puras en motor-reglas.ts)
 con cada posición (Cusat primero, teléfono de respaldo) sobre la parada actual: llegó (geocerca de
 la parada: radio de la obra o 150 m, quieto, 2 lecturas) → LLEGO; se fue (más de 300 m) → COMPLETADA
 y la siguiente EN_CAMINO. Si llega a otra parada que ya se puede hacer (sus retiros hechos), se
 reordena y la pantalla pregunta "Llegaste a Chubut antes que a Darwin, ¿seguimos así?". Si arranca
-en el mismo lugar del primer retiro, empieza "cargando" ahí. El chofer siempre tiene el botón manual
-de la parada actual, que hace la misma transición, y puede negar una llegada ("No, todavía no").
+en el mismo lugar del primer retiro, empieza "cargando" ahí. El chofer siempre puede deslizar el paso actual
+sin esperar al GPS (misma transición); una llegada que detectó el GPS pone el deslizador verde.
 Los avisos van SOLO a los solicitantes de los pedidos de esa parada (con distancia; la hora solo con
 tránsito real); al completar una entrega, esos pedidos quedan ENTREGADOS. Sin señal más de 10
 minutos, también se avisa. Parámetros en src/lib/viajes/parametros.ts.
@@ -161,9 +164,8 @@ Reglas del chofer (src/lib/viajes/fecha.ts, recordatorios*.ts, manual.ts):
 - Sin tránsito no hay minutos: sin GOOGLE_MAPS_API_KEY la app muestra solo distancia ("está a 7 km
   de la obra"), nunca una hora. Con la clave, Google Routes (TRAFFIC_AWARE_OPTIMAL) solo para la hora
   de llegada, "(con tránsito)". Detalle y costo en docs/rutas.md.
-- Botón manual de la parada actual, con la palabra del lugar: "Llegué al proveedor / al galpón / al
-  terreno / a la obra / a la base", "Salgo del…". Sin GPS en 3 minutos pasa a ser el principal ("Sin
-  señal GPS: marcá a mano"). Nunca marca una parada que no es la que sigue; queda en la auditoría como manual.
+- Sin botones manuales de respaldo: el deslizador es el único control (es manual por definición). Sin
+  señal, funciona igual y abajo dice "Sin señal GPS" en gris. Nunca marca una parada que no es la que sigue.
 
 ## Reglas de negocio
 
@@ -177,7 +179,11 @@ Reglas del chofer (src/lib/viajes/fecha.ts, recordatorios*.ts, manual.ts):
   parecida) en 48 h → aviso con quién y cuándo, antes de guardar.
 - Duplicados de herramienta: misma herramienta + misma obra + misma fecha → aviso con
   quién lo pidió y cuándo, antes de guardar.
-- Al finalizar: km llegada ≥ km salida; costo = km × costoKm + peajes, repartido entre los pedidos del viaje por tramo (ver "Viajes con paradas").
+- Al finalizar: km = distancia recorrida según las posiciones GPS del viaje (Cusat o teléfono) entre el
+  inicio y el fin, descartando saltos imposibles (más de 140 km/h), lecturas imprecisas y el temblor del GPS
+  parado; si no hubo posiciones (o cubren menos de la mitad de la ruta), la distancia de la ruta (lib/rutas).
+  src/lib/viajes/km.ts. costo = km × costoKm + peajes, repartido entre los pedidos del viaje por tramo (ver
+  "Viajes con paradas"). Vehiculo.kmActual suma esos km (Cusat no informa un odómetro confiable: docs/cusat).
 - Herramienta UNITARIA está en el depósito o en una obra, nunca en ambos. Cambia de
   lugar solo con un movimiento registrado. Por CANTIDAD: stock por ubicación.
 - Alertas con clave única por regla + entidad; se resuelven solas. Cada alerta tiene
@@ -371,17 +377,24 @@ Reglas (reemplazan lo que diga otra cosa más arriba):
   (ViajePedido) y su lista de verificación con cantidades por obra (ItemParada: renglones de Compras
   o la descripción). Un retiro por cada lugar de origen distinto, una entrega por cada destino; un
   pedido sin retiro (sale de la base) aporta solo entrega. Un pedido simple = 2 paradas.
-  - "Aprovechá el viaje": al aceptar (y con "Agregar parada" mientras no llegó a ninguna) se sugieren
-    pendientes (y los propios del mismo día) del MISMO LUGAR (mismo id o a menos de radioMismoLugarM)
-    y CERCA DE TU CAMINO (origen o destino a menos de radioCercaM de una parada, o desvío menor que
-    desvioMaximoM). Los de otro día van en gris; personas y escombros no se combinan; peso total ≤
-    capacidad del vehículo; máximo maxParadasPorViaje. A cada solicitante le llega su aviso normal
-    más "Claudio lo combinó con otro retiro en el mismo lugar".
+  - "¿Llevás algo más?": al tocar Aceptar (antes del vehículo; y con "Agregar parada" mientras no llegó a
+    ninguna) UNA pantalla con tarjetas grandes, una por pedido, con "Sí, lo llevo" / "No" (sin casillas),
+    agrupadas: "Para la misma obra (Darwin) también pidieron:" (mismo destino, cualquier origen), "En el mismo
+    lugar (Corralón San Martín) hay para retirar:" (mismo retiro, otras obras) y "Cerca de tu camino:" (a menos
+    de radioCercaM = 3 km de una parada o desvío menor que desvioMaximoM). Solo pedidos para el día del viaje o
+    antes; personas y escombros no se combinan; si no entra en el vehículo más grande que se puede usar, la
+    tarjeta dice "No entra en el Camión Kia (3.000 kg)" y no tiene Sí; máximo maxParadasPorViaje. A cada
+    solicitante le llega su aviso normal más "Claudio lo combinó…".
+  - Pedido nuevo con el viaje aceptado y sin iniciar, para una obra del viaje o del mismo lugar de retiro (o
+    ya iniciado sin llegar a la primera parada, solo mismo lugar de retiro): push al chofer con "Sí, lo
+    llevo" / "No" (token SUMAR) y tarjeta arriba de Hoy "Pidieron algo más para Darwin" (src/lib/viajes/
+    ofrecer.ts). Lo suma src/lib/pedidos/sumar.ts (no es una Server Action). "No" queda en Viaje.descartados.
+    Los solicitantes reciben "Claudio lo suma al viaje de hoy". En cualquier otro momento no se interrumpe.
   - Orden: vecino más cercano con precedencia (cada entrega después de su retiro) + 2-opt, sobre la
     matriz de OSRM table (o línea recta × 1,3), desde el vehículo o su base; nunca empeora. El chofer
     puede "Reordenar" (se valida igual). Google Maps abre con las paradas pendientes como waypoints (9).
   - Lista de verificación: el chofer tilda cada ítem; "Faltó" pide la cantidad real y avisa al que
-    pidió y a Compras ("Retiraron 30 de 40 bolsas"). "Cargué todo, salgo" / "Entregado acá" (o el GPS).
+    pidió y a Compras ("Retiraron 30 de 40 bolsas").
   - **Costo por pedido** (reparto.ts, al finalizar): km de cada tramo = km reales del viaje ×
     (distancia planeada del tramo / suma de las distancias); costo del tramo = km × costoKm. El costo
     de cada tramo va a los pedidos de la PARADA DE LLEGADA de ese tramo en partes iguales (el tramo
@@ -400,11 +413,16 @@ Reglas (reemplazan lo que diga otra cosa más arriba):
 
 ## Modo conducción y notificaciones con botones
 
-- /viaje/[id]/conducir (components/viajes/modo-conduccion.tsx): pantalla completa oscura, mapa arriba (60 %)
-  y la tarjeta de la parada actual con UN **deslizador** (components/viajes/deslizador.tsx: cuenta desde el
-  90 % del recorrido; un toque no hace nada). Se entra solo al tocar "Iniciar viaje". Wake Lock mientras
-  está abierta; al volver de Google Maps trae el estado del servidor (y si el iPhone reabrió la app en el
-  inicio, VolverAConducir vuelve acá). Nunca un botón común para llegar / salir / terminar en esta pantalla.
+- /viaje/[id]/conducir (components/viajes/modo-conduccion.tsx): pantalla completa oscura, el viaje es una
+  secuencia de deslizadores, UN paso por pantalla con "Paso 2 de 4" arriba, letra grande y solo la parada
+  actual (mapa chico mientras va hacia un lugar, la lista de lo que carga o entrega, horario/contacto/OC).
+  Los pasos salen de las paradas (src/lib/viajes/pasos.ts, con tests): Iniciar viaje → por cada parada menos
+  la última "Llegué a X" y "En camino a Y" → "Terminar viaje". Simple = 4 pasos; sin retiro = Iniciar y
+  Terminar. Nunca un "Salgo" aparte. "Iniciar viaje" (Hoy, el detalle) abre esta pantalla y el primer paso es
+  el deslizador de inicio. "Terminar viaje" abre la hoja con peajes ($0 / Escribir), foto del remito y
+  observaciones (todo opcional) y llega sola a la última parada. Deslizador (components/viajes/deslizador.tsx):
+  cuenta desde el 90 %, un toque no hace nada, el texto nunca se corta. Wake Lock; al volver de Google Maps
+  trae el estado del servidor (VolverAConducir). La pantalla del viaje (/viaje/[id]) solo tiene "Seguir el viaje".
 - Push al chofer cuando el GPS detecta una llegada ([Sí, llegué] [Todavía no]) o una salida ([Sí, salí]
   [Sigo acá]), y en los recordatorios ([Abrir viaje]). Las respuestas se resuelven en el service worker con
   POST /api/viajes/[id]/accion y un token de un solo uso (TokenAccion: hash, 30 min, atado a viaje, parada y
@@ -455,6 +473,15 @@ Reglas (reemplazan lo que diga otra cosa más arriba):
 | OROCH | AC689NR | Oroch | Camioneta | No |
 | KANGOO | AF399OO | Kangoo | Utilitario (interior, Cusat la mostró en Lincoln) | No |
 | KANGOO LL | AF399OP | Kangoo LL | Utilitario | No |
+
+Documentación (DocumentoVehiculo: tipo Seguro · VTV · Cédula verde/azul · Patente/impuesto · Habilitación de
+tránsito pesado · RUTA · Otro, emisor, número, vencimiento, foto o PDF obligatorio, notas): se carga en la ficha
+→ Documentación ("Sacar foto" abre la cámara) o con scripts/cargar-documentacion.ts desde
+docs/flota/documentacion.json (solo local: papeles reales; ejemplo en documentacion.ejemplo.json). No hay
+documentación inventada: sin papeles, Flota dice "Sin documentación" en rojo, sale la alerta "Vehículo sin
+seguro cargado" (ADMINISTRACION y DIRECCION) y el vehículo no puede salir de viaje. Vencimientos: alerta a 30
+y 15 días y vencido. La de ejemplo existe solo con MODO_DEMO. La Zanella queda "Tipo a confirmar"
+(Vehiculo.tipoAConfirmar) hasta que se confirme.
 
 Base: Martínez (Triunfo Argentino / Granada y Maestro). Depósitos: Depósito Florida (galpón) y
 Terreno Humboldt 2417 (Villa Crespo). Terreno 1 y Terreno 2 eran provisorios: quedan inactivos. Los vehículos viejos que no estén en esta lista quedan con activo=false, no se

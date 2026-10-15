@@ -242,7 +242,7 @@ export function BotonAgregarParada({ pedidoId }: { pedidoId: string }) {
   return (
     <>
       <Boton variante="secundario" ancho icono={<Plus />} onClick={abrir}>Agregar parada</Boton>
-      <Hoja abierta={abierta} onCerrar={() => setAbierta(false)} titulo="Aprovechá el viaje">
+      <Hoja abierta={abierta} onCerrar={() => setAbierta(false)} titulo="¿Llevás algo más?">
         <div className="flex flex-col gap-4">
           {sugerencias === null && !error && <p className="py-6 text-center text-suave">Buscando pedidos para combinar…</p>}
           {sugerencias?.length === 0 && <p className="py-6 text-center text-suave">No hay pedidos pendientes en el mismo lugar ni cerca de tu camino.</p>}

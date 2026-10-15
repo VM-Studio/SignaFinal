@@ -81,7 +81,7 @@ export function FormularioUsuario({ inicial, obras, puedeDireccion, esYo, cerrar
                   Obra {o.nombre}
                 </label>
                 {tiene && (
-                  <button type="button" onClick={() => cambiar("obraPrincipal", o.id)} aria-pressed={principal} className={`text-sm font-semibold ${principal ? "text-negro" : "text-suave underline"}`}>
+                  <button type="button" onClick={() => cambiar("obraPrincipal", o.id)} aria-pressed={principal} className={`min-h-12 px-2 text-sm font-semibold lg:min-h-0 lg:px-0 ${principal ? "text-negro" : "text-suave underline"}`}>
                     {principal ? "★ Principal" : "Hacer principal"}
                   </button>
                 )}

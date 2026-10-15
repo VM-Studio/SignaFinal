@@ -269,6 +269,8 @@ model Vehiculo {
   ultimaVelocidad      Float?
   ultimaDireccionTexto String?
   fotoUrl              String?
+  // El tipo no está confirmado (la Zanella figura como "Auto"): la ficha lo dice hasta que se confirme.
+  tipoAConfirmar       Boolean        @default(false)
   activo               Boolean        @default(true)
   creadoEn             DateTime       @default(now())
   actualizadoEn        DateTime       @updatedAt
@@ -294,6 +296,7 @@ enum TipoDocumentoVehiculo {
   PATENTE
   CEDULA
   RUTA
+  HABILITACION_PESADO
   OTRO
 }
 
@@ -301,6 +304,9 @@ model DocumentoVehiculo {
   id          String                @id @default(cuid())
   vehiculoId  String
   tipo        TipoDocumentoVehiculo
+  // Compañía o emisor ("Federación Patronal") y número de póliza o certificado.
+  emisor      String?
+  numero      String?
   vencimiento DateTime?             @db.Date
   archivoUrl  String?
   notas       String?
@@ -550,6 +556,8 @@ model Viaje {
   motor             Json?
   // Suma de los tramos entre paradas (lo que calculó el armado de la ruta).
   distanciaTotalM   Int?
+  // Pedidos que el chofer contestó "No" en "Pidieron algo más para…": no se le vuelven a ofrecer.
+  descartados       String[]    @default([])
 
   pedido       PedidoViaje             @relation("ViajePrincipal", fields: [pedidoId], references: [id])
   pedidos      PedidoViaje[]           @relation("ViajeActual")
@@ -1539,6 +1547,8 @@ model PedidoFavorito {
 enum TipoTokenAccion {
   LLEGADA
   SALIDA
+  // "¿Lo llevás?": un pedido nuevo para una obra del viaje o del mismo lugar de retiro (pedidoId = el pedido nuevo).
+  SUMAR
 }
 
 /// Token corto de un solo uso para responder desde la notificación ("Sí, llegué" / "Sigo acá") sin abrir

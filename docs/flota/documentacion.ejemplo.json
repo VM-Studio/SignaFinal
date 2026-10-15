@@ -1,0 +1,19 @@
+[
+  {
+    "patente": "HFD336",
+    "tipo": "SEGURO",
+    "emisor": "Compañía de seguros",
+    "numero": "000000",
+    "vencimiento": "2027-03-31",
+    "archivo": "fotos/HFD336-seguro.jpg",
+    "notas": "opcional"
+  },
+  {
+    "patente": "HFD336",
+    "tipo": "VTV",
+    "emisor": "Planta VTV",
+    "numero": "000000",
+    "vencimiento": "31/03/2027",
+    "archivo": "fotos/HFD336-vtv.pdf"
+  }
+]

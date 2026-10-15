@@ -56,7 +56,7 @@ export function EditorCelda(p: PropsEditor) {
         <span className="flex w-full gap-1 px-1">
           {(["NORMAL", "URGENTE"] as const).map((x) => (
             <button key={x} type="button" onClick={() => onCambio(x, true)} aria-pressed={valor === x}
-              className={`my-1 min-h-7 flex-1 rounded border px-2 text-[12px] font-medium ${valor === x ? (x === "URGENTE" ? "border-critico bg-critico-fondo text-critico" : "border-tinta bg-black/[0.04]") : "border-linea text-suave"}`}>
+              className={`my-1 min-h-12 flex-1 rounded border px-2 text-[15px] font-medium lg:min-h-7 lg:text-[12px] ${valor === x ? (x === "URGENTE" ? "border-critico bg-critico-fondo text-critico" : "border-tinta bg-black/[0.04]") : "border-linea text-suave"}`}>
               {x === "URGENTE" ? "Urgente" : "Normal"}
             </button>
           ))}
@@ -165,6 +165,16 @@ function useFuera(abierto: boolean, cerrar: () => void) {
 
 function Menu({ boton, children, abierto, setAbierto, ancho = 300 }: { boton: ReactNode; children: ReactNode; abierto: boolean; setAbierto: (x: boolean) => void; ancho?: number }) {
   const ref = useFuera(abierto, () => setAbierto(false));
+  // Nunca se sale de la pantalla: si no entra a la derecha de la celda, se corre a la izquierda (16 px de margen).
+  const [corrimiento, setCorrimiento] = useState(0);
+  const [anchoReal, setAnchoReal] = useState(ancho);
+  useLayoutEffect(() => {
+    if (!abierto || !ref.current) return;
+    const r = ref.current.getBoundingClientRect();
+    const w = Math.min(ancho, window.innerWidth - 32);
+    setAnchoReal(w);
+    setCorrimiento(Math.min(0, window.innerWidth - 16 - (r.left + w)));
+  }, [abierto, ancho, ref]);
   return (
     <div ref={ref} className="relative h-full w-full">
       <button type="button" onClick={() => setAbierto(!abierto)} aria-expanded={abierto} className="flex h-full min-h-[inherit] w-full items-center gap-1 px-1.5 text-left">
@@ -172,7 +182,7 @@ function Menu({ boton, children, abierto, setAbierto, ancho = 300 }: { boton: Re
         <ChevronDown className="ml-auto size-3.5 shrink-0 text-[#9ca3af]" />
       </button>
       {abierto && (
-        <div className="absolute top-full left-0 z-40 mt-1 max-w-[calc(100vw-32px)] rounded-[var(--radius-caja)] border border-linea bg-papel p-1 font-sans text-[13px] text-tinta shadow-[var(--shadow-flotante)]" style={{ width: ancho }}>
+        <div className="absolute top-full left-0 z-40 mt-1 max-w-[calc(100vw-32px)] rounded-[var(--radius-caja)] border border-linea bg-papel p-1 font-sans text-[13px] text-tinta shadow-[var(--shadow-flotante)]" style={{ width: anchoReal, left: corrimiento }}>
           {children}
         </div>
       )}
