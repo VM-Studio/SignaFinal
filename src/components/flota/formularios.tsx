@@ -31,12 +31,12 @@ function useAlTerminar(mensaje: string) {
 
 export type VehiculoEditable = {
   id?: string; nombre: string; tipo: string; patente: string; marca: string; modelo: string; anio: string; capacidadCargaKg: string;
-  kmActual: string; horasMotor: string; costoKm: string; entraEnCola: boolean; asignadoAId: string; baseId: string; idCusat: string;
+  kmActual: string; horasMotor: string; costoKm: string; entraEnCola: boolean; soloDocumentacion: boolean; asignadoAId: string; baseId: string; idCusat: string;
 };
 
 export const VEHICULO_NUEVO: VehiculoEditable = {
   nombre: "", tipo: "", patente: "", marca: "", modelo: "", anio: String(new Date().getFullYear()), capacidadCargaKg: "", kmActual: "0",
-  horasMotor: "", costoKm: "", entraEnCola: true, asignadoAId: "", baseId: "", idCusat: "",
+  horasMotor: "", costoKm: "", entraEnCola: true, soloDocumentacion: false, asignadoAId: "", baseId: "", idCusat: "",
 };
 
 const TIPOS = [
@@ -93,11 +93,15 @@ export function FormularioVehiculo({ inicial, personas, bases }: { inicial: Vehi
       </>
       <>
         <label className="flex min-h-12 lg:min-h-10 cursor-pointer items-center justify-between gap-4 rounded-[var(--radius-caja)] border border-linea bg-papel px-4">
-          <span>
-            <span className="block font-semibold">Entra en la cola de pedidos</span>
-          </span>
-          <input type="checkbox" checked={v.entraEnCola} onChange={(e) => setV({ ...v, entraEnCola: e.target.checked })} className="size-6 shrink-0 accent-negro" />
+          <span className="block font-semibold">Solo para la documentación (no hace viajes)</span>
+          <input type="checkbox" checked={v.soloDocumentacion} onChange={(e) => setV({ ...v, soloDocumentacion: e.target.checked, entraEnCola: e.target.checked ? false : v.entraEnCola })} className="size-6 shrink-0 accent-negro" />
         </label>
+        {!v.soloDocumentacion && (
+          <label className="flex min-h-12 lg:min-h-10 cursor-pointer items-center justify-between gap-4 rounded-[var(--radius-caja)] border border-linea bg-papel px-4">
+            <span className="block font-semibold">Entra en la cola de pedidos</span>
+            <input type="checkbox" checked={v.entraEnCola} onChange={(e) => setV({ ...v, entraEnCola: e.target.checked })} className="size-6 shrink-0 accent-negro" />
+          </label>
+        )}
         <Campo etiqueta="Asignado a" htmlFor="v-asignadoAId" ayuda="La camioneta propia de alguien.">
           <Selector {...campo("asignadoAId")}>
             <option value="">Nadie (uso general)</option>

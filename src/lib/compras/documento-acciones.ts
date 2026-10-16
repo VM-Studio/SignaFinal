@@ -297,6 +297,7 @@ export async function marcarEncargada(ocId: string, encargada: boolean): Promise
       if (encargada) {
         exigirEstado(d, "AUTORIZADA");
         await cambiarEstado(tx, d, "ENCARGADA", yo.id, d.proveedor ? `A ${d.proveedor.nombre}` : undefined, { encargadaEn: new Date() });
+        await notificarEvento(EVENTO.materialEncargado({ ...deDocumento(d), numero: nombreDoc(d), aProveedor: d.proveedor?.nombre ?? null }), { tx, actor: yo.id });
       } else {
         exigirEstado(d, "ENCARGADA");
         await cambiarEstado(tx, d, "AUTORIZADA", yo.id, "Desmarcó encargada", { encargadaEn: null });

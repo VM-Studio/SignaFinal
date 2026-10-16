@@ -32,7 +32,7 @@ export default async function PaginaFlota() {
       <span className="text-suave">{DOCUMENTO[p.tipo]} · {fecha(p.vencimiento)}</span>
     );
   };
-  const quien = (v: (typeof vehiculos)[number]) => (v.enViaje ? `${v.enViaje.chofer} → Obra ${v.enViaje.obra}` : v.asignadoA ? `Asignada a ${v.asignadoA}` : v.entraEnCola ? "Cola de pedidos" : "—");
+  const quien = (v: (typeof vehiculos)[number]) => (v.soloDocumentacion ? "No hace viajes" : v.enViaje ? `${v.enViaje.chofer} → Obra ${v.enViaje.obra}` : v.asignadoA ? `Asignada a ${v.asignadoA}` : v.entraEnCola ? "Cola de pedidos" : "—");
 
   return (
     <div>
@@ -73,7 +73,7 @@ export default async function PaginaFlota() {
                       <p className="font-medium">{v.nombre}</p>
                       <p className="text-sm text-suave">{TIPO[v.tipo]} · {v.patente} · {quien(v)}</p>
                     </div>
-                    <Insignia tono={ESTADO_VEHICULO[v.estado].tono}>{ESTADO_VEHICULO[v.estado].texto}</Insignia>
+                    <Estado v={v} />
                   </div>
                   <div className="mt-1.5 text-sm">{proximo(v)}</div>
                 </Link>
@@ -91,7 +91,7 @@ export default async function PaginaFlota() {
                     <td className="font-medium"><Link href={`/flota/${v.id}`} className="hover:underline">{v.nombre}</Link></td>
                     <td>{v.tipoAConfirmar ? "Tipo a confirmar" : TIPO[v.tipo]}</td>
                     <td className="tabular-nums">{v.patente}</td>
-                    <td><Insignia tono={ESTADO_VEHICULO[v.estado].tono}>{ESTADO_VEHICULO[v.estado].texto}</Insignia></td>
+                    <td><Estado v={v} /></td>
                     <td>{quien(v)}</td>
                     <td>{proximo(v)}</td>
                   </tr>
@@ -103,4 +103,10 @@ export default async function PaginaFlota() {
       )}
     </div>
   );
+}
+
+/** Las Hilux (solo documentación) no tienen estado de viaje. */
+function Estado({ v }: { v: { estado: keyof typeof ESTADO_VEHICULO; soloDocumentacion: boolean } }) {
+  if (v.soloDocumentacion) return <Insignia tono="neutro">Solo documentación</Insignia>;
+  return <Insignia tono={ESTADO_VEHICULO[v.estado].tono}>{ESTADO_VEHICULO[v.estado].texto}</Insignia>;
 }

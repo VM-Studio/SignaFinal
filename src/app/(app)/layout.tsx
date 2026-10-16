@@ -29,7 +29,6 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
 
   const deObra = u.rol === "RESPONSABLE_OBRA" || u.rol === "CAPATAZ";
   const chofer = u.rol === "CHOFER";
-  const compras = u.rol === "COMPRAS";
   const [avisos, obras, enViaje, contadores] = await Promise.all([
     contarAvisos(),
     deObra ? obrasDelUsuario(u) : Promise.resolve(null),
@@ -53,11 +52,11 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
       <RefrescoPorRuta />
       <TirarParaActualizar />
       <BarraLateral principales={escritorio.principales} mas={escritorio.mas} />
-      {/* Compras: navbar de 64px con la píldora del dólar (globals.css, .header-compras). */}
-      <div data-usuario={u.id} className={`flex min-h-dvh flex-col bg-fondo lg:pt-[var(--alto-header)] lg:pl-[232px] ${compras ? "header-64 header-compras" : puede(u.rol, "dolar.ver") ? "con-dolar" : ""}`}>
+      {/* Navbar de 64px para todos (como el de Compras), con la píldora del dólar si la ve (globals.css, .header-compras). */}
+      <div data-usuario={u.id} className={`header-64 flex min-h-dvh flex-col bg-fondo lg:pt-[var(--alto-header)] lg:pl-[232px] ${puede(u.rol, "dolar.ver") ? "header-compras" : ""}`}>
         <HeaderMovil perfil={perfil} secciones={secciones} />
-        <HeaderEscritorio perfil={perfil} secciones={secciones} dolar={puede(u.rol, "dolar.ver")} variante={compras ? "compras" : undefined} />
-        <div className="sticky top-[calc(52px+env(safe-area-inset-top))] z-20 lg:top-[var(--alto-header)]">
+        <HeaderEscritorio perfil={perfil} secciones={secciones} dolar={puede(u.rol, "dolar.ver")} />
+        <div className="sticky top-[calc(var(--alto-header-movil)+env(safe-area-inset-top))] z-20 lg:top-[var(--alto-header)]">
           <IndicadorConexion />
         </div>
         <main className="@container w-full min-w-0 flex-1 pt-4 pr-[max(16px,env(safe-area-inset-right))] pl-[max(16px,env(safe-area-inset-left))] pb-[calc(56px+24px+env(safe-area-inset-bottom))] lg:p-6">{children}</main>

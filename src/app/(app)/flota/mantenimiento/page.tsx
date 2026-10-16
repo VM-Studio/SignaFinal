@@ -12,7 +12,7 @@ const TIPO = { SERVICE: "Service", REPARACION: "Reparación", NEUMATICOS: "Neum�
 export default async function PaginaMantenimiento() {
   await exigirPermiso("mantenimiento.ver");
   const [vehiculos, recientes] = await Promise.all([
-    db.vehiculo.findMany({ where: { activo: true }, select: { id: true, nombre: true, kmActual: true, estado: true, mantenimientos: { where: { OR: [{ proximoKm: { not: null } }, { proximaFecha: { not: null } }] }, orderBy: { fecha: "desc" }, take: 1 } } }),
+    db.vehiculo.findMany({ where: { activo: true, soloDocumentacion: false }, select: { id: true, nombre: true, kmActual: true, estado: true, mantenimientos: { where: { OR: [{ proximoKm: { not: null } }, { proximaFecha: { not: null } }] }, orderBy: { fecha: "desc" }, take: 1 } } }),
     db.mantenimientoVehiculo.findMany({ orderBy: { fecha: "desc" }, take: 20, include: { vehiculo: { select: { id: true, nombre: true } } } }),
   ]);
   // Próximos: los que tienen service programado, del más urgente al menos.

@@ -28,6 +28,7 @@ export type VehiculoConDocs = Prisma.VehiculoGetPayload<{ include: typeof conDoc
  * servicio o sin seguro/VTV vigentes. Si es chico o no es camión, se puede igual: va como aviso.
  */
 export function aptitud(v: VehiculoConDocs, pedido: { pesoKg: number | null; necesitaCamion: boolean }): { apto: boolean; motivo?: string; aviso?: string } {
+  if (v.soloDocumentacion) return { apto: false, motivo: "Solo para documentación: no hace viajes" };
   // Vigente hasta el día de vencimiento inclusive (comparación por día, hora argentina).
   const vencido = (f: Date) => diaISO(f) < diaISO();
   const doc = (t: "SEGURO" | "VTV") =>
@@ -51,7 +52,7 @@ export function aptitud(v: VehiculoConDocs, pedido: { pesoKg: number | null; nec
 export async function vehiculosPara(pedido: { pesoKg: number | null; necesitaCamion: boolean }, choferId: string, cliente: Cliente = db) {
   void choferId;
   const vehiculos = await cliente.vehiculo.findMany({
-    where: { activo: true },
+    where: { activo: true, soloDocumentacion: false },
     include: conDocumentos,
     orderBy: [{ tipo: "asc" }, { capacidadCargaKg: "desc" }],
   });

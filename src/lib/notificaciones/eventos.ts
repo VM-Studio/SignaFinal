@@ -19,6 +19,7 @@
  * │ Devuelto a quien pidió     │ solicitante                   │ —                             │
  * │ Esperando autorización     │ Dirección                     │ —                             │
  * │ Autorizada / rechazada     │ Compras                       │ solicitante                   │
+ * │ Encargada al proveedor     │ —                             │ solicitante                   │
  * │ Autorizada: a facturar     │ Administración                │ —                             │
  * │ Compras marcó Acopio       │ —                             │ Administración                │
  * │ Pago para autorizar        │ Dirección                     │ —                             │
@@ -278,6 +279,14 @@ export const EVENTO = {
   materialAprobado: (m: M & { oc: string | null; enPapel: boolean; compradorId: string | null }): Evento => ({
     nombre: "material.aprobado", tipo: "MATERIAL", ...TEXTO_MATERIAL.aprobado(m),
     ...material(m, "aprobado"), para: [m.compradorId ? usuario(m.compradorId, push) : rol("COMPRAS", push), usuario(m.solicitanteId, bandeja)],
+  }),
+
+  /** Compras la encargó al proveedor: el que pidió sabe que ya está en camino de comprarse. */
+  materialEncargado: (m: M & { numero: string; aProveedor: string | null }): Evento => ({
+    nombre: "material.encargado", tipo: "MATERIAL",
+    titulo: `Encargado: ${queLleva(m.que)}`,
+    cuerpo: `Compras encargó ${m.numero}${m.aProveedor ? ` a ${m.aProveedor}` : ""} (Obra ${m.obra}). Te avisamos cuando esté listo para retirar.`,
+    ...material(m, "encargado"), para: [usuario(m.solicitanteId, bandeja)],
   }),
 
   /** Autorizada: a Administración, para completar la facturación. */

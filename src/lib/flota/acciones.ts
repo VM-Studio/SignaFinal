@@ -38,12 +38,14 @@ const esquemaVehiculo = z.object({
   patente: z.string().trim().toUpperCase().min(6, "Revisá la patente.").max(12),
   marca: z.string().trim().min(1, "Poné la marca.").max(40),
   modelo: z.string().trim().min(1, "Poné el modelo.").max(40),
-  anio: z.coerce.number({ error: "Poné el año." }).int().min(1980).max(2100),
+  // Vacío (0) = año a confirmar.
+  anio: z.preprocess((v) => (v === "" || v == null ? 0 : v), z.coerce.number({ error: "Revisá el año." }).int().refine((n) => n === 0 || (n >= 1980 && n <= 2100), "Revisá el año.")),
   capacidadCargaKg: z.coerce.number({ error: "Poné la capacidad." }).int().min(0).max(40_000),
   kmActual: z.coerce.number({ error: "Poné los km." }).int().min(0),
   horasMotor: z.preprocess(vacio, z.coerce.number().int().min(0).optional()),
   costoKm: z.coerce.number({ error: "Poné el costo por km." }).min(0).max(100_000),
   entraEnCola: z.boolean(),
+  soloDocumentacion: z.boolean().default(false),
   asignadoAId: z.preprocess(vacio, z.string().optional()),
   baseId: z.preprocess(vacio, z.string().optional()),
   idCusat: z.preprocess(vacio, z.string().trim().max(40).optional()),
@@ -54,7 +56,7 @@ export async function guardarVehiculo(entrada: DatosVehiculo): Promise<Resultado
   return ejecutar(async () => {
     const yo = await exigirPermiso("flota.editar");
     const { id, ...d } = esquemaVehiculo.parse(entrada);
-    const datos = { ...d, costoKm: new Prisma.Decimal(d.costoKm), horasMotor: d.horasMotor ?? null, asignadoAId: d.asignadoAId ?? null, baseId: d.baseId ?? null, idCusat: d.idCusat ?? null };
+    const datos = { ...d, entraEnCola: d.soloDocumentacion ? false : d.entraEnCola, costoKm: new Prisma.Decimal(d.costoKm), horasMotor: d.horasMotor ?? null, asignadoAId: d.asignadoAId ?? null, baseId: d.baseId ?? null, idCusat: d.idCusat ?? null };
 
     const r = await db.$transaction(async (tx) => {
       const otro = await tx.vehiculo.findFirst({ where: { patente: d.patente, NOT: id ? { id } : undefined }, select: { nombre: true } });

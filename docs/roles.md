@@ -9,7 +9,7 @@ Reglas para todos:
 - **Volver**: todo detalle (pedido, viaje, herramienta, vehículo, obra, proveedor, persona, orden) tiene
   "← Volver" arriba, también en el celular, y vuelve a la lista **como estaba**: filtros, pestaña, orden y
   la misma altura.
-- **Inicio** es el logo de arriba a la izquierda. En "Más" está el resto; Mi cuenta y Cerrar sesión, en el
+- No hay pantalla de inicio: cada uno entra a su primer módulo, y el logo de arriba a la izquierda lleva ahí. En "Más" está el resto; Mi cuenta y Cerrar sesión, en el
   avatar y al pie de "Más".
 - Las acciones se abren en una **hoja** (de abajo en el celular, al costado en la computadora); se confirma
   con un toque y casi todo tiene **Deshacer** durante 10 segundos.
@@ -20,7 +20,7 @@ Reglas para todos:
 
 ## Dirección (el dueño)
 
-**Cae en** su inicio: órdenes que esperan su autorización, viajes de hoy, alertas críticas y el mapa chico.
+**Cae en Aprobaciones** (las órdenes y pagos que esperan su autorización).
 **Barra**: Aprobaciones · Pedidos · Pedir un viaje · Más (Pedir un viaje abre el formulario con todas las obras).
 **Más**: Viajes (Mapa, Viajes en curso, Solicitudes, Mis pedidos) · Compras (Tablero,
 Habilitados, Facturación, Importar Excel) · Flota (Flota, Costos, Combustible) · Depósito (Herramientas,
@@ -47,8 +47,8 @@ los botones "Simular" en un viaje en curso.
 ## Responsable de obra (Leandro, Daniela, César, Vicky) y Capataz (Lolo)
 
 Trabajan **solo con sus obras** (Lolo, con todas).
-**Cae en** su inicio: la tarjeta grande **Pedir**, las tarjetas verdes **Listo para retirar** (cada una con
-**Pedir el viaje**), lo que viene en camino hoy y lo que espera a Compras.
+**Cae en Pedir** (viaje, materiales, orden de compra o pedido especial). Las tarjetas verdes **Listo para
+retirar** (cada una con **Pedir el viaje**) están arriba de Mis pedidos.
 **Barra**: Pedir · Mis pedidos · Viajes · Más. **Más**: Herramientas, Obras, Mis avisos.
 
 | Para… | Toques |
@@ -145,15 +145,14 @@ Todo el detalle en **docs/compras.md**. No acepta ni inicia viajes; no ve flota,
 
 ## Administración (Camila)
 
-**Cae en** su inicio: primero las **OC con facturación pendiente**, después los **pagos a autorizar** y los
-vencimientos de la flota; al final el costo del mes.
+**Cae en Facturación** (las OC con facturación pendiente y los pagos).
 **Barra**: Facturación · Costos · Tablero · Más. **Más**: Flota, Alertas, Obras, Proveedores, Razones sociales,
 Depósitos y base, Usuarios, Mis avisos, Cuenta. Agenda y Mantenimiento, dentro de Flota.
 
 | Para… | Toques |
 |---|---|
-| Cargar la factura de una orden | 1 · la orden en su inicio (o Facturación → la orden) |
-| Ver vencimientos de seguro y VTV | 2 · Más → Flota (los próximos 30 días, también en su inicio) |
+| Cargar la factura de una orden | 1 · la orden en Facturación |
+| Ver vencimientos de seguro y VTV | 2 · Más → Flota |
 | Cargar un papel de un vehículo | 4 · Más → Flota → el vehículo → Cargar documento (Sacar foto) |
 | Ver costos por obra | 1 · Costos |
 | Exportar costos para Lebane | 2 · Costos → CSV por obra |

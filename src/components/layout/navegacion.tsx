@@ -157,35 +157,21 @@ export function BarraLateral({ principales, mas }: { principales: Seccion[]; mas
 }
 
 /**
- * Header blanco de 48px del escritorio. A la izquierda, el nombre de la sección (si la página
- * tiene <Titulo>, lo tapa con su título y sus acciones); a la derecha, la campana y el avatar.
+ * Header blanco de 64px del escritorio (igual para todos los roles). A la izquierda, el nombre de la sección (si la
+ * página tiene <Titulo>, lo tapa con su título y sus acciones); a la derecha, el dólar (si lo ve), Actualizar,
+ * campana y avatar de 40px, separados 12px.
  */
-export function HeaderEscritorio({ perfil, secciones, dolar = false, variante }: { perfil: Perfil; secciones: Seccion[]; dolar?: boolean; variante?: "compras" }) {
+export function HeaderEscritorio({ perfil, secciones, dolar = false }: { perfil: Perfil; secciones: Seccion[]; dolar?: boolean }) {
   const pathname = usePathname();
   const [abierta, setAbierta] = useState(false);
-  if (variante === "compras") {
-    // Compras: 64px; a la derecha (después de las acciones de la página) el dólar, Actualizar, campana y avatar, a 12px.
-    return (
-      <header className="fixed top-0 right-0 left-[232px] z-20 hidden h-[var(--alto-header)] items-center gap-3 border-b border-linea bg-papel pr-6 pl-6 lg:flex">
-        <p className="min-w-0 flex-1 truncate text-[22px] leading-7 font-semibold">{tituloDeRuta(pathname, secciones)}</p>
-        {dolar && <CotizacionDolar variante="pildora" />}
-        <BotonActualizar className="size-10 text-suave hover:bg-black/[0.04] hover:text-tinta disabled:opacity-100" iconos="size-4" />
-        <Campana className="size-10 text-suave hover:bg-black/[0.04] hover:text-tinta" iconos="size-4" />
-        <button onClick={() => setAbierta(true)} aria-label={`Mi cuenta: ${perfil.nombre}`} title={`${perfil.nombre} · ${perfil.rol}`} className="grid size-10 place-items-center rounded-md hover:bg-black/[0.04]">
-          <span className="grid size-8 place-items-center rounded-full bg-negro text-[13px] font-semibold text-white">{perfil.nombre.slice(0, 1)}</span>
-        </button>
-        <HojaPerfil perfil={perfil} abierta={abierta} onCerrar={() => setAbierta(false)} />
-      </header>
-    );
-  }
   return (
-    <header className="fixed top-0 right-0 left-[232px] z-20 hidden h-12 items-center gap-1 border-b border-linea bg-papel pr-4 pl-6 lg:flex">
+    <header className="fixed top-0 right-0 left-[232px] z-20 hidden h-[var(--alto-header)] items-center gap-3 border-b border-linea bg-papel pr-6 pl-6 lg:flex">
       <p className="min-w-0 flex-1 truncate text-[22px] leading-7 font-semibold">{tituloDeRuta(pathname, secciones)}</p>
-      {dolar && <CotizacionDolar />}
-      <BotonActualizar className="size-8 text-suave hover:bg-black/[0.04] hover:text-tinta disabled:opacity-100" iconos="size-4" />
-      <Campana className="size-8 text-suave hover:bg-black/[0.04] hover:text-tinta" iconos="size-4" />
-      <button onClick={() => setAbierta(true)} aria-label={`Mi cuenta: ${perfil.nombre}`} title={`${perfil.nombre} · ${perfil.rol}`} className="grid size-8 place-items-center rounded-md hover:bg-black/[0.04]">
-        <span className="grid size-6 place-items-center rounded-full bg-negro text-[11px] font-semibold text-white">{perfil.nombre.slice(0, 1)}</span>
+      {dolar && <CotizacionDolar variante="pildora" />}
+      <BotonActualizar className="size-10 text-suave hover:bg-black/[0.04] hover:text-tinta disabled:opacity-100" iconos="size-[18px]" />
+      <Campana className="size-10 text-suave hover:bg-black/[0.04] hover:text-tinta" iconos="size-[18px]" />
+      <button onClick={() => setAbierta(true)} aria-label={`Mi cuenta: ${perfil.nombre}`} title={`${perfil.nombre} · ${perfil.rol}`} className="grid size-10 place-items-center rounded-md hover:bg-black/[0.04]">
+        <span className="grid size-8 place-items-center rounded-full bg-negro text-[13px] font-semibold text-white">{perfil.nombre.slice(0, 1)}</span>
       </button>
       <HojaPerfil perfil={perfil} abierta={abierta} onCerrar={() => setAbierta(false)} />
     </header>
@@ -200,21 +186,23 @@ export function HeaderMovil({ perfil, secciones }: { perfil: Perfil; secciones: 
   const titulo = pathname === "/inicio" ? "" : tituloDeRuta(pathname, secciones);
   return (
     <header className="pt-segura px-segura sticky top-0 z-30 bg-negro text-white lg:hidden">
-      <div className="flex h-[52px] items-center gap-2 pr-1 pl-4">
-        <Link href="/inicio" aria-label="Inicio" className="flex h-11 shrink-0 items-center">
-          <Image src="/marca/signa.png" alt="SIGNA" width={1042} height={278} priority unoptimized className="h-auto w-[76px]" />
+      <div className="flex h-[var(--alto-header-movil)] items-center gap-3 pr-2 pl-4">
+        <Link href="/inicio" aria-label="Inicio" className="flex h-12 shrink-0 items-center">
+          <Image src="/marca/signa.png" alt="SIGNA" width={1042} height={278} priority unoptimized className="h-auto w-[84px]" />
         </Link>
         {titulo && (
           <>
-            <span aria-hidden className="mx-1 h-5 w-px bg-white/20" />
-            <p className="min-w-0 flex-1 truncate text-[15px] font-medium">{titulo}</p>
+            <span aria-hidden className="h-6 w-px shrink-0 bg-white/20" />
+            <p className="min-w-0 flex-1 truncate text-[17px] font-semibold">{titulo}</p>
           </>
         )}
-        <BotonActualizar className="ml-auto size-11 disabled:opacity-100" iconos="size-5" oscuro />
-        <Campana className="size-11" iconos="size-5" />
-        <button onClick={() => setAbierta(true)} aria-label="Mi cuenta" className="grid size-11 shrink-0 place-items-center">
-          <span className="grid size-7 place-items-center rounded-full bg-white text-[13px] font-semibold text-negro">{perfil.nombre.slice(0, 1)}</span>
-        </button>
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          <BotonActualizar className="size-11 disabled:opacity-100" iconos="size-[22px]" oscuro />
+          <Campana className="size-11" iconos="size-[22px]" />
+          <button onClick={() => setAbierta(true)} aria-label="Mi cuenta" className="grid size-11 shrink-0 place-items-center">
+            <span className="grid size-8 place-items-center rounded-full bg-white text-[14px] font-semibold text-negro">{perfil.nombre.slice(0, 1)}</span>
+          </button>
+        </div>
       </div>
       <HojaPerfil perfil={perfil} abierta={abierta} onCerrar={() => setAbierta(false)} />
     </header>

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { COOKIE_SESION, verificar } from "@/lib/auth/jwt";
-import { rutaNueva, rutaPermitida } from "@/lib/permisos";
+import { inicioDe, rutaNueva, rutaPermitida } from "@/lib/permisos";
 
 /** Protege todo salvo /login y los estáticos. */
 export async function middleware(req: NextRequest) {
@@ -21,14 +21,14 @@ export async function middleware(req: NextRequest) {
     r.cookies.delete(COOKIE_SESION);
     return r;
   }
-  if (sesion && esLogin) return NextResponse.redirect(new URL("/inicio", req.url));
+  if (sesion && esLogin) return NextResponse.redirect(new URL(inicioDe(sesion.rol), req.url));
   if (sesion && !esLogin) {
-    if (pathname === "/") return NextResponse.redirect(new URL("/inicio", req.url));
+    if (pathname === "/") return NextResponse.redirect(new URL(inicioDe(sesion.rol), req.url));
     // Rutas de antes de la reorganización por rol.
     const nueva = rutaNueva(sesion.rol, pathname);
     if (nueva) return NextResponse.redirect(new URL(nueva + search, req.url));
-    // Lo que no está en la matriz del rol no existe para él: a su inicio, sin mensaje.
-    if (!rutaPermitida(sesion.rol, pathname)) return NextResponse.redirect(new URL("/inicio", req.url));
+    // Lo que no está en la matriz del rol no existe para él: a su primer módulo, sin mensaje.
+    if (!rutaPermitida(sesion.rol, pathname)) return NextResponse.redirect(new URL(inicioDe(sesion.rol), req.url));
   }
   // El layout vuelve a controlar con el rol leído de la base (por si cambió desde que se firmó la sesión).
   const cabeceras = new Headers(req.headers);

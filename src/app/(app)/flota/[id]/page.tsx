@@ -51,7 +51,7 @@ export default async function FichaVehiculo({ params, searchParams }: { params: 
         href: `/flota/${x.id}`,
         titulo: x.nombre,
         detalle: `${TIPO[x.tipo]} · ${x.patente}`,
-        derecha: <Insignia tono={ESTADO_VEHICULO[x.estado].tono}>{ESTADO_VEHICULO[x.estado].texto}</Insignia>,
+        derecha: x.soloDocumentacion ? <Insignia tono="neutro">Solo documentación</Insignia> : <Insignia tono={ESTADO_VEHICULO[x.estado].tono}>{ESTADO_VEHICULO[x.estado].texto}</Insignia>,
       }))}
     >
     <div>
@@ -61,9 +61,9 @@ export default async function FichaVehiculo({ params, searchParams }: { params: 
           <p className="etiqueta">{v.tipoAConfirmar ? "Tipo a confirmar" : TIPO[v.tipo]} · {v.patente}</p>
           <h1 className="mt-1 text-[22px] leading-7 font-semibold">{v.nombre}</h1>
           <div className="mt-2 flex flex-wrap gap-2">
-            <Insignia tono={ESTADO_VEHICULO[v.estado].tono}>{ESTADO_VEHICULO[v.estado].texto}</Insignia>
+            {v.soloDocumentacion ? <Insignia tono="neutro">Solo documentación: no hace viajes</Insignia> : <Insignia tono={ESTADO_VEHICULO[v.estado].tono}>{ESTADO_VEHICULO[v.estado].texto}</Insignia>}
             {v.asignadoA && <Insignia tono="neutro">Asignada a {v.asignadoA.nombre}</Insignia>}
-            {!v.entraEnCola && <Insignia tono="neutro">No entra en la cola</Insignia>}
+            {!v.entraEnCola && !v.soloDocumentacion && <Insignia tono="neutro">No entra en la cola</Insignia>}
             {docVencida && <Insignia tono="critico">Documentación vencida</Insignia>}
             {v.documentos.length === 0 && <Insignia tono="critico">Sin documentación</Insignia>}
             {v.tipoAConfirmar && <Insignia tono="aviso">Tipo a confirmar (figura como {TIPO[v.tipo]})</Insignia>}
@@ -73,9 +73,9 @@ export default async function FichaVehiculo({ params, searchParams }: { params: 
           <ConHoja titulo={`Editar ${v.nombre}`} etiqueta="Editar" variante="secundario" icono={<Pencil />}>
             <FormularioVehiculo
               inicial={{
-                id: v.id, nombre: v.nombre, tipo: v.tipo, patente: v.patente, marca: v.marca, modelo: v.modelo, anio: String(v.anio),
+                id: v.id, nombre: v.nombre, tipo: v.tipo, patente: v.patente, marca: v.marca, modelo: v.modelo, anio: v.anio ? String(v.anio) : "",
                 capacidadCargaKg: String(v.capacidadCargaKg), kmActual: String(v.kmActual), horasMotor: v.horasMotor ? String(v.horasMotor) : "",
-                costoKm: String(v.costoKm), entraEnCola: v.entraEnCola, asignadoAId: v.asignadoA?.id ?? "", baseId: v.base?.id ?? "", idCusat: v.idCusat ?? "",
+                costoKm: String(v.costoKm), entraEnCola: v.entraEnCola, soloDocumentacion: v.soloDocumentacion, asignadoAId: v.asignadoA?.id ?? "", baseId: v.base?.id ?? "", idCusat: v.idCusat ?? "",
               }}
               {...await opcionesVehiculo()}
             />
@@ -107,14 +107,14 @@ export default async function FichaVehiculo({ params, searchParams }: { params: 
 
 function Datos({ v, editar }: { v: Ficha; editar: boolean }) {
   const filas: [string, string][] = [
-    ["Marca y modelo", `${v.marca} ${v.modelo} (${v.anio})`],
+    ["Marca y modelo", `${v.marca} ${v.modelo}${v.anio ? ` (${v.anio})` : ""}`],
     ["Km actuales", km(v.kmActual)],
     ...(v.horasMotor ? [["Horas de motor", String(v.horasMotor)] as [string, string]] : []),
     ["Capacidad de carga", peso(v.capacidadCargaKg)],
     ["Costo por km", plata(v.costoKm)],
     ["Duerme en", v.base?.nombre ?? "—"],
     ["Asignada a", v.asignadoA?.nombre ?? "Uso general"],
-    ["Cola de pedidos", v.entraEnCola ? "Sí" : "No"],
+    ["Viajes", v.soloDocumentacion ? "No hace viajes (solo documentación)" : v.entraEnCola ? "Cola de pedidos" : "No entra en la cola"],
     ["Rastreo Cusat", v.idCusat ?? "Sin GPS"],
   ];
   return (

@@ -53,7 +53,7 @@ export class CusatMock implements FuenteCusat {
     try {
       const ahora = new Date();
       const vehiculos = await db.vehiculo.findMany({
-        where: { activo: true },
+        where: { activo: true, soloDocumentacion: false },
         select: {
           id: true, nombre: true, patente: true, baseId: true, ultimaLat: true, ultimaLng: true,
           base: { select: { latitud: true, longitud: true } },

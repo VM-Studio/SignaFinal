@@ -173,7 +173,7 @@ export function MapaEnVivo({ inicial, elegidoInicial, compacto = false }: { inic
 
   // Celular: pantalla completa y hoja inferior deslizable.
   return (
-    <div className="fixed inset-x-0 top-[calc(52px+env(safe-area-inset-top))] bottom-[calc(56px+env(safe-area-inset-bottom))] z-10">
+    <div className="fixed inset-x-0 top-[calc(var(--alto-header-movil)+env(safe-area-inset-top))] bottom-[calc(56px+env(safe-area-inset-bottom))] z-10">
       <div className="absolute inset-0 isolate">
         <MapaLeaflet datos={datos} elegido={elegido} onElegir={elegir} recorrido={recorrido} />
         {insignia}

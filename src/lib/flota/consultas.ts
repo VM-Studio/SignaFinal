@@ -42,13 +42,14 @@ export async function listarFlota() {
       sinDocumentacion: v.documentos.length === 0,
       sinSeguro: !documentosVigentes(v.documentos).some((d) => d.tipo === "SEGURO"),
       tipoAConfirmar: v.tipoAConfirmar,
+      soloDocumentacion: v.soloDocumentacion,
       docVencida: vencidos.length > 0,
     };
   });
   return {
     vehiculos: lista,
     resumen: {
-      disponibles: lista.filter((v) => v.estado === "DISPONIBLE").length,
+      disponibles: lista.filter((v) => v.estado === "DISPONIBLE" && !v.soloDocumentacion).length,
       enViaje: lista.filter((v) => v.estado === "EN_VIAJE").length,
       enTaller: lista.filter((v) => v.estado === "EN_TALLER").length,
       docVencida: lista.filter((v) => v.docVencida).length,

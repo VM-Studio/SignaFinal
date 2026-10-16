@@ -28,7 +28,7 @@ export async function datosMapa(): Promise<DatosMapa> {
   await sincronizarSiHaceFalta(); // nunca lanza
   const [vehiculos, obras, lugares] = await Promise.all([
     db.vehiculo.findMany({
-      where: { activo: true },
+      where: { activo: true, soloDocumentacion: false },
       orderBy: [{ tipo: "asc" }, { nombre: "asc" }],
       select: {
         id: true, nombre: true, tipo: true, estado: true, patente: true,
@@ -97,7 +97,7 @@ export type ViajeDelDia = { pedidoId: string; numero: number; descripcion: strin
 export async function historial(vehiculoId: string | undefined, dia: string) {
   const u = await exigirPermiso("mapa.ver");
   const vehiculos = await db.vehiculo.findMany({
-    where: { activo: true, ...(modoCusat() === "cusatview" ? { idCusat: { not: null } } : {}) },
+    where: { activo: true, soloDocumentacion: false, ...(modoCusat() === "cusatview" ? { idCusat: { not: null } } : {}) },
     orderBy: [{ tipo: "asc" }, { nombre: "asc" }],
     select: { id: true, nombre: true },
   });

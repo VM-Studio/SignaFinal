@@ -86,7 +86,7 @@ export async function costosPorVehiculo(p: Periodo, vehiculoId?: string): Promis
   const u = await exigirPermiso("flota.ver");
   const filtroV = vehiculoId ? { vehiculoId } : {};
   const [vehiculos, viajes, cargas, mant, inc] = await Promise.all([
-    db.vehiculo.findMany({ where: vehiculoId ? { id: vehiculoId } : { activo: true }, select: { id: true, nombre: true, patente: true }, orderBy: [{ tipo: "asc" }, { nombre: "asc" }] }),
+    db.vehiculo.findMany({ where: vehiculoId ? { id: vehiculoId } : { activo: true, soloDocumentacion: false }, select: { id: true, nombre: true, patente: true }, orderBy: [{ tipo: "asc" }, { nombre: "asc" }] }),
     db.viaje.findMany({ where: { ...viajesVisibles(u), ...filtroV, estado: "FINALIZADO", llegadaReal: { gte: p.desde, lt: p.hasta } }, select: { vehiculoId: true, kmSalida: true, kmLlegada: true, costoCalculado: true } }),
     db.cargaCombustible.findMany({ where: { ...filtroV, fecha: { gte: p.desde, lt: p.hasta } }, select: { vehiculoId: true, monto: true, litros: true } }),
     db.mantenimientoVehiculo.findMany({ where: { ...filtroV, fecha: { gte: p.desde, lt: p.hasta } }, select: { vehiculoId: true, costo: true } }),

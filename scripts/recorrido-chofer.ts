@@ -76,6 +76,8 @@ const numericos = (p: Page) => p.locator('input[inputmode="numeric"], input[inpu
     await otra.getByRole("button", { name: "No" }).click();
   }
   await hoja.getByRole("button", { name: /Llevo 2 pedidos/ }).click();
+  await hoja.getByRole("radio", { name: /Mercedes/ }).waitFor();
+  ok((await hoja.getByText(/Hilux/).count()) === 0, "Las Toyota Hilux (solo documentación) no aparecen para elegir");
   await hoja.getByRole("radio", { name: /Mercedes/ }).click();
   await hoja.getByRole("button", { name: "Confirmar" }).click();
   await c.waitForTimeout(2500);
@@ -126,7 +128,7 @@ const numericos = (p: Page) => p.locator('input[inputmode="numeric"], input[inpu
   const a = await entrar(nav, "administracion");
   const barraA = (await a.locator("nav").last().getByRole("link").allTextContents()).map((t) => t.replace(/\d+/g, "").trim());
   ok(barraA[0] === "Facturación" && barraA[1] === "Costos" && barraA[2] === "Tablero", `Camila: barra ${barraA.slice(0, 3).join(" · ")}`);
-  ok((await a.getByText("OC con facturación pendiente").count()) > 0, "Camila: su inicio empieza por \"OC con facturación pendiente\"");
+  ok(new URL(a.url()).pathname === "/compras/facturacion", "Camila entra directo a Facturación (sin página de inicio)");
   await foto(a, "camila-inicio", true);
   await a.context().close();
 

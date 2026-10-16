@@ -254,22 +254,15 @@ main table {
   overflow-wrap: normal;
 }
 
-/* Alto del header de escritorio (48px; 64px en Compras). Todo lo que se pega debajo lo usa. */
+/* Alto del header: 64px en escritorio (todos los roles, como Compras) y 60px en el celular. Todo lo que se
+   pega debajo lo usa. --derecha-titulo: lo que ocupan Actualizar, campana y avatar (40px, separados 12px) + 24px. */
 :root {
   --alto-header: 48px;
+  --alto-header-movil: 60px;
 }
 .header-64 {
   --alto-header: 64px;
-}
-
-/* Header de escritorio con la cotización del dólar: el título fijo de la página le deja su lugar. */
-.con-dolar {
-  --derecha-titulo: 300px;
-}
-@media (min-width: 1280px) {
-  .con-dolar {
-    --derecha-titulo: 470px;
-  }
+  --derecha-titulo: 176px;
 }
 
 /* Compras: navbar de 64px con la píldora del dólar de ancho fijo (el título fijo le deja exactamente ese

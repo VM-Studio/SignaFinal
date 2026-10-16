@@ -205,7 +205,7 @@ export function PlantillaDocumento({ d, volver }: { d: DocumentoPlantilla; volve
   });
 
   return (
-    <div className="-mx-4 -mt-4 min-h-[calc(100dvh-52px)] bg-[#F3F4F6] pb-6 lg:-m-6 lg:min-h-[calc(100dvh-var(--alto-header))]">
+    <div className="-mx-4 -mt-4 min-h-[calc(100dvh-var(--alto-header-movil))] bg-[#F3F4F6] pb-6 lg:-m-6 lg:min-h-[calc(100dvh-var(--alto-header))]">
       <Cabecera d={d} volver={volver} guardarTodo={guardarTodo} modificar={modificar} setModificar={setModificar} />
       <div className="mx-auto flex w-full max-w-[794px] flex-col gap-3 px-4 pt-4 lg:px-0 lg:pt-6">
         <Avisos d={d} faltan={faltan} />
@@ -289,7 +289,7 @@ function Cabecera({ d, volver, guardarTodo, modificar, setModificar }: { d: Docu
     </>
   );
   return (
-    <header className="pt-segura sticky top-[calc(52px+env(safe-area-inset-top))] z-20 border-b border-linea bg-papel lg:top-[var(--alto-header)]">
+    <header className="pt-segura sticky top-[calc(var(--alto-header-movil)+env(safe-area-inset-top))] z-20 border-b border-linea bg-papel lg:top-[var(--alto-header)]">
       <div className="grid min-h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-2 lg:px-6">
         <VolverA clave={volver.clave} href={volver.href} etiqueta={volver.etiqueta} className="pl-2" />
         <div className="flex min-w-0 items-center justify-center gap-2">

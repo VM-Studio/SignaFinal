@@ -74,7 +74,7 @@ Reglas de visibilidad (se verifican en el servidor, en cada query y cada action)
 - Flota, costos, mapa general, agenda y alertas de otros roles NO existen para
   RESPONSABLE_OBRA ni CAPATAZ.
 - Cada usuario ve solo sus avisos y alertas (matriz en src/lib/alertas/destinatarios.ts).
-- Si un rol entra a una ruta que no le corresponde, va a /inicio. Sin pantalla de error.
+- Si un rol entra a una ruta que no le corresponde, va a su primer módulo (inicioDe). Sin pantalla de error.
 
 ## Navegación (lo más usado adelante, distinta por rol)
 
@@ -93,9 +93,10 @@ Reglas de visibilidad (se verifican en el servidor, en cada query y cada action)
   franja negra "N pedidos nuevos esperan que los tomes → Ver pedidos" (/compras?filtro=nuevos). Importar Excel y
   "Numeración y solicitantes" están en Más del dueño (Compras · Configuración).
   "Pedidos" del dueño es la vista global de pedidos de materiales (/compras).
-- Dónde cae cada uno (inicioDe en permisos.ts; /inicio los redirige): COMPRAS en el Tablero, CHOFER en Hoy,
-  DEPOSITO en Herramientas (buscador arriba: no hay escaneo ni QR); los demás en su inicio. Inicio no va en
-  "Más": es el logo.
+- **No hay página de inicio**: cada rol entra al primer módulo de su barra (inicioDe en permisos.ts, también al
+  ingresar, en "/" y en /inicio, que solo redirige; navegacion.test.ts verifica que coincidan): DIRECCION en
+  Aprobaciones, obra en Pedir, ADMINISTRACION en Facturación, COMPRAS en el Tablero, CHOFER en Hoy, DEPOSITO en
+  Herramientas (buscador arriba: no hay escaneo ni QR). El logo lleva ahí.
 - Lo que se abre desde un botón de otra pantalla no tiene lugar propio (ENLAZADAS_DESDE en navegacion.ts):
   Pedir materiales desde Pedir, el historial de recorridos desde el Mapa; Agenda y Mantenimiento son
   subpantallas de Flota. Dirección no tiene Hoy del chofer ni la lista de viajes de la obra.
@@ -116,12 +117,7 @@ Reglas de visibilidad (se verifican en el servidor, en cada query y cada action)
   (Segmentos); tablas a todo el ancho con filas de 56px (.tabla-56); estados vacíos a todo el alto
   (PaginaCompleta + <Vacio llenar>). Capturas antes/después: npx tsx scripts/capturas.ts compras-<etiqueta>.
 - Ninguna ruta de la matriz queda sin enlace: scripts/verificar-navegacion.ts (y su test).
-- Inicios: DIRECCION, órdenes que esperan aprobación, viajes de hoy, alertas críticas y el mapa como
-  tarjeta chica. Obra, "Pedir", listos para retirar (tarjetas verdes con Pedir el viaje), en camino hoy y
-  esperando a Compras. ADMINISTRACION, primero "OC con facturación pendiente", después "Pagos a autorizar",
-  después vencimientos de flota y el costo del mes. "Pedir un viaje" del dueño abre el formulario de viaje
-  (como lo ve un responsable de obra, con todas las obras). COMPRAS, CHOFER y DEPOSITO no tienen
-  inicio.
+- "Pedir un viaje" del dueño abre el formulario de viaje (como lo ve un responsable de obra, con todas las obras).
 - Pedir un viaje: paso 1 el tipo, paso 2 detalles y ¿para cuándo? en la misma pantalla, con todo puesto
   (desde el Depósito Florida, la obra única o la del último pedido, hoy a la mañana). La tarjeta verde de un
   material listo abre /pedir/retiro en el último paso con "mañana a la mañana". Entregas (Depósito) tiene "En
@@ -195,7 +191,7 @@ Reglas del chofer (src/lib/viajes/fecha.ts, recordatorios*.ts, manual.ts):
 
 Lo usan choferes y gente de obra desde el celular, al sol y apurados. Si no es obvio en
 tres segundos, está mal.
-- Una pantalla de inicio por rol con UNA acción principal grande.
+- Cada rol entra directo a lo que más usa (su primer módulo), con UNA acción principal grande.
 - Cada formulario cabe en una pantalla de celular sin scroll; si no, pasos de 1-2 campos.
 - Todo se elige de listas: obras, proveedores, vehículos, personas, herramientas.
 - Nombres reales en todos lados. Estados con palabras, nunca solo color.
@@ -240,8 +236,9 @@ sale de un solo lugar: src/app/globals.css (tokens) y src/components/ui (compone
 - Insignia: punto de color + texto, alto 22, fondo suave.
 - Íconos lucide: 16px escritorio, 20px celular, trazo 1,75.
 - Escritorio (1024px+): barra lateral negra de 232px (logo a 120px, ítems de 32px a 13px, activo con
-  blanco al 10%); header blanco de 48px con el título de la página (22px, 600), acciones de 36px,
-  campana y avatar; contenido con padding 24 y sin max-width (ni mx-auto): todo usa el ancho completo,
+  blanco al 10%); header blanco de 64px para todos los roles (como el de Compras: --alto-header, .header-64)
+  con el título de la página (22px, 600), acciones, la píldora del dólar si la ve, y Actualizar, campana y
+  avatar de 40px separados 12px; contenido con padding 24 y sin max-width (ni mx-auto): todo usa el ancho completo,
   también a 1920. Lista + detalle (ListaDetalle): la lista ocupa todo el ancho y al elegir una fila el
   detalle se abre en un panel de 480px a la derecha (la lista se achica). Detalles: grilla de 12, 8 + 4
   (contenido / línea de tiempo, adjuntos y acciones). Formularios: 2/3 + 1/3 de contexto (DosTercios,
@@ -253,9 +250,9 @@ sale de un solo lugar: src/app/globals.css (tokens) y src/components/ui (compone
   minmax(0,1fr), flex con min-w-0, tablas dentro de overflow-x-auto, hojas max-w 100vw, áreas seguras con
   env(). scripts/auditar-responsive.ts recorre todas las rutas de todos los roles (360/390/430 y
   1440/1920) y tiene que dar cero desbordes y ninguna pantalla de escritorio por debajo del 90 %.
-- Celular: header negro de 52px (logo chico, título, campana); barra inferior de 56px (íconos de
+- Celular: header negro de 60px (--alto-header-movil; logo de 84px, título de 17px, Actualizar, campana y avatar de 44px); barra inferior de 56px (íconos de
   22px, etiqueta de 11px); contenido con padding 16; listas como filas de 56-64px con borde inferior,
-  sin tarjeta por fila. Tarjeta solo para la acción principal del inicio y el viaje en curso.
+  sin tarjeta por fila. Tarjeta solo para la acción principal y el viaje en curso.
 - Splash de carga negro con public/loading.png centrado, barra fina y porcentaje, 2,5 s: al abrir
   el sistema (una vez por sesión) y al ingresar. Login con public/inicio.png arriba del formulario.
 
@@ -305,7 +302,7 @@ objeto: OrdenCompra, el "documento de compra"**, que es la plantilla de Alejandr
   Devolver con nota, Anular. El dueño autoriza en /aprobaciones (pestañas Órdenes · Pagos) viendo el PDF.
   Barra fija "Marcar como encargada" / "Habilitar para retirar" (MaterialListo: sucursal, horario, contacto,
   retiros parciales); habilitada, la barra se pone verde #E2EFDA "LISTO PARA RETIRAR en … · horario" o "Entrega
-  el proveedor el …", con push y "Pedir el viaje" al que pidió (tarjetas verdes en Mis pedidos e inicio).
+  el proveedor el …", con push y "Pedir el viaje" al que pidió (tarjetas verdes en Mis pedidos).
   Un viaje RETIRO_PROVEEDOR solo se pide desde un material habilitado; el viaje mueve el estado del retiro
   (en camino, entregado; si se suelta o cancela vuelve a listo). ENTREGADA cuando todo se entregó y Compras
   marcó "con esto no falta nada".
@@ -481,6 +478,13 @@ Reglas (reemplazan lo que diga otra cosa más arriba):
 | OROCH | AC689NR | Oroch | Camioneta | No |
 | KANGOO | AF399OO | Kangoo | Utilitario (interior, Cusat la mostró en Lincoln) | No |
 | KANGOO LL | AF399OP | Kangoo LL | Utilitario | No |
+| — | a confirmar (HILUX-1) | Toyota Hilux 1 | Camioneta del dueño, solo documentación | No |
+| — | a confirmar (HILUX-2) | Toyota Hilux 2 | Camioneta del dueño, solo documentación | No |
+
+Las dos Toyota Hilux (Vehiculo.soloDocumentacion) están en Flota solo para cargar seguro y VTV (alertas de
+vencimiento incluidas): no hacen viajes (aptitud las rechaza y no aparecen al aceptar), ni van al mapa, Cusat,
+combustible, costos ni mantenimiento. Las patentes se corrigen en Flota → Editar. El formulario de vehículo
+tiene "Solo para la documentación (no hace viajes)".
 
 Documentación (DocumentoVehiculo: tipo Seguro · VTV · Cédula verde/azul · Patente/impuesto · Habilitación de
 tránsito pesado · RUTA · Otro, emisor, número, vencimiento, foto o PDF obligatorio, notas): se carga en la ficha

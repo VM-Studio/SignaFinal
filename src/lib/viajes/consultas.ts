@@ -7,7 +7,7 @@ import { viajesVisibles } from "@/lib/alcance";
 export async function datosCarga() {
   const u = await exigirPermiso("combustible.cargar");
   const [vehiculos, enCurso, yo] = await Promise.all([
-    db.vehiculo.findMany({ where: { activo: true }, orderBy: [{ tipo: "asc" }, { nombre: "asc" }], select: { id: true, nombre: true, patente: true, kmActual: true, asignadoAId: true } }),
+    db.vehiculo.findMany({ where: { activo: true, soloDocumentacion: false }, orderBy: [{ tipo: "asc" }, { nombre: "asc" }], select: { id: true, nombre: true, patente: true, kmActual: true, asignadoAId: true } }),
     db.viaje.findFirst({ where: { ...viajesVisibles(u), choferId: u.id, estado: "EN_CURSO" }, select: { vehiculoId: true, pedido: { select: { obra: { select: { nombre: true } } } } } }),
     db.usuario.findUnique({ where: { id: u.id }, select: { vehiculoAsignadoId: true } }),
   ]);

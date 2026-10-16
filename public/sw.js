@@ -2,7 +2,7 @@
  * Estáticos: primero caché. Pantallas: primero red; sin señal, la última versión guardada.
  * Nada de /api ni Server Actions se guarda en caché.
  */
-const VERSION = "signa-v11";
+const VERSION = "signa-v12";
 const ESTATICOS = `${VERSION}-estaticos`;
 const PANTALLAS = `${VERSION}-pantallas`;
 
@@ -70,6 +70,9 @@ self.addEventListener("push", (e) => {
   const mostrar = self.registration
     .showNotification(titulo, {
       body: d.cuerpo || "",
+      // En castellano (el texto lo arma el sistema según el idioma del teléfono; esto se lo indica).
+      lang: "es-AR",
+      dir: "ltr",
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
       tag: d.tag || undefined,

@@ -22,7 +22,7 @@ export default async function PaginaRastreo() {
     leerEstado<UltimaSync>(CLAVE.ultimaSync),
     leerEstado<UltimoError>(CLAVE.ultimoError),
     leerEstado<SinEnlazar>(CLAVE.sinEnlazar),
-    db.vehiculo.findMany({ where: { activo: true }, orderBy: [{ tipo: "asc" }, { nombre: "asc" }], select: { id: true, nombre: true, patente: true, idCusat: true, cusatNombre: true, ultimaFechaGps: true } }),
+    db.vehiculo.findMany({ where: { activo: true, soloDocumentacion: false }, orderBy: [{ tipo: "asc" }, { nombre: "asc" }], select: { id: true, nombre: true, patente: true, idCusat: true, cusatNombre: true, ultimaFechaGps: true } }),
   ]);
   const modo = modoCusat();
   const enlazados = vehiculos.filter((v) => v.idCusat);

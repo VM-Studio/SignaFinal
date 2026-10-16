@@ -154,10 +154,20 @@ export function rutaPermitida(rol: Rol, ruta: string): boolean {
   return MATRIZ[rol].rutas.some((p) => coincide(p, limpia));
 }
 
-/** Adónde entra cada rol (Compras no tiene inicio: entra al Tablero). */
-/** Dónde cae cada rol al entrar: Compras en el Tablero, el chofer en Hoy, Depósito en Herramientas; el resto en su inicio. */
-const INICIOS: Partial<Record<Rol, string>> = { COMPRAS: "/compras/tablero", CHOFER: "/hoy", DEPOSITO: "/herramientas" };
-export const inicioDe = (rol: Rol) => INICIOS[rol] ?? "/inicio";
+/**
+ * Dónde cae cada rol al entrar (y adónde lleva el logo): el primer módulo de su barra. No hay página de inicio:
+ * /inicio redirige acá. Tiene que coincidir con NAV[rol].barra[0] (navegacion.test.ts lo verifica).
+ */
+const INICIOS: Record<Rol, string> = {
+  DIRECCION: "/aprobaciones",
+  RESPONSABLE_OBRA: "/pedir",
+  CAPATAZ: "/pedir",
+  CHOFER: "/hoy",
+  DEPOSITO: "/herramientas",
+  ADMINISTRACION: "/compras/facturacion",
+  COMPRAS: "/compras/tablero",
+};
+export const inicioDe = (rol: Rol) => INICIOS[rol];
 
 /** Roles que ven todas las obras. Responsable de obra: solo las suyas. */
 export function veTodasLasObras(rol: Rol) {
@@ -182,7 +192,7 @@ export function rutaNueva(rol: Rol, ruta: string): string | null {
   if (["/escanear", "/herramientas/escanear", "/herramientas/etiquetas"].includes(ruta) || ruta.startsWith("/h/") || ruta.startsWith("/imprimir/")) return "/herramientas";
   if (ruta === "/alertas" && !rutaPermitida(rol, "/alertas")) return "/avisos";
   // Compras no tiene inicio: entra directo al tablero.
-  if (ruta === "/inicio" && inicioDe(rol) !== "/inicio") return inicioDe(rol);
+  if (ruta === "/inicio") return inicioDe(rol);
   // El pedido de material ahora es el documento de compra: los enlaces viejos van a su plantilla.
   const viejo = ruta.match(/^\/(?:materiales|mis-pedidos\/material|compras\/ordenes)\/([^/]+)$/) ?? ruta.match(/^\/compras\/([^/]+)(?:\/oc)?$/);
   if (viejo && !["tablero", "ordenes", "viajes", "importar", "nuevo", "facturacion", "oc"].includes(viejo[1]) && viejo[1] !== "nueva") return `/compras/oc/${viejo[1]}`;

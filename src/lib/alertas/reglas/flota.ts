@@ -58,7 +58,7 @@ async function licencias(): Promise<AlertaCalculada[]> {
 /** Service próximo: menos de 1.000 km o 15 días (pasado = crítica). */
 async function service(): Promise<AlertaCalculada[]> {
   const vehiculos = await db.vehiculo.findMany({
-    where: { activo: true },
+    where: { activo: true, soloDocumentacion: false },
     select: { id: true, nombre: true, kmActual: true, asignadoAId: true, mantenimientos: { where: { OR: [{ proximoKm: { not: null } }, { proximaFecha: { not: null } }] }, orderBy: { fecha: "desc" }, take: 1 } },
   });
   const out: AlertaCalculada[] = [];
@@ -83,7 +83,7 @@ async function service(): Promise<AlertaCalculada[]> {
 
 /** Consumo de la última carga 25% sobre el promedio del vehículo. */
 async function consumo(): Promise<AlertaCalculada[]> {
-  const vehiculos = await db.vehiculo.findMany({ where: { activo: true }, select: { id: true, nombre: true, cargas: { orderBy: { fecha: "desc" }, take: 12, select: { id: true, km: true, litros: true, fecha: true } } } });
+  const vehiculos = await db.vehiculo.findMany({ where: { activo: true, soloDocumentacion: false }, select: { id: true, nombre: true, cargas: { orderBy: { fecha: "desc" }, take: 12, select: { id: true, km: true, litros: true, fecha: true } } } });
   const out: AlertaCalculada[] = [];
   for (const v of vehiculos) {
     const conC = conConsumo(v.cargas.map((c) => ({ ...c, litros: Number(c.litros) }))).filter((c) => c.consumo != null);

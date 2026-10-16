@@ -271,6 +271,8 @@ model Vehiculo {
   fotoUrl              String?
   // El tipo no está confirmado (la Zanella figura como "Auto"): la ficha lo dice hasta que se confirme.
   tipoAConfirmar       Boolean        @default(false)
+  // Solo para la documentación (las dos Toyota Hilux): no hace viajes, no aparece al aceptar ni en el mapa.
+  soloDocumentacion    Boolean        @default(false)
   activo               Boolean        @default(true)
   creadoEn             DateTime       @default(now())
   actualizadoEn        DateTime       @updatedAt

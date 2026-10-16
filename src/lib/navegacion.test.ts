@@ -35,8 +35,11 @@ describe("navegación por rol", () => {
     expect(inicioDe("COMPRAS")).toBe("/compras/tablero");
     expect(inicioDe("CHOFER")).toBe("/hoy");
     expect(inicioDe("DEPOSITO")).toBe("/herramientas");
-    expect(inicioDe("DIRECCION")).toBe("/inicio");
+    expect(inicioDe("DIRECCION")).toBe("/aprobaciones");
+    expect(inicioDe("ADMINISTRACION")).toBe("/compras/facturacion");
     expect(rutaNueva("CHOFER", "/inicio")).toBe("/hoy");
-    expect(rutaNueva("RESPONSABLE_OBRA", "/inicio")).toBeNull();
+    expect(rutaNueva("RESPONSABLE_OBRA", "/inicio")).toBe("/pedir");
+    // Sin página de inicio: todos entran al primer módulo de su barra.
+    for (const rol of Object.keys(MATRIZ) as (keyof typeof MATRIZ)[]) expect(inicioDe(rol)).toBe(barraInferior(rol)[0].href.split("?")[0]);
   });
 });

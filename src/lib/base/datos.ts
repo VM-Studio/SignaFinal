@@ -164,6 +164,9 @@ export async function cargarDatosBase(db: PrismaClient) {
     { nombre: "Zanella", patente: "AG149BJ", tipo: "AUTO", marca: "Zanella", modelo: "A confirmar", anio: 2023, capacidadCargaKg: 0, kmActual: 0, costoKm: D(120), baseId: base.id, cusatNombre: "ZANELLA", entraEnCola: false, tipoAConfirmar: true },
     { nombre: "Oroch", patente: "AC689NR", tipo: "CAMIONETA", marca: "Renault", modelo: "Oroch", anio: 2018, capacidadCargaKg: 650, kmActual: 0, costoKm: D(430), baseId: base.id, cusatNombre: "OROCH", entraEnCola: false },
     { nombre: "Kangoo", patente: "AF399OO", tipo: "CAMIONETA", marca: "Renault", modelo: "Kangoo", anio: 2023, capacidadCargaKg: 650, kmActual: 0, costoKm: D(380), cusatNombre: "KANGOO", entraEnCola: false },
+    // Solo para cargar la documentación (seguro y VTV): no hacen viajes. Patentes a confirmar.
+    { nombre: "Toyota Hilux 1", patente: "HILUX-1", tipo: "CAMIONETA", marca: "Toyota", modelo: "Hilux", anio: 0, capacidadCargaKg: 0, kmActual: 0, costoKm: D(0), entraEnCola: false, soloDocumentacion: true },
+    { nombre: "Toyota Hilux 2", patente: "HILUX-2", tipo: "CAMIONETA", marca: "Toyota", modelo: "Hilux", anio: 0, capacidadCargaKg: 0, kmActual: 0, costoKm: D(0), entraEnCola: false, soloDocumentacion: true },
     { nombre: "Kangoo LL", patente: "AF399OP", tipo: "CAMIONETA", marca: "Renault", modelo: "Kangoo (larga)", anio: 2023, capacidadCargaKg: 800, kmActual: 0, costoKm: D(390), baseId: base.id, cusatNombre: "KANGOO LL", entraEnCola: false },
   ];
   for (const v of flota) await db.vehiculo.create({ data: v });
