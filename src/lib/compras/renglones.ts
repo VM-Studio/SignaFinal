@@ -27,7 +27,7 @@ const UNIDADES: [RegExp, string][] = [
   [/^(juegos?)$/i, "juegos"],
 ];
 
-const unidadDe = (palabra: string) => UNIDADES.find(([re]) => re.test(palabra.trim()))?.[1] ?? null;
+export const unidadDe = (palabra: string) => UNIDADES.find(([re]) => re.test(palabra.trim()))?.[1] ?? null;
 const numero = (t: string) => {
   const n = Number(t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : t);
   return Number.isFinite(n) && n > 0 ? n : null;

@@ -8,7 +8,7 @@ import { esEncabezado, filaVacia, mapeoAutomatico, type Celda, type Mapeo } from
  */
 export type TableroLeido = { hoja: string; filaEncabezados: number; encabezados: Celda[]; mapeo: Mapeo; filas: { n: number; celdas: Celda[] }[] };
 
-function valor(v: ExcelJS.CellValue): Celda {
+export function valor(v: ExcelJS.CellValue): Celda {
   if (v == null) return null;
   if (v instanceof Date) return v.toISOString().slice(0, 10);
   if (typeof v === "number" || typeof v === "string") return v;

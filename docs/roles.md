@@ -55,7 +55,7 @@ Trabajan **solo con sus obras** (Lolo, con todas).
 |---|---|
 | Pedir un viaje (llevar algo a la obra) | 3 · Pedir → Llevar algo a la obra → (escribís qué) → Pedir el viaje |
 | Pedir el viaje de un material que habilitó Compras | 2 · tarjeta verde "Pedir el viaje" → Pedir el viaje |
-| Pedir materiales a Compras | 2 · Pedir → Pedir materiales |
+| Pedir materiales a Compras | 2 · Pedir → Pedir materiales (si adjuntás la lista en Excel, los materiales pasan solos al Detalle del Pedido) |
 | Ver cómo viene mi viaje | 2 · Mis pedidos → el pedido |
 | Buscar dónde está una herramienta | 2 · Más → Herramientas → (escribís) |
 

@@ -82,7 +82,7 @@ Reglas de visibilidad (se verifican en el servidor, en cada query y cada action)
 |---|---|---|
 | DIRECCION | Aprobaciones · Pedidos · Pedir un viaje · Más | Mapa, Viajes en curso, Solicitudes, Mis pedidos, Tablero, Habilitados, Facturación, Flota, Costos, Combustible, Herramientas, Sobrantes, Entregas, Actividad, Alertas, Obras, Proveedores, Configuración, Avisos (también en la campana) |
 | COMPRAS | Tablero · Pedidos · Viajes · Más | Habilitados, Proveedores, Mis avisos, Cuenta |
-| RESPONSABLE_OBRA / CAPATAZ | Pedir · Mis pedidos · Viajes · Más | Herramientas, Obras, Avisos |
+| RESPONSABLE_OBRA / CAPATAZ | Pedir (viaje, materiales, OC o PE) · Mis pedidos · Viajes · Más | Herramientas, Obras, Avisos |
 | CHOFER | Hoy · Solicitudes · Avisos · Más | Combustible |
 | DEPOSITO | Herramientas · Entregas · Sobrantes · Más | Alta masiva, Avisos |
 | ADMINISTRACION | Facturación · Costos · Tablero · Más | Flota, Alertas, Obras, Proveedores, Razones sociales, Depósitos y base, Usuarios, Mis avisos, Cuenta |
@@ -316,8 +316,16 @@ objeto: OrdenCompra, el "documento de compra"**, que es la plantilla de Alejandr
   Chromium (playwright-core en desarrollo, @sparticuz/chromium en Vercel) con un TokenDocumento de un solo uso;
   si no hay Chromium, @react-pdf (pdfHoja.tsx). Todo en /api/oc/[id]/pdf (GET en vivo con X-PDF-Motor; POST
   interno para guardarlo, llamado con after() al enviar a autorización y al autorizar). La factura se agrega
-  como página 2 (pdf-lib). Botón "Imprimir / PDF" siempre visible. **Nunca se parsea un archivo para leer los
+  como página 2 (pdf-lib). Botón "Imprimir / PDF" siempre visible. **Nunca se parsea un PDF para leer los
   datos de una OC: los datos son la fuente, el PDF sale de ellos.**
+- **Adjuntos del documento**: cada archivo se engancha a la orden apenas termina de subir (DelPedido en
+  plantilla.tsx → adjuntarADocumento; no hay un segundo botón "Guardar": así se perdían). Con la lista adjunta
+  alcanza para enviar a Compras (el detalle queda "Ver lista adjunta (…)"). **Excel → Detalle del Pedido**: una
+  planilla .xlsx adjunta (en la plantilla o en "Pedir materiales" sin renglones escritos) se lee
+  (src/lib/compras/leerLista.ts, con tests: encabezado Descripción/Material + Cantidad/Unidad, o filas texto +
+  número) y sus materiales pasan al Detalle del Pedido ("40 bolsas Cemento…"; vacío → reemplaza, si no se agregan
+  abajo) con la misma versión y auditoría que a mano. Solo .xlsx; PDF, Word y fotos quedan solo adjuntos.
+  Recorrido: scripts/recorrido-lista-excel.ts.
 - **Tablero** (components/compras/tablero.tsx, pagina-tablero.tsx), calcado de su planilla: franja rosa
   "Planilla de control COMPRAS - Alejandra", tarjetas-filtro Todas · Pedir autorización · Encargado · Listas para
   retirar · Entregado este mes con la leyenda, encabezado gris fijo, Nº con el código de su leyenda, ESTADO como

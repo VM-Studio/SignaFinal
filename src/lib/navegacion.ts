@@ -16,7 +16,8 @@ export const SECCIONES = {
   inicio: { href: "/inicio", titulo: "Inicio", icono: "inicio" },
   // Obra
   obras: { href: "/obras", titulo: "Obras", icono: "obras" },
-  pedir: { href: "/pedir", titulo: "Pedir un viaje", corto: "Pedir", icono: "pedir" },
+  // Obra: "Pedir" (adentro elige viaje, materiales, OC o PE). El dueño lo tiene como "Pedir un viaje".
+  pedir: { href: "/pedir", titulo: "Pedir", icono: "pedir" },
   pedirViaje: { href: "/pedir", titulo: "Pedir un viaje", icono: "pedir" },
   misPedidos: { href: "/mis-pedidos", titulo: "Mis pedidos", icono: "pedidos", contador: "listosRetirar" },
   viajesObra: { href: "/viajes-en-curso", titulo: "Viajes", icono: "viajes" },

@@ -421,9 +421,28 @@ function Pago({ d }: { d: DocumentoPlantilla }) {
 function DelPedido({ d, celda, atributos }: { d: DocumentoPlantilla; celda: (c: Celda) => ReactNode; atributos: (c: Celda) => AtributosCelda }) {
   const router = useRouter();
   const aviso = useAviso();
-  const [ids, setIds] = useState<string[]>([]);
-  const [subiendo, setSubiendo] = useState(false);
+  // Cada archivo se engancha al documento apenas termina de subir (sin un segundo botón que se olvidaba).
+  const [vuelta, setVuelta] = useState(0);
+  const enganchando = useRef(false);
+  const enviados = useRef(new Set<string>());
   const puedeAdjuntar = d.estado !== "ANULADA" && (d.editables.length > 0 || d.yo.rol === "COMPRAS");
+  async function enganchar(ids: string[], subiendo: boolean) {
+    const nuevos = ids.filter((id) => !enviados.current.has(id));
+    if (subiendo || !nuevos.length || enganchando.current) return;
+    enganchando.current = true;
+    nuevos.forEach((id) => enviados.current.add(id));
+    const r = await adjuntarADocumento(d.id, nuevos);
+    enganchando.current = false;
+    if (!r.ok) {
+      nuevos.forEach((id) => enviados.current.delete(id));
+      return aviso({ mensaje: r.error, tono: "error" });
+    }
+    if (!r.datos.cantidad) return;
+    setVuelta((x) => x + 1);
+    const archivos = r.datos.cantidad === 1 ? "Archivo adjuntado" : `${r.datos.cantidad} archivos adjuntados`;
+    aviso({ mensaje: r.datos.transcritos ? `${archivos}: ${r.datos.transcritos} ${r.datos.transcritos === 1 ? "material pasó" : "materiales pasaron"} al Detalle del Pedido.` : `${archivos}.` });
+    router.refresh();
+  }
   return (
     <section className="flex flex-col gap-3">
       <h2 className="etiqueta">Del pedido</h2>
@@ -435,18 +454,7 @@ function DelPedido({ d, celda, atributos }: { d: DocumentoPlantilla; celda: (c: 
       </div>
       <ListaAdjuntos adjuntos={d.adjuntos} />
       {puedeAdjuntar && (
-        <div className="flex flex-col gap-2">
-          <SubirAdjuntos entidadTipo="ORDEN_COMPRA" etiqueta="Adjuntar lista, presupuesto o foto" compacto onCambio={(x, s) => { setIds(x); setSubiendo(s); }} />
-          {ids.length > 0 && (
-            <Boton variante="secundario" disabled={subiendo} onClick={async () => {
-              const r = await adjuntarADocumento(d.id, ids);
-              if (!r.ok) return aviso({ mensaje: r.error, tono: "error" });
-              setIds([]);
-              aviso({ mensaje: r.datos.cantidad === 1 ? "Archivo adjuntado." : `${r.datos.cantidad} archivos adjuntados.` });
-              router.refresh();
-            }}>Guardar {ids.length === 1 ? "el archivo" : `los ${ids.length} archivos`}</Boton>
-          )}
-        </div>
+        <SubirAdjuntos key={vuelta} entidadTipo="ORDEN_COMPRA" etiqueta="Adjuntar lista, presupuesto o foto" compacto onCambio={(x, s) => void enganchar(x, s)} />
       )}
     </section>
   );

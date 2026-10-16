@@ -2,6 +2,8 @@
 
 import { precargaMaterial } from "@/lib/historial/consultas";
 import { engancharAdjuntos } from "@/lib/archivos";
+import { materialesDeExcels } from "@/lib/compras/listaAdjunta";
+import { textoDeLista } from "@/lib/compras/leerLista";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { exigirPermiso, exigirSesion } from "@/lib/auth/sesion";
@@ -89,7 +91,7 @@ export async function pedirMateriales(entrada: DatosPedirMateriales): Promise<Re
     if (!solicitante) throw new ErrorNegocio("Elegí quién lo pidió.");
 
     // Los archivos tienen que ser de esta persona, recién subidos y sin enganchar.
-    const encontrados = d.adjuntos.length ? await db.adjunto.findMany({ where: { id: { in: d.adjuntos }, subidoPorId: yo.id, entidadTipo: "ORDEN_COMPRA", entidadId: null }, select: { id: true, nombre: true, tipoMime: true } }) : [];
+    const encontrados = d.adjuntos.length ? await db.adjunto.findMany({ where: { id: { in: d.adjuntos }, subidoPorId: yo.id, entidadTipo: "ORDEN_COMPRA", entidadId: null }, select: { id: true, nombre: true, tipoMime: true, url: true } }) : [];
     // En el orden en que se adjuntaron, con las planillas y los PDF antes que las fotos (la descripción nombra el primero).
     const adjuntos = [...encontrados].sort((a, b) => Number(a.tipoMime.startsWith("image/")) - Number(b.tipoMime.startsWith("image/")) || d.adjuntos.indexOf(a.id) - d.adjuntos.indexOf(b.id));
     if (adjuntos.length !== d.adjuntos.length) throw new ErrorNegocio("Algún archivo no se terminó de subir. Quitalo y adjuntalo de nuevo.");
@@ -101,9 +103,14 @@ export async function pedirMateriales(entrada: DatosPedirMateriales): Promise<Re
     const todos = [...adjuntos, ...repetidos];
     if (!d.renglones.length && !todos.length) throw new ErrorNegocio("Escribí qué necesitás o adjuntá la lista de materiales.");
 
-    const lineas = d.renglones.map(textoRenglon);
+    // Sin renglones escritos y con una planilla Excel adjunta: sus materiales pasan al Detalle del Pedido.
+    const excel = d.renglones.length ? null : await materialesDeExcels(todos);
+    const renglones = excel?.renglones.length
+      ? excel.renglones.filter((r) => r.cantidad).map((r) => ({ descripcion: r.descripcion, cantidad: r.cantidad!, unidad: r.unidad ?? "u" }))
+      : d.renglones;
+    const lineas = excel?.renglones.length ? textoDeLista(excel.renglones).split("\n") : d.renglones.map(textoRenglon);
     const detalle = lineas.length
-      ? lineas.join("\n")
+      ? lineas.join("\n").slice(0, 5000)
       : `Ver lista adjunta (${todos[0].nombre}${todos.length > 1 ? ` y ${todos.length - 1} más` : ""})`;
     // Compras o el dueño lo cargan directo en Compras; el resto lo envía a Compras.
     const estado = estadoInicial(yo.rol, true);
@@ -116,7 +123,7 @@ export async function pedirMateriales(entrada: DatosPedirMateriales): Promise<Re
           obraId: obra.id, obraSedeId: sede?.id ?? null, solicitanteId: solicitante.id, detallePedido: detalle, fechaNecesaria: aFecha(d.dia, "12:00"),
           prioridad: d.prioridad, observacionesSolicitante: observaciones, enviadaAComprasEn: new Date(),
           ...(yo.rol === "COMPRAS" ? { tomadoPorId: yo.id, tomadoEn: new Date() } : {}),
-          renglones: d.renglones.length ? { create: d.renglones.map((r, i) => ({ orden: i + 1, descripcion: r.descripcion, cantidad: r.cantidad ?? 1, unidad: r.unidad ?? "u" })) } : undefined,
+          renglones: renglones.length ? { create: renglones.map((r, i) => ({ orden: i + 1, descripcion: r.descripcion.slice(0, 500), cantidad: r.cantidad ?? 1, unidad: r.unidad ?? "u" })) } : undefined,
           // Para que Compras cotice igual y más rápido: con quién se compró la vez anterior (nota interna).
           notasInternas: origen ? `Repite el pedido #${origen.origen.numero}.${origen.origen.oc ? ` La vez anterior lo compró ${origen.origen.oc.proveedor}, ${origen.origen.oc.numero}.` : ""}` : null,
           cambios: { create: { de: null, a: estado, usuarioId: yo.id, nota: comoCompras ? `Cargado por Compras a pedido de ${solicitante.nombre}` : "Pedir materiales" } },
@@ -132,7 +139,7 @@ export async function pedirMateriales(entrada: DatosPedirMateriales): Promise<Re
       await auditar(tx, {
         usuarioId: yo.id, accion: "material.pedir", entidadId: p.id,
         resumen: `${yo.nombre} pidió a Compras ${queLleva(detalle)}${lineas.length > 1 ? ` y ${lineas.length - 1} más` : ""} para Obra ${obra.nombre}${sede ? ` (${sede.nombre})` : ""}${todos.length ? ` con ${todos.length} ${todos.length === 1 ? "archivo adjunto" : "archivos adjuntos"}` : ""}${d.prioridad === "URGENTE" ? " (urgente)" : ""}${comoCompras ? ` a nombre de ${solicitante.nombre}` : ""}${origen ? ` (repite el pedido #${origen.origen.numero})` : ""}`,
-        despues: { estado, renglones: d.renglones, adjuntos: adjuntos.map((a) => a.nombre), dia: d.dia, prioridad: d.prioridad, observaciones: d.observaciones ?? null },
+        despues: { estado, renglones, deExcel: excel?.archivos.length ? excel.archivos : undefined, adjuntos: adjuntos.map((a) => a.nombre), dia: d.dia, prioridad: d.prioridad, observaciones: d.observaciones ?? null },
       });
       // A Compras (push) y al dueño (bandeja). Si lo cargó Compras, no se avisa a sí mismo.
       if (estado === "ENVIADA_A_COMPRAS") {

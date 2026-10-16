@@ -20,6 +20,8 @@ import { incluirDocumento, textosDe, valoresDe } from "./celdas";
 import { sincronizarTablero } from "./estadoTablero";
 import { guardarPDF } from "./pdf";
 import { guardarCeldaComo, type ResultadoCelda } from "./guardar-celda";
+import { materialesDeExcels } from "./listaAdjunta";
+import { textoDeLista } from "./leerLista";
 
 /**
  * ACCIONES DEL DOCUMENTO DE COMPRA (OC/PE). Todas verifican en el servidor quién puede (permisosCeldas.ts
@@ -103,6 +105,12 @@ export async function enviarACompras(ocId: string): Promise<Resultado> {
     await db.$transaction(async (tx) => {
       const d = await docConAcceso(tx, ocId, yo);
       exigirEstado(d, "BORRADOR");
+      // Con la lista adjunta alcanza (como en "Pedir materiales"): el detalle la nombra.
+      const lista = (d.detallePedido ?? "").trim() ? [] : await tx.adjunto.findMany({ where: { entidadTipo: "ORDEN_COMPRA", entidadId: ocId, interno: false }, select: { nombre: true }, orderBy: { creadoEn: "asc" } });
+      if (lista.length) {
+        d.detallePedido = `Ver lista adjunta (${lista[0].nombre}${lista.length > 1 ? ` y ${lista.length - 1} más` : ""})`;
+        await tx.ordenCompra.update({ where: { id: ocId }, data: { detallePedido: d.detallePedido } });
+      }
       const falta = textoFaltan(faltan("enviarACompras", valoresDe(d)));
       if (falta) throw new ErrorNegocio(falta);
       const ok = await cambiarEstado(tx, d, "ENVIADA_A_COMPRAS", yo.id, d.notaDevolucion ? "Lo volvió a enviar" : undefined, { enviadaAComprasEn: new Date(), notaDevolucion: null, ...(d.solicitanteId || d.solicitanteExternoId ? {} : { solicitanteId: yo.id }) });
@@ -392,8 +400,13 @@ export async function historialCeldas(ocId: string): Promise<Resultado<{ celda: 
   });
 }
 
-/** Adjuntos del documento (lista de materiales, presupuestos). Los de Compras pueden ser internos. */
-export async function adjuntarADocumento(ocId: string, adjuntoIds: string[], interno = false): Promise<Resultado<{ cantidad: number }>> {
+/**
+ * Adjuntos del documento (lista de materiales, presupuestos). Los de Compras pueden ser internos. Se enganchan
+ * apenas terminan de subir (no hay un segundo botón: si no, quedaban sueltos y no le llegaban a nadie). Si es una
+ * planilla Excel (.xlsx) y quien la adjunta puede escribir el Detalle del Pedido, sus materiales pasan ahí (si el
+ * detalle estaba vacío lo reemplazan; si no, se agregan abajo), con la misma auditoría y versión que a mano.
+ */
+export async function adjuntarADocumento(ocId: string, adjuntoIds: string[], interno = false): Promise<Resultado<{ cantidad: number; transcritos: number; detalle: string | null }>> {
   return ejecutar(async () => {
     const yo = await exigirSesion();
     const n = await db.$transaction(async (tx) => {
@@ -404,8 +417,30 @@ export async function adjuntarADocumento(ocId: string, adjuntoIds: string[], int
       if (n) await auditar(tx, { usuarioId: yo.id, accion: "oc.adjuntar", entidadId: ocId, resumen: `${yo.nombre} adjuntó ${n} ${n === 1 ? "archivo" : "archivos"} a ${describir(d)}` });
       return n;
     });
+
+    let transcritos = 0;
+    let detalle: string | null = null;
+    const excels = n ? await db.adjunto.findMany({ where: { id: { in: adjuntoIds }, entidadId: ocId }, select: { url: true, nombre: true }, orderBy: { creadoEn: "asc" } }) : [];
+    const { renglones } = await materialesDeExcels(excels);
+    if (renglones.length) {
+      const d = await db.ordenCompra.findUniqueOrThrow({ where: { id: ocId }, select: { detallePedido: true, versionesCeldas: true } });
+      const actual = (d.detallePedido ?? "").trim();
+      const lista = textoDeLista(renglones);
+      const nuevo = (!actual || /^ver lista adjunta/i.test(actual) ? lista : `${actual}\n${lista}`).slice(0, 5000);
+      const version = Number((d.versionesCeldas as Record<string, number> | null)?.detalleDelPedido ?? 0);
+      try {
+        const r = await guardarCeldaComo(yo, ocId, "detalleDelPedido", nuevo, version);
+        if (!r.resultado.conflicto) {
+          transcritos = renglones.filter((x) => x.cantidad).length;
+          detalle = r.resultado.valor;
+        }
+      } catch (e) {
+        // Sin permiso para el detalle (por ejemplo, ya autorizada): queda solo adjunto.
+        if (!(e instanceof ErrorNegocio)) throw e;
+      }
+    }
     refrescar();
-    return { cantidad: n };
+    return { cantidad: n, transcritos, detalle };
   });
 }
 
