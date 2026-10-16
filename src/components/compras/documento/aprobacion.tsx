@@ -68,10 +68,10 @@ export function PdfPlegable({ ocId, numero, abierto: inicial = false }: { ocId: 
   const [abierto, setAbierto] = useState(inicial);
   return (
     <div className="flex flex-col gap-2">
-      <button type="button" onClick={() => setAbierto(!abierto)} aria-expanded={abierto} className="flex min-h-9 items-center gap-2 self-start text-sm font-medium text-suave hover:text-tinta">
-        <FileText className="size-4" /> PDF de la {numero} <ChevronDown className={`size-4 ${abierto ? "rotate-180" : ""}`} />
+      <button type="button" onClick={() => setAbierto(!abierto)} aria-expanded={abierto} className="flex min-h-12 items-center gap-2 self-start rounded-md border border-linea bg-papel px-3 text-sm font-medium hover:bg-hover lg:min-h-9">
+        <FileText className="size-4" /> {abierto ? "Ocultar el PDF" : "Ver el PDF"} <ChevronDown className={`size-4 ${abierto ? "rotate-180" : ""}`} />
       </button>
-      {abierto && <iframe title={`PDF de la ${numero}`} src={`/api/oc/${ocId}/pdf`} className="h-[640px] w-full rounded-[var(--radius-caja)] border border-linea bg-papel" />}
+      {abierto && <iframe title={`PDF de la ${numero}`} src={`/api/oc/${ocId}/pdf`} className="h-[70dvh] w-full lg:h-[640px] rounded-[var(--radius-caja)] border border-linea bg-papel" />}
     </div>
   );
 }

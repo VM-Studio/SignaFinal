@@ -44,8 +44,8 @@ function Leyenda() {
 
 /**
  * TABLERO DE CONTROL de Compras (/compras/tablero; lo primero que ve Compras, y el dueño y Administración).
- * Arriba, si hay pedidos nuevos sin tomar, la franja negra "4 pedidos nuevos esperan que los tomes"; cinco
- * tarjetas-filtro (Todas · Pedir autorización · Encargado · Listas para retirar · Entregado este mes) con la
+ * Arriba, si hay pedidos nuevos sin tomar, la franja negra "4 pedidos nuevos esperan que los tomes"; seis
+ * tarjetas-filtro (Todas · Entraron hoy · Pedir autorización · Encargado · Listas para retirar · Entregado este mes) con la
  * leyenda de su planilla; la barra de filtros en una fila; la franja "Planilla de control COMPRAS" y la
  * planilla. Tocar una fila abre la orden en página completa (con "← Volver al tablero", que deja todo igual).
  */
@@ -69,7 +69,8 @@ export async function PaginaTablero({ sp, ruta }: { sp: Sp; ruta: string }) {
   };
   const pagina = (n: number) => url({ pagina: n > 1 ? String(n) : null });
   const hayFiltros = qs.replace(/(^|&)orden=[^&]*/, "").length > 0;
-  const soloEstado = (e: string | null, mes = false) => url({ estado: e, entregado: mes ? "mes" : null });
+  const soloEstado = (e: string | null, mes = false, hoy = false) => url({ estado: e, entregado: mes ? "mes" : null, entraron: hoy ? "hoy" : null });
+  const sinTarjeta = !f.mes && !f.hoy;
   const estadoUnico = f.estado.length === 1 ? f.estado[0] : null;
   const nombre = u.rol === "COMPRAS" ? u.nombre.split(" ")[0] : "Alejandra";
 
@@ -94,11 +95,12 @@ export async function PaginaTablero({ sp, ruta }: { sp: Sp; ruta: string }) {
       )}
 
       <div className="mb-4 grid gap-6 lg:mb-6 lg:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 lg:gap-4">
-          <TarjetaFiltro href={soloEstado(null)} etiqueta="Todas" valor={cont.todas} activa={!f.estado.length && !f.mes} />
-          <TarjetaFiltro href={soloEstado("PEDIR_AUTORIZACION")} etiqueta="Pedir autorización" valor={cont.pedir} activa={estadoUnico === "PEDIR_AUTORIZACION" && !f.mes} />
-          <TarjetaFiltro href={soloEstado("ENCARGADO")} etiqueta="Encargado" valor={cont.encargado} activa={estadoUnico === "ENCARGADO" && !f.mes} />
-          <TarjetaFiltro href={soloEstado("HABILITADA")} etiqueta="Listas para retirar" valor={cont.habilitadas} activa={estadoUnico === "HABILITADA" && !f.mes} />
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:gap-4 xl:grid-cols-6">
+          <TarjetaFiltro href={soloEstado(null)} etiqueta="Todas" valor={cont.todas} activa={!f.estado.length && sinTarjeta} />
+          <TarjetaFiltro href={soloEstado(null, false, true)} etiqueta="Entraron hoy" valor={cont.hoy} activa={!!f.hoy && !f.estado.length} />
+          <TarjetaFiltro href={soloEstado("PEDIR_AUTORIZACION")} etiqueta="Pedir autorización" valor={cont.pedir} activa={estadoUnico === "PEDIR_AUTORIZACION" && sinTarjeta} />
+          <TarjetaFiltro href={soloEstado("ENCARGADO")} etiqueta="Encargado" valor={cont.encargado} activa={estadoUnico === "ENCARGADO" && sinTarjeta} />
+          <TarjetaFiltro href={soloEstado("HABILITADA")} etiqueta="Listas para retirar" valor={cont.habilitadas} activa={estadoUnico === "HABILITADA" && sinTarjeta} />
           <TarjetaFiltro href={soloEstado(null, true)} etiqueta="Entregado este mes" valor={cont.entregadoMes} activa={!!f.mes && !f.estado.length} />
         </div>
         <Leyenda />
@@ -107,7 +109,7 @@ export async function PaginaTablero({ sp, ruta }: { sp: Sp; ruta: string }) {
       <BarraFiltros
         pantalla="tablero"
         vistas={vistas}
-        otrasClaves={["entregado"]}
+        otrasClaves={["entregado", "entraron"]}
         buscador={{ placeholder: "Buscar materiales, número u observaciones" }}
         orden={{ opciones: ORDENES_TABLERO, porDefecto: "caducidad" }}
         filtros={[

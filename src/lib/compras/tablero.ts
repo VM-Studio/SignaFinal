@@ -3,7 +3,7 @@ import type { EstadoTablero, Prisma, TipoOrden } from "@prisma/client";
 import { db } from "@/lib/db";
 import { exigirSesion } from "@/lib/auth/sesion";
 import { puede } from "@/lib/permisos";
-import { diaISO } from "@/lib/formato";
+import { diaISO, inicioDelDia } from "@/lib/formato";
 import { ESTADOS_TABLERO } from "./estadoTablero";
 import { numeroCorto } from "./numerar";
 import { obraDe, solicitadoPorDe } from "./celdas";
@@ -22,6 +22,8 @@ export type FiltrosTablero = {
   desde?: string; hasta?: string; edesde?: string; ehasta?: string; q?: string; orden: string; pagina: number;
   /** Tarjeta "Entregado este mes" (entregado=mes). */
   mes?: boolean;
+  /** Tarjeta "Entraron hoy" (entraron=hoy): creadas hoy (día argentino), sin las importadas. */
+  hoy?: boolean;
 };
 
 const lista = (v: string | undefined) => (v ? v.split(",").map((x) => x.trim()).filter(Boolean).slice(0, 50) : []);
@@ -37,6 +39,7 @@ export function leerFiltros(sp: Record<string, string | string[] | undefined>): 
     desde: fecha("desde"), hasta: fecha("hasta"), edesde: fecha("edesde"), ehasta: fecha("ehasta"),
     q: s("q")?.trim().slice(0, 100) || undefined,
     mes: s("entregado") === "mes",
+    hoy: s("entraron") === "hoy",
     orden: s("orden") ?? "caducidad",
     pagina: Math.max(1, Math.min(10_000, Number(s("pagina")) || 1)),
   };
@@ -48,6 +51,9 @@ const inicioMes = () => inicioDia(`${diaISO().slice(0, 8)}01`);
 const entregadoEsteMes = (): Prisma.OrdenCompraWhereInput => ({
   AND: [{ estadoTablero: "ENTREGADO" }, { OR: [{ fechaEntrega: { gte: inicioMes() } }, { fechaEntrega: null, fuente: { not: "IMPORTADA" }, actualizadoEn: { gte: inicioMes() } }] }],
 });
+
+/** "Entraron hoy": las órdenes creadas hoy (hora argentina), sin las importadas del Excel. */
+const entraronHoy = (): Prisma.OrdenCompraWhereInput => ({ creadoEn: { gte: inicioDelDia() }, fuente: { not: "IMPORTADA" } });
 
 /** El where de los filtros (lo comparten la tabla, los contadores y la exportación). */
 export function whereTablero(f: Omit<FiltrosTablero, "orden" | "pagina">, sinEstado = false): Prisma.OrdenCompraWhereInput {
@@ -68,6 +74,7 @@ export function whereTablero(f: Omit<FiltrosTablero, "orden" | "pagina">, sinEst
   if (f.prov.length) y.push({ proveedorId: { in: f.prov } });
   if (f.estado.length && !sinEstado) y.push({ estadoTablero: { in: f.estado } });
   if (f.mes && !sinEstado) y.push(entregadoEsteMes());
+  if (f.hoy && !sinEstado) y.push(entraronHoy());
   if (f.desde || f.hasta) y.push({ fecha: { ...(f.desde ? { gte: inicioDia(f.desde) } : {}), ...(f.hasta ? { lte: inicioDia(f.hasta) } : {}) } });
   if (f.edesde || f.ehasta) y.push({ fechaEntrega: { ...(f.edesde ? { gte: inicioDia(f.edesde) } : {}), ...(f.ehasta ? { lte: inicioDia(f.ehasta) } : {}) } });
   if (f.q) {
@@ -158,7 +165,10 @@ export async function tablero(f: FiltrosTablero) {
   const salto = (f.pagina - 1) * POR_PAGINA;
   let filas: FilaDb[];
   let total: number;
-  if (f.orden === "caducidad") {
+  // "Entraron hoy" sin un orden elegido: la más nueva arriba.
+  if (f.hoy && f.orden === "caducidad") {
+    [total, filas] = await Promise.all([db.ordenCompra.count({ where: base }), db.ordenCompra.findMany({ where: base, orderBy: [{ creadoEn: "desc" }], skip: salto, take: POR_PAGINA, select: seleccionTablero })]);
+  } else if (f.orden === "caducidad") {
     const abiertas: Prisma.OrdenCompraWhereInput = { AND: [base, { OR: [{ estadoTablero: null }, { estadoTablero: { notIn: TERMINADOS } }] }] };
     const cerradas: Prisma.OrdenCompraWhereInput = { AND: [base, { estadoTablero: { in: TERMINADOS } }] };
     const [nA, nC] = await Promise.all([db.ordenCompra.count({ where: abiertas }), db.ordenCompra.count({ where: cerradas })]);
@@ -173,18 +183,19 @@ export async function tablero(f: FiltrosTablero) {
   return { filas: filas.map(filaTablero), total, paginas: Math.max(1, Math.ceil(total / POR_PAGINA)), editable: puede(u.rol, "materiales.gestionar"), autorizaPago: puede(u.rol, "materiales.aprobar") };
 }
 
-/** Tarjetas de arriba: Todas · Pedir autorización · Encargado · Listas para retirar · Entregado este mes (con los filtros de tipo/obra/etc., sin el de estado). */
+/** Tarjetas de arriba: Todas · Entraron hoy · Pedir autorización · Encargado · Listas para retirar · Entregado este mes (con los filtros de tipo/obra/etc., sin el de estado). */
 export async function contadoresTablero(f: FiltrosTablero) {
   await exigirTablero();
   const base = whereTablero(f, true);
-  const [todas, pedir, encargado, habilitadas, entregadoMes] = await Promise.all([
+  const [todas, hoy, pedir, encargado, habilitadas, entregadoMes] = await Promise.all([
     db.ordenCompra.count({ where: base }),
+    db.ordenCompra.count({ where: { AND: [base, entraronHoy()] } }),
     db.ordenCompra.count({ where: { AND: [base, { estadoTablero: "PEDIR_AUTORIZACION" }] } }),
     db.ordenCompra.count({ where: { AND: [base, { estadoTablero: "ENCARGADO" }] } }),
     db.ordenCompra.count({ where: { AND: [base, { estadoTablero: "HABILITADA" }] } }),
     db.ordenCompra.count({ where: { AND: [base, entregadoEsteMes()] } }),
   ]);
-  return { todas, pedir, encargado, habilitadas, entregadoMes };
+  return { todas, hoy, pedir, encargado, habilitadas, entregadoMes };
 }
 
 /** Opciones de los chips (con cuántas órdenes tiene cada una en el tablero). */

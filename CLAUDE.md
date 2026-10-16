@@ -250,7 +250,7 @@ sale de un solo lugar: src/app/globals.css (tokens) y src/components/ui (compone
   minmax(0,1fr), flex con min-w-0, tablas dentro de overflow-x-auto, hojas max-w 100vw, áreas seguras con
   env(). scripts/auditar-responsive.ts recorre todas las rutas de todos los roles (360/390/430 y
   1440/1920) y tiene que dar cero desbordes y ninguna pantalla de escritorio por debajo del 90 %.
-- Celular: header negro de 60px (--alto-header-movil; logo de 84px, título de 17px, Actualizar, campana y avatar de 44px); barra inferior de 56px (íconos de
+- Celular: header negro de 60px (--alto-header-movil; logo de 76px, título de 15px, Actualizar, campana y avatar de 44px); barra inferior de 56px (íconos de
   22px, etiqueta de 11px); contenido con padding 16; listas como filas de 56-64px con borde inferior,
   sin tarjeta por fila. Tarjeta solo para la acción principal y el viaje en curso.
 - Splash de carga negro con public/loading.png centrado, barra fina y porcentaje, 2,5 s: al abrir
@@ -299,7 +299,8 @@ objeto: OrdenCompra, el "documento de compra"**, que es la plantilla de Alejandr
   borradores de la obra quedan en Mis pedidos con "Seguir completando". Si lo crea Compras o el dueño, empieza
   EN_COMPRAS. Bandeja de Compras (/compras): chips "Con OC cargada" / "Solo indicaciones" (conOCCargada) y
   "Faltan" por fila; abrir un documento ENVIADA_A_COMPRAS lo pasa a EN_COMPRAS. Acciones: Enviar a autorización,
-  Devolver con nota, Anular. El dueño autoriza en /aprobaciones (pestañas Órdenes · Pagos) viendo el PDF.
+  Devolver con nota, Anular. El dueño autoriza en /aprobaciones (pestañas Órdenes · Pagos): una tarjeta por orden con el detalle (compacta en
+  el celular); el PDF se abre solo si toca "Ver el PDF".
   Barra fija "Marcar como encargada" / "Habilitar para retirar" (MaterialListo: sucursal, horario, contacto,
   retiros parciales); habilitada, la barra se pone verde #E2EFDA "LISTO PARA RETIRAR en … · horario" o "Entrega
   el proveedor el …", con push y "Pedir el viaje" al que pidió (tarjetas verdes en Mis pedidos).
@@ -324,7 +325,8 @@ objeto: OrdenCompra, el "documento de compra"**, que es la plantilla de Alejandr
   abajo) con la misma versión y auditoría que a mano. Solo .xlsx; PDF, Word y fotos quedan solo adjuntos.
   Recorrido: scripts/recorrido-lista-excel.ts.
 - **Tablero** (components/compras/tablero.tsx, pagina-tablero.tsx), calcado de su planilla: franja rosa
-  "Planilla de control COMPRAS - Alejandra", tarjetas-filtro Todas · Pedir autorización · Encargado · Listas para
+  "Planilla de control COMPRAS - Alejandra", tarjetas-filtro Todas · Entraron hoy (creadas hoy, hora argentina, sin importadas, la más nueva arriba; entraron=hoy) ·
+  Pedir autorización · Encargado · Listas para
   retirar · Entregado este mes con la leyenda, encabezado gris fijo, Nº con el código de su leyenda, ESTADO como
   lista pintada (PLANILLA_TABLERO), columna FACTURACIÓN, HABILITADA (#D9F2E6, ícono de camión). Una fila abre
   el documento a página completa (?desde=tablero).

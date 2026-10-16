@@ -186,21 +186,21 @@ export function HeaderMovil({ perfil, secciones }: { perfil: Perfil; secciones: 
   const titulo = pathname === "/inicio" ? "" : tituloDeRuta(pathname, secciones);
   return (
     <header className="pt-segura px-segura sticky top-0 z-30 bg-negro text-white lg:hidden">
-      <div className="flex h-[var(--alto-header-movil)] items-center gap-3 pr-2 pl-4">
+      <div className="flex h-[var(--alto-header-movil)] items-center gap-2 pr-1 pl-4">
         <Link href="/inicio" aria-label="Inicio" className="flex h-12 shrink-0 items-center">
-          <Image src="/marca/signa.png" alt="SIGNA" width={1042} height={278} priority unoptimized className="h-auto w-[84px]" />
+          <Image src="/marca/signa.png" alt="SIGNA" width={1042} height={278} priority unoptimized className="h-auto w-[76px]" />
         </Link>
         {titulo && (
           <>
-            <span aria-hidden className="h-6 w-px shrink-0 bg-white/20" />
-            <p className="min-w-0 flex-1 truncate text-[17px] font-semibold">{titulo}</p>
+            <span aria-hidden className="mx-0.5 h-5 w-px shrink-0 bg-white/20" />
+            <p className="min-w-0 flex-1 truncate text-[15px] font-medium">{titulo}</p>
           </>
         )}
-        <div className="ml-auto flex shrink-0 items-center gap-1">
-          <BotonActualizar className="size-11 disabled:opacity-100" iconos="size-[22px]" oscuro />
-          <Campana className="size-11" iconos="size-[22px]" />
+        <div className="ml-auto flex shrink-0 items-center">
+          <BotonActualizar className="size-11 disabled:opacity-100" iconos="size-5" oscuro />
+          <Campana className="size-11" iconos="size-5" />
           <button onClick={() => setAbierta(true)} aria-label="Mi cuenta" className="grid size-11 shrink-0 place-items-center">
-            <span className="grid size-8 place-items-center rounded-full bg-white text-[14px] font-semibold text-negro">{perfil.nombre.slice(0, 1)}</span>
+            <span className="grid size-7 place-items-center rounded-full bg-white text-[13px] font-semibold text-negro">{perfil.nombre.slice(0, 1)}</span>
           </button>
         </div>
       </div>
