@@ -24,31 +24,35 @@ const conDocumentos = {
 export type VehiculoConDocs = Prisma.VehiculoGetPayload<{ include: typeof conDocumentos }>;
 
 /**
- * ¿Se puede usar este vehículo? Solo se bloquea si está en otro viaje, en el taller, fuera de
- * servicio o sin seguro/VTV vigentes. Si es chico o no es camión, se puede igual: va como aviso.
+ * ¿Se puede usar este vehículo? Solo se bloquea si está en otro viaje, en el taller o fuera de servicio. La
+ * documentación (seguro o VTV vencidos o sin cargar), si es chico o si no es camión: se puede igual, con el aviso.
  */
 export function aptitud(v: VehiculoConDocs, pedido: { pesoKg: number | null; necesitaCamion: boolean }): { apto: boolean; motivo?: string; aviso?: string } {
   if (v.soloDocumentacion) return { apto: false, motivo: "Solo para documentación: no hace viajes" };
-  // Vigente hasta el día de vencimiento inclusive (comparación por día, hora argentina).
-  const vencido = (f: Date) => diaISO(f) < diaISO();
-  const doc = (t: "SEGURO" | "VTV") =>
-    v.documentos.filter((d) => d.tipo === t).sort((a, b) => (b.vencimiento?.getTime() ?? 0) - (a.vencimiento?.getTime() ?? 0))[0];
-  const seguro = doc("SEGURO");
-  const vtv = doc("VTV");
-
   if (!v.activo || v.estado === "FUERA_DE_SERVICIO") return { apto: false, motivo: "Fuera de servicio" };
   if (v.estado === "EN_TALLER") return { apto: false, motivo: "En el taller" };
-  if (!seguro?.vencimiento) return { apto: false, motivo: "Sin seguro cargado" };
-  if (vencido(seguro.vencimiento)) return { apto: false, motivo: "Seguro vencido" };
-  if (vtv && vtv.vencimiento && vencido(vtv.vencimiento)) return { apto: false, motivo: "VTV vencida" };
-  if (!vtv?.vencimiento) return { apto: false, motivo: "Sin VTV cargada" };
   if (v.estado === "EN_VIAJE" || v.viajes.length) return { apto: false, motivo: `En viaje${v.viajes[0] ? ` con ${v.viajes[0].chofer.nombre}` : ""}` };
-  if (pedido.necesitaCamion && v.tipo !== "CAMION") return { apto: true, aviso: "Ojo: el pedido es para camión" };
-  if (pedido.pesoKg && v.capacidadCargaKg && pedido.pesoKg > v.capacidadCargaKg) return { apto: true, aviso: `Ojo: carga hasta ${peso(v.capacidadCargaKg)} y el pedido es de ${peso(pedido.pesoKg)}` };
-  return { apto: true };
+  const avisos = [...avisosDocumentacion(v)];
+  if (pedido.necesitaCamion && v.tipo !== "CAMION") avisos.push("el pedido es para camión");
+  if (pedido.pesoKg && v.capacidadCargaKg && pedido.pesoKg > v.capacidadCargaKg) avisos.push(`carga hasta ${peso(v.capacidadCargaKg)} y el pedido es de ${peso(pedido.pesoKg)}`);
+  return avisos.length ? { apto: true, aviso: `Ojo: ${avisos.join(" · ")}` } : { apto: true };
 }
 
-/** Todos los vehículos activos, cada uno con si se puede usar (y por qué no) o con un aviso. */
+/** "VTV vencida", "sin seguro cargado"…: avisa, nunca bloquea. Vigente hasta el día de vencimiento inclusive (hora argentina). */
+export function avisosDocumentacion(v: { documentos: { tipo: string; vencimiento: Date | null }[] }): string[] {
+  const vencido = (f: Date) => diaISO(f) < diaISO();
+  const ultimo = (t: "SEGURO" | "VTV") => v.documentos.filter((d) => d.tipo === t).sort((a, b) => (b.vencimiento?.getTime() ?? 0) - (a.vencimiento?.getTime() ?? 0))[0];
+  const out: string[] = [];
+  const seguro = ultimo("SEGURO");
+  const vtv = ultimo("VTV");
+  if (!seguro?.vencimiento) out.push("sin seguro cargado");
+  else if (vencido(seguro.vencimiento)) out.push("seguro vencido");
+  if (!vtv?.vencimiento) out.push("sin VTV cargada");
+  else if (vencido(vtv.vencimiento)) out.push("VTV vencida");
+  return out;
+}
+
+/** Todos los vehículos activos que hacen viajes, cada uno con si se puede usar (y por qué no) o con un aviso. */
 export async function vehiculosPara(pedido: { pesoKg: number | null; necesitaCamion: boolean }, choferId: string, cliente: Cliente = db) {
   void choferId;
   const vehiculos = await cliente.vehiculo.findMany({

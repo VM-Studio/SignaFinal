@@ -25,7 +25,16 @@ export function RetiroMateriales({ obras, listos, obraInicial, materialInicial, 
 }) {
   const router = useRouter();
   const aviso = useAviso();
-  const unaObra = obraInicial && obras.some((o) => o.id === obraInicial) ? obraInicial : obras.length === 1 ? obras[0].id : "";
+  // La obra de entrada: la del material de la tarjeta verde; si no, la pedida solo si tiene algo listo (si no, decía "no
+  // tenés materiales listos" aunque los hubiera en otra obra); si no, la única obra con algo listo; si no, a elegir.
+  const conListos = obras.filter((o) => (listos[o.id] ?? []).length > 0);
+  const delMaterial = materialInicial ? obras.find((o) => (listos[o.id] ?? []).some((m) => m.id === materialInicial))?.id : undefined;
+  const unaObra =
+    delMaterial ??
+    (obraInicial && conListos.some((o) => o.id === obraInicial) ? obraInicial
+      : conListos.length === 1 ? conListos[0].id
+      : obras.length === 1 ? obras[0].id
+      : "");
   const [obraId, setObraId] = useState(unaObra);
   const conMaterial = !!materialInicial && (listos[unaObra] ?? []).some((m) => m.id === materialInicial);
   const [paso, setPaso] = useState<1 | 2 | 3>(conMaterial ? 3 : unaObra ? 2 : 1);
@@ -163,3 +172,4 @@ export function RetiroMateriales({ obras, listos, obraInicial, materialInicial, 
     </div>
   );
 }
+

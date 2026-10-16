@@ -38,8 +38,11 @@ export function BotonActualizar({ className, iconos, oscuro = false }: { classNa
 const POR_RUTA: [RegExp, EntidadCambio[]][] = [
   // Formularios: no se refrescan solos. La plantilla del documento se actualiza celda por celda (plantilla.tsx).
   [/^\/compras\/oc\//, []],
-  [/^\/compras\/(importar|viajes)$/, []],
-  [/^\/(pedir|pedir-materiales)(\/|$)/, []],
+  [/^\/compras\/importar$/, []],
+  // Pedir y Coordinar: solo cuando Compras habilita algo (las tarjetas verdes y la lista de Retiro); lo escrito no se pierde.
+  [/^\/compras\/viajes$/, ["MATERIAL_LISTO"]],
+  [/^\/pedir(\/|$)/, ["MATERIAL_LISTO"]],
+  [/^\/pedir-materiales(\/|$)/, []],
   [/^\/inicio/, ["PEDIDO_VIAJE", "VIAJE", "ORDEN_COMPRA", "MATERIAL_LISTO", "HERRAMIENTA", "ALERTA"]],
   [/^\/(solicitudes|hoy|viaje|viajes|viajes-en-curso)(\/|$)/, ["PEDIDO_VIAJE", "VIAJE"]],
   [/^\/mis-pedidos/, ["PEDIDO_VIAJE", "VIAJE", "ORDEN_COMPRA", "MATERIAL_LISTO"]],

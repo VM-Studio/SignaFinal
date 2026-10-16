@@ -168,8 +168,8 @@ Reglas del chofer (src/lib/viajes/fecha.ts, recordatorios*.ts, manual.ts):
 - Un pedido tiene un solo estado. Solo un chofer puede aceptarlo; el segundo ve "Ya lo
   aceptó Claudio".
 - Un chofer no puede tener dos viajes en curso a la vez. Un vehículo tampoco.
-- Vehículo con seguro o VTV vencidos no se usa. Chofer con licencia vencida tampoco.
-  Mensaje claro, no bloqueo silencioso.
+- Vehículo con seguro o VTV vencidos o sin cargar: se usa igual, con el aviso ("Ojo: VTV vencida") al elegirlo
+  (aptitud en pedidos/reglas.ts). Chofer con licencia vencida no maneja. Mensaje claro, no bloqueo silencioso.
 - Peso del pedido ≤ capacidad del camión. Camionetas asignadas no entran en solicitudes.
 - Duplicados de viaje: misma obra + mismo tipo + mismo proveedor (o descripción muy
   parecida) en 48 h → aviso con quién y cuándo, antes de guardar.
@@ -303,7 +303,10 @@ objeto: OrdenCompra, el "documento de compra"**, que es la plantilla de Alejandr
   el celular); el PDF se abre solo si toca "Ver el PDF".
   Barra fija "Marcar como encargada" / "Habilitar para retirar" (MaterialListo: sucursal, horario, contacto,
   retiros parciales); habilitada, la barra se pone verde #E2EFDA "LISTO PARA RETIRAR en … · horario" o "Entrega
-  el proveedor el …", con push y "Pedir el viaje" al que pidió (tarjetas verdes en Mis pedidos).
+  el proveedor el …", con push y "Pedir el viaje" al que pidió (tarjetas verdes arriba de Pedir, donde entra la obra, y de Mis pedidos; el dueño ve las de todas las obras en Pedir un viaje).
+  Se ven al instante: Pedir y Coordinar viaje se refrescan con MATERIAL_LISTO (actualizar.tsx). Retiro en proveedor
+  entra a la obra del material, o a la pedida solo si tiene algo listo, o a la única con algo listo; si no, a elegir
+  (scripts/recorrido-habilitar.ts).
   Un viaje RETIRO_PROVEEDOR solo se pide desde un material habilitado; el viaje mueve el estado del retiro
   (en camino, entregado; si se suelta o cancela vuelve a listo). ENTREGADA cuando todo se entregó y Compras
   marcó "con esto no falta nada".
@@ -493,7 +496,8 @@ tránsito pesado · RUTA · Otro, emisor, número, vencimiento, foto o PDF oblig
 → Documentación ("Sacar foto" abre la cámara) o con scripts/cargar-documentacion.ts desde
 docs/flota/documentacion.json (solo local: papeles reales; ejemplo en documentacion.ejemplo.json). No hay
 documentación inventada: sin papeles, Flota dice "Sin documentación" en rojo, sale la alerta "Vehículo sin
-seguro cargado" (ADMINISTRACION y DIRECCION) y el vehículo no puede salir de viaje. Vencimientos: alerta a 30
+seguro cargado" (ADMINISTRACION y DIRECCION) y al elegir el vehículo para un viaje dice "Ojo: sin seguro cargado · sin VTV
+  cargada", pero se puede usar igual. Vencimientos: alerta a 30
 y 15 días y vencido. La de ejemplo existe solo con MODO_DEMO. La Zanella queda "Tipo a confirmar"
 (Vehiculo.tipoAConfirmar) hasta que se confirme.
 

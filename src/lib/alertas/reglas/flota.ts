@@ -8,7 +8,7 @@ const venceTexto = (n: number) => (n < 0 ? `venció hace ${-n} día${n === -1 ? 
 
 /**
  * Documento de vehículo: vence en 30 o 15 días (aviso) o venció (crítica). Y "Vehículo sin seguro cargado"
- * (crítica) para cada vehículo activo sin seguro: así no puede salir de viaje.
+ * (crítica) para cada vehículo activo sin seguro (puede salir igual, con el aviso).
  */
 async function documentos(): Promise<AlertaCalculada[]> {
   const vehiculos = await db.vehiculo.findMany({ where: { activo: true }, select: { id: true, nombre: true, asignadoAId: true, documentos: { select: { id: true, tipo: true, vencimiento: true, archivoUrl: true, notas: true, creadoEn: true } } } });
@@ -18,7 +18,7 @@ async function documentos(): Promise<AlertaCalculada[]> {
       out.push({
         claveUnica: `SIN_SEGURO:${v.id}`, regla: "DOCUMENTO", severidad: "CRITICA",
         titulo: `${v.nombre}: vehículo sin seguro cargado`,
-        detalle: "Sin seguro no puede salir de viaje. Cargá la póliza en la ficha (Documentación).",
+        detalle: "Sale de viaje sin seguro. Cargá la póliza en la ficha (Documentación).",
         entidadTipo: "Vehiculo", entidadId: v.id, enlace: `/flota/${v.id}?tab=documentacion`, usuarios: [],
       });
     }

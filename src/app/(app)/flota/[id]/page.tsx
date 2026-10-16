@@ -149,7 +149,7 @@ function Documentacion({ v, cargar }: { v: Ficha; cargar: boolean }) {
         </div>
       )}
       {orden.length === 0 ? (
-        <Vacio titulo="Sin documentación cargada">Cargá el seguro y la VTV: sin eso el vehículo no puede salir de viaje.</Vacio>
+        <Vacio titulo="Sin documentación cargada">Cargá el seguro y la VTV: sin eso, cada viaje sale con el aviso.</Vacio>
       ) : (
         <ul className="divide-y divide-linea overflow-hidden rounded-[var(--radius-caja)] border border-linea bg-papel">
           {orden.map((d) => {
